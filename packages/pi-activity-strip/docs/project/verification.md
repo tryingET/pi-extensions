@@ -195,3 +195,72 @@ Evidence:
 - Live Niri proof focused empty workspace index `7`; the strip moved to workspace id `37`. When focus moved to empty workspace index `1`, the strip followed to workspace id `1`, remained aligned at `[8,0]` with `window_size 1904×84`, and reported `windowVisible=true` with `rendererCardCount=0`.
 
 This closes the disappearance report: the strip shell now remains present while its card row truthfully shows the empty-workspace placeholder.
+
+## AK #5233 adaptive visibility and reclaimed Niri space on 2026-08-31
+
+The operator refined the desired behavior after #5229: empty workspaces should hide the ribbon **and** reclaim its reserved top band, rather than retaining a placeholder. This section supersedes #5229's persistent-empty-shell product policy while retaining its investigation history.
+
+The activity strip now coordinates with an optional host-owned helper at `~/.local/bin/pi-activity-strip-niri-space.sh`. The helper exclusively edits one balanced, marked `layout.struts.top` value in Niri's live config, validates the candidate, fingerprints against concurrent edits, atomically replaces and reloads with rollback for unsafe reserve failures, and resets tiled heights by exact window id. Release is fail-safe: persistent `top 0` is retained even if Niri is unavailable. The managed source default is `top 0`, so absence of the strip does not reserve dead space.
+
+Runtime sequencing:
+
+- non-empty view: reserve 84px and reset focused-workspace tiled heights before showing/revealing the strip;
+- empty, ambiguous, failed, or shutdown view: collapse/conceal/hide first, release the strut to 0, and reset tiled heights;
+- reserve calls authoritatively revalidate one-output, workspace, owner-lease, and watchdog invariants; expected-workspace binding prevents stale generations from claiming success;
+- a PID plus `/proc` start-time lease and detached singleton watchdog release the strut after abrupt owner death, while guarded release prevents an old watchdog from clearing a newer owner.
+
+Evidence:
+
+- `npm run check` passed with `129/129` tests and quick release packaging.
+- `shellcheck` and `bash -n` passed for the host helper; both source and live Niri configs passed `niri validate`.
+- Deterministic coverage proves reserve/release ordering, authoritative reserve revalidation, stale-generation retry, absent-helper compatibility, workspace disposal, and ordered Electron quit that waits for release and broker stop even when window hiding fails.
+- Isolated host-helper fixtures proved balanced-marker rejection, checked window-query failures, reserve rollback, fail-safe release with Niri unavailable plus later pending-reload repair, watchdog-start failure compensation, lease-token acknowledgement, guarded old-owner/new-owner handoff, and watchdog cleanup. The helper also compares a fresh config fingerprint immediately before replacement to fail/retry on detected concurrent edits.
+- Live empty-workspace proof: focusing workspace index `1` changed the managed strut `84 → 0`, hid/unmapped the strip (`windowVisible=false`, `rendererCardCount=0`), and enlarged the focused tiled window `1084 → 1168` pixels.
+- Live active-workspace proof: returning to workspace index `2` changed the strut `0 → 84`, reset tiled windows to `1084` pixels, mapped the strip to workspace id `2`, and revealed its non-empty card row.
+- Clean-stop proof released the strut to `0`, removed the lease, and restored tiled height `1168`; restart reserved `84`, restored tiled height `1084`, and revealed the strip.
+- Live `SIGKILL` proof: the watchdog detected the exact PID/start-time owner loss, released `84 → 0`, and enlarged tiled windows `1084 → 1168` within two polling iterations; restart restored the active reservation. A separate fixture proved an old-owner watchdog cannot clear a newly replaced lease.
+
+This is the accepted adaptive contract: ribbon visibility and Niri content reservation move as one coordinated state, leaving neither hidden input masks nor unused top borders.
+
+## Native layer-shell replacement on 2026-09-01
+
+This section supersedes #5233's Electron/config-helper implementation while retaining its historical evidence. The product contract is unchanged: show workspace-local cards, hide on empty workspaces, reclaim the band, and restore without stale input surfaces.
+
+Current architecture:
+
+- Node remains authoritative for broker state, terminal/card identity, Niri workspace projection, ordering inputs, and exact Ghostty activation.
+- A source-bound Rust/Relm4/GTK4 child renders cards as a `wlr-layer-shell` top surface.
+- The compact and expanded surface heights are 84px and 252px; the exclusive zone remains fixed at 84px.
+- Hiding unmaps the layer surface. Panel or controller death destroys the Wayland surface, so Niri releases the exclusive zone without editing config or resetting window heights.
+- Electron runtime files and the adaptive strut helper integration were removed from the package.
+
+Deterministic evidence:
+
+- `npm run check` passes with `83/83` Node tests, lint, type checking, file budgets, and quick packaging.
+- `npm run native:check` passes with `3/3` Rust tests under Rust 1.98.0.
+- Full `npm run release:check` passes tarball packing, credential-isolated Pi installation, installed native-artifact verification, headless doctor failure, and extension registration smoke.
+- The staged receipt binds the binary, complete Rust/CSS source, Cargo lock, compiler, glibc symbol floor, and required shared libraries.
+- Native protocol tests cover nullable Pi timestamps, `processId`, monitoring classification, and real-event stall semantics.
+- Node tests cover workspace projection revisions, broker keyboard entry, compatibility/platform gating, and source-bound artifact verification.
+- Twelve concurrent singleton contenders admit exactly one OS `flock` owner; no stale-file unlink recovery remains.
+
+Nested-Niri evidence:
+
+- A real Node broker/controller projected an exact Ghostty session into one native layer surface.
+- Active → empty → active produced layer counts `1 → 0 → 1` and tiled heights `946 → 1030 → 946` in the controlled compositor.
+- Keyboard-only entry acquired exclusive keyboard interactivity; Enter focused the exact Ghostty window from another focused window and released keyboard ownership to `None`.
+- Killing the panel removed its layer and restored tiled geometry; the controller restarted a fresh panel with the latest view.
+
+Live Niri dogfood evidence:
+
+- Installed runtime reports `backend=native-layer-shell`, one flock-guarded controller child panel, no warnings/errors, one `Top` layer on `DP-1`, no normal Activity Strip window, no helper executable, and no adaptive-strut config marker.
+- Populated → temporary non-Pi empty workspace → populated produced layer visibility `1 → 0 → 1`; the empty-workspace witness used 1166px while populated workspace tiles remained 1084px.
+- Expanded keyboard detail retained the same 1084px tiled height, proving that expansion does not enlarge the exclusive zone.
+- Multi-card workspace dogfood rendered eight cards; Shift+Right advanced the native move counter and Escape collapsed with keyboard mode `None`.
+- Controller `SIGKILL` removed the child panel and layer, then a clean open restored the current view. Direct panel `SIGKILL` triggered bounded controller restart and restored one layer.
+- Click-through dogfood reported `clickThrough=true`, rejected keyboard entry, and kept layer keyboard mode `None`; the native surface installs an empty input region.
+- AT-SPI exposed the panel application, frame, labels, and card button. A registered `object:announcement` listener received `Focused Ghostty window.` from a real activation.
+- Six simultaneous live `open` commands converged on exactly one flock process, one controller, one panel, and one layer surface.
+- Empty-workspace startup leaves the panel process ready but maps no layer surface until a card becomes visible.
+
+Known boundary: one surface/output is supported. Multi-output replication remains explicitly unverified and unclaimed.

@@ -44,6 +44,7 @@ NODE
 echo "== installed extension registration smoke"
 PI_ACTIVITY_STRIP_AUTO_START=0 INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" node --input-type=module <<'NODE'
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -51,9 +52,25 @@ import { pathToFileURL } from "node:url";
 const root = process.env.INSTALLED_PACKAGE_ROOT;
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 assert.ok(pkg.pi?.extensions?.includes("./extensions/activity-strip.js"));
-for (const required of ["extensions/activity-strip.js", "bin/pi-activity-strip.mjs", "src/client/session-telemetry.mjs"]) {
+for (const required of [
+  "extensions/activity-strip.js",
+  "bin/pi-activity-strip.mjs",
+  "src/client/session-telemetry.mjs",
+  "src/native/main.mjs",
+  "native/bin/linux-x64-gnu/pi-activity-strip-panel",
+  "native/bin/linux-x64-gnu/artifact.json",
+  "native/panel/Cargo.lock",
+]) {
   assert.ok(fs.existsSync(path.join(root, required)), `packed artifact missing ${required}`);
 }
+const nativeBinary = path.join(root, "native/bin/linux-x64-gnu/pi-activity-strip-panel");
+const nativeReceipt = JSON.parse(
+  fs.readFileSync(path.join(root, "native/bin/linux-x64-gnu/artifact.json"), "utf8"),
+);
+const binarySha = createHash("sha256").update(fs.readFileSync(nativeBinary)).digest("hex");
+assert.equal(nativeReceipt.schema, "pi-activity-strip-native-artifact.v1");
+assert.equal(nativeReceipt.sha256, binarySha);
+assert.notEqual(fs.statSync(nativeBinary).mode & 0o111, 0);
 const module = await import(`${pathToFileURL(path.join(root, "extensions/activity-strip.js")).href}?release=${Date.now()}`);
 assert.equal(typeof module.default, "function");
 const commands = new Map();

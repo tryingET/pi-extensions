@@ -1,93 +1,77 @@
 ---
-summary: "Top-row live activity strip for local Pi sessions running in Ghostty or other terminals."
+summary: "Native Niri layer-shell activity ribbon for live Pi sessions."
 read_when:
   - "Starting work in this package workspace."
-  - "Installing or verifying the activity strip in Pi."
+  - "Installing or verifying the Activity Strip in Pi."
 system4d:
-  container: "Monorepo package for a local broker + Electron overlay + Pi extension telemetry seam."
-  compass: "Make Pi session activity visible at a glance without changing the operator's normal terminal workflow."
-  engine: "Pi extension emits session telemetry -> local broker aggregates -> top-row Electron strip renders live state."
-  fog: "Main risks are runtime drift across Pi host versions, Electron availability, and stale-session behavior under real long-running work."
+  container: "Monorepo package with a Node telemetry broker/controller and native GTK4 layer-shell panel."
+  compass: "Show exact workspace-local Pi activity without changing normal terminal workflows or mutating compositor configuration."
+  engine: "Pi telemetry -> local broker -> Niri workspace projection -> native layer-shell panel."
+  fog: "Main risks are native ABI availability, stale-session identity, and unverified multi-output behavior."
 ---
 
 # @tryinget/pi-activity-strip
 
-A Pi extension package that gives you a **screen-top activity strip** showing what your live Pi sessions are doing.
+A screen-top activity ribbon for live Pi sessions running in Ghostty.
 
-This package is designed for the exact workflow you asked for:
-- multiple Ghostty tabs
-- multiple Pi sessions
-- a persistent top-row ribbon
-- fine-grained live detail without changing how you normally run Pi
+The runtime is Electron-free. A Node controller retains the tested telemetry, identity, ordering, and exact-focus logic; a small Rust/Relm4/GTK4 panel owns rendering and the Wayland layer-shell surface.
 
 ## What it does
 
-- auto-starts a local top-row overlay when Pi starts in a TUI session
-- tracks each publisher stream independently while aggregating them beneath one stable terminal card
-- on Niri, shows one card per admitted live Ghostty terminal surface on only the focused workspace; two terminals may safely resume the same logical Pi session
-- surfaces:
-  - repo/session label
-  - current phase
-  - current tool or target
-  - fine-grained detail text
-  - elapsed time plus last-seen freshness
-  - state color (`thinking`, `tool`, `waiting`, `done`, `error`)
-- keeps a local broker so multiple Pi processes can report into one strip
-- marks the Pi session in the currently focused Niri/Ghostty terminal with a stronger border and left rail, without adding another label
-- keeps green `done`/`monitoring` cards directly beside the Activity tile, followed by active work and then other settled sessions, on a calm 15-second ordering clock
-- reveals prompt, response, path, and full activity detail on hover or keyboard focus
-- focuses the exact matching Ghostty/Niri window on click or Enter, failing closed when identity is missing or ambiguous
-- keeps the aligned strip shell persistent on the focused Niri workspace; an empty workspace shows the calm placeholder instead of making the ribbon disappear
+- auto-starts with interactive Pi TUI sessions
+- shows one card per admitted Ghostty terminal on the focused Niri workspace
+- aggregates independent publishers beneath stable terminal cards
+- displays repo, phase, tool, detail, elapsed time, and freshness
+- marks the exact currently focused terminal card
+- keeps monitoring-success cards beside the Activity tile, then active and settled cards
+- expands rich details on hover or keyboard focus
+- supports Left/Right navigation and Shift+Left/Right manual movement
+- focuses the exact matching Ghostty window on click or Enter
+- hides completely on workspaces without tracked cards
+- releases its 84px exclusive zone automatically when hidden or crashed
 
 ## Architecture
 
 ```text
-Pi publisher stream
-  -> admitted terminal binding or unbound logical-session containment
-  -> local unix-socket broker with publisher leases
-  -> stable terminal-card projection
-  -> Electron top-row overlay
+Pi publisher streams
+  -> Node Unix-socket broker and session store
+  -> exact terminal identity + Niri workspace projection
+  -> versioned NDJSON child protocol
+  -> Rust / Relm4 / GTK4 panel
+  -> wlr-layer-shell top surface with an 84px exclusive zone
 ```
 
-This is intentionally **local-first**.
-It does not require moving your workflow onto `pi-server` first.
+Layer-shell replaces the old floating Electron window and dynamic Niri-config strut helper. The package no longer edits `~/.config/niri/config.kdl`, resets tiled heights, or requires Electron.
 
-## Current scope
+The compact surface is 84px tall. One engaged card expands the surface to 252px while the exclusive zone remains 84px, so detail overlays content without repeatedly resizing tiled windows.
 
-Implemented now:
-- local per-host broker
-- primary-display top-row strip
-- one card per admitted Ghostty terminal surface on the focused Niri workspace, regardless of activity state
-- aggregation of multiple publisher incarnations beneath one terminal card, with active real-event work preferred over idle heartbeats
-- headless-safe telemetry publishing that cannot claim an inherited Ghostty surface
-- explicit open/focus-strip/focus-session/status/doctor/snapshot/fix-top/stop commands
-- focus-scoped Left/Right navigation and Shift+Left/Right manual card movement
-- local visual capture helpers so the agent can inspect the strip directly
+## Supported host
 
-Not implemented yet:
-- multi-monitor strip replication
-- historical timeline
-- persisted manual card order across strip restarts
-- remote observers via `pi-server`
+The packaged native artifact currently supports:
 
-## Installation in Pi
+- Linux x86_64
+- Wayland
+- a compositor implementing `wlr-layer-shell` (dogfooded on Niri 26.04)
+- GTK4 and gtk4-layer-shell runtime libraries
 
-From this package directory:
+On Arch Linux:
+
+```bash
+sudo pacman -S gtk4 gtk4-layer-shell
+```
+
+Multi-output replication remains unimplemented. The current surface is single-output and must not be described as multi-monitor complete.
+
+## Installation
 
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip
 pi install "$PWD"
 ```
 
-Then for **existing Pi tabs**:
-- run `/reload` in each tab you want tracked
+Reload already-running Pi tabs with `/reload`. New tabs load the package automatically.
 
-For **new Pi tabs**:
-- the package will load automatically from your Pi settings
-
-## Operator commands
-
-### Package-local CLI
+## Commands
 
 ```bash
 npm run strip:open
@@ -98,7 +82,7 @@ npm run strip:fix-top
 npm run strip:stop
 ```
 
-or directly:
+Direct CLI:
 
 ```bash
 node ./bin/pi-activity-strip.mjs open
@@ -107,38 +91,14 @@ node ./bin/pi-activity-strip.mjs focus-session <full-pi-session-id>
 node ./bin/pi-activity-strip.mjs status
 node ./bin/pi-activity-strip.mjs doctor
 node ./bin/pi-activity-strip.mjs snapshot
-node ./bin/pi-activity-strip.mjs fix-top
+node ./bin/pi-activity-strip.mjs stop
 ```
 
-### Pi slash commands
+`fix-top` is now a compatibility no-op: layer-shell placement is compositor-owned.
 
-Inside Pi:
+## Keyboard-only entry
 
-```text
-/activity-strip
-/activity-strip status
-/activity-strip doctor
-/activity-strip fix-top
-/activity-strip stop
-/activity-strip-stop
-```
-
-In Pi with UI support:
-- `/activity-strip status` opens a detailed runtime status report when an editor surface is available
-- `/activity-strip doctor` opens the host-compatibility report
-
-## Interaction model
-
-- **Workspace locality:** one strip follows the Niri workspace selected with Up/Down and renders only tracked Pi terminals whose exact Ghostty windows are on that workspace. Focused-workspace events trigger reconciliation immediately, with polling retained as a fallback. The strip shell remains visible when the focused workspace has no tracked Pi terminals and renders its empty placeholder there. Actual remaps remain concealed and input-disabled until Niri placement and membership are re-verified beyond the compositor animation. The broker remains global and non-Niri desktops retain the global card view.
-- **Ordering:** green `done` cards whose footer reads `monitoring` stay at the far left beside the Activity tile. Active tool/thinking/waiting cards follow, then other settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
-- **Current terminal:** on Niri, the card matching the focused Ghostty window gets a stronger border and left rail without an extra label. Current titles carry a `gs:<family>:<surface>` segment before the final logical-session token, so two terminals that resumed the same session remain distinct.
-- **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the exact terminal-surface title; legacy session-only titles remain a fail-closed migration fallback.
-- **Keyboard inside the strip:** Left/Right changes card focus, Enter activates the focused card, and Shift+Left/Right manually moves it. Manual movement lasts until a later activity regroup or runtime restart.
-- **Fail-closed focus:** terminal, publisher, process, and logical-session identities remain separate. A surface binding requires an interactive UI, a real TTY, a recognized Ghostty process family, and a bounded surface ID. Already-running legacy tabs may recover only through a process-bound `pi-session-presence` sidecar whose source, PID, and cwd agree. Ambiguity disables only the unsafe focus action; it does not churn or conceal unrelated cards.
-
-### Keyboard-only entry on Niri
-
-The package deliberately does not reserve a global Electron shortcut. Bind one compositor key to the fail-closed CLI entrypoint instead:
+Bind a Niri key to the fail-closed CLI entrypoint:
 
 ```kdl
 binds {
@@ -146,91 +106,73 @@ binds {
 }
 ```
 
-`focus-strip` gives keyboard focus only to the unique strip already resident on the currently focused workspace; it never moves a strip between workspaces. The persistent empty placeholder remains visible, but keyboard entry still fails closed when there is no tracked card to activate. This keeps shortcut ownership explicit in Niri and avoids application-level global-key collisions.
+The command temporarily requests exclusive keyboard interactivity, focuses the first card, and releases keyboard ownership after successful activation or Escape. Empty workspaces and click-through mode reject keyboard entry.
 
-## Verification commands
+## Interaction contract
 
-### Package checks
-
-```bash
-npm install
-npm run check
-npm run release:check:quick
-```
-
-### Run the strip locally
-
-```bash
-npm run strip:open
-npm run strip:status
-npm run strip:doctor
-npm run strip:snapshot
-```
-
-### Capture what the agent should inspect
-
-```bash
-npm run capture:strip   # just the Pi activity strip window
-npm run capture:top     # top band of the focused output, including the strip + upper window area
-```
-
-These are specifically useful so the agent can inspect the current visual state without you manually posting screenshots.
-
-### Simulate multiple sessions
-
-```bash
-npm run demo:simulate
-```
-
-### Real Pi smoke on the live broker
-
-```bash
-npm run smoke:headless-live
-```
-
-This smoke:
-- opens the strip
-- runs a real headless Pi session with this extension loaded
-- exercises a real tool call
-- verifies that the broker observed the session while it was active
-
-### Compatibility diagnostics
-
-```bash
-npm run strip:doctor
-node ./bin/pi-activity-strip.mjs doctor --json
-```
-
-Use `doctor` before opening the strip when the host/display assumptions are uncertain. It reports:
-- whether a graphical session is present
-- whether Electron can be resolved
-- whether Niri-specific top-edge repair is available
-- whether the current setup is multi-display even though the strip remains primary-display-only
+- **Workspace locality:** Niri focus events trigger immediate reprojection; bounded polling remains a fallback.
+- **Hide/reclaim:** zero cards unmaps the layer surface. Niri then removes its exclusive zone as part of normal Wayland surface lifecycle.
+- **Crash behavior:** panel lifetime is bound to the Node controller through Linux parent-death signaling and stdin EOF. Unexpected panel exits are restarted with bounded backoff; a dead surface cannot retain an exclusive zone.
+- **Exact focus:** card activation returns to Node, which performs existing fail-closed terminal identity resolution and Niri focus.
+- **Ordering:** monitoring, active, and settled groups refresh on a calm 15-second clock. Manual moves survive until regroup or restart.
+- **Accessibility:** cards expose native GTK labels, selected/expanded state, activation descriptions, and GTK accessible announcements.
 
 ## Environment controls
 
-- `PI_ACTIVITY_STRIP_AUTO_START=0`
-  - disable automatic strip opening on Pi session start
-- `PI_ACTIVITY_STRIP_CLICK_THROUGH=1`
-  - opt out of interaction and restore a mouse-transparent overlay; interactive hover/click/keyboard behavior is the default
-- `PI_ACTIVITY_STRIP_ELECTRON_BIN=/path/to/electron`
-  - override Electron binary discovery
-- `GLIMPSE_ELECTRON_BIN=/path/to/electron`
-  - shared Electron override also respected
+- `PI_ACTIVITY_STRIP_AUTO_START=0` disables extension autostart.
+- `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` installs an empty Wayland input region and disables keyboard entry.
+- `PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN=/absolute/path` selects another receipted panel artifact.
+- `PI_ACTIVITY_STRIP_SOCKET_DIR` and `PI_ACTIVITY_STRIP_SOCKET_PATH` isolate broker fixtures and nested-compositor tests.
 
-## Practical usage for your Ghostty tabs
+Unverified native binaries are rejected unless `PI_ACTIVITY_STRIP_ALLOW_UNVERIFIED_PANEL=1` is explicitly set for development fixtures.
 
-If you want this for all current tabs:
+## Verification
 
-1. install both local package paths with `pi install`
-2. stop any already-running old strip broker with `npm run strip:stop`
-3. run `/reload` inside each already-open Pi tab so telemetry and session-presence title contracts advance together
-4. open the new broker once with `/activity-strip` or `npm run strip:open`
-5. confirm current titles use `· gs:<family>:<surface> · <full-32-hex-session-id-token>`; the final session suffix preserves old-consumer compatibility, while the surface segment disambiguates duplicate resumes
+```bash
+npm run native:build   # exact Rust 1.98 build, tests, staged artifact receipt
+npm run check          # canonical Node/package quality gate
+npm run native:check   # Rust formatting and tests
+npm run release:check  # full packed install and native-artifact smoke
+```
+
+The staged artifact receipt binds:
+
+- binary SHA-256
+- Cargo lock SHA-256
+- complete Rust/CSS source SHA-256
+- Rust compiler version
+- glibc symbol floor
+- required shared libraries
+
+Live verification must inspect Niri layers rather than regular windows:
+
+```bash
+niri msg -j layers | jq '[.[] | select(.namespace == "pi-activity-strip")]'
+```
+
+## Current scope
+
+Implemented:
+
+- local broker and telemetry publishers
+- native GTK4 layer-shell rendering
+- workspace-local Niri projection
+- hide/reclaim and restore
+- pointer and keyboard card interaction
+- exact Ghostty activation
+- bounded panel restart and parent-death cleanup
+- click-through input region
+
+Not implemented:
+
+- one panel per output
+- historical timeline
+- persisted manual ordering
+- remote observers via `pi-server`
 
 ## References
 
 - [Project vision](docs/project/vision.md)
 - [Project resources](docs/project/resources.md)
-- [Verification notes](docs/project/verification.md)
-- [Next session prompt](next_session_prompt.md)
+- [Verification evidence](docs/project/verification.md)
+- [Superseded adaptive-strut design investigation](docs/project/2026-08-31-adaptive-niri-space-design.md)

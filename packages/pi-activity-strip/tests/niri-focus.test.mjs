@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   focusNiriSession,
-  focusNiriStrip,
   readNiriWindows,
-  resolveActivityStripWindow,
   resolveExactGhosttyWindow,
   resolveFocusedNiriWorkspace,
   resolveFocusedSnapshotSessionId,
@@ -407,51 +405,4 @@ test("focused-workspace resolution is exact and supports empty focused workspace
   assert.equal(resolveFocusedNiriWorkspace([focused])?.id, 76);
   assert.equal(resolveFocusedNiriWorkspace([]), null);
   assert.equal(resolveFocusedNiriWorkspace([focused, { ...focused, id: 77, idx: 4 }]), null);
-});
-
-test("focusNiriStrip focuses only a strip with exact sessions on the focused workspace", async () => {
-  const strip = { id: 423, title: "Pi Activity Strip", workspace_id: 76 };
-  const otherStrip = { ...strip, id: 424, workspace_id: 4 };
-  const terminal = ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513");
-  assert.equal(resolveActivityStripWindow([strip])?.id, 423);
-  assert.equal(resolveActivityStripWindow([strip, otherStrip]), null);
-  assert.equal(resolveActivityStripWindow([strip, otherStrip], 76)?.id, 423);
-
-  const calls = [];
-  const exec = async (_file, args) => {
-    calls.push(args);
-    if (args.at(-1) === "windows") {
-      return { stdout: JSON.stringify([strip, otherStrip, terminal]) };
-    }
-    if (args.at(-1) === "workspaces") {
-      return { stdout: JSON.stringify([{ id: 76, idx: 3, name: null, is_focused: true }]) };
-    }
-    return { stdout: "" };
-  };
-  const result = await focusNiriStrip(exec, { NIRI_SOCKET: "socket" }, [{ sessionId }]);
-  assert.equal(result.ok, true);
-  assert.deepEqual(calls.at(-1), ["msg", "action", "focus-window", "--id", "423"]);
-  assert.equal(
-    calls.some((args) => args.includes("move-window-to-workspace")),
-    false,
-  );
-
-  const focusCallCount = calls.filter((args) => args.includes("focus-window")).length;
-  const emptyResult = await focusNiriStrip(exec, { NIRI_SOCKET: "socket" }, []);
-  assert.equal(emptyResult.ok, false);
-  assert.equal(calls.filter((args) => args.includes("focus-window")).length, focusCallCount);
-
-  const absentResult = await focusNiriStrip(
-    async (_file, args) => {
-      if (args.at(-1) === "windows") return { stdout: JSON.stringify([otherStrip]) };
-      if (args.at(-1) === "workspaces") {
-        return { stdout: JSON.stringify([{ id: 76, idx: 3, name: null, is_focused: true }]) };
-      }
-      return { stdout: "" };
-    },
-    { NIRI_SOCKET: "socket" },
-    [{ sessionId }],
-  );
-  assert.equal(absentResult.ok, false);
-  assert.match(absentResult.error, /resident strip/);
 });

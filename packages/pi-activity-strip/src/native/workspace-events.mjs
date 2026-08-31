@@ -8,7 +8,7 @@
  * Trigger focused-workspace reconciliation immediately from Niri's event
  * stream while retaining the slower poll as a fail-closed fallback.
  * @param {{
- *   spawn: Function;
+ *   spawn: typeof import("node:child_process").spawn;
  *   env: NodeJS.ProcessEnv;
  *   onFocusedWorkspace: (workspaceId: number) => void;
  *   onFallback: () => void;
@@ -22,7 +22,9 @@ export function createNiriWorkspaceEventWatcher(options) {
   const clearIntervalFn = options.clearIntervalFn ?? clearInterval;
   let buffer = "";
   let stopped = false;
+  /** @type {ReturnType<typeof import("node:child_process").spawn> | null} */
   let child = null;
+  /** @type {number | null} */
   let lastFocusedWorkspaceId = null;
 
   const fallbackTimer = setIntervalFn(() => {
@@ -30,6 +32,7 @@ export function createNiriWorkspaceEventWatcher(options) {
   }, options.fallbackMs);
   fallbackTimer.unref?.();
 
+  /** @param {unknown} chunk */
   function consume(chunk) {
     if (stopped) return;
     buffer += String(chunk ?? "");

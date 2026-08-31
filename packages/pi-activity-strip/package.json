@@ -26,6 +26,12 @@
   "engines": {
     "node": ">=22.19.0"
   },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
@@ -40,6 +46,8 @@
     "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "native:check": "cd native/panel && RUSTUP_TOOLCHAIN=stable cargo fmt --check && RUSTUP_TOOLCHAIN=stable cargo test",
+    "native:build": "bash ./scripts/build-native-panel.sh",
     "strip:open": "node ./bin/pi-activity-strip.mjs open",
     "strip:status": "node ./bin/pi-activity-strip.mjs status",
     "strip:doctor": "node ./bin/pi-activity-strip.mjs doctor",
@@ -56,6 +64,10 @@
     "extensions/activity-strip.js",
     "extensions/activity-strip.ts",
     "src",
+    "native/bin",
+    "native/panel/Cargo.toml",
+    "native/panel/Cargo.lock",
+    "native/panel/src",
     "prompts",
     "examples",
     "policy/security-policy.json"

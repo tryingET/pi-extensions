@@ -14,6 +14,7 @@ export function formatBrokerRuntimeStatus(result) {
 
   const lines = [
     runtime.state === "ready" ? "running (ready)" : `running (${runtime.state})`,
+    `backend: ${runtime.backend || "unknown"}`,
     `display: ${runtime.displayServer || "unknown"}`,
     `window manager: ${runtime.windowManager || "unknown"}`,
     `alignment: ${runtime.alignmentMode || "unknown"}`,
@@ -23,7 +24,7 @@ export function formatBrokerRuntimeStatus(result) {
     lines.push(`displays: ${runtime.displayCount}`);
   }
   if (typeof runtime.windowVisible === "boolean") {
-    lines.push(`window visible: ${runtime.windowVisible ? "yes" : "no"}`);
+    lines.push(`surface visible: ${runtime.windowVisible ? "yes" : "no"}`);
   }
   if (runtime.error) {
     lines.push(`error: ${runtime.error}`);

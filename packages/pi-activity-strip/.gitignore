@@ -1,6 +1,7 @@
 node_modules/
 lib/
 dist/
+native/panel/target/
 *.log
 .DS_Store
 *.tgz

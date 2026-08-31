@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  createLatestOnlyRunner,
-  hasNiriFloatingPosition,
-  isNiriWindowAligned,
-} from "../src/common/alignment-controller.mjs";
+import { createLatestOnlyRunner } from "../src/common/alignment-controller.mjs";
 
 function deferred() {
   let resolve;
@@ -13,39 +9,6 @@ function deferred() {
   });
   return { promise, resolve };
 }
-
-test("floating-position readiness tolerates a transient missing Niri window", () => {
-  const sequence = [
-    { is_floating: false, layout: { tile_pos_in_workspace_view: null } },
-    undefined,
-    { is_floating: true, layout: { tile_pos_in_workspace_view: [8, 0] } },
-  ];
-
-  assert.deepEqual(sequence.map(hasNiriFloatingPosition), [false, false, true]);
-});
-
-test("top alignment requires floating position and exact configured size", () => {
-  const target = { x: 8, y: 0, width: 1904, height: 84 };
-  const aligned = {
-    is_floating: true,
-    layout: { tile_pos_in_workspace_view: [8, 0], window_size: [1904, 84] },
-  };
-  assert.equal(isNiriWindowAligned(aligned, target), true);
-  assert.equal(
-    isNiriWindowAligned(
-      { ...aligned, layout: { ...aligned.layout, tile_pos_in_workspace_view: [984, 116] } },
-      target,
-    ),
-    false,
-  );
-  assert.equal(
-    isNiriWindowAligned(
-      { ...aligned, layout: { ...aligned.layout, window_size: [936, 1084] } },
-      target,
-    ),
-    false,
-  );
-});
 
 test("latest-only alignment invalidates stale asynchronous geometry work", async () => {
   const firstStarted = deferred();

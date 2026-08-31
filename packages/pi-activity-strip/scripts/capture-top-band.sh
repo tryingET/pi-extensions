@@ -15,7 +15,7 @@ if ! command -v grim >/dev/null 2>&1; then
 fi
 
 band_height="${1:-180}"
-output_path="${2:-$(mktemp /tmp/pi-top-band-XXXXXX.png)}"
+output_path="${2:-$(mktemp "${TMPDIR:-$HOME/.cache}/pi-top-band-XXXXXX.png")}"
 
 case "$band_height" in
   ''|*[!0-9]*)

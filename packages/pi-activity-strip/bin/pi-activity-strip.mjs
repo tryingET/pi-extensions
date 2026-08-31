@@ -5,11 +5,11 @@
 //   - "operating or diagnosing the activity strip from a terminal"
 // ---
 
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import {
   getBrokerStatus,
   isBrokerAlive,
@@ -20,61 +20,22 @@ import {
   assessActivityStripCompatibility,
   formatCompatibilityReport,
 } from "../src/common/compatibility.mjs";
-import { ACTIVITY_STRIP_START_TIMEOUT_MS } from "../src/common/constants.mjs";
-import { locateElectron } from "../src/common/electron.mjs";
-import { focusNiriStrip, resolveActivityStripWindow } from "../src/common/niri-focus.mjs";
+import {
+  ACTIVITY_STRIP_SOCKET_DIR,
+  ACTIVITY_STRIP_START_TIMEOUT_MS,
+} from "../src/common/constants.mjs";
 import { makeMessage } from "../src/common/protocol.mjs";
 import { formatBrokerRuntimeStatus } from "../src/common/status-report.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const electronEntry = path.resolve(__dirname, "..", "src", "electron", "main.mjs");
-const execFileAsync = promisify(execFile);
+const nativeEntry = path.resolve(__dirname, "..", "src", "native", "main.mjs");
+const runtimeLockPath = path.join(ACTIVITY_STRIP_SOCKET_DIR, "runtime.lock");
 
 function usage() {
   console.log(
-    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Focus the visible strip already resident on the focused Niri workspace\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  fix-top           Move the strip window flush to the top edge in Niri\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the Electron shell in the foreground\n`,
+    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Focus the visible strip already resident on the focused Niri workspace\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  fix-top           Confirm compositor-owned layer-shell placement\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the native runtime in the foreground\n`,
   );
-}
-
-async function moveStripToTop() {
-  const { stdout } = await execFileAsync("niri", ["msg", "-j", "windows"], {
-    env: process.env,
-  });
-  const windows = JSON.parse(stdout);
-  if (!Array.isArray(windows)) {
-    throw new Error("Unexpected niri windows payload");
-  }
-
-  const stripWindow = resolveActivityStripWindow(windows);
-  if (!stripWindow) {
-    throw new Error("Could not find one unique Pi Activity Strip window in niri");
-  }
-
-  const layout = /** @type {{ tile_pos_in_workspace_view?: unknown[] }} */ (
-    stripWindow.layout ?? {}
-  );
-  const currentY = Number(layout.tile_pos_in_workspace_view?.[1] ?? 0);
-  if (Math.abs(currentY) < 1) {
-    return 0;
-  }
-
-  await execFileAsync(
-    "niri",
-    [
-      "msg",
-      "action",
-      "move-floating-window",
-      "--id",
-      String(stripWindow.id),
-      "-y",
-      String(-Math.round(currentY)),
-    ],
-    { env: process.env },
-  );
-
-  console.log("Moved activity strip to the top edge.");
-  return 0;
 }
 
 async function waitForBrokerReady(timeoutMs = ACTIVITY_STRIP_START_TIMEOUT_MS) {
@@ -111,8 +72,19 @@ async function waitForBrokerReady(timeoutMs = ACTIVITY_STRIP_START_TIMEOUT_MS) {
 /** @param {{ detached?: boolean }} [options] @returns {Promise<number>} */
 async function openStrip({ detached = true } = {}) {
   if (await isBrokerAlive()) {
-    console.log("Activity strip is already running.");
-    return 0;
+    const status = await getBrokerStatus({ expectReply: true }).catch(() => null);
+    if (status?.runtimeStatus?.state !== "error") {
+      console.log("Activity strip is already running.");
+      return 0;
+    }
+    await requestBrokerShutdown().catch(() => null);
+    for (let attempt = 0; attempt < 20 && (await isBrokerAlive()); attempt += 1) {
+      await delay(50);
+    }
+    if (await isBrokerAlive()) {
+      console.error(formatBrokerRuntimeStatus(status));
+      return 1;
+    }
   }
 
   const compatibility = await assessActivityStripCompatibility();
@@ -121,11 +93,11 @@ async function openStrip({ detached = true } = {}) {
     return 1;
   }
 
-  const electron = await locateElectron();
-  const child = spawn(electron, [electronEntry], {
+  fs.mkdirSync(ACTIVITY_STRIP_SOCKET_DIR, { recursive: true, mode: 0o700 });
+  const child = spawn("flock", ["--nonblock", runtimeLockPath, process.execPath, nativeEntry], {
     detached,
     stdio: detached ? "ignore" : "inherit",
-    env: process.env,
+    env: { ...process.env, PI_ACTIVITY_STRIP_RUNTIME_LOCK_HELD: "1" },
   });
 
   if (detached) {
@@ -166,7 +138,9 @@ async function main() {
           process.exitCode = 1;
           return;
         }
-        const result = await focusNiriStrip(execFileAsync, process.env, status?.snapshot?.sessions);
+        const result = await sendBrokerMessage(makeMessage("focus-strip"), {
+          expectReply: true,
+        });
         if (!result.ok) console.error(result.error || "Strip focus did nothing.");
         process.exitCode = result.ok ? 0 : 1;
       } catch {
@@ -234,15 +208,10 @@ async function main() {
       }
       return;
     }
-    case "fix-top": {
-      try {
-        process.exitCode = await moveStripToTop();
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : String(error));
-        process.exitCode = 1;
-      }
+    case "fix-top":
+      console.log("Native layer-shell placement is compositor-owned; no repair was needed.");
+      process.exitCode = 0;
       return;
-    }
     case "stop": {
       try {
         const result = await requestBrokerShutdown();

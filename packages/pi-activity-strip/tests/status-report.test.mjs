@@ -15,9 +15,10 @@ test("formatBrokerRuntimeStatus renders runtime warnings and readiness metadata"
     ok: true,
     runtimeStatus: {
       state: "ready",
+      backend: "native-layer-shell",
       displayServer: "wayland",
       windowManager: "niri",
-      alignmentMode: "niri",
+      alignmentMode: "layer-shell",
       displayCount: 2,
       windowVisible: true,
       warnings: ["Detected 2 displays; the strip currently renders on the primary display only."],
@@ -28,7 +29,7 @@ test("formatBrokerRuntimeStatus renders runtime warnings and readiness metadata"
   assert.match(text, /display: wayland/);
   assert.match(text, /window manager: niri/);
   assert.match(text, /displays: 2/);
-  assert.match(text, /window visible: yes/);
+  assert.match(text, /surface visible: yes/);
   assert.match(text, /warnings:/);
 });
 

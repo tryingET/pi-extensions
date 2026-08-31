@@ -1,12 +1,11 @@
 // ---
-// summary: "detects desktop and Electron prerequisites and formats actionable activity-strip compatibility reports"
+// summary: "detects native layer-shell prerequisites and formats actionable activity-strip compatibility reports"
 // read_when:
 //   - "changing host detection, compatibility blockers, warnings, or doctor output"
 // ---
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { locateElectron } from "./electron.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -67,14 +66,17 @@ export async function detectDisplayCount(options = {}) {
 /**
  * @param {{
  *   env?: NodeJS.ProcessEnv;
- *   locateElectronImpl?: typeof locateElectron;
  *   execFileAsyncImpl?: typeof execFileAsync;
+ *   platform?: NodeJS.Platform;
+ *   arch?: string;
  * }} [options]
  * @returns {Promise<import("./contracts.ts").ActivityStripCompatibilityReport>}
  */
 export async function assessActivityStripCompatibility(options = {}) {
   const env = options.env || process.env;
-  const locateElectronImpl = options.locateElectronImpl || locateElectron;
+  const backend = "native";
+  const platform = options.platform ?? process.platform;
+  const arch = options.arch ?? process.arch;
   const displayServer = detectDisplayServer(env);
   const windowManager = detectWindowManager(env);
   const displayCount = await detectDisplayCount({
@@ -83,7 +85,6 @@ export async function assessActivityStripCompatibility(options = {}) {
   });
   const blockers = [];
   const warnings = [];
-  let electronPath = null;
 
   if (displayServer === "headless") {
     blockers.push(
@@ -97,10 +98,11 @@ export async function assessActivityStripCompatibility(options = {}) {
     );
   }
 
-  try {
-    electronPath = await locateElectronImpl();
-  } catch (error) {
-    blockers.push(error instanceof Error ? error.message : String(error));
+  if (displayServer !== "headless" && displayServer !== "wayland") {
+    blockers.push("The native Activity Strip panel requires a Wayland session.");
+  }
+  if (platform !== "linux" || arch !== "x64") {
+    blockers.push(`The packaged native panel requires Linux x64; detected ${platform} ${arch}.`);
   }
 
   if (displayCount && displayCount > 1) {
@@ -111,17 +113,17 @@ export async function assessActivityStripCompatibility(options = {}) {
 
   if (windowManager !== "niri") {
     warnings.push(
-      "Top-edge repair is optimized for Niri. Other window managers fall back to generic Electron bounds and may need manual adjustment.",
+      "Workspace-local projection is optimized for Niri; other layer-shell compositors show the global card view.",
     );
   }
 
   return {
     ok: blockers.length === 0,
+    backend,
     displayServer,
     windowManager: typeof windowManager === "string" ? windowManager : null,
-    electronPath,
     displayCount,
-    alignmentMode: windowManager === "niri" ? "niri" : "generic",
+    alignmentMode: "layer-shell",
     primaryDisplayOnly: true,
     clickThroughDefault: env.PI_ACTIVITY_STRIP_CLICK_THROUGH === "1",
     blockers,
@@ -137,7 +139,7 @@ export function formatCompatibilityReport(report) {
     `Compatibility: ${report.ok ? "compatible" : "blocked"}`,
     `Display server: ${report.displayServer}`,
     `Window manager: ${report.windowManager || "unknown"}`,
-    `Electron: ${report.electronPath || "not found"}`,
+    `Backend: ${report.backend}`,
     `Alignment mode: ${report.alignmentMode}`,
     `Primary-display only: ${report.primaryDisplayOnly ? "yes" : "no"}`,
     `Click-through mode: ${report.clickThroughDefault ? "enabled by environment" : "disabled (interactive default)"}`,

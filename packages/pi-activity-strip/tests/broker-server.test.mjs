@@ -118,6 +118,22 @@ test("broker delegates exact card focus and returns the bounded result", async (
   assert.deepEqual(JSON.parse(socket.writes.at(-1)), { type: "focus", ok: true, windowId: 44 });
 });
 
+test("broker delegates keyboard entry to the native strip controller", async () => {
+  let calls = 0;
+  const broker = new ActivityStripBroker({
+    async focusStrip() {
+      calls += 1;
+      return { ok: true };
+    },
+  });
+  const socket = new FakeSocket();
+  broker.handleConnection(socket);
+  socket.emit("data", `${JSON.stringify({ type: "focus-strip" })}\n`);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 1);
+  assert.deepEqual(JSON.parse(socket.writes.at(-1)), { type: "focus-strip", ok: true });
+});
+
 test("broker restricts its control socket to the current user", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-activity-strip-broker-"));
   const socketDir = path.join(root, "state");

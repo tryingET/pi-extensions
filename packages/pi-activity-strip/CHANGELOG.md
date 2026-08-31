@@ -19,8 +19,9 @@ All notable changes to this project should be documented here.
 
 - Add calm 15-second active-first ordering with live keyed card updates and manual keyboard movement.
 - Add rich hover/focus detail, accessible card navigation, exact fail-closed Ghostty focus, and a compositor-bindable `focus-strip` command.
-- Follow the focused Niri workspace and keep compact/expanded strip states top-aligned.
-- Keep the strip shell visible on focused empty workspaces with its placeholder instead of parking it off-screen on the last workspace that had tracked sessions.
+- Follow the focused Niri workspace with a native Rust/Relm4/GTK4 layer-shell panel.
+- Replace Electron and dynamic Niri-config struts with a compositor-owned 84px exclusive zone that disappears automatically when the panel hides or crashes.
+- Add source-bound Linux x64 native artifacts, bounded child restart, parent-death cleanup, click-through input regions, and GTK accessible announcements.
 
 ### Changes
 
@@ -30,8 +31,8 @@ All notable changes to this project should be documented here.
 - Separate publisher, logical-session, terminal-surface, and renderer-card identities so duplicate session IDs cannot trigger perpetual Niri conceal/reveal reconciliation or shadow active work behind an idle publisher.
 - Serialize publisher delivery, add monotonic publisher sequences, expire leases by broker receipt time, bound broker input/cardinality, and retry lost state transitions without allowing late writes to regress or resurrect state.
 - Make publisher-record membership comparison reflexive, fix the latest-only worker finalization race, bound every Niri action, and prevent passive focus probes or main-issued collapse events from feeding redundant reconciliation.
-- Collapse expanded detail when pointer/focus leaves the strip or another desktop window becomes active, and disable compositor/CSS shadows on the transparent overlay.
-- Keep the Wayland surface resize-capable, explicitly floating, and reconcile its native dimensions on every collapse request, so the transparent input mask returns to compact height with the card content.
+- Collapse expanded detail when pointer/focus leaves the strip or another desktop window becomes active; expanded detail remains 252px while the exclusive zone stays fixed at 84px.
+- Bind the native panel lifetime to its Node controller, coalesce backpressured view updates, and restart unexpected panel exits without leaving a reserved band.
 - Recover exact Pi identities for already-running tabs only through validated process-bound `pi-session-presence` sidecars; otherwise retain the `/reload` fail-closed path.
 - Prefer full hyphenless 32-hex Ghostty session identities while retaining 8-hex titles only when no legacy duplicate or migrated full title shares that prefix; mixed-version collisions fail closed until reload.
 

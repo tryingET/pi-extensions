@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
-import { createNiriWorkspaceEventWatcher } from "../src/electron/niri-workspace-events.mjs";
+import { createNiriWorkspaceEventWatcher } from "../src/native/workspace-events.mjs";
 
 test("focused workspace events reconcile immediately while other events are ignored", () => {
   const stdout = new EventEmitter();

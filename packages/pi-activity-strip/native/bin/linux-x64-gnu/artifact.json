@@ -1,0 +1,21 @@
+{
+  "schema": "pi-activity-strip-native-artifact.v1",
+  "target": "x86_64-unknown-linux-gnu",
+  "sha256": "54d72469b6bc70b712b3cb8fafdd767a37e8140428e5f195bc0279629bf79d82",
+  "cargoLockSha256": "f8ebc11bc721c569af982169e448a5ea4fed15bc06001017d97acda22b1c890b",
+  "sourceSha256": "cb0c296ce488db326f1f29ad9fdc304e0ae63ea633b25fc8506624be64584c0e",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "glibcFloor": "GLIBC_2.34",
+  "neededSonames": [
+    "libgtk4-layer-shell.so.0",
+    "libgtk-4.so.1",
+    "libcairo.so.2",
+    "libgio-2.0.so.0",
+    "libgobject-2.0.so.0",
+    "libglib-2.0.so.0",
+    "libgcc_s.so.1",
+    "libm.so.6",
+    "libc.so.6",
+    "ld-linux-x86-64.so.2"
+  ]
+}

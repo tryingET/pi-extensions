@@ -51,6 +51,8 @@ export class ActivityStripBroker extends EventEmitter {
     this.getRuntimeStatus = options.getRuntimeStatus ?? (() => undefined);
     this.focusSession =
       options.focusSession ?? (async () => ({ ok: false, error: "Focus unavailable" }));
+    this.focusStrip =
+      options.focusStrip ?? (async () => ({ ok: false, error: "Strip focus unavailable" }));
     this.server = net.createServer((socket) => this.handleConnection(socket));
     this.tick = null;
   }
@@ -151,6 +153,17 @@ export class ActivityStripBroker extends EventEmitter {
           .then((result) => this.reply(socket, { type: "focus", ...result }))
           .catch(() =>
             this.reply(socket, { ok: false, type: "focus", error: "Focus failed closed." }),
+          );
+        return;
+      case "focus-strip":
+        Promise.resolve(this.focusStrip())
+          .then((result) => this.reply(socket, { type: "focus-strip", ...result }))
+          .catch(() =>
+            this.reply(socket, {
+              ok: false,
+              type: "focus-strip",
+              error: "Strip focus failed closed.",
+            }),
           );
         return;
       case "shutdown":

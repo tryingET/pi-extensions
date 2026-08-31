@@ -39,16 +39,10 @@ test("detectDisplayCount parses niri output listings when available", async () =
 });
 
 test("assessActivityStripCompatibility fails closed for headless sessions", async () => {
-  const report = await assessActivityStripCompatibility({
-    env: {},
-    async locateElectronImpl() {
-      return "/tmp/electron";
-    },
-  });
+  const report = await assessActivityStripCompatibility({ env: {} });
 
   assert.equal(report.ok, false);
   assert.match(report.blockers.join("\n"), /No graphical display session detected/i);
-  assert.equal(report.electronPath, "/tmp/electron");
 });
 
 test("assessActivityStripCompatibility fails closed when niri has no connected outputs", async () => {
@@ -56,9 +50,6 @@ test("assessActivityStripCompatibility fails closed when niri has no connected o
     env: {
       WAYLAND_DISPLAY: "wayland-1",
       NIRI_SOCKET: "/tmp/niri.sock",
-    },
-    async locateElectronImpl() {
-      return "/tmp/electron";
     },
     async execFileAsyncImpl() {
       return { stdout: "{}", stderr: "" };
@@ -78,9 +69,6 @@ test("assessActivityStripCompatibility reports multi-display warnings and niri a
       NIRI_SOCKET: "/tmp/niri.sock",
       PI_ACTIVITY_STRIP_CLICK_THROUGH: "0",
     },
-    async locateElectronImpl() {
-      return "/tmp/electron";
-    },
     async execFileAsyncImpl() {
       return {
         stdout: JSON.stringify([{ name: "HDMI-A-1" }, { name: "DP-1" }]),
@@ -92,7 +80,7 @@ test("assessActivityStripCompatibility reports multi-display warnings and niri a
   assert.equal(report.ok, true);
   assert.equal(report.displayServer, "wayland");
   assert.equal(report.windowManager, "niri");
-  assert.equal(report.alignmentMode, "niri");
+  assert.equal(report.alignmentMode, "layer-shell");
   assert.equal(report.displayCount, 2);
   assert.equal(report.clickThroughDefault, false);
   assert.match(report.warnings.join("\n"), /primary display only/i);
@@ -103,10 +91,31 @@ test("assessActivityStripCompatibility reports multi-display warnings and niri a
       WAYLAND_DISPLAY: "wayland-1",
       PI_ACTIVITY_STRIP_CLICK_THROUGH: "1",
     },
-    async locateElectronImpl() {
-      return "/tmp/electron";
-    },
   });
   assert.equal(clickThroughReport.clickThroughDefault, true);
   assert.match(formatCompatibilityReport(clickThroughReport), /Click-through mode: enabled/);
+});
+
+test("native compatibility reports the layer-shell backend on Niri", async () => {
+  const report = await assessActivityStripCompatibility({
+    env: { WAYLAND_DISPLAY: "wayland-1", NIRI_SOCKET: "/tmp/niri.sock" },
+    async execFileAsyncImpl() {
+      return { stdout: JSON.stringify([{ name: "DP-1" }]), stderr: "" };
+    },
+  });
+
+  assert.equal(report.ok, true);
+  assert.equal(report.backend, "native");
+  assert.equal(report.alignmentMode, "layer-shell");
+  assert.match(formatCompatibilityReport(report), /Backend: native/);
+});
+
+test("native compatibility rejects unsupported packaged architectures", async () => {
+  const report = await assessActivityStripCompatibility({
+    env: { WAYLAND_DISPLAY: "wayland-1" },
+    platform: "linux",
+    arch: "arm64",
+  });
+  assert.equal(report.ok, false);
+  assert.match(report.blockers.join("\n"), /requires Linux x64/i);
 });

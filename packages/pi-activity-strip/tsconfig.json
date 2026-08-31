@@ -17,7 +17,8 @@
     "extensions/**/*.js",
     "src/broker/**/*.mjs",
     "src/client/**/*.mjs",
-    "src/common/**/*.mjs"
+    "src/common/**/*.mjs",
+    "src/native/**/*.mjs"
   ],
-  "exclude": ["src/electron/**/*.mjs", "src/ui/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts"]
+  "exclude": ["tests/**/*.mjs", "extensions/**/*.ts"]
 }

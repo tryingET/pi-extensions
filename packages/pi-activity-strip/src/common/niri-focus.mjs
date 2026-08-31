@@ -275,65 +275,6 @@ export function resolveFocusedNiriWorkspace(workspaces) {
 }
 
 /**
- * @param {Array<Record<string, unknown>>} windows
- * @param {number | null} [workspaceId]
- */
-export function resolveActivityStripWindow(windows, workspaceId = null) {
-  const matches = windows.filter(
-    (window) =>
-      Number.isInteger(window?.id) &&
-      window?.title === "Pi Activity Strip" &&
-      (workspaceId == null || window?.workspace_id === workspaceId),
-  );
-  return matches.length === 1 ? matches[0] : null;
-}
-
-/**
- * Focus the unique strip already resident on the focused workspace. This command is
- * designed for a compositor key binding and never moves a strip across workspaces.
- * @param {(file: string, args: string[], options: object) => Promise<{stdout?: string}>} execFileAsync
- * @param {NodeJS.ProcessEnv} [env]
- * @param {Array<unknown>} [sessions]
- */
-export async function focusNiriStrip(execFileAsync, env = process.env, sessions = []) {
-  if (!env.NIRI_SOCKET)
-    return { ok: false, error: "Niri is not available; strip focus did nothing." };
-  try {
-    const [{ stdout: windowOutput }, { stdout: workspaceOutput }] = await Promise.all([
-      execFileAsync("niri", ["msg", "-j", "windows"], { env }),
-      execFileAsync("niri", ["msg", "-j", "workspaces"], { env }),
-    ]);
-    const windows = JSON.parse(String(windowOutput ?? "[]"));
-    const workspaces = JSON.parse(String(workspaceOutput ?? "[]"));
-    if (!Array.isArray(windows) || !Array.isArray(workspaces))
-      throw new Error("unexpected payload");
-    const focusedWorkspace = resolveFocusedNiriWorkspace(workspaces);
-    const strip = focusedWorkspace
-      ? resolveActivityStripWindow(windows, Number(focusedWorkspace.id))
-      : null;
-    const sessionRecords = Array.isArray(sessions)
-      ? /** @type {Array<Record<string, unknown>>} */ (sessions)
-      : [];
-    const view = resolveFocusedWorkspaceView(windows, workspaces, sessionRecords, { env });
-    if (!strip || !view?.sessions.length) {
-      return {
-        ok: false,
-        error: "No visible resident strip with exact tracked sessions exists here; nothing moved.",
-      };
-    }
-    await execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(strip.id)], {
-      env,
-    });
-    return { ok: true, windowId: strip.id };
-  } catch {
-    return {
-      ok: false,
-      error: "Could not focus the strip through Niri; nothing else was focused.",
-    };
-  }
-}
-
-/**
  * @param {string | Record<string, unknown>} session
  * @param {(file: string, args: string[], options: object) => Promise<{stdout?: string}>} execFileAsync
  * @param {NodeJS.ProcessEnv} [env]

@@ -47,16 +47,25 @@ export type ActivityStripRuntimeState = "starting" | "ready" | "error";
 
 export interface ActivityStripRuntimeStatus {
   state: ActivityStripRuntimeState;
+  backend?: "native-layer-shell";
   startedAt: number;
   readyAt?: number | null;
   windowVisible?: boolean;
   displayServer?: "wayland" | "x11" | "headless" | "unknown";
   windowManager?: string | null;
   displayCount?: number | null;
-  alignmentMode?: "niri" | "generic";
+  alignmentMode?: "layer-shell";
   rendererCardCount?: number;
   rendererCardIds?: string[];
   rendererVisibilityTransitionCount?: number;
+  controllerPid?: number;
+  panelPid?: number | null;
+  panelExpanded?: boolean;
+  clickThrough?: boolean;
+  panelMoveCount?: number;
+  panelActivationCount?: number;
+  panelRestartCount?: number;
+  lastMovedCardId?: string | null;
   warnings?: string[];
   error?: string | null;
 }
@@ -90,6 +99,7 @@ export interface ActivityStripBrokerOptions {
   };
   getRuntimeStatus?: () => ActivityStripRuntimeStatus | undefined;
   focusSession?: (targetId: string) => Promise<{ ok: boolean; error?: string; windowId?: number }>;
+  focusStrip?: () => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface ToolCallDescription {
@@ -179,11 +189,11 @@ export interface SessionTelemetryOptions {
 
 export interface ActivityStripCompatibilityReport {
   ok: boolean;
+  backend: string;
   displayServer: "wayland" | "x11" | "headless" | "unknown";
   windowManager: string | null;
-  electronPath: string | null;
   displayCount: number | null;
-  alignmentMode: "niri" | "generic";
+  alignmentMode: "layer-shell";
   primaryDisplayOnly: boolean;
   clickThroughDefault: boolean;
   blockers: string[];
