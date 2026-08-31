@@ -50,6 +50,7 @@ test("preview-only results remove raw producer apply instructions from content a
               applied: false,
               snapshot: "snap-preview",
               stage: { accepted: true },
+              patch: { diffSummary: "// mcp unified apply_after_checks test" },
               next: "retry with apply:true and ALLOW_SNAPSHOT_APPLY=1",
               rollback: { command: "ALLOW_SNAPSHOT_APPLY=1 sci apply /workspace/repo" },
               validationPlan: {
@@ -86,6 +87,7 @@ test("preview-only results remove raw producer apply instructions from content a
     /ALLOW_SNAPSHOT_APPLY|apply:true|\/workspace\/repo/,
   );
   assert.equal(JSON.parse(result.content[0].text).ok, true);
+  assert.doesNotMatch(result.content[0].text, /diffSummary|apply_after_checks/);
   assert.match(result.content[0].text, /mutation is unavailable through this native Pi surface/i);
 });
 

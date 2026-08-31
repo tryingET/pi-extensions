@@ -427,6 +427,8 @@ function sanitizePreviewOnlyPayload(payload: Record<string, unknown>): void {
   payload.next =
     "Inspect bounded evidence; mutation is unavailable through this native Pi surface.";
   payload.next_actions = ["Inspect the snapshot diff and validation evidence."];
+  const patch = recordOrUndefined(payload.patch);
+  if (patch) delete patch.diffSummary;
   stripRollbackCommand(payload.rollback);
   const validationPlan = recordOrUndefined(payload.validationPlan);
   if (validationPlan) stripRollbackCommand(validationPlan.rollback);
