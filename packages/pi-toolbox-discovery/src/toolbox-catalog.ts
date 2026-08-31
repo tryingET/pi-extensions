@@ -339,16 +339,30 @@ export const CATALOG: ToolboxBundle[] = [
     id: "peer-spawn",
     title: "Visible peer-spawn tools",
     description:
-      "pi-little-helpers sidequest tools for launching visible fork, scout, and candidate peer sessions. The intercom messaging primitive remains always-active through pi-peer-messaging.",
+      "pi-little-helpers tools for launching visible fork, scout, candidate, and fresh clean-handoff sessions. The intercom messaging primitive remains always-active through pi-peer-messaging.",
     ownerPackage: "packages/pi-little-helpers",
     ownerSemantics:
-      "pi-little-helpers owns visible peer launch behavior; pi-peer-messaging owns the always-active intercom communication primitive; toolbox activates the already-registered sidequest peer-spawn tools.",
-    keywords: ["peer", "sidequest", "parallelquest", "candidate", "scout", "spawn"],
+      "pi-little-helpers owns visible peer and fresh clean-handoff launch behavior; pi-peer-messaging owns the always-active intercom communication primitive; toolbox activates the already-registered launch tools.",
+    keywords: [
+      "peer",
+      "sidequest",
+      "parallelquest",
+      "candidate",
+      "scout",
+      "handoff",
+      "fresh",
+      "spawn",
+    ],
     profiles: [
       {
         id: "default",
-        description: "Visible sidequest/scout/candidate peer-spawn tools.",
-        tools: ["fork_peer_spawn", "scout_peer_spawn", "candidate_peer_spawn"],
+        description: "Visible sidequest/scout/candidate and fresh clean-handoff launch tools.",
+        tools: [
+          "fork_peer_spawn",
+          "scout_peer_spawn",
+          "candidate_peer_spawn",
+          "fresh_handoff_spawn",
+        ],
         risk: "orchestrator-gated",
         defaultTtlTurns: 2,
         requiresExplicitUserIntent: true,

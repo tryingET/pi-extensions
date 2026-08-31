@@ -97,6 +97,7 @@ export const ALWAYS_ACTIVE_TOOLS = [
   "fork_peer_spawn",
   "scout_peer_spawn",
   "candidate_peer_spawn",
+  "fresh_handoff_spawn",
   "visible_loop_child_complete",
   "context_plan",
   "loop_execute",

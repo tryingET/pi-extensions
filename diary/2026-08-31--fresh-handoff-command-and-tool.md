@@ -22,6 +22,13 @@ The existing clean-session continuation behavior already belonged to `@tryinget/
 - kept command and tool on one implementation for Git/AK readback, conversation-grounded prompt generation, model/thinking preservation, clean Pi launch without `--fork`, exactly one auto-submitted initial user message, and fail-closed Ghostty transport;
 - updated the capability manifest and tool-to-command projection;
 - updated package/root docs, session-compaction consumer wording, registration characterization, installed release smoke, and the real detached-Ghostty reality assertion.
+- added `fresh_handoff_spawn` to the toolbox-discovery foundational active set and peer-spawn bundle so ordinary installed sessions expose it without a direct `-e` override.
+
+## Live dogfood
+
+First, a credential-normal installed-source session with an explicit extension load invoked `fresh_handoff_spawn` exactly once. Ghostty accepted a same-window tab launch in `clean` session mode, and the spawned session replied `FRESH_HANDOFF_DOGFOOD_OK`.
+
+After adding the tool to toolbox-discovery's foundational active set, an ordinary installed Pi session invoked `fresh_handoff_spawn` without `-e`. The spawned session JSONL (`01a05948-ec41-7c1f-93e1-f93d9294f4a2`) had `parentSession: null`, exactly one generated initial user message, no tool calls, and replied `FRESH_HANDOFF_GENERAL_OK`; no repository or authority mutation occurred. The package reality suite also ran: controller-family assertions passed; the legacy detached custom-window assertion skipped truthfully because `PI_SIDEQUEST_GHOSTTY_BIN` was not configured.
 
 ## Boundary
 
