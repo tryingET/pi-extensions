@@ -14,7 +14,7 @@ import {
 type CommandHandler = Parameters<ExtensionAPI["registerCommand"]>[1]["handler"];
 
 export type SidequestCommandHandlers = {
-  handoffTab: CommandHandler;
+  freshHandoff: CommandHandler;
   sidequest: CommandHandler;
   scoutPeer: CommandHandler;
   parallelQuest: CommandHandler;
@@ -28,12 +28,13 @@ export function registerSidequestCommands(
   pi: ExtensionAPI,
   handlers: SidequestCommandHandlers,
 ): void {
-  const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND, HANDOFF_TAB_COMMAND] =
+  const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND, FRESH_HANDOFF_COMMAND] =
     LITTLE_HELPERS_COMMAND_NAMES;
 
-  pi.registerCommand(HANDOFF_TAB_COMMAND, {
-    description: "Generate a self-contained handoff and auto-submit it in a clean Ghostty Pi tab",
-    handler: handlers.handoffTab,
+  pi.registerCommand(FRESH_HANDOFF_COMMAND, {
+    description:
+      "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session",
+    handler: handlers.freshHandoff,
   });
 
   pi.registerCommand(SIDEQUEST_COMMAND, {

@@ -17,9 +17,13 @@ All notable changes to this project should be documented here.
 
 ### Added
 
+- Add `fresh_handoff_spawn`, the model-callable counterpart to the clean-session handoff slash command.
+
 - Add optional `reportBack` and `parentPeerTarget` support to `fork_peer_spawn`, allowing forked-context peers to use bounded intercom `PEER_ACK` / `PEER_FINAL` reporting when explicitly requested.
 
 ### Changed
+
+- Rename `/handoff-tab` to `/fresh-handoff` without retaining an alias; transport remains verified Ghostty tab placement with an honest new-window fallback.
 
 - Replace the truncated Ghostty title suffix with the full hyphenless 32-hex session UUID, while retaining the legacy 8-character sidecar field for compatibility.
 - Publish session-presence schema v2 terminal bindings for admitted interactive Ghostty surfaces and insert `gs:<family>:<surface>` before the final session token, preserving old suffix matching while disambiguating two terminals that resume the same logical session. Headless descendants cannot claim an inherited surface.

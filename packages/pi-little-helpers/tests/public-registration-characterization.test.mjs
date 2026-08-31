@@ -43,7 +43,10 @@ function register(options = {}, piOverrides = {}) {
 }
 
 const COMMANDS = [
-  ["handoff-tab", "Generate a self-contained handoff and auto-submit it in a clean Ghostty Pi tab"],
+  [
+    "fresh-handoff",
+    "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session",
+  ],
   ["sidequest", "Fork the current Pi session into a visible Ghostty peer"],
   ["scoutpeer", "Launch a clean visible read-only scout/review peer in the current workspace"],
   [
@@ -83,6 +86,13 @@ const TOOL_CONTRACTS = [
     ["objective"],
     "0627c69aa13c70726261c295e5294cbf5313aa1a66b8b1eb582b5db156682d40",
     "83589e7529b5beb1d12730fec34391792f13836052708ec86b04d51b885f6b78",
+  ],
+  [
+    "fresh_handoff_spawn",
+    ["goal", "cwd"],
+    [],
+    "e33a94dee7e077e66608dc5ad699229d7ab6ba3084f3e3df9c5a24a392c5c5cd",
+    "68ff5f1522825ea80370c00ccf52b72be9aa5c56788146393f4088d6d30ff41d",
   ],
   [
     "candidate_peer_spawn",

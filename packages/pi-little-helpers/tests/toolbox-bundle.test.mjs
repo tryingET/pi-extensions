@@ -1,4 +1,4 @@
-// summary: verifies the toolbox bundle exposes the declared peer-spawn tools without registering commands.
+// summary: verifies the toolbox bundle exposes declared peer and fresh-handoff tools without registering commands.
 // read_when:
 //   - changing little-helpers capability projections, peer tool names, or toolbox bundle registration.
 import assert from "node:assert/strict";
@@ -32,7 +32,7 @@ test("toolbox bundle registers the sidequest peer-spawn capability", () => {
   assert.equal(PEER_SPAWN_CAPABILITY_MANIFEST, LITTLE_HELPERS_CAPABILITY_MANIFEST);
   assert.deepEqual(
     PEER_SPAWN_TOOL_NAMES.map((name) => tools.has(name)),
-    [true, true, true, true, true],
+    [true, true, true, true, true, true],
   );
   assert.deepEqual([...commands.keys()], []);
   assert.deepEqual([...tools.keys()], [...PEER_SPAWN_TOOL_NAMES]);
@@ -57,6 +57,13 @@ test("toolbox bundle registers the sidequest peer-spawn capability", () => {
       slash: "/parallelquest",
       sessionMode: "clean-candidate-worktree",
       reportBack: "manual-visible",
+    },
+    {
+      tool: "fresh_handoff_spawn",
+      command: "fresh-handoff",
+      slash: "/fresh-handoff",
+      sessionMode: "clean-handoff",
+      reportBack: "none-continuation-session",
     },
   ]);
 });

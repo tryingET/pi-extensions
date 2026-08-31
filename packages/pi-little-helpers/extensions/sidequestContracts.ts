@@ -18,6 +18,11 @@ export type ForkPeerSpawnRequest = {
   parentPeerTarget?: string;
 };
 
+export type FreshHandoffSpawnRequest = {
+  goal?: string;
+  cwd?: string;
+};
+
 export type SidequestContext = {
   campaignGoal?: string;
   primaryMetric?: string;
@@ -107,6 +112,22 @@ export const forkPeerSpawnParameters = asPiToolParameters(
     reportBack: reportBackParameter,
     parentPeerTarget: Type.Optional(
       Type.String({ description: "Exact parent peer target/session id for intercom report-back." }),
+    ),
+  }),
+);
+
+export const freshHandoffSpawnParameters = asPiToolParameters(
+  Type.Object({
+    goal: Type.Optional(
+      Type.String({
+        description:
+          "Optional goal for the clean continuation. Defaults to continuing unfinished operator-directed work from the verified next legal step.",
+      }),
+    ),
+    cwd: Type.Optional(
+      Type.String({
+        description: "Target workspace for the clean Pi session. Defaults to ctx.cwd.",
+      }),
     ),
   }),
 );

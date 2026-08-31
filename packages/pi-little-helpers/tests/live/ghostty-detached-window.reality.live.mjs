@@ -1,6 +1,6 @@
-// summary: proves the real SSH visible-peer route survives a long-lived custom Ghostty process and returns a settled handshake.
+// summary: proves the real SSH fresh-handoff route survives a long-lived custom Ghostty process and returns a settled handshake.
 // read_when:
-//   - validating direct Ghostty windows, SSH launch transport, or command-admission handshakes against the workstation.
+//   - validating fresh_handoff_spawn, direct Ghostty windows, SSH launch transport, or command-admission handshakes against the workstation.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -43,7 +43,7 @@ function realExec(command, args, options = {}) {
 }
 
 test(
-  "reality: SSH fork-peer routing confirms a detached direct-window command handshake",
+  "reality: fresh_handoff_spawn confirms a detached clean-window command handshake",
   { skip: skipReason },
   async () => {
     const scratch = mkdtempSync(join(tmpdir(), "ghostty-peer-reality-"));
@@ -69,6 +69,9 @@ test(
           PI_SIDEQUEST_PI_BIN: fakePi,
           PI_SIDEQUEST_LAUNCH_STAGGER_MS: "0",
         },
+        async generateHandoffPrompt() {
+          return "You are a fresh, stateless Pi coding session. Verify the fresh handoff transport.";
+        },
       });
       extension({
         getThinkingLevel() {
@@ -88,10 +91,10 @@ test(
 
       const startedAt = Date.now();
       const result = await tools
-        .get("scout_peer_spawn")
+        .get("fresh_handoff_spawn")
         .execute(
           "reality-tool-call",
-          { objective: "exercise the real SSH Ghostty transport", reportBack: "none" },
+          { goal: "exercise the real SSH Ghostty transport", cwd: process.cwd() },
           undefined,
           undefined,
           createContext({ cwd: process.cwd() }).ctx,
@@ -99,6 +102,7 @@ test(
 
       assert.equal(result.details.ok, true, result.content[0]?.text);
       assert.equal(result.details.launchMode, "window");
+      assert.equal(result.details.sessionMode, "clean");
       assert.equal(result.details.effectDisposition, "settled");
       assert.match(result.details.launchNote, /private handshake/);
       assert.ok(Date.now() - startedAt < 6_000, "launch must beat the old 15-second timeout");

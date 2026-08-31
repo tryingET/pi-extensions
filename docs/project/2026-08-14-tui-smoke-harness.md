@@ -1,3 +1,10 @@
+---
+summary: "PTY/tmux Pi TUI smoke harness, covered command behavior, and Ghostty-specific limitations."
+read_when:
+  - "You are changing Pi TUI smoke coverage or command registration verification."
+  - "You need to distinguish headless TUI assertions from real Ghostty launch proof."
+---
+
 # TUI Smoke Harness (2026-08-14)
 
 ## What it is
@@ -33,10 +40,10 @@ failure. Each assertion prints PASS/FAIL.
 ## What it deliberately does NOT cover
 
 - **Ghostty D-Bus / window-targeting surfaces**: `pi-little-helpers` `/sidequest`
-  and `/handoff-tab` tab-attach require a real Ghostty session with its D-Bus
+  plus `/fresh-handoff` and `fresh_handoff_spawn` launch require a real Ghostty session with its D-Bus
   observer running; a tmux/pty pane has no Ghostty window identity. To exercise
   these, a human/operator opens a fresh Ghostty tab, runs `pi` there in TUI mode,
-  drives `/sidequest`, and confirms the tab attach — per the repo root AGENTS
+  drives `/sidequest` and `/fresh-handoff`, invokes `fresh_handoff_spawn`, and confirms the target launch — per the repo root AGENTS
   live-verification rule.
 - **pi-activity-strip overlay**: the strip renders in an Electron top-row overlay
   plus a broker socket, not in the pi pane, so in-pane assertions cannot see it.

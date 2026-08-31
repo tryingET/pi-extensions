@@ -61,6 +61,7 @@
     "extensions/sidequestContracts.ts",
     "extensions/sidequestCommands.ts",
     "extensions/sidequestCommandHandlers.ts",
+    "extensions/sidequestFreshHandoff.ts",
     "extensions/sidequestCandidateWorkspace.ts",
     "extensions/sidequestCandidateSpawnTool.ts",
     "extensions/sidequestCandidateCloseoutTools.ts",

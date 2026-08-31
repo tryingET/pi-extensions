@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# summary: "imports the installed package and exercises sidequest registration plus the Ghostty window fallback path"
+# summary: "imports the installed package and exercises sidequest plus fresh-handoff command/tool registration and Ghostty fallback"
 # read_when:
 #   - "changing packaged extension entries, sidequest exports, registered peer tools, or release runtime smoke behavior"
 set -euo pipefail
@@ -100,8 +100,14 @@ const { pathToFileURL } = require("node:url");
     pathExists(candidatePath) {
       return candidatePath === "/usr/bin/ghostty";
     },
+    async generateHandoffPrompt() {
+      return "You are a fresh, stateless Pi coding session. Continue release smoke.";
+    },
     async exec(command, args, options = {}) {
       execCalls.push({ command, args, options });
+      if (command === "git" || command === "ak") {
+        return { code: 0, stdout: "[]\n" };
+      }
       if (args[0] === "+help") {
         return { code: 0, stdout: "Available actions:\n  +new-window\n" };
       }
@@ -126,8 +132,24 @@ const { pathToFileURL } = require("node:url");
 
   const sidequest = commands.get("sidequest");
   assert.equal(typeof sidequest?.handler, "function", "Installed sidequest command was not registered");
-  for (const expectedTool of ["fork_peer_spawn", "scout_peer_spawn", "candidate_peer_spawn"]) {
-    assert.equal(typeof tools.get(expectedTool)?.execute, "function", `Installed ${expectedTool} tool was not registered`);
+  const freshHandoff = commands.get("fresh-handoff");
+  assert.equal(
+    typeof freshHandoff?.handler,
+    "function",
+    "Installed fresh-handoff command was not registered",
+  );
+  assert.equal(commands.has("handoff-tab"), false, "Removed handoff-tab command was registered");
+  for (const expectedTool of [
+    "fork_peer_spawn",
+    "scout_peer_spawn",
+    "candidate_peer_spawn",
+    "fresh_handoff_spawn",
+  ]) {
+    assert.equal(
+      typeof tools.get(expectedTool)?.execute,
+      "function",
+      `Installed ${expectedTool} tool was not registered`,
+    );
   }
 
   await sidequest.handler("release smoke", {
@@ -146,18 +168,40 @@ const { pathToFileURL } = require("node:url");
     },
   });
 
+  await freshHandoff.handler("continue release smoke", {
+    cwd: "/repo",
+    hasUI: true,
+    model: { provider: "openai", id: "gpt-4o" },
+    ui: {
+      notify(message, type = "info") {
+        notifications.push({ message, type });
+      },
+    },
+    sessionManager: {
+      getBranch() {
+        return [];
+      },
+    },
+  });
+
   assert.deepEqual(
-    execCalls.map(({ command, args }) => [command, args[0]]),
+    execCalls
+      .filter(({ command }) => command === "/usr/bin/ghostty")
+      .map(({ command, args }) => [command, args[0]]),
     [
       ["/usr/bin/ghostty", "+help"],
       ["/usr/bin/ghostty", "--working-directory=/repo"],
+      ["/usr/bin/ghostty", "+help"],
+      ["/usr/bin/ghostty", "--working-directory=/repo"],
     ],
-    "Installed sidequest runtime did not follow the expected fallback path",
+    "Installed sidequest/fresh-handoff runtime did not follow the expected fallback path",
   );
-  assert.equal(notifications.length, 1, "Installed sidequest runtime did not notify exactly once");
-  assert.equal(notifications[0].type, "info", "Installed sidequest runtime did not report the expected launch notice");
+  assert.equal(notifications.length, 2, "Installed launch paths did not notify exactly twice");
+  assert.ok(notifications.every(({ type }) => type === "info"));
   assert.match(notifications[0].message, /new Ghostty window/);
   assert.match(notifications[0].message, /does not support \+new-tab/);
+  assert.match(notifications[1].message, /clean Pi session/);
+  assert.match(notifications[1].message, /auto-submitted one generated handoff/);
   console.log("SUCCESS");
 })().catch((error) => {
   console.error(error);

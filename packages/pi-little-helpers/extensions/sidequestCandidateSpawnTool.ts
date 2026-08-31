@@ -60,7 +60,7 @@ export function registerCandidatePeerSpawnTool({
   bindAdmission: typeof bindCandidateAdmission;
   releaseAdmission: typeof releaseCandidateAdmission;
 }): void {
-  const [, , CANDIDATE_PEER_SPAWN_TOOL] = LITTLE_HELPERS_PEER_TOOL_NAMES;
+  const [, , , CANDIDATE_PEER_SPAWN_TOOL] = LITTLE_HELPERS_PEER_TOOL_NAMES;
 
   async function executeCandidatePeerSpawn(toolName: string, params: unknown, ctx: PiToolContext) {
     const request = params as CandidatePeerSpawnRequest;

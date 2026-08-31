@@ -36,7 +36,7 @@ export function registerCandidateCloseoutTools({
   executeCloseout: typeof executeLifecycleCandidatePeerCloseout;
   runCloseoutJanitor: typeof runCandidatePeerJanitor;
 }): void {
-  const [, , , CANDIDATE_PEER_CLEANUP_TOOL, CANDIDATE_PEER_CLOSEOUT_TOOL] =
+  const [, , , , CANDIDATE_PEER_CLEANUP_TOOL, CANDIDATE_PEER_CLOSEOUT_TOOL] =
     LITTLE_HELPERS_PEER_TOOL_NAMES;
   const options = { env };
 

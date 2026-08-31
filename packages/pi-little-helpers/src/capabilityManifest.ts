@@ -8,13 +8,14 @@ export const LITTLE_HELPERS_COMMAND_NAMES = [
   "sidequest",
   "scoutpeer",
   "parallelquest",
-  "handoff-tab",
+  "fresh-handoff",
   "visible-loop",
   "nexus-loop",
 ] as const;
 export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
   "fork_peer_spawn",
   "scout_peer_spawn",
+  "fresh_handoff_spawn",
   "candidate_peer_spawn",
   "candidate_peer_cleanup",
   "candidate_peer_closeout",
@@ -42,6 +43,13 @@ export const LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS = [
     sessionMode: "clean-candidate-worktree",
     reportBack: "manual-visible",
   },
+  {
+    tool: "fresh_handoff_spawn",
+    command: "fresh-handoff",
+    slash: "/fresh-handoff",
+    sessionMode: "clean-handoff",
+    reportBack: "none-continuation-session",
+  },
 ] as const;
 
 export const LITTLE_HELPERS_TOOLBOX_EXPORTS = [
@@ -63,7 +71,7 @@ export const LITTLE_HELPERS_CAPABILITY_MANIFEST = {
   description:
     "Fork, scout, candidate peer, clean handoff, and visible loop slash-command surfaces, with model-callable tools for peer spawn plus lifecycle-v2 candidate closeout and quarantined registry-v1 inspection.",
   commands: LITTLE_HELPERS_COMMAND_NAMES,
-  commandOnlySurfaces: ["handoff-tab", "visible-loop", "nexus-loop"],
+  commandOnlySurfaces: ["visible-loop", "nexus-loop"],
   tools: LITTLE_HELPERS_PEER_TOOL_NAMES,
   projections: LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS,
   toolboxExports: LITTLE_HELPERS_TOOLBOX_EXPORTS,

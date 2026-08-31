@@ -1,3 +1,10 @@
+---
+summary: "Reality-oriented Ghostty TUI smoke harness, coverage, and explicit interactive-input gaps."
+read_when:
+  - "You are changing Ghostty-backed Pi launch commands or their live verification contract."
+  - "You need to understand what the root Ghostty smoke harness proves."
+---
+
 # Ghostty-driven TUI smoke harness (2026-08-14)
 
 ## What was built
@@ -20,6 +27,6 @@
 
 ## Residual gaps (operator-driven, not covered headlessly)
 
-- **No interactive input driving.** xdotool exists but the desktop runs Wayland and ghostty windows are native Wayland surfaces, so `xdotool search` cannot see or type into them. The harness cannot send `/changelog`, `/sidequest`, `/handoff-tab`, or surface-id targeting into the real window. Those TUI-only interactive paths remain covered only by manual operator testing (or a future ydotool/wtype-based driver with uinput permissions).
+- **No interactive input driving.** xdotool exists but the desktop runs Wayland and ghostty windows are native Wayland surfaces, so `xdotool search` cannot see or type into them. The harness cannot send `/changelog`, `/sidequest`, `/fresh-handoff`, `fresh_handoff_spawn`, or surface-id targeting into the real window. Those TUI-only interactive paths remain covered only by manual operator testing (or a future ydotool/wtype-based driver with uinput permissions).
 - **No pane-content assertions** inside the ghostty window (no capture mechanism equivalent to `tmux capture-pane`); assertions are process/marker-level.
 - **Sidequest D-Bus surface is checked for presence/activity only** — actual `/sidequest` tab-attach behavior against the companion is not exercised.

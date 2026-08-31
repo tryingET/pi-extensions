@@ -142,7 +142,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
     if (registerCommands) {
       registerSidequestCommands(pi, {
-        handoffTab: commandHandlers.handoffTab,
+        freshHandoff: async (args, ctx) => {
+          await commandHandlers.freshHandoff(args, ctx);
+        },
         sidequest: commandHandlers.sidequest,
         scoutPeer: commandHandlers.scoutPeer,
         parallelQuest: commandHandlers.parallelQuest,
@@ -170,7 +172,12 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
     if (registerCommands) visibleLoopAdapter.registerCompletionTool();
 
-    registerSidequestPeerTools({ pi, options, defaultPiBin: DEFAULT_PI_BIN });
+    registerSidequestPeerTools({
+      pi,
+      options,
+      defaultPiBin: DEFAULT_PI_BIN,
+      freshHandoff: commandHandlers.freshHandoff,
+    });
 
     registerCandidatePeerSpawnTool({
       pi,

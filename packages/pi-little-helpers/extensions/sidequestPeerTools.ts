@@ -1,12 +1,15 @@
-// summary: registers and executes model-callable forked-context and clean scout visible-peer tools.
+// summary: registers model-callable forked, scout, and fresh clean-handoff Ghostty launch tools.
 // read_when:
-//   - changing fork_peer_spawn or scout_peer_spawn launch, prompt, report-back, or tool registration behavior.
+//   - changing fork_peer_spawn, scout_peer_spawn, or fresh_handoff_spawn launch, prompt, report-back, or tool registration behavior.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { LITTLE_HELPERS_PEER_TOOL_NAMES } from "../src/capabilityManifest.ts";
+import type { FreshHandoffExecutor } from "./sidequestCommandHandlers.ts";
 import {
   type ForkPeerSpawnRequest,
+  type FreshHandoffSpawnRequest,
   forkPeerSpawnParameters,
+  freshHandoffSpawnParameters,
   type PiToolContext,
   type SidequestSpawnRequest,
   scoutPeerSpawnParameters,
@@ -34,12 +37,15 @@ export function registerSidequestPeerTools({
   pi,
   options,
   defaultPiBin,
+  freshHandoff,
 }: {
   pi: ExtensionAPI;
   options: SidequestLaunchOptions;
   defaultPiBin: string;
+  freshHandoff: FreshHandoffExecutor;
 }): void {
-  const [FORK_PEER_SPAWN_TOOL, SCOUT_PEER_SPAWN_TOOL] = LITTLE_HELPERS_PEER_TOOL_NAMES;
+  const [FORK_PEER_SPAWN_TOOL, SCOUT_PEER_SPAWN_TOOL, FRESH_HANDOFF_SPAWN_TOOL] =
+    LITTLE_HELPERS_PEER_TOOL_NAMES;
 
   async function executeForkPeerSpawn(toolName: string, params: unknown, ctx: PiToolContext) {
     const request = params as ForkPeerSpawnRequest;
@@ -157,6 +163,41 @@ export function registerSidequestPeerTools({
           manualAction: "watch the visible fork peer tab/window",
         }),
         ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
+      },
+    );
+  }
+
+  async function executeFreshHandoffSpawn(toolName: string, params: unknown, ctx: PiToolContext) {
+    const request = params as FreshHandoffSpawnRequest;
+    const goal = request.goal?.trim();
+    const cwd = request.cwd?.trim() || ctx.cwd || process.cwd();
+    const outcome = await freshHandoff(goal, ctx, cwd, false);
+    if (!outcome.ok) {
+      return errorToolResult(outcome.message, {
+        ok: false,
+        tool: toolName,
+        canonicalTool: "fresh_handoff_spawn",
+        sessionMode: "clean",
+        cwd: outcome.cwd,
+        error: outcome.error,
+        effectDisposition: outcome.launch?.effectDisposition ?? "confirmed_no_effects",
+      });
+    }
+
+    return successToolResult(
+      `Launched a fresh clean Pi handoff in ${outcome.launch.launchMode} mode: ${outcome.launch.promptSummary}`,
+      {
+        ok: true,
+        tool: toolName,
+        canonicalTool: "fresh_handoff_spawn",
+        effectDisposition: outcome.launch.effectDisposition,
+        launchMode: outcome.launch.launchMode,
+        sessionMode: outcome.launch.sessionMode,
+        cwd: outcome.cwd,
+        titleBase: outcome.launch.titleBase,
+        promptSummary: outcome.launch.promptSummary,
+        goal: outcome.goal,
+        ...(outcome.launch.launchNote ? { launchNote: outcome.launch.launchNote } : {}),
       },
     );
   }
@@ -291,5 +332,17 @@ export function registerSidequestPeerTools({
     parameters: scoutPeerSpawnParameters,
     execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
       executeScoutPeerSpawn(SCOUT_PEER_SPAWN_TOOL, params, ctx),
+  });
+
+  pi.registerTool({
+    name: FRESH_HANDOFF_SPAWN_TOOL,
+    label: "Fresh Handoff Spawn",
+    description:
+      "Generate a self-contained handoff from the current conversation and launch it as the sole initial user message in a fresh clean Pi session.",
+    promptSnippet:
+      "Use only when the operator explicitly asks to transfer current work into a fresh clean Pi session. The launch is continuation transport, not task completion proof.",
+    parameters: freshHandoffSpawnParameters,
+    execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+      executeFreshHandoffSpawn(FRESH_HANDOFF_SPAWN_TOOL, params, ctx),
   });
 }
