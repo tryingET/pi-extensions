@@ -11,6 +11,11 @@ export declare class TriggerEditor {
     ui: unknown,
     sessionCtx?: { cwd?: string; sessionKey?: string },
   );
+  focused: boolean;
+  getText(): string;
+  getExpandedText?(): string;
+  setText(text: string): void;
+  getMutationGeneration(): number;
 }
 
 export declare function createEditorRegistry(options?: { ownerId?: string }): {

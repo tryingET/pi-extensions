@@ -10,6 +10,12 @@
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { SelectList } from "@earendil-works/pi-tui";
 import { getBroker } from "@tryinget/pi-trigger-adapter";
+import {
+  createTriggerEditorSessionKey,
+  isPasteInProgress,
+  isPromiseLike,
+  normalizeAutocompleteSuggestions,
+} from "./editorHelpers.js";
 
 /**
  * @typedef {{ line: number, col: number }} Cursor
@@ -55,37 +61,6 @@ import { getBroker } from "@tryinget/pi-trigger-adapter";
 
 const BaseCustomEditor = /** @type {any} */ (CustomEditor);
 const SelectListConstructor = /** @type {any} */ (SelectList);
-let triggerEditorSessionCounter = 0;
-
-/** @param {any} editor */
-function isPasteInProgress(editor) {
-  return Boolean(editor && (editor.isInPaste || editor.pasteBuffer));
-}
-
-function createTriggerEditorSessionKey() {
-  triggerEditorSessionCounter += 1;
-  return `trigger-editor-${triggerEditorSessionCounter}`;
-}
-
-/** @param {unknown} value */
-function isPromiseLike(value) {
-  const maybePromise = /** @type {{ then?: unknown }|null|undefined} */ (value);
-  return Boolean(maybePromise && typeof maybePromise.then === "function");
-}
-
-/** @param {unknown} suggestions @returns {AutocompleteSuggestions|null} */
-function normalizeAutocompleteSuggestions(suggestions) {
-  if (!suggestions || typeof suggestions !== "object") return null;
-
-  const candidate = /** @type {{ items?: unknown, prefix?: unknown }} */ (suggestions);
-  if (!Array.isArray(candidate.items)) return null;
-
-  return {
-    items: candidate.items,
-    prefix: typeof candidate.prefix === "string" ? candidate.prefix : "",
-  };
-}
-
 export class TriggerEditor extends BaseCustomEditor {
   /** @type {number} */ autocompleteRequestId;
   /** @type {AbortController|undefined} */ autocompleteAbort;
@@ -108,6 +83,7 @@ export class TriggerEditor extends BaseCustomEditor {
     this.triggerApi = undefined;
     this.autocompleteRequestId = 0;
     this.autocompleteAbort = undefined;
+    this.mutationGeneration = 0;
     /** @type {import("@tryinget/pi-trigger-adapter").TriggerBroker} */
     this.broker = getBroker();
     this.broker.setAPI(this.createAPI());
@@ -116,6 +92,34 @@ export class TriggerEditor extends BaseCustomEditor {
   /**
    * Create the TriggerAPI that handlers use to interact with the editor.
    */
+  bumpMutationGeneration() {
+    this.mutationGeneration = Number(this.mutationGeneration ?? 0) + 1;
+  }
+
+  getMutationGeneration() {
+    return Number(this.mutationGeneration ?? 0);
+  }
+
+  /** @param {string} text */
+  setText(text) {
+    const before = typeof this.getText === "function" ? this.getText() : "";
+    super.setText(text);
+    if (before !== this.getText()) this.bumpMutationGeneration();
+  }
+
+  /** @param {string} text */
+  insertTextAtCursor(text) {
+    const before = this.getText();
+    super.insertTextAtCursor(text);
+    if (before !== this.getText()) this.bumpMutationGeneration();
+  }
+
+  undo() {
+    const before = this.getText();
+    super.undo();
+    if (before !== this.getText()) this.bumpMutationGeneration();
+  }
+
   createAPI() {
     if (this.triggerApi) return this.triggerApi;
 
@@ -137,6 +141,7 @@ export class TriggerEditor extends BaseCustomEditor {
         lines[cursor.line] = before + text + after;
         this.setLines(lines);
         this.setCursor({ line: cursor.line, col: cursor.col + text.length });
+        this.bumpMutationGeneration();
       },
 
       /** @param {string} message @param {"info"|"warning"|"error"} [level] */
@@ -354,6 +359,7 @@ export class TriggerEditor extends BaseCustomEditor {
       this.state.cursorLine = result.cursorLine;
       this.setCursorCol?.(result.cursorCol);
       if (this.onChange) this.onChange(this.getText());
+      this.bumpMutationGeneration();
       this.tui?.requestRender?.();
       return;
     }
@@ -436,7 +442,9 @@ export class TriggerEditor extends BaseCustomEditor {
       }
     }
 
+    const before = this.getText();
     super.handleInput(data);
+    if (before !== this.getText()) this.bumpMutationGeneration();
 
     if (isPasteInProgress(this)) {
       return;

@@ -44,7 +44,7 @@
   "files": [
     "index.ts",
     "extensions/input-triggers.ts",
-    "src/runtime.js",
+    "src",
     "prompts",
     "examples",
     "policy/security-policy.json"

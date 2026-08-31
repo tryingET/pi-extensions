@@ -25,6 +25,30 @@ test("TriggerEditor includes session cwd and session key in trigger context and 
   assert.equal(editor.createAPI(), api);
 });
 
+test("TriggerEditor exposes a monotonic generation for exact editor CAS", () => {
+  const editor = new TriggerEditor({}, {}, {}, { id: "pi" }, {});
+  assert.equal(editor.getMutationGeneration(), 0);
+
+  editor.setText("alpha");
+  assert.equal(editor.getMutationGeneration(), 1);
+  editor.setText("alpha");
+  assert.equal(editor.getMutationGeneration(), 1);
+  editor.createAPI().setText("beta");
+  assert.equal(editor.getMutationGeneration(), 2);
+
+  const beforeInsert = editor.getMutationGeneration();
+  editor.insertTextAtCursor("!");
+  assert.ok(editor.getMutationGeneration() > beforeInsert);
+  assert.equal(editor.getText(), "beta!");
+
+  const preimage = editor.getText();
+  editor.setText("replacement");
+  const beforeUndo = editor.getMutationGeneration();
+  editor.undo();
+  assert.equal(editor.getText(), preimage);
+  assert.ok(editor.getMutationGeneration() > beforeUndo);
+});
+
 test("TriggerEditor supports async autocomplete providers from newer Pi hosts", async () => {
   const editor = new TriggerEditor(
     { requestRender() {} },

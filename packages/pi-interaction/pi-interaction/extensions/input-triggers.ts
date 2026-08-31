@@ -1,6 +1,5 @@
 // summary: Registers the trigger editor, demo triggers, and trigger management commands.
-// read_when:
-//   - Changing the live pi-interaction extension or its command surface.
+// read_when: Changing the live pi-interaction extension or its command surface.
 
 /**
  * Pi Interaction - Cooperative runtime for live editor interactions.
@@ -9,6 +8,7 @@
  * helpers for fuzzy interaction flows that other extensions can register.
  */
 
+import { randomUUID } from "node:crypto";
 import type { CustomEditor, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createEditorRegistry, TriggerEditor } from "@tryinget/pi-editor-registry";
 import {
@@ -23,6 +23,12 @@ import {
   resetBroker,
   splitQueryAndContext,
 } from "@tryinget/pi-trigger-adapter";
+import {
+  createEditorRefineBridge,
+  linuxProcessStartTime,
+  niriSessionFocusProof,
+  resolveUniqueSessionPresence,
+} from "../src/editor-refine-bridge.js";
 
 export {
   getBroker,
@@ -194,34 +200,117 @@ export default function (pi: ExtensionAPI) {
 
   const broker = getBroker();
   const editorRegistry = createEditorRegistry({ ownerId: "@tryinget/pi-interaction" });
+  let editorRefineBridge: ReturnType<typeof createEditorRefineBridge> | undefined;
+  let activeEditor: TriggerEditor | undefined;
+  let bridgeGeneration = 0;
 
-  // Refresh bundled demo triggers without clobbering externally registered ones.
   unregisterExampleTriggers(broker);
   if (examplesEnabled) {
     registerExampleTriggers(broker, pi);
   }
 
-  // Session start: install custom editor.
-  pi.on("session_start", (_event, ctx) => {
-    if (!ctx.hasUI) return;
-
+  pi.on("session_start", async (_event, ctx) => {
+    const generation = ++bridgeGeneration;
+    if (!ctx.hasUI || ctx.mode !== "tui") return;
     if (legacyMode) {
-      ctx.ui.notify("Interaction runtime loaded (legacy mode - no editor override)", "info");
+      ctx.ui.notify("Editor refine bridge disabled in interaction legacy mode", "warning");
       return;
     }
 
+    let mountedEditor: TriggerEditor | undefined;
     editorRegistry.mount({
       ctx,
       notifyMessage: "Interaction runtime enabled",
       factory: (tui: unknown, theme: unknown, keybindings: unknown) => {
-        return new TriggerEditor(tui, theme, keybindings, pi, ctx.ui, {
+        mountedEditor = new TriggerEditor(tui, theme, keybindings, pi, ctx.ui, {
           cwd: ctx.cwd,
-        }) as unknown as CustomEditor;
+        });
+        activeEditor = mountedEditor;
+        return mountedEditor as unknown as CustomEditor;
       },
     });
+
+    const runtimeDir = process.env.XDG_RUNTIME_DIR;
+    if (!runtimeDir || !mountedEditor) {
+      ctx.ui.notify(
+        "Editor refine bridge unavailable: owned TUI editor/runtime is missing",
+        "warning",
+      );
+      return;
+    }
+
+    let candidate: ReturnType<typeof createEditorRefineBridge> | undefined;
+    try {
+      const previous = editorRefineBridge;
+      editorRefineBridge = undefined;
+      await previous?.stop();
+      const sessionId = ctx.sessionManager.getSessionId();
+      const publisherId = randomUUID();
+      const processStartTime = await linuxProcessStartTime();
+      const editor = mountedEditor;
+      candidate = createEditorRefineBridge({
+        sessionId,
+        publisherId,
+        runtimeDir,
+        processStartTime,
+        getEditorText: () => editor.getExpandedText?.() ?? editor.getText(),
+        setEditorText: (text: string) => editor.setText(text),
+        getEditorGeneration: () => editor.getMutationGeneration(),
+        isEditorActive: () =>
+          bridgeGeneration === generation && activeEditor === editor && editor.focused === true,
+        isIdle: () => ctx.isIdle(),
+        hasPendingMessages: () => ctx.hasPendingMessages(),
+        getFocusProof: async () => {
+          const presence = await resolveUniqueSessionPresence(
+            runtimeDir,
+            sessionId,
+            process.pid,
+            ctx.cwd,
+          );
+          return presence ? niriSessionFocusProof(sessionId, presence) : null;
+        },
+        isProcessIdentityCurrent: async () =>
+          bridgeGeneration === generation && (await linuxProcessStartTime()) === processStartTime,
+        notify: (message: string, level: "info" | "warning" | "error") =>
+          ctx.ui.notify(message, level),
+        setStatus: (value: string | undefined) => ctx.ui.setStatus("pi-editor-refine", value),
+      });
+      await candidate.start();
+      if (bridgeGeneration !== generation) {
+        await candidate.stop();
+        return;
+      }
+      editorRefineBridge = candidate;
+    } catch (error) {
+      await candidate?.stop();
+      if (bridgeGeneration !== generation) return;
+      editorRefineBridge = undefined;
+      const message = error instanceof Error ? error.message : "unknown failure";
+      ctx.ui.notify(`Editor refine bridge unavailable: ${message}`, "error");
+    }
   });
 
-  // Command: list triggers.
+  pi.on("session_shutdown", async () => {
+    bridgeGeneration += 1;
+    const bridge = editorRefineBridge;
+    editorRefineBridge = undefined;
+    activeEditor = undefined;
+    await bridge?.stop();
+  });
+
+  pi.registerCommand("editor-refine-bridge-status", {
+    description: "Show hash-only external editor bridge diagnostics",
+    handler: async (_args, ctx) => {
+      const diagnostics = editorRefineBridge?.diagnostics();
+      ctx.ui.notify(
+        diagnostics
+          ? `Editor bridge ready; active=${diagnostics.activeTransaction ?? "none"}`
+          : "Editor bridge unavailable",
+        diagnostics ? "info" : "warning",
+      );
+    },
+  });
+
   pi.registerCommand("triggers", {
     description: "List registered input triggers",
     handler: async (_args, ctx) => {
