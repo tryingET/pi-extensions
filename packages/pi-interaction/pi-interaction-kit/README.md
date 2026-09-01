@@ -15,3 +15,5 @@ Shared interaction primitives for the `pi-interaction` runtime family.
 - `rankCandidatesWithFzf`
 - `selectFuzzyCandidate`
 - `runFzfProbe`
+
+Release note: re-entered the release flow after blocked wave e30aea5 (publication-only; no code change).

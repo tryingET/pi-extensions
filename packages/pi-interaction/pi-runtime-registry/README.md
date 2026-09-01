@@ -62,3 +62,5 @@ Get the process-wide singleton registry for cross-extension discovery.
 - `list()` - List all runtimes
 - `diagnostics()` - Get registry diagnostics
 - `clear()` - Clear all runtimes
+
+Release note: re-entered the release flow after blocked wave e30aea5 (publication-only; no code change).

@@ -483,3 +483,5 @@ During `prepack`, those GitHub blob links are pinned to the exact source commit 
 - [Previous receipt hardening diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-12-receipt-hardening.md)
 - [V4 runtime-receipts binding diary](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/diary/2026-03-21-v4-runtime-receipts-runtime-target-binding.md)
 - [Next session prompt](https://github.com/tryingET/pi-extensions/blob/fc707243ab0d53ac14bb08e027daf60e762ac145/packages/pi-vault-client/next_session_prompt.md)
+
+Release note: re-entered the release flow after blocked wave e30aea5 (publication-only; no code change).

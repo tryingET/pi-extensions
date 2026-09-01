@@ -101,3 +101,5 @@ See [`docs/telemetry-review-snapshots.md`](docs/telemetry-review-snapshots.md).
 npm run check     # lint + typecheck when configured + tests + release contract
 node --test tests/*.test.mjs
 ```
+
+Release note: re-entered the release flow after blocked wave e30aea5 (publication-only; no code change).
