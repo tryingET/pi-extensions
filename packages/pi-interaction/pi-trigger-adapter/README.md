@@ -14,4 +14,4 @@ Trigger broker + picker registration adapter for the `pi-interaction` runtime fa
 - `registerPickerInteraction`
 - `splitQueryAndContext` (re-export)
 
-Release note: re-entered the release flow after blocked wave e30aea5 (publication-only; no code change).
+Release alignment: npm state must catch up to manifest pins after blocked wave e30aea5.

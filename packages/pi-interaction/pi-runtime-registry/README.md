@@ -63,4 +63,4 @@ Get the process-wide singleton registry for cross-extension discovery.
 - `diagnostics()` - Get registry diagnostics
 - `clear()` - Clear all runtimes
 
-Release note: re-entered the release flow after blocked wave e30aea5 (publication-only; no code change).
+Release alignment: npm state must catch up to manifest pins after blocked wave e30aea5.
