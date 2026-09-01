@@ -1,9 +1,9 @@
 {
   "schema": "pi-activity-strip-native-artifact.v1",
   "target": "x86_64-unknown-linux-gnu",
-  "sha256": "54d72469b6bc70b712b3cb8fafdd767a37e8140428e5f195bc0279629bf79d82",
+  "sha256": "87e1c6e502a262043a2d82574054d409bb21e075ac565b4a5f23af7b999c8ad4",
   "cargoLockSha256": "f8ebc11bc721c569af982169e448a5ea4fed15bc06001017d97acda22b1c890b",
-  "sourceSha256": "cb0c296ce488db326f1f29ad9fdc304e0ae63ea633b25fc8506624be64584c0e",
+  "sourceSha256": "30a0adc5f2d8ba4235dcdfa0840d3aa998d60416304656042c8412c293269c12",
   "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
   "glibcFloor": "GLIBC_2.34",
   "neededSonames": [

@@ -26,6 +26,7 @@ pub struct App {
     focused_card_id: Option<String>,
     hovered: HashSet<String>,
     keyboard_focused: Option<String>,
+    keyboard_active: bool,
     open_card_id: Option<String>,
     revision: u64,
     visible: bool,
@@ -166,6 +167,7 @@ impl Component for App {
             focused_card_id: None,
             hovered: HashSet::new(),
             keyboard_focused: None,
+            keyboard_active: false,
             open_card_id: None,
             revision: 0,
             visible: false,
@@ -218,13 +220,11 @@ impl Component for App {
                 self.reconcile_engagement(widgets, root, &sender);
             }
             AppMsg::Focus(id, entered) => {
-                self.keyboard_focused = if entered {
-                    Some(id)
-                } else if self.keyboard_focused.as_deref() == Some(id.as_str()) {
-                    None
-                } else {
-                    self.keyboard_focused.take()
-                };
+                if entered && self.keyboard_active {
+                    self.keyboard_focused = Some(id);
+                } else if !entered && self.keyboard_focused.as_deref() == Some(id.as_str()) {
+                    self.keyboard_focused = None;
+                }
                 self.reconcile_engagement(widgets, root, &sender);
             }
             AppMsg::Navigate(id, direction, manual) => {
@@ -238,28 +238,38 @@ impl Component for App {
                     card.set_activation(ok, &message);
                 }
                 if ok {
+                    self.end_engagement();
                     root.set_keyboard_mode(KeyboardMode::None);
                     self.apply_expansion(widgets, root, None);
                 }
             }
             AppMsg::FocusStrip => {
                 if self.visible && self.interactive {
+                    self.keyboard_active = true;
+                    self.hovered.clear();
+                    self.keyboard_focused = self.order.first().cloned();
                     root.set_keyboard_mode(KeyboardMode::Exclusive);
                     root.present();
-                    if let Some(first) = self.order.first().and_then(|id| self.cards.get(id)) {
+                    if let Some(first) = self
+                        .keyboard_focused
+                        .as_ref()
+                        .and_then(|id| self.cards.get(id))
+                    {
                         first.root.grab_focus();
                     }
+                    self.reconcile_engagement(widgets, root, &sender);
                     emit(json!({ "protocol": 1, "type": "keyboard-active", "active": true }));
                 }
             }
             AppMsg::Collapse | AppMsg::WindowInactive => {
+                self.end_engagement();
                 root.set_keyboard_mode(KeyboardMode::None);
                 self.apply_expansion(widgets, root, None);
             }
             AppMsg::CollapseIf(generation) => {
                 if generation == self.collapse_generation
                     && self.hovered.is_empty()
-                    && self.keyboard_focused.is_none()
+                    && (!self.keyboard_active || self.keyboard_focused.is_none())
                 {
                     self.apply_expansion(widgets, root, None);
                 }
@@ -270,7 +280,26 @@ impl Component for App {
     }
 }
 
+fn engaged_card_id(
+    hovered: &HashSet<String>,
+    keyboard_active: bool,
+    keyboard_focused: &Option<String>,
+) -> Option<String> {
+    if keyboard_active {
+        keyboard_focused.clone()
+    } else {
+        hovered.iter().next().cloned()
+    }
+}
+
 impl App {
+    fn end_engagement(&mut self) {
+        self.hovered.clear();
+        self.keyboard_focused = None;
+        self.keyboard_active = false;
+        self.collapse_generation += 1;
+    }
+
     fn apply_view(
         &mut self,
         widgets: &mut AppWidgets,
@@ -330,8 +359,8 @@ impl App {
                 root.set_exclusive_zone(COMPACT_HEIGHT);
                 root.present();
             } else {
-                self.hovered.clear();
-                self.keyboard_focused = None;
+                self.end_engagement();
+                root.set_keyboard_mode(KeyboardMode::None);
                 self.apply_expansion(widgets, root, None);
                 root.set_visible(false);
             }
@@ -440,12 +469,8 @@ impl App {
         root: &gtk::Window,
         sender: &ComponentSender<Self>,
     ) {
-        if let Some(id) = self
-            .hovered
-            .iter()
-            .next()
-            .cloned()
-            .or_else(|| self.keyboard_focused.clone())
+        if let Some(id) =
+            engaged_card_id(&self.hovered, self.keyboard_active, &self.keyboard_focused)
         {
             self.collapse_generation += 1;
             self.apply_expansion(widgets, root, Some(id));
@@ -482,6 +507,37 @@ impl App {
         self.refresh_cards();
         emit(
             json!({ "protocol": 1, "type": "expanded", "expanded": expanded, "cardId": self.open_card_id }),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::engaged_card_id;
+    use std::collections::HashSet;
+
+    #[test]
+    fn stale_gtk_focus_does_not_retain_expansion_outside_keyboard_mode() {
+        let focused = Some("card-a".to_owned());
+        assert_eq!(engaged_card_id(&HashSet::new(), false, &focused), None);
+        assert_eq!(engaged_card_id(&HashSet::new(), true, &focused), focused);
+    }
+
+    #[test]
+    fn pointer_hover_retains_expansion_without_keyboard_mode() {
+        let hovered = HashSet::from(["card-a".to_owned()]);
+        assert_eq!(
+            engaged_card_id(&hovered, false, &Some("card-b".to_owned())),
+            Some("card-a".to_owned())
+        );
+    }
+
+    #[test]
+    fn explicit_keyboard_mode_takes_precedence_over_pointer_hover() {
+        let hovered = HashSet::from(["card-a".to_owned()]);
+        assert_eq!(
+            engaged_card_id(&hovered, true, &Some("card-b".to_owned())),
+            Some("card-b".to_owned())
         );
     }
 }
