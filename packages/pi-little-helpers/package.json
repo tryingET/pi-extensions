@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-little-helpers",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "pi extension package for little-helpers workflows in pi",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -202,7 +202,7 @@
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
-    "@tryinget/pi-peer-messaging": "*"
+    "@tryinget/pi-peer-messaging": "0.3.0"
   },
   "peerDependenciesMeta": {
     "@tryinget/pi-peer-messaging": {

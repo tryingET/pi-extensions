@@ -23,6 +23,28 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.4.0...pi-ontology-workflows-v0.5.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+
+
+### Bug Fixes
+
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-editor-registry bumped from file:../pi-interaction/pi-editor-registry to 0.2.2
+    * @tryinget/pi-trigger-adapter bumped from file:../pi-interaction/pi-trigger-adapter to 0.2.3
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.3.1...pi-ontology-workflows-v0.4.0) (2026-08-15)
 
 

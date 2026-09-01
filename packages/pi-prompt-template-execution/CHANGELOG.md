@@ -13,6 +13,26 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.2.0...pi-prompt-template-execution-v0.3.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+* **pi-prompt-template-execution:** make non-expansion explicit via expandPromptTemplates:false ([ce86b12](https://github.com/tryingET/pi-extensions/commit/ce86b1208ec13a1d9e6b434291735bb9e4485e38))
+
+
+### Bug Fixes
+
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-model-selection bumped from file:../pi-model-selection to 0.3.0
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.1.0...pi-prompt-template-execution-v0.2.0) (2026-07-13)
 
 

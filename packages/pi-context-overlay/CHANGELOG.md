@@ -13,6 +13,35 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-context-overlay-v0.2.1...pi-context-overlay-v0.3.0) (2026-08-29)
+
+
+### Features
+
+* **context-core:** child-arena rollup — direct-child fork costs attributed, arenas never merged ([577b57a](https://github.com/tryingET/pi-extensions/commit/577b57accac1fb611fe43cb752aeae23d4770e5b))
+* **context-core:** declare strata.json IR contract + resolve RFC review round 2 ([703f69b](https://github.com/tryingET/pi-extensions/commit/703f69bad6f1e143e2348fbff31eed8511d36c95))
+* **context-core:** discharge the wire-order evidence gate — measured drift bound across 5 provider identities ([85afdcf](https://github.com/tryingET/pi-extensions/commit/85afdcff23ac07774bfa6b76bfac615ba185677c))
+* **context-core:** P3 compaction tradeoff calculator — first wire-order-licensed instrument ([5666800](https://github.com/tryingET/pi-extensions/commit/566680040f69addd4396308a741cf0f241573cec))
+* **context-core:** resolve ADR conditions — unsupported-major IR gate, estimator convention, wire-order gate, ADR ([afaad77](https://github.com/tryingET/pi-extensions/commit/afaad776084725ef8982ff58f024cb7b4d5ce114))
+* **context-core:** ship meta.cwd measured provenance; verified by dogfooding ([748ae33](https://github.com/tryingET/pi-extensions/commit/748ae33034de504d015ff6f6b0221153292790aa))
+* **corpus:** fork-spend labeling decided and shipped — quantities separated, inclusive computed-at-query ([11f45e5](https://github.com/tryingET/pi-extensions/commit/11f45e556a3c10888c097f400ba0ef56734cafac))
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+* **pi-context-corpus:** measured provenance + build-time ordering from adjudication follow-up ([390d7bd](https://github.com/tryingET/pi-extensions/commit/390d7bd2102eaf95fb71bbdedbb4b3b7d7d44230))
+* **pi-context-overlay:** context core prototype — session JSONL allocator replay + stratigraphy artifact ([6757a32](https://github.com/tryingET/pi-extensions/commit/6757a328e7b02b2b9ec1e02b8089ccbac13513a8))
+* **pi-context-overlay:** open file-backed items in $EDITOR from /c ([c0cd52a](https://github.com/tryingET/pi-extensions/commit/c0cd52ad7fcf4616fd464b6f87692e432c5f7b15))
+* **pi-context-overlay:** P2 live TUI — occupancy strip and icicle inspector ([4d615b7](https://github.com/tryingET/pi-extensions/commit/4d615b7d95c17b57a7696e4cdcbf7134e3a24104))
+
+
+### Bug Fixes
+
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-context-overlay:** close forensic debt — path-qualified liveness, post-fault runway ([2dc3994](https://github.com/tryingET/pi-extensions/commit/2dc39943f9647f1040f176282a1c59221188551a))
+* **pi-context-overlay:** honest editor launch — killed is failure, -e detaches ([7ad6790](https://github.com/tryingET/pi-extensions/commit/7ad67903a361d22a329b35624426593e29f7b2b5))
+* **pi-context-overlay:** keep file-list arrows in icicle mode ([8e028d9](https://github.com/tryingET/pi-extensions/commit/8e028d9117a09ec407ca87e631cef3ac789a5f5c))
+* **pi-context-overlay:** review the context-core prototype — conservation, chain walk, tests ([79d01f9](https://github.com/tryingET/pi-extensions/commit/79d01f92e867cd1a4c8680ca28ac2005a62cc9b0))
+* **pi-context-overlay:** Tab cycles groups → icicle → files ([dd076b8](https://github.com/tryingET/pi-extensions/commit/dd076b8f9d8a5a061ba0865539450ac8acb3a8ed))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-context-overlay-v0.2.0...pi-context-overlay-v0.2.1) (2026-08-15)
 
 

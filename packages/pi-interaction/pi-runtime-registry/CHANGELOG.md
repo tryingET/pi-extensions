@@ -7,6 +7,14 @@ type: "changelog"
 
 # Changelog
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-runtime-registry-v0.2.0...pi-runtime-registry-v0.2.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+* **pi-interaction:** preserve publish-ready manifests ([3195381](https://github.com/tryingET/pi-extensions/commit/31953819f8c31ee2a84737b82d84d2ac90696df7))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-runtime-registry-v0.1.0...pi-runtime-registry-v0.2.0) (2026-07-13)
 
 

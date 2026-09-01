@@ -13,6 +13,42 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.11.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.10.1...pi-society-orchestrator-v0.11.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** record owner-scoped exceptions and ratchet orchestrator gate ([ddf1ab3](https://github.com/tryingET/pi-extensions/commit/ddf1ab364ab86742e3ef48870708477b80aad53c))
+* **governed-runtime:** exempt the SRI-pinned Pi host line from the release-age gate ([3c2f573](https://github.com/tryingET/pi-extensions/commit/3c2f5730235f151dd4e39bf9454beceacc5bbab3))
+
+
+### Bug Fixes
+
+* honor fast-xml-parser 5.3.6 override in five host-closure locks ([a4ff737](https://github.com/tryingET/pi-extensions/commit/a4ff737ac4a4620c302b65da2bd20a2ed0585d8c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **orchestrator:** accept npm 12 registry metadata arrays ([52438ff](https://github.com/tryingET/pi-extensions/commit/52438ff27934b12bb4c1eaec15ff0f3b97de9e9d))
+* **orchestrator:** exclude [@tryinget](https://github.com/tryinget) ASC from the lock age floor ([06e1e2c](https://github.com/tryingET/pi-extensions/commit/06e1e2cbbc9ee7599ac65b3b553de277360a4f74))
+* **orchestrator:** governed-npm fixture scrubs ambient policy env overrides ([a25c773](https://github.com/tryingET/pi-extensions/commit/a25c7730f714bab233ba222313a782797a4bd0a2))
+* **orchestrator:** isolate release tarball install ([1d99fe9](https://github.com/tryingET/pi-extensions/commit/1d99fe93d619338c2b1624ba934a95597a2d46c3))
+* **orchestrator:** pin governed ASC registry owner to published 0.5.2 ([d859949](https://github.com/tryingET/pi-extensions/commit/d859949714fbcf23f2fbad8db4bce9817668caa7))
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+* **orchestrator:** use canonical society.v2.db ([f9faf1c](https://github.com/tryingET/pi-extensions/commit/f9faf1c3726d80121705aff8e7ae32e856a07d67))
+* **pi-society-orchestrator:** fail-closed ASC ^0.5 lock on registry 0.5.1 ([1307942](https://github.com/tryingET/pi-extensions/commit/13079426535d0a8f73a20dcd63707239f754fbbc))
+* **pi-society-orchestrator:** prepare local deps before packing ([0213c5a](https://github.com/tryingET/pi-extensions/commit/0213c5af23eb16b782dfacef267f33ec1b59fb12))
+* **release:** close local dependency isolation gaps ([f3bbff1](https://github.com/tryingET/pi-extensions/commit/f3bbff1a22b505e1c9ed801ba20390dbb656496c))
+* **release:** harden local dependency scratch ([7485c2c](https://github.com/tryingET/pi-extensions/commit/7485c2ce1dfae48a5d3e37ea169750875e4fe83a))
+* **release:** isolate local dependency packing ([ea9a464](https://github.com/tryingET/pi-extensions/commit/ea9a4648145a18f73008fbb101cc600f0924e5fa))
+* **release:** linearize local dependency traversal ([d0d030f](https://github.com/tryingET/pi-extensions/commit/d0d030fb98d915449fb6260313a797e2a7b5a611))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from ^0.5.0 to ^0.6.0
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.0
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.0
+
 ## [0.10.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.10.0...pi-society-orchestrator-v0.10.1) (2026-08-22)
 
 

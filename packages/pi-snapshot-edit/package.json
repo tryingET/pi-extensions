@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-snapshot-edit",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Snapshot-bound occurrence-selector editing tools for Pi agents",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

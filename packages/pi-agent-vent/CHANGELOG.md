@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.2.2...pi-agent-vent-v0.3.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+
+
+### Bug Fixes
+
+* **deps:** restore exact typebox pins unintentionally loosened by host sweep ([2ff3cfb](https://github.com/tryingET/pi-extensions/commit/2ff3cfb4b8b2fcd93312a8bf806185de110c4073))
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+* **pi-agent-vent:** keep release smoke on managed scratch ([a29bb99](https://github.com/tryingET/pi-extensions/commit/a29bb99342142bde0e264c80036ad59ae141adf1))
+
 ## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.2.1...pi-agent-vent-v0.2.2) (2026-08-15)
 
 

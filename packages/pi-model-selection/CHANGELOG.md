@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-model-selection-v0.2.1...pi-model-selection-v0.3.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+
+
+### Bug Fixes
+
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-model-selection-v0.2.0...pi-model-selection-v0.2.1) (2026-08-01)
 
 

@@ -13,6 +13,28 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.4.0...pi-session-compaction-v0.5.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+* **pi-session-compaction:** join internal stage chain with host compaction-failure cause ([22de6c9](https://github.com/tryingET/pi-extensions/commit/22de6c9b07238d7cc61e6a2d17e8f9f620db1728))
+* **pi-session-compaction:** release ownership on host-reported compaction failure ([89f8c35](https://github.com/tryingET/pi-extensions/commit/89f8c35a6b84d0d3ca03dd76905fefe1bad6781f))
+
+
+### Bug Fixes
+
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-model-selection bumped from file:../pi-model-selection to 0.3.0
+    * @tryinget/pi-telemetry bumped from file:../pi-telemetry to 0.4.0
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.3.0...pi-session-compaction-v0.4.0) (2026-08-20)
 
 

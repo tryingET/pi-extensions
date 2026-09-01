@@ -7,6 +7,20 @@ type: "changelog"
 
 # Changelog
 
+## [0.2.3](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.2...pi-trigger-adapter-v0.2.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-interaction-kit bumped from file:../pi-interaction-kit to 0.2.1
+
 ## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.1...pi-trigger-adapter-v0.2.2) (2026-08-24)
 
 
