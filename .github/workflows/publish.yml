@@ -44,16 +44,18 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    env:
-      # GitHub runners leave TMPDIR unset; the release sandbox
-      # (scripts/release-sandbox.sh) hard-requires a managed, non-/tmp TMPDIR.
-      TMPDIR: ${{ runner.temp }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
+
+      # GitHub runners leave TMPDIR unset; the release sandbox
+      # (scripts/release-sandbox.sh) hard-requires a managed, non-/tmp TMPDIR.
+      # Job-level env cannot use the runner context, so export it once here.
+      - name: Provide managed TMPDIR for release sandbox
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       # The tag's own scripts are frozen at release time; npm-state inspection
       # must track current tooling so registry/npm behavior drift (for example
