@@ -65,6 +65,7 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 - Atomic rename cannot preserve every filesystem metadata or identity property.
 - Non-cooperating cross-process races cannot be eliminated with portable filesystem APIs. In particular, the final recheck is not compare-and-swap: a writer can change the path after that check and before rename.
 - A restricted host selection that omits a standard built-in stays namespaced-only during implicit startup. Explicit standard takeover still requires both built-in owners, and any visible extension-owned standard tool remains a conflict that must be resolved.
+- Image bytes are outside snapshot authority. Standard `read` remains fail-closed on binary; pasted clipboard images are attached by the `input` transform in [ADR 0002](0002-clipboard-image-lift.md).
 
 ## Retired decision
 

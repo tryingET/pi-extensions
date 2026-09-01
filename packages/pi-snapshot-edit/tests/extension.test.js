@@ -88,7 +88,9 @@ test("extension registers host-compatible namespaced tools and edits duplicate l
   assert.equal(pi.commands.has("snapshot-edit"), true);
   assert.equal(pi.flags.has("snapshot-edit-override"), true);
   assert.equal(pi.handlers.has("session_shutdown"), true);
+  assert.equal(pi.handlers.has("input"), true);
   assert.match(pi.tools.get("snapshot_edit").promptSnippet, /exact-selector edits/);
+  assert.match(pi.tools.get("snapshot_read").promptGuidelines.join("\n"), /committed observation/);
 
   const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-extension-"));
   const path = join(directory, "duplicate.txt");
@@ -385,6 +387,38 @@ test("snapshot_edit executes successfully through the prepare-then-validate seam
     assert.equal(editResult.details.baseRevision, readResult.details.revision);
     assert.equal(await readFile(path, "utf8"), "same\nchanged\n");
   } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("input handler lifts tmpdir clipboard images without snapshotting them", async () => {
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nGQAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-clipboard-"));
+  const filePath = join(directory, "pi-clipboard-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png");
+  await writeFile(filePath, png);
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = directory;
+  try {
+    const pi = createMockPi();
+    snapshotEditExtension(pi.api);
+    assert.equal(typeof pi.handlers.get("input"), "function");
+    const result = await pi.handlers.get("input")({
+      type: "input",
+      text: `describe ${filePath}`,
+      source: "interactive",
+    });
+    assert.equal(result.action, "transform");
+    assert.equal(result.images.length, 1);
+    assert.equal(result.images[0].type, "image");
+    assert.equal(result.images[0].mimeType, "image/png");
+    assert.match(result.text, /<file name=/);
+    assert.equal(pi.tools.has("read"), false);
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
     await rm(directory, { recursive: true, force: true });
   }
 });

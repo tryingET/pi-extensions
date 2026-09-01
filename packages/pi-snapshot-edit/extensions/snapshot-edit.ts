@@ -1,7 +1,7 @@
 // ---
-// summary: "registers snapshot-bound read and edit tools plus override and release-smoke commands"
+// summary: "registers snapshot-bound read and edit tools, clipboard image lift, override, and release-smoke commands"
 // read_when:
-//   - "changing extension tool schemas, lifecycle hooks, or standard tool overrides"
+//   - "changing extension tool schemas, lifecycle hooks, clipboard image lift, or standard tool overrides"
 // ---
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
+import { liftClipboardImages } from "../src/clipboard-image-attach.js";
 import { runPackedReleaseSmoke } from "../src/release-smoke.js";
 import { normalizeRevisionAlias, SnapshotEditService } from "../src/snapshot-service.js";
 
@@ -114,6 +115,7 @@ function createReadDefinition(
     promptGuidelines: [
       `Use ${name} before ${name === "read" ? "edit" : "snapshot_edit"}; copy exact selectors from the raw base text.`,
       `Treat ${name} revision words as opaque aliases; pagination remains bound to the full file.`,
+      "If the user message already includes an image attachment or a clipboard <file name> marker, treat that image as a committed observation; do not read the PNG or cover with OCR.",
     ],
     parameters: readParameters,
     async execute(_toolCallId, params, signal, _onUpdate, ctx: ExtensionContext) {
@@ -417,5 +419,11 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async () => {
     service.clear();
+  });
+
+  pi.on("input", async (event) => {
+    const lifted = await liftClipboardImages(event.text, event.images);
+    if (!lifted.changed) return;
+    return { action: "transform", text: lifted.text, images: lifted.images };
   });
 }

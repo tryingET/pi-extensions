@@ -43,6 +43,11 @@ All notable changes to this project should be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Clipboard image lift: host `pi-clipboard-*` tmpdir placeholders become user-message image parts via an `input` transform so default snapshot `read` replacement does not blind pasted screenshots.
+- Read-tool guidelines treat a lifted clipboard image as a committed observation (do not OCR or re-read the PNG).
+
 ### Changed
 
 - Edit `base` now accepts the rendered `revision:` header prefix and surrounding whitespace; the bare alias word remains canonical.

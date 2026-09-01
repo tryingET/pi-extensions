@@ -95,6 +95,10 @@ pi --snapshot-edit-override
 
 Standard-name ownership requires positively identified built-in owners for both tools and refuses any visible non-built-in `read` or `edit` owner. Explicit enablement also fails closed when either built-in owner is absent; only implicit default startup may degrade to namespaced-only operation. Unsupported reads fail closed. Restart with an opt-out value for namespaced-only operation, or disable/uninstall the extension to restore host ownership. Resumed line-coordinate calls and top-level legacy edit calls are rejected with instructions to reread and issue Protocol B. Nested Protocol B `oldText` remains valid.
 
+## Clipboard image lift
+
+Host Ctrl+V writes a `TMPDIR/pi-clipboard-<uuid>.<ext>` path into the editor. This package does **not** teach snapshot `read` to decode images. Instead an `input` transform lifts those tmpdir placeholders into user-message `ImageContent` and rewrites the path to a `<file name="...">` marker. Snapshot revisions stay UTF-8. Disable with `PI_SNAPSHOT_EDIT_IMAGE_LIFT=off`. See [ADR 0002](docs/adr/0002-clipboard-image-lift.md).
+
 ## Install and verify
 
 ```bash

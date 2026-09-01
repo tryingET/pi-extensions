@@ -46,7 +46,8 @@ Package tests cover:
 - selector/new-text CRLF normalization with BOM and mode preservation;
 - stale bytes, replaced inode, hard-link, cancellation, and no-op rejection;
 - top-level legacy and resumed line-coordinate reread diagnostics;
-- nested Protocol B `oldText` surviving standard argument preparation.
+- nested Protocol B `oldText` surviving standard argument preparation;
+- clipboard `pi-clipboard-*` tmpdir placeholders lifted to `ImageContent` on `input`, with outside-tmpdir, symlink-escape, non-image, and opt-out refusals.
 
 ## Historical Protocol A dogfood
 
