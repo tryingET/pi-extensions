@@ -228,37 +228,51 @@ impl Component for App {
                 self.reconcile_engagement(widgets, root, &sender);
             }
             AppMsg::Navigate(id, direction, manual) => {
-                self.navigate(&widgets.cards_box, &id, direction, manual);
+                if self.keyboard_active {
+                    self.navigate(&widgets.cards_box, &id, direction, manual);
+                }
             }
             AppMsg::Activate(id) => {
                 emit(json!({ "protocol": 1, "type": "activate", "cardId": id }));
-            }
-            AppMsg::ActivationResult(id, ok, message) => {
-                if let Some(card) = self.cards.get(&id) {
-                    card.set_activation(ok, &message);
-                }
-                if ok {
+                if self.keyboard_active {
                     self.end_engagement();
                     root.set_keyboard_mode(KeyboardMode::None);
                     self.apply_expansion(widgets, root, None);
                 }
             }
+            AppMsg::ActivationResult(id, ok, message) => {
+                if let Some(card) = self.cards.get(&id) {
+                    card.set_activation(ok, &message);
+                }
+            }
             AppMsg::FocusStrip => {
                 if self.visible && self.interactive {
-                    self.keyboard_active = true;
-                    self.hovered.clear();
-                    self.keyboard_focused = self.order.first().cloned();
-                    root.set_keyboard_mode(KeyboardMode::Exclusive);
-                    root.present();
-                    if let Some(first) = self
-                        .keyboard_focused
-                        .as_ref()
-                        .and_then(|id| self.cards.get(id))
-                    {
-                        first.root.grab_focus();
+                    if self.keyboard_active {
+                        self.end_engagement();
+                        root.set_keyboard_mode(KeyboardMode::None);
+                        self.apply_expansion(widgets, root, None);
+                    } else {
+                        self.keyboard_active = true;
+                        self.hovered.clear();
+                        self.keyboard_focused = self.order.first().cloned();
+                        root.set_keyboard_mode(KeyboardMode::Exclusive);
+                        root.present();
+                        let focus_grabbed = self
+                            .keyboard_focused
+                            .as_ref()
+                            .and_then(|id| self.cards.get(id))
+                            .is_some_and(|first| first.root.grab_focus());
+                        if focus_grabbed {
+                            self.reconcile_engagement(widgets, root, &sender);
+                            emit(
+                                json!({ "protocol": 1, "type": "keyboard-active", "active": true }),
+                            );
+                        } else {
+                            self.end_engagement();
+                            root.set_keyboard_mode(KeyboardMode::None);
+                            self.apply_expansion(widgets, root, None);
+                        }
                     }
-                    self.reconcile_engagement(widgets, root, &sender);
-                    emit(json!({ "protocol": 1, "type": "keyboard-active", "active": true }));
                 }
             }
             AppMsg::Collapse | AppMsg::WindowInactive => {
@@ -280,6 +294,18 @@ impl Component for App {
     }
 }
 
+fn navigation_target(index: usize, direction: i32, len: usize) -> Option<usize> {
+    if len == 0 {
+        return None;
+    }
+    Some((index as i64 + direction as i64).rem_euclid(len as i64) as usize)
+}
+
+fn move_order_item(order: &mut Vec<String>, index: usize, target: usize) {
+    let moved = order.remove(index);
+    order.insert(target, moved);
+}
+
 fn engaged_card_id(
     hovered: &HashSet<String>,
     keyboard_active: bool,
@@ -294,10 +320,14 @@ fn engaged_card_id(
 
 impl App {
     fn end_engagement(&mut self) {
+        let was_keyboard_active = self.keyboard_active;
         self.hovered.clear();
         self.keyboard_focused = None;
         self.keyboard_active = false;
         self.collapse_generation += 1;
+        if was_keyboard_active {
+            emit(json!({ "protocol": 1, "type": "keyboard-active", "active": false }));
+        }
     }
 
     fn apply_view(
@@ -329,12 +359,13 @@ impl App {
             }
         }
         self.hovered.retain(|id| self.data.contains_key(id));
-        if self
-            .keyboard_focused
-            .as_ref()
-            .is_some_and(|id| !self.data.contains_key(id))
-        {
-            self.keyboard_focused = None;
+        let keyboard_card_removed = self.keyboard_active
+            && self
+                .keyboard_focused
+                .as_ref()
+                .is_some_and(|id| !self.data.contains_key(id));
+        if keyboard_card_removed {
+            self.keyboard_focused = self.order.first().cloned();
         }
         let open_card_removed = self
             .open_card_id
@@ -345,6 +376,20 @@ impl App {
             self.next_order_refresh_at = now_ms() + ORDER_REFRESH_MS;
         }
         self.reconcile_card_widgets(&widgets.cards_box, sender);
+        if keyboard_card_removed {
+            let focus_grabbed = self
+                .keyboard_focused
+                .as_ref()
+                .and_then(|id| self.cards.get(id))
+                .is_some_and(|card| card.root.grab_focus());
+            if focus_grabbed {
+                self.reconcile_engagement(widgets, root, sender);
+            } else {
+                self.end_engagement();
+                root.set_keyboard_mode(KeyboardMode::None);
+                self.apply_expansion(widgets, root, None);
+            }
+        }
         if open_card_removed {
             self.apply_expansion(widgets, root, None);
         }
@@ -449,10 +494,11 @@ impl App {
         let Some(index) = self.order.iter().position(|candidate| candidate == id) else {
             return;
         };
-        let target =
-            (index as i32 + direction).clamp(0, self.order.len().saturating_sub(1) as i32) as usize;
+        let Some(target) = navigation_target(index, direction, self.order.len()) else {
+            return;
+        };
         if manual && target != index {
-            self.order.swap(index, target);
+            move_order_item(&mut self.order, index, target);
             self.reorder_widgets(parent);
             self.next_order_refresh_at = now_ms() + ORDER_REFRESH_MS;
             emit(json!({ "protocol": 1, "type": "moved", "cardId": id, "direction": direction }));
@@ -513,7 +559,7 @@ impl App {
 
 #[cfg(test)]
 mod tests {
-    use super::engaged_card_id;
+    use super::{engaged_card_id, move_order_item, navigation_target};
     use std::collections::HashSet;
 
     #[test]
@@ -539,5 +585,22 @@ mod tests {
             engaged_card_id(&hovered, true, &Some("card-b".to_owned())),
             Some("card-b".to_owned())
         );
+    }
+
+    #[test]
+    fn keyboard_navigation_wraps_in_both_directions() {
+        assert_eq!(navigation_target(0, -1, 4), Some(3));
+        assert_eq!(navigation_target(3, 1, 4), Some(0));
+        assert_eq!(navigation_target(1, 1, 4), Some(2));
+        assert_eq!(navigation_target(0, 1, 0), None);
+    }
+
+    #[test]
+    fn wrapped_manual_movement_relocates_instead_of_swapping_endpoints() {
+        let mut order = vec!["a".into(), "b".into(), "c".into(), "d".into()];
+        move_order_item(&mut order, 0, 3);
+        assert_eq!(order, ["b", "c", "d", "a"]);
+        move_order_item(&mut order, 3, 0);
+        assert_eq!(order, ["a", "b", "c", "d"]);
     }
 }

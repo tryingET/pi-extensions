@@ -112,6 +112,8 @@ impl CardView {
             } else if key == gdk::Key::Escape {
                 let _ = tx.send(AppMsg::Collapse);
                 return glib::Propagation::Stop;
+            } else if key == gdk::Key::space || key == gdk::Key::KP_Space {
+                return glib::Propagation::Stop;
             } else {
                 return glib::Propagation::Proceed;
             };

@@ -32,6 +32,7 @@ All notable changes to this project should be documented here.
 - Serialize publisher delivery, add monotonic publisher sequences, expire leases by broker receipt time, bound broker input/cardinality, and retry lost state transitions without allowing late writes to regress or resurrect state.
 - Make publisher-record membership comparison reflexive, fix the latest-only worker finalization race, bound every Niri action, and prevent passive focus probes or main-issued collapse events from feeding redundant reconciliation.
 - Collapse expanded detail when pointer leaves the strip or another desktop window becomes active; retain GTK focus only during explicit keyboard entry, clear stale engagement on Escape/hide/activation, and keep the 252px expanded surface on a fixed 84px exclusive zone.
+- Make `focus-strip` a keyboard-mode toggle with wraparound Left/Right navigation and movement, Enter-only activation, and explicit pointer-hover isolation.
 - Bind the native panel lifetime to its Node controller, coalesce backpressured view updates, and restart unexpected panel exits without leaving a reserved band.
 - Recover exact Pi identities for already-running tabs only through validated process-bound `pi-session-presence` sidecars; otherwise retain the `/reload` fail-closed path.
 - Prefer full hyphenless 32-hex Ghostty session identities while retaining 8-hex titles only when no legacy duplicate or migrated full title shares that prefix; mixed-version collisions fail closed until reload.

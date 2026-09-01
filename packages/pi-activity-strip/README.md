@@ -102,11 +102,11 @@ Bind a Niri key to the fail-closed CLI entrypoint:
 
 ```kdl
 binds {
-    Mod+Shift+A { spawn "node" "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip/bin/pi-activity-strip.mjs" "focus-strip"; }
+    Mod+Shift+A repeat=false allow-inhibiting=false hotkey-overlay-title="Toggle Pi Activity Ribbon keyboard mode" { spawn "/usr/bin/node" "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip/bin/pi-activity-strip.mjs" "focus-strip"; }
 }
 ```
 
-The command temporarily requests exclusive keyboard interactivity, focuses the first card, and releases keyboard ownership after successful activation or Escape. Empty workspaces and click-through mode reject keyboard entry.
+The shortcut toggles exclusive keyboard mode. On entry, the first card is selected. Left/Right wraps through cards, Shift+Left/Right moves the selected card with wraparound, Enter focuses its exact Ghostty terminal and exits, and Escape or a second shortcut press exits without activation. Space does not activate a card. Pointer hover expands detail but deliberately does not capture keyboard input. Empty workspaces and click-through mode reject keyboard entry.
 
 ## Interaction contract
 
