@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-session-compaction",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Dedicated Pi package for custom session compaction summaries.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

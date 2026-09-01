@@ -7,6 +7,20 @@ type: "changelog"
 
 # Changelog
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-editor-registry-v0.2.2...pi-editor-registry-v0.3.0) (2026-09-01)
+
+
+### Features
+
+* **interaction:** add exact editor refine bridge ([ca51045](https://github.com/tryingET/pi-extensions/commit/ca51045f39cb206f8b4ecaed97674a5e017a4cdc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-trigger-adapter bumped from file:../pi-trigger-adapter to 0.2.4
+
 ## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-editor-registry-v0.2.1...pi-editor-registry-v0.2.2) (2026-08-29)
 
 

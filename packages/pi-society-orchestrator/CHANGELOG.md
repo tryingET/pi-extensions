@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.11.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.0...pi-society-orchestrator-v0.11.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* route society runtime reads through AK ([b991958](https://github.com/tryingET/pi-extensions/commit/b991958293bf2696b12d72191206f4d6f8cd65fd))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from ^0.6.0 to ^0.7.0
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.1
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.1
+
 ## [0.11.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.10.1...pi-society-orchestrator-v0.11.0) (2026-08-29)
 
 

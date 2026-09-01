@@ -13,6 +13,25 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.2.0...pi-agent-registry-v0.3.0) (2026-09-01)
+
+
+### Features
+
+* **pi-agent-registry:** land fleet lint and phase-2 read-only dispatch contract ([73c8c92](https://github.com/tryingET/pi-extensions/commit/73c8c9236552f2dabc4194a455c24d72808072a3))
+
+
+### Bug Fixes
+
+* close Fleet Phase 0 launch bypasses ([c8c408b](https://github.com/tryingET/pi-extensions/commit/c8c408b934a9b18ef0b795a0641600f852b30f40))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from file:../pi-autonomous-session-control to 0.7.0
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.1.0...pi-agent-registry-v0.2.0) (2026-08-29)
 
 

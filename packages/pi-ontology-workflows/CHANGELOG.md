@@ -23,6 +23,16 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.0...pi-ontology-workflows-v0.5.1) (2026-09-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-editor-registry bumped from file:../pi-interaction/pi-editor-registry to 0.3.0
+    * @tryinget/pi-trigger-adapter bumped from file:../pi-interaction/pi-trigger-adapter to 0.2.4
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.4.0...pi-ontology-workflows-v0.5.0) (2026-08-29)
 
 

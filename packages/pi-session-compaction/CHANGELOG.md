@@ -13,6 +13,21 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.5.0...pi-session-compaction-v0.6.0) (2026-09-01)
+
+
+### Features
+
+* **pi:** add fresh handoff command and tool ([ed12e5e](https://github.com/tryingET/pi-extensions/commit/ed12e5ebcc1323e525ccd1b5215adac09e34cd56))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-model-selection bumped from file:../pi-model-selection to 0.3.1
+    * @tryinget/pi-telemetry bumped from file:../pi-telemetry to 0.4.1
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.4.0...pi-session-compaction-v0.5.0) (2026-08-29)
 
 

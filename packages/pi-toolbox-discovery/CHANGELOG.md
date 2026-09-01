@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.4.0...pi-toolbox-discovery-v0.4.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* **pi:** keep fresh handoff tool always active ([3119547](https://github.com/tryingET/pi-extensions/commit/31195479952a6b8b07d923e70eea61d9c02b3707))
+* remove retired society query from toolbox ([bbae6f8](https://github.com/tryingET/pi-extensions/commit/bbae6f884a5c7d3e2c1d7cbbc1bf7551b75aec20))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.3.1...pi-toolbox-discovery-v0.4.0) (2026-08-29)
 
 

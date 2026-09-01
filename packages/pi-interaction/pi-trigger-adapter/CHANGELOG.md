@@ -7,6 +7,20 @@ type: "changelog"
 
 # Changelog
 
+## [0.2.4](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.3...pi-trigger-adapter-v0.2.4) (2026-09-01)
+
+
+### Bug Fixes
+
+* realign published state of 7 components after blocked wave e30aea5 ([65467d3](https://github.com/tryingET/pi-extensions/commit/65467d35aea5d41903af728f42852016975ea908))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-interaction-kit bumped from file:../pi-interaction-kit to 0.2.2
+
 ## [0.2.3](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.2...pi-trigger-adapter-v0.2.3) (2026-08-29)
 
 

@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.3.0...pi-prompt-template-execution-v0.3.1) (2026-09-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-model-selection bumped from file:../pi-model-selection to 0.3.1
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.2.0...pi-prompt-template-execution-v0.3.0) (2026-08-29)
 
 

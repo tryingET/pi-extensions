@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.6.0...pi-autonomous-session-control-v0.7.0) (2026-09-01)
+
+
+### Features
+
+* **pi-autonomous-session-control:** inherit parent thinking and fast mode ([b908f90](https://github.com/tryingET/pi-extensions/commit/b908f90b4c12c67952fa5321e0d5ec14e0eb0143))
+
+
+### Bug Fixes
+
+* close Fleet Phase 0 launch bypasses ([c8c408b](https://github.com/tryingET/pi-extensions/commit/c8c408b934a9b18ef0b795a0641600f852b30f40))
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.5.2...pi-autonomous-session-control-v0.6.0) (2026-08-29)
 
 

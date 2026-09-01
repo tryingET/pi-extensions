@@ -13,6 +13,21 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.0...pi-autoresearch-v0.5.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* realign published state of 7 components after blocked wave e30aea5 ([65467d3](https://github.com/tryingET/pi-extensions/commit/65467d35aea5d41903af728f42852016975ea908))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-trigger-adapter bumped from file:../pi-interaction/pi-trigger-adapter to 0.2.4
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.1
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.4.1...pi-autoresearch-v0.5.0) (2026-08-29)
 
 
