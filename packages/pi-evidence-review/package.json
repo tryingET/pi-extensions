@@ -2,6 +2,7 @@
   "name": "@tryinget/pi-evidence-review",
   "version": "0.1.0",
   "description": "pi extension package for evidence-review workflows in monorepo runtime",
+  "private": true,
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
