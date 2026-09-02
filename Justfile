@@ -15,6 +15,7 @@ test:
     if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
     if [ -f ./scripts/quest-worktree-reap.test.mjs ]; then node --test ./scripts/quest-worktree-reap.test.mjs; fi
     if [ -f ./scripts/root-doc-alignment.test.mjs ]; then node --test ./scripts/root-doc-alignment.test.mjs; fi
+    if [ -f ./scripts/release-evidence.test.mjs ]; then node --test ./scripts/release-evidence.test.mjs; fi
     ./scripts/ci/packages.sh
 
 # Hermetic generation tests always run; real-Pi concurrency runs only with an explicit canonical PI_GENERATION_TEST_PI.
@@ -61,6 +62,12 @@ tui-smoke:
 # this repo (bounded), plus sidequest D-Bus companion preflight.
 ghostty-tui-smoke:
     ./scripts/ghostty-tui-smoke.sh
+
+# Release-PR visual evidence: render VHS tapes, attach via gh --attach, record AK receipt.
+# Extra flags (--base/--dry-run/--record): node scripts/release-evidence.mjs --pr <n> ...
+# Conventions: tapes/CONVENTIONS.md — gate: release-check.yml require-release-evidence.
+evidence PR:
+    node ./scripts/release-evidence.mjs --pr {{PR}}
 
 # Install provenance drift alarm for Pi package installs.
 install-drift:

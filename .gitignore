@@ -11,3 +11,6 @@
 
 # Local editor/workspace metadata
 /.obsidian/
+
+# Rendered VHS tape output (regenerated; evidence GIFs live as GitHub attachments + AK receipts)
+/tapes/*/out/

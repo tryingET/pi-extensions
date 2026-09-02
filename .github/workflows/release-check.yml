@@ -53,6 +53,35 @@ jobs:
           node ./scripts/release-components.mjs matrix --json >> "$GITHUB_OUTPUT"
           echo 'EOF' >> "$GITHUB_OUTPUT"
 
+  require-release-evidence:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--branches--main') &&
+      contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Require release-evidence comment with attachments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          evidence_bodies=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=100" \
+            --jq '.[].body | select(contains("<!-- release-evidence -->"))' || true)
+          if [ -z "$evidence_bodies" ]; then
+            echo "::error::Release PR ${PR_NUMBER} has no release-evidence comment. Run: just evidence ${PR_NUMBER} (see tapes/CONVENTIONS.md), then re-run this check."
+            exit 1
+          fi
+          if ! printf '%s' "$evidence_bodies" | grep -q 'user-attachments'; then
+            echo "::error::release-evidence comment exists but carries no uploaded attachments. Re-run: just evidence ${PR_NUMBER}"
+            exit 1
+          fi
+          echo "release-evidence comment with attachments present on PR ${PR_NUMBER}"
+
   package-release-check:
     needs: discover-components
     runs-on: ubuntu-latest
