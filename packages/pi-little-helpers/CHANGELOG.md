@@ -32,6 +32,27 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.9.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.8.0...pi-little-helpers-v0.9.0) (2026-09-02)
+
+
+### Features
+
+* land supervision-ux candidate work — company provenance, observer suppression, bounded intercom ledger (AK 5324) ([6ebdc26](https://github.com/tryingET/pi-extensions/commit/6ebdc26fc3ddd9593462c6183a2715215bb61a2b))
+
+
+### Bug Fixes
+
+* **little-helpers:** advertise automatic company provenance on spawn tools (AK 5330) ([d87a5ef](https://github.com/tryingET/pi-extensions/commit/d87a5ef46588d85c998cb28af0bfad117d8bb2da))
+* **little-helpers:** carry environment-source company provenance into visible children (AK 5326) ([75bff28](https://github.com/tryingET/pi-extensions/commit/75bff28796b4ff76a897218247e359667035de82))
+* **little-helpers:** put company-provenance ads on descriptions and slash help (AK 5331) ([b6c0ccf](https://github.com/tryingET/pi-extensions/commit/b6c0ccf256504dbe3c49a1a2ba5d720b76cbc0df))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * peerDependencies
+    * @tryinget/pi-peer-messaging bumped from 0.3.0 to 0.4.0
+
 ## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.7.0...pi-little-helpers-v0.8.0) (2026-09-01)
 
 
