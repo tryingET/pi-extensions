@@ -39,6 +39,21 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.4.0...pi-activity-strip-v0.5.0) (2026-09-01)
+
+
+### Features
+
+* **activity-strip:** replace Electron with native layer shell ([080dc4f](https://github.com/tryingET/pi-extensions/commit/080dc4f421757143d04124b2b3aaecbd659e6d0e))
+
+
+### Bug Fixes
+
+* **activity-strip:** make keyboard mode predictable ([b628192](https://github.com/tryingET/pi-extensions/commit/b628192a917680cc3d43f67f5de505e6aef3c506))
+* **activity-strip:** persist shell on empty workspaces ([6168707](https://github.com/tryingET/pi-extensions/commit/616870788a3fc61dcc0059533aec65b9a8d4f301))
+* **activity-strip:** release stale expansion focus ([5ed2613](https://github.com/tryingET/pi-extensions/commit/5ed2613291e0e4c1196b488a48b33259a7050421))
+* **activity-strip:** stabilize terminal identity projection ([eb4abad](https://github.com/tryingET/pi-extensions/commit/eb4abad14e5dcfa7cdd5d7c707ce6f05b3122268))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.3.0...pi-activity-strip-v0.4.0) (2026-08-29)
 
 

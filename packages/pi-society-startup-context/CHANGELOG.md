@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.0...pi-society-startup-context-v0.3.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* route society runtime reads through AK ([b991958](https://github.com/tryingET/pi-extensions/commit/b991958293bf2696b12d72191206f4d6f8cd65fd))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.2.2...pi-society-startup-context-v0.3.0) (2026-08-29)
 
 

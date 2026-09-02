@@ -13,6 +13,16 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-accelerator-v0.3.0...pi-prompt-template-accelerator-v0.3.1) (2026-09-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-runtime-registry bumped from file:../pi-interaction/pi-runtime-registry to 0.2.2
+    * @tryinget/pi-trigger-adapter bumped from file:../pi-interaction/pi-trigger-adapter to 0.2.4
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-accelerator-v0.2.1...pi-prompt-template-accelerator-v0.3.0) (2026-08-29)
 
 

@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-better-openai-v0.4.0...pi-better-openai-v0.5.0) (2026-09-01)
+
+
+### Features
+
+* **pi-better-openai:** publish fast state for subagent inheritance ([01aa279](https://github.com/tryingET/pi-extensions/commit/01aa279e55214a827837b4f3f54b2c9134a441b4))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-better-openai-v0.3.0...pi-better-openai-v0.4.0) (2026-08-29)
 
 

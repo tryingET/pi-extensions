@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-model-selection-v0.3.0...pi-model-selection-v0.3.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* realign published state of 7 components after blocked wave e30aea5 ([65467d3](https://github.com/tryingET/pi-extensions/commit/65467d35aea5d41903af728f42852016975ea908))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-model-selection-v0.2.1...pi-model-selection-v0.3.0) (2026-08-29)
 
 

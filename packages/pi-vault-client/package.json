@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-vault-client",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "pi extension package for vault workflows in monorepo runtime",
   "type": "module",
   "exports": {
@@ -97,9 +97,9 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@tryinget/pi-interaction-kit": "0.2.1",
-    "@tryinget/pi-runtime-registry": "0.2.1",
-    "@tryinget/pi-trigger-adapter": "0.2.3"
+    "@tryinget/pi-interaction-kit": "0.2.2",
+    "@tryinget/pi-runtime-registry": "0.2.2",
+    "@tryinget/pi-trigger-adapter": "0.2.4"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",

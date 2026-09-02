@@ -7,6 +7,13 @@ type: "changelog"
 
 # Changelog
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-interaction-kit-v0.2.1...pi-interaction-kit-v0.2.2) (2026-09-01)
+
+
+### Bug Fixes
+
+* realign published state of 7 components after blocked wave e30aea5 ([65467d3](https://github.com/tryingET/pi-extensions/commit/65467d35aea5d41903af728f42852016975ea908))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-interaction-kit-v0.2.0...pi-interaction-kit-v0.2.1) (2026-08-29)
 
 

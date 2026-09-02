@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-interaction-v0.3.3...pi-interaction-v0.4.0) (2026-09-01)
+
+
+### Features
+
+* **interaction:** add exact editor refine bridge ([ca51045](https://github.com/tryingET/pi-extensions/commit/ca51045f39cb206f8b4ecaed97674a5e017a4cdc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-editor-registry bumped from file:../pi-editor-registry to 0.3.0
+    * @tryinget/pi-interaction-kit bumped from file:../pi-interaction-kit to 0.2.2
+    * @tryinget/pi-trigger-adapter bumped from file:../pi-trigger-adapter to 0.2.4
+
 ## [0.3.3](https://github.com/tryingET/pi-extensions/compare/pi-interaction-v0.3.2...pi-interaction-v0.3.3) (2026-08-29)
 
 

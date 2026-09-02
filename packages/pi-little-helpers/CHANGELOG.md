@@ -32,6 +32,26 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.7.0...pi-little-helpers-v0.8.0) (2026-09-01)
+
+
+### Features
+
+* **pi:** add fresh handoff command and tool ([ed12e5e](https://github.com/tryingET/pi-extensions/commit/ed12e5ebcc1323e525ccd1b5215adac09e34cd56))
+
+
+### Bug Fixes
+
+* **activity-strip:** stabilize terminal identity projection ([eb4abad](https://github.com/tryingET/pi-extensions/commit/eb4abad14e5dcfa7cdd5d7c707ce6f05b3122268))
+* close Fleet Phase 0 launch bypasses ([c8c408b](https://github.com/tryingET/pi-extensions/commit/c8c408b934a9b18ef0b795a0641600f852b30f40))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-session-compaction bumped from file:../pi-session-compaction to 0.6.0
+
 ## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.6.0...pi-little-helpers-v0.7.0) (2026-08-29)
 
 

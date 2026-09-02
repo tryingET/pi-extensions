@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.1](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.7.0...pi-vault-client-v0.7.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* realign published state of 7 components after blocked wave e30aea5 ([65467d3](https://github.com/tryingET/pi-extensions/commit/65467d35aea5d41903af728f42852016975ea908))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-interaction-kit bumped from 0.2.1 to 0.2.2
+    * @tryinget/pi-runtime-registry bumped from 0.2.1 to 0.2.2
+    * @tryinget/pi-trigger-adapter bumped from 0.2.3 to 0.2.4
+
 ## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.6.0...pi-vault-client-v0.7.0) (2026-08-29)
 
 

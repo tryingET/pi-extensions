@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.4.0...pi-snapshot-edit-v0.5.0) (2026-09-01)
+
+
+### Features
+
+* **pi-snapshot-edit:** lift clipboard pastes into image attachments ([05c8b1a](https://github.com/tryingET/pi-extensions/commit/05c8b1a45f2ac41090bfb2199567b4b371da66e2))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.3.1...pi-snapshot-edit-v0.4.0) (2026-08-29)
 
 

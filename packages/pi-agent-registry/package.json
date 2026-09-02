@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-agent-registry",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Pi standing-agent manifest inspection, immutable fleet lint, and the Fleet Phase-2 exact-task read-only dispatch contract",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
