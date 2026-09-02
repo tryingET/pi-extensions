@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.3.0...pi-peer-messaging-v0.4.0) (2026-09-02)
+
+
+### Features
+
+* land supervision-ux candidate work — company provenance, observer suppression, bounded intercom ledger (AK 5324) ([6ebdc26](https://github.com/tryingET/pi-extensions/commit/6ebdc26fc3ddd9593462c6183a2715215bb61a2b))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.2.2...pi-peer-messaging-v0.3.0) (2026-08-29)
 
 
