@@ -65,7 +65,7 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.84.1"
+    "@earendil-works/pi-ai": "0.84.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",

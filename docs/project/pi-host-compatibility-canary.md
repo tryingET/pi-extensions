@@ -52,6 +52,8 @@ That removes directory-shape inference, keeps execution scope consistent with th
 
 Coverage health for the critical root canary is tracked with `critical_uncovered_host_surfaces`; the current target is `critical_uncovered_host_surfaces=0`.
 
+The `host-dev-pin-drift` scenario is a read-only fleet check. It requires exact canary-current versions in `dependencies`, `devDependencies`, and `optionalDependencies` (not `peerDependencies`), matching `package-lock.json` `packages[""]` specifiers and direct `node_modules/<contract>` versions, and rejects nested lock copies under non-contract packages. Nested copies under another `@earendil-works/*` tree are treated as that package's own closure and are not fleet pins.
+
 ### Runner module map
 
 AK-4714 retired the temporary runner size exception by decomposing the implementation into cohesive private modules while keeping `scripts/pi-host-compatibility-canary.mjs` as the only CLI facade:

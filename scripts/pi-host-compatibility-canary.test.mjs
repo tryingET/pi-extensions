@@ -100,7 +100,7 @@ test("dev-pin drift guard passes on the real repository and reports aligned decl
     { cwd: ROOT, encoding: "utf-8" },
   );
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /^ok: pi host contract dev pins \(\d+ declaration\(s\) at \d+\.\d+\.\d+\)\n?$/);
+  assert.match(result.stdout, /^ok: pi host contract pins \(\d+ declaration\(s\)\/lock entries at \d+\.\d+\.\d+\)\n?$/);
 });
 
 test("dev-pin drift guard fails closed on drift and refuses vacuous passes", () => {
@@ -146,7 +146,7 @@ test("dev-pin drift guard fails closed on drift and refuses vacuous passes", () 
       encoding: "utf-8",
     });
     assert.notEqual(drifted.status, 0);
-    assert.match(drifted.stderr, /packages\/sample-a\/package\.json: @earendil-works\/pi-ai=0\.82\.0 \(expected 0\.83\.0\)/);
+    assert.match(drifted.stderr, /packages\/sample-a\/package\.json: devDependencies\.@earendil-works\/pi-ai=0\.82\.0 \(expected 0\.83\.0\)/);
 
     const vacuous = spawnSync(process.execPath, [checker, ...checkerArgs, "--repo-root", path.join(emptyRoot, "nowhere")], {
       encoding: "utf-8",

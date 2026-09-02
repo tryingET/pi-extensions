@@ -308,9 +308,9 @@
     },
     {
       "id": "host-dev-pin-drift",
-      "title": "Pi host contract dev-pin drift guard",
+      "title": "Pi host contract drift guard",
       "owner": "monorepo-root",
-      "why": "Every package's devDependencies for the four governed Pi host contract packages must equal the canary policy's current host version, so a partial bump or stale pin cannot silently split the fleet across host lines.",
+      "why": "Every package's dependencies, devDependencies, and optionalDependencies for the four governed Pi host contract packages must equal the canary policy's current host version, matching lockfile toolchain entries must not float, and nested lock copies under non-contract packages must not drift.",
       "profiles": [
         "current"
       ],
@@ -323,7 +323,7 @@
         "node",
         "./scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs"
       ],
-      "notes": "Read-only repo-root check with no host preparation: fails closed listing every off-contract dev pin and refuses to pass vacuously when no package manifests are found."
+      "notes": "Read-only repo-root check with no host preparation: fails closed listing every off-contract dependencies/devDependencies/optionalDependencies pin, lockfile packages[\"\"]/direct node_modules mismatch, and nested lock copies under non-contract packages. Companion-package nested closures are ignored. Refuses to pass vacuously when no package manifests are found."
     }
   ]
 }

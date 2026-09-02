@@ -11,6 +11,7 @@ test:
     if [ -f ./scripts/release-components.test.mjs ]; then node --test ./scripts/release-components.test.mjs; fi
     node --test ./scripts/pi-host-compatibility-canary.test.mjs
     node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
+    node --test ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.test.mjs
     npm run extensions:generations:test
     if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
     if [ -f ./scripts/quest-worktree-reap.test.mjs ]; then node --test ./scripts/quest-worktree-reap.test.mjs; fi
