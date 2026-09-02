@@ -113,6 +113,11 @@ jobs:
               echo "predecessor on npm: $package"
               continue
             fi
+            pkg_name="${package%@*}"
+            if npm view "$pkg_name" version --json >/dev/null 2>&1; then
+              echo "predecessor superseded on npm: $package have $(npm view "$pkg_name" version)"
+              continue
+            fi
             echo "predecessor missing from npm: $package ($predecessor_tag)" >&2
             exit 1
           done < "$predecessors"
