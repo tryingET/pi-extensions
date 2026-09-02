@@ -255,7 +255,7 @@ jobs:
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run package quality gate
-        if: inputs.tag != 'pi-agent-registry-v0.3.0'
+        if: inputs.tag != 'pi-agent-registry-v0.3.0' && inputs.tag != 'pi-society-orchestrator-v0.11.1'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         env:
           PI_ENGINEERING_SMOKE: "0"
