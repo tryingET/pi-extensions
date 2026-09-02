@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.11.2](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.1...pi-society-orchestrator-v0.11.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** point ASC lock at registry 0.7.0 tarball (AK 5175) ([fc83693](https://github.com/tryingET/pi-extensions/commit/fc83693ce097bb47e6d332efd0ce9932190f3880))
+
 ## [0.11.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.0...pi-society-orchestrator-v0.11.1) (2026-09-01)
 
 
