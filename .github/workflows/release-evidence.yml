@@ -82,8 +82,9 @@ jobs:
             echo "gh --attach uploads to uploads.github.com/user-attachments (user-scoped assets):"
             echo "the Actions GITHUB_TOKEN is an installation token with no user identity and is"
             echo "rejected with 'unsupported authentication type'."
-            echo "Fix: mint a classic PAT (repo scope) or fine-grained PAT (pull requests: read+write"
-            echo "on this repo) and add it as repo secret EVIDENCE_GH_TOKEN, then re-run this workflow."
+            echo "Fix: mint a FINE-GRAINED PAT scoped to this repository only, with pull requests:"
+            echo "read+write (do NOT use a classic repo-scope PAT — its blast radius is all your"
+            echo "repos) and add it as repo secret EVIDENCE_GH_TOKEN, then re-run this workflow."
             exit 1
           fi
           echo "EVIDENCE_GH_TOKEN present"

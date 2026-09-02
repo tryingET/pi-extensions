@@ -89,3 +89,22 @@ paginate in the gate, not here.
   **`EVIDENCE_GH_TOKEN`** (classic PAT with `repo` scope, or fine-grained PAT
   with pull-requests read+write on this repo) and fails fast with setup
   instructions when it is missing.
+
+## Security boundary of the upload token
+
+- **Fork PRs never see the secret**: GitHub withholds repo secrets from
+  `pull_request` events originating in forks; the job condition additionally
+  requires `head.repo.full_name == github.repository`.
+- **Same-repo PRs are the real boundary**: anyone with push access can open a
+  same-repo PR, and `pull_request` runs the PR's *own* workflow file — a
+  collaborator could rewrite this workflow in their PR to exfiltrate
+  `EVIDENCE_GH_TOKEN`. The `if:` condition cannot defend against that.
+- Therefore: **use a fine-grained PAT scoped to this repo only** (pull requests
+  read+write, short expiry). Never a classic repo-scope PAT (blast radius: all
+  repos). Stolen-token worst case: spoofed/edited PR comments in this repo.
+- Recommended ruleset (repo settings): restrict creating/pushing
+  `release-please--branches--main*` to the owner and the release bot. That
+  removes the fake-release-PR path entirely, protecting this workflow and the
+  release flow itself.
+- `workflow_dispatch` is maintainer-only and always runs the default-branch
+  workflow file — not tamperable via PR content.
