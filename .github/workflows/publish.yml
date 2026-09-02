@@ -253,8 +253,6 @@ jobs:
           dolt config --global --set user.name "github-actions[bot]"
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Run package quality gate          dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Provide engineering-core and steward fixtures for agent-registry checks
         if: env.RELEASE_COMPONENT == 'pi-agent-registry'
         run: |
