@@ -31,7 +31,7 @@ This package owns Pi-side registration and MCP stdio bridging for SCI composite 
 ```bash
 npm install
 npm test
-npm run dogfood
+SCI_MCP_COMMAND=/absolute/path/to/semantic-code-intelligence/bin/semantic-code-mcp npm run dogfood
 bash ../../scripts/package-quality-gate.sh ci packages/pi-semantic-code-intelligence
 ```
 

@@ -7,8 +7,12 @@ import {
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   bindNexusArgs,
+  localSciBridgeError,
+  NEXUS_WORKSPACE_MISMATCH_MESSAGE,
   type NexusWorkspaceContext,
   parseNexusHandshake,
+  sameWorkspace,
+  type WorkspaceRefV1,
 } from "./nexus-workspace.ts";
 import {
   SCI_COMPOSITE_TOOL_NAMES,
@@ -41,6 +45,7 @@ export interface SciBridge {
     cwd: string,
   ): Promise<Record<string, unknown>>;
   workspaceContext?(cwd: string): Promise<NexusWorkspaceContext>;
+  expectWorkspace?(workspace: WorkspaceRefV1): void;
   close(): Promise<void>;
 }
 
@@ -193,8 +198,13 @@ export class SciMcpBridge implements SciBridge {
   private connection: LiveConnection | undefined;
   private connecting: Promise<LiveConnection> | undefined;
   private pinnedCwd: string | undefined;
+  private expectedWorkspace: WorkspaceRefV1 | undefined;
 
   constructor(private readonly options: McpBridgeOptions = {}) {}
+
+  expectWorkspace(workspace: WorkspaceRefV1): void {
+    this.expectedWorkspace = workspace;
+  }
 
   async bindArgs(
     _name: SciCompositeToolName,
@@ -321,9 +331,14 @@ export class SciMcpBridge implements SciBridge {
         { timeout: 30_000, maxTotalTimeout: 30_000 },
       )) as SciBridgeCallResult;
       const nexus = parseNexusHandshake(handshake);
+      if (this.expectedWorkspace && !sameWorkspace(nexus.workspace, this.expectedWorkspace)) {
+        throw new Error(NEXUS_WORKSPACE_MISMATCH_MESSAGE);
+      }
       return { cwd, client, transport, advertisedTools, nexus };
-    } catch {
+    } catch (error) {
       await Promise.allSettled([client.close(), transport.close()]);
+      const local = localSciBridgeError(error);
+      if (local) throw local;
       const stderrObserved = stderrTail.some((entry) => entry.length > 0);
       throw new Error(
         `Could not start installed semantic-code-mcp for this workspace. Backend diagnostics were withheld${stderrObserved ? "; stderr was observed" : ""}.`,

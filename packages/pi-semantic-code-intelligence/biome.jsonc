@@ -16,6 +16,8 @@
       "!external/**/*",
       // ontology/ contains generated domain artifacts/snapshots.
       "!ontology/**/*",
+      // .ontology/ is SCI runtime state from live MCP/dogfood in this checkout.
+      "!.ontology/**/*",
       "!**/*.min.js",
       "!**/*.generated.*"
     ]

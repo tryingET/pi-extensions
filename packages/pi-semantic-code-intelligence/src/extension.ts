@@ -22,6 +22,12 @@ import {
   isWorkspacePathRefV1,
   isWorkspaceRefV1,
   isWorkspaceStateRefV1,
+  localSciBridgeError,
+  NEXUS_WORKSPACE_ENTRY_TYPE,
+  nextPinnedNexusWorkspace,
+  renderNexusWorkspaceEntry,
+  restoreNexusWorkspaceEntry,
+  type WorkspaceRefV1,
 } from "./nexus-workspace.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
 import { hasSciErrorSignal, sciErrorText, sciInputPathError } from "./sci-error-projection.ts";
@@ -49,10 +55,13 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
         retainedExplorePackets.delete(oldest);
       }
     };
+    let pinnedNexusWorkspace: WorkspaceRefV1 | undefined;
     const reconstructExplorePackets = (ctx: ExtensionContext): void => {
       retainedExplorePackets.clear();
       const restored = restoreExploreOperatorEntries(ctx.sessionManager.getBranch(), ctx.cwd);
       for (const entry of restored) retainExplorePacket(entry);
+      pinnedNexusWorkspace = restoreNexusWorkspaceEntry(ctx.sessionManager.getBranch())?.workspace;
+      if (pinnedNexusWorkspace) bridge.expectWorkspace?.(pinnedNexusWorkspace);
     };
 
     pi.registerEntryRenderer<ExploreOperatorEntry>(
@@ -62,6 +71,9 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
         const toolCallId = typeof data?.toolCallId === "string" ? data.toolCallId : "";
         return renderExploreOperatorEntry(retainedExplorePackets.get(toolCallId), expanded);
       },
+    );
+    pi.registerEntryRenderer(NEXUS_WORKSPACE_ENTRY_TYPE, (entry, { expanded }) =>
+      renderNexusWorkspaceEntry(entry.data, expanded),
     );
     pi.on("session_start", async (_event, ctx) => reconstructExplorePackets(ctx));
     pi.on("session_tree", async (_event, ctx) => reconstructExplorePackets(ctx));
@@ -113,8 +125,25 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
             boundArgs = bridge.bindArgs
               ? await bridge.bindArgs(resolved.workflow, resolved.args, ctx.cwd)
               : resolved.args;
+            const pin = nextPinnedNexusWorkspace(pinnedNexusWorkspace, boundArgs.workspace);
+            if (pin) {
+              pinnedNexusWorkspace = pin.workspace;
+              bridge.expectWorkspace?.(pin.workspace);
+              if (pin.persist) {
+                try {
+                  pi.appendEntry(NEXUS_WORKSPACE_ENTRY_TYPE, {
+                    schema: "pi.sci_nexus_workspace.v1",
+                    workspace: pin.workspace,
+                  });
+                } catch {
+                  // The in-memory pin remains available for this runtime.
+                }
+              }
+            }
             result = await bridge.callTool(resolved.workflow, boundArgs, ctx.cwd, signal);
-          } catch {
+          } catch (error) {
+            const local = localSciBridgeError(error);
+            if (local) throw local;
             throw new Error(
               `SCI workflow ${resolved.workflow} failed. Backend diagnostics, paths, and stderr were withheld.`,
             );

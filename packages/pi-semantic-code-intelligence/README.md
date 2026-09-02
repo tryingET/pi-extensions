@@ -72,7 +72,7 @@ This package does not authorize hosted, network-exposed, multi-user, or public S
 
 ### Pi Composite NEXUS v1 workspace binding
 
-The bridge now performs a hidden `get_snapshot { nexus:true }` handshake before the first composite call. SCI mints one opaque `workspace_ref.v1`; the bridge pins the originating `ctx.cwd`, injects that reference into all five workflows, and refuses later root drift instead of closing/rebinding to another repository. Explore/locate model evidence preserves bounded workspace-state and path references. Preview/rename results preserve exact revisioned snapshot references while the native Pi surface remains preview-only.
+The bridge now performs a hidden `get_snapshot { nexus:true }` handshake before the first composite call. SCI mints one opaque `workspace_ref.v1`; the bridge pins the originating `ctx.cwd`, injects that reference into all five workflows, and refuses later root drift instead of closing/rebinding to another repository. The companion persists only that opaque workspace ref in a TUI-only custom entry (`pi-sci-nexus-workspace-v1`) and revalidates it on session restore. Handshake-contract failure or a changed identity fails closed with local recovery; start a target-root session instead of rebinding. Explore/locate model evidence preserves bounded workspace-state and path references. Preview/rename results preserve exact revisioned snapshot references while the native Pi surface remains preview-only.
 
 Workspace and snapshot references are identity/lineage, not authorization tokens. They cannot select a filesystem root, do not replace SCI lexical/realpath/descriptor containment, and do not grant cross-repo access. NEXUS reasons such as `workspace_path_unresolved`, `workspace_state_changed`, and `stale_snapshot_ref` receive locally authored path-redacted recovery; unknown or malformed producer errors remain generic.
 
@@ -129,7 +129,7 @@ The acknowledgement fields are a caller declaration used by toolbox policy; they
 
 ```bash
 npm test
-npm run dogfood
+SCI_MCP_COMMAND=/absolute/path/to/semantic-code-intelligence/bin/semantic-code-mcp npm run dogfood
 bash ../../scripts/package-quality-gate.sh ci packages/pi-semantic-code-intelligence
 ```
 

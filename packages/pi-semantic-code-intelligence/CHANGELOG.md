@@ -17,7 +17,7 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
-- Adopted Pi Composite NEXUS v1 under AK decision 145: the MCP bridge performs a hidden server-minted workspace handshake, pins one immutable Pi-session root, injects the workspace reference into all five producer workflows, preserves bound state/path/snapshot references in validated output, and rejects root drift or stale snapshot lineage without reflecting host paths. This unreleased source now requires a decision-145 SCI source build; frozen SCI 2.1.0 release-candidate artifacts predate the handshake.
+- Adopted Pi Composite NEXUS v1 under AK decision 145: the MCP bridge performs a hidden server-minted workspace handshake, pins one immutable Pi-session root, injects the workspace reference into all five producer workflows, persists only the opaque workspace ref in a TUI-only custom entry for session restore validation, preserves bound state/path/snapshot references in validated output, and rejects root drift, handshake-contract failure, or identity mismatch without reflecting host paths. This unreleased source now requires a decision-145 SCI source build; frozen SCI 2.1.0 release-candidate artifacts predate the handshake.
 
 - Merged the two Pi patch tools (`patch_checks_in_snapshot`, `structural_patch_checks`)
   into one native preview door, `preview_patch_checks` (AK #5012): either a prepared

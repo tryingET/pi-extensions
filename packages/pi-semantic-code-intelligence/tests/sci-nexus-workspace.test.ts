@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SciBridge, SciBridgeCallResult } from "../src/mcp-bridge.ts";
 import {
   bindNexusArgs,
+  localSciBridgeError,
+  NEXUS_WORKSPACE_ENTRY_TYPE,
+  NEXUS_WORKSPACE_MISMATCH_MESSAGE,
+  nextPinnedNexusWorkspace,
   parseNexusHandshake,
+  renderNexusWorkspaceEntry,
+  restoreNexusWorkspaceEntry,
   type SnapshotRefV1,
   type WorkspacePathRefV1,
   type WorkspaceRefV1,
@@ -250,4 +257,123 @@ test("forged NEXUS result references fail closed before model projection", async
   assert.equal(parsed.ok, false);
   assert.equal(parsed.status, "indeterminate");
   assert.doesNotMatch(output.content[0].text, /\/srv\/private/);
+});
+
+test("session restore helpers keep opaque workspace lineage and reject drift", () => {
+  const entry = { schema: "pi.sci_nexus_workspace.v1" as const, workspace };
+  assert.deepEqual(
+    restoreNexusWorkspaceEntry([
+      { type: "message" },
+      { type: "custom", customType: NEXUS_WORKSPACE_ENTRY_TYPE, data: entry },
+    ]),
+    entry,
+  );
+  assert.equal(nextPinnedNexusWorkspace(undefined, workspace)?.persist, true);
+  assert.equal(nextPinnedNexusWorkspace(workspace, workspace)?.persist, false);
+  assert.throws(
+    () =>
+      nextPinnedNexusWorkspace(workspace, {
+        ...workspace,
+        workspaceId: "wsp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    { message: NEXUS_WORKSPACE_MISMATCH_MESSAGE },
+  );
+  assert.equal(
+    localSciBridgeError(new Error("SCI NEXUS handshake returned an invalid reference contract"))
+      ?.message,
+    "SCI NEXUS handshake returned an invalid reference contract",
+  );
+  assert.equal(localSciBridgeError(new Error("boom")), undefined);
+  assert.deepEqual(renderNexusWorkspaceEntry(entry, false).render(80), [
+    "SCI NEXUS workspace bound",
+  ]);
+});
+
+test("opaque workspace ref persists TUI-only and restores without duplicating", async () => {
+  const bridge: SciBridge = {
+    async bindArgs(_name, args) {
+      return { ...args, workspace };
+    },
+    async callTool(name, args) {
+      return result(payloadFor(name, args));
+    },
+    async advertisedToolNames() {
+      return ["locate_confirm_definition"];
+    },
+    async close() {},
+  };
+  const harness = createHarness(bridge);
+  await requiredTool(harness, "locate_confirm_definition").execute(
+    "nexus-persist",
+    { symbol: "Target" },
+    undefined,
+    undefined,
+    { cwd: "/workspace/repo" },
+  );
+  const persisted = harness.customEntries.filter(
+    (entry) => entry.customType === NEXUS_WORKSPACE_ENTRY_TYPE,
+  );
+  assert.equal(persisted.length, 1);
+  assert.deepEqual(persisted[0]?.data, { schema: "pi.sci_nexus_workspace.v1", workspace });
+
+  const session = SessionManager.inMemory("/workspace/repo");
+  session.appendCustomEntry(NEXUS_WORKSPACE_ENTRY_TYPE, persisted[0]?.data);
+  assert.match(JSON.stringify(session.getEntries()), /wsp_0123456789abcdef0123456789abcdef/);
+  assert.doesNotMatch(
+    JSON.stringify(session.buildSessionContext()),
+    /wsp_0123456789abcdef0123456789abcdef/,
+  );
+
+  await harness.emit("session_start");
+  await requiredTool(harness, "locate_confirm_definition").execute(
+    "nexus-restore",
+    { symbol: "Target" },
+    undefined,
+    undefined,
+    { cwd: "/workspace/repo" },
+  );
+  assert.equal(
+    harness.customEntries.filter((entry) => entry.customType === NEXUS_WORKSPACE_ENTRY_TYPE).length,
+    1,
+  );
+});
+
+test("session-restored workspace identity mismatch fails closed", async () => {
+  let current = workspace;
+  const bridge: SciBridge = {
+    async bindArgs(_name, args) {
+      return { ...args, workspace: current };
+    },
+    async callTool(name, args) {
+      return result(payloadFor(name, args));
+    },
+    async advertisedToolNames() {
+      return ["locate_confirm_definition"];
+    },
+    async close() {},
+  };
+  const harness = createHarness(bridge);
+  await requiredTool(harness, "locate_confirm_definition").execute(
+    "nexus-first",
+    { symbol: "Target" },
+    undefined,
+    undefined,
+    { cwd: "/workspace/repo" },
+  );
+  await harness.emit("session_start");
+  current = {
+    schema: "semantic-code-intelligence.workspace_ref.v1",
+    workspaceId: "wsp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  };
+  await assert.rejects(
+    () =>
+      requiredTool(harness, "locate_confirm_definition").execute(
+        "nexus-mismatch",
+        { symbol: "Target" },
+        undefined,
+        undefined,
+        { cwd: "/workspace/repo" },
+      ),
+    { message: NEXUS_WORKSPACE_MISMATCH_MESSAGE },
+  );
 });
