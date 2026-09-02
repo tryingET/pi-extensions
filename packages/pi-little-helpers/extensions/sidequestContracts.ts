@@ -7,6 +7,8 @@ import { Type } from "typebox";
 import { CandidateAdmissionPrerequisiteError } from "../src/candidatePeerAdmission.ts";
 
 export type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
+export const CHILD_SESSION_CWD_DESCRIPTION =
+  "Child session cwd. Defaults to ctx.cwd. Unscoped paths receive controller company provenance automatically; company-scoped paths self-recover. Do not set PI_COMPANY; session mode is not a company switch.";
 export type PiToolContext = Parameters<Parameters<ExtensionAPI["registerTool"]>[0]["execute"]>[4];
 export type SidequestRole = "scout" | "reviewer";
 export type SidequestReportBack = "intercom" | "manual" | "none";
@@ -106,7 +108,7 @@ export const forkPeerSpawnParameters = asPiToolParameters(
     }),
     cwd: Type.Optional(
       Type.String({
-        description: "Workspace cwd for the visible forked peer. Defaults to ctx.cwd.",
+        description: CHILD_SESSION_CWD_DESCRIPTION,
       }),
     ),
     reportBack: reportBackParameter,
@@ -126,7 +128,7 @@ export const freshHandoffSpawnParameters = asPiToolParameters(
     ),
     cwd: Type.Optional(
       Type.String({
-        description: "Target workspace for the clean Pi session. Defaults to ctx.cwd.",
+        description: CHILD_SESSION_CWD_DESCRIPTION,
       }),
     ),
   }),
@@ -142,7 +144,7 @@ export const scoutPeerSpawnParameters = asPiToolParameters(
     objective: Type.String({ description: "Required non-empty scouting/review objective." }),
     cwd: Type.Optional(
       Type.String({
-        description: "Workspace cwd for the visible scout peer. Defaults to ctx.cwd.",
+        description: CHILD_SESSION_CWD_DESCRIPTION,
       }),
     ),
     reportBack: reportBackParameter,
@@ -282,7 +284,12 @@ export const candidatePeerSpawnParameters = asPiToolParameters(
       description:
         "Required non-empty candidate mutation objective. It must exactly match the pre-authorized lifecycle-v2 permit after trimming; do not paraphrase it.",
     }),
-    cwd: Type.Optional(Type.String({ description: "Parent/controller cwd. Defaults to ctx.cwd." })),
+    cwd: Type.Optional(
+      Type.String({
+        description:
+          "Parent/controller cwd. Defaults to ctx.cwd. Used as company-provenance parent when the isolated worktree path is unscoped; do not set PI_COMPANY.",
+      }),
+    ),
     baseRef: Type.Optional(Type.String({ description: "Git base ref. Defaults to HEAD." })),
     branchName: Type.Optional(
       Type.String({ description: "Candidate branch name. Defaults to candidatepeer/<slug>." }),

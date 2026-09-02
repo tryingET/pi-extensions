@@ -69,7 +69,7 @@ export const LITTLE_HELPERS_CAPABILITY_MANIFEST = {
   ownerPackage: "@tryinget/pi-little-helpers",
   title: "Visible peer and loop helpers",
   description:
-    "Fork, scout, candidate peer, clean handoff, and visible loop slash-command surfaces, with model-callable tools for peer spawn plus lifecycle-v2 candidate closeout and quarantined registry-v1 inspection.",
+    "Fork, scout, candidate peer, clean handoff, and visible loop slash-command surfaces, with model-callable tools for peer spawn plus lifecycle-v2 candidate closeout and quarantined registry-v1 inspection. Unscoped child cwd receives controller company provenance automatically; session mode is not a company switch.",
   commands: LITTLE_HELPERS_COMMAND_NAMES,
   commandOnlySurfaces: ["visible-loop", "nexus-loop"],
   tools: LITTLE_HELPERS_PEER_TOOL_NAMES,

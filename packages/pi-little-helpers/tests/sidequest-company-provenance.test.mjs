@@ -127,3 +127,31 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
     "scoped target cwd must self-recover company without an env prefix",
   );
 });
+
+test("spawn tool ads tell harnessed models provenance is automatic and session mode is not a company switch", () => {
+  const extension = createSidequestExtension({ registerTools: true });
+  const { tools } = registerExtension(extension);
+  const names = [
+    "fork_peer_spawn",
+    "scout_peer_spawn",
+    "fresh_handoff_spawn",
+    "candidate_peer_spawn",
+  ];
+  for (const name of names) {
+    const tool = tools.get(name);
+    assert.ok(tool, name);
+    assert.match(
+      tool.promptSnippet,
+      /company provenance automatically/i,
+      `${name} promptSnippet must advertise automatic company provenance`,
+    );
+  }
+  assert.match(
+    tools.get("fresh_handoff_spawn").promptSnippet,
+    /session mode is not a company switch/i,
+  );
+  assert.match(
+    tools.get("fork_peer_spawn").parameters.properties.cwd.description,
+    /Do not set PI_COMPANY/,
+  );
+});

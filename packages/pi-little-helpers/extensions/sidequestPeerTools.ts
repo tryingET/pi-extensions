@@ -317,7 +317,7 @@ export function registerSidequestPeerTools({
     label: "Fork Peer Spawn",
     description: "Launch a visible forked-context peer Pi session.",
     promptSnippet:
-      "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use.",
+      "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use. Unscoped child cwd receives company provenance automatically; do not pick this tool to set PI_COMPANY.",
     parameters: forkPeerSpawnParameters,
     execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
       executeForkPeerSpawn(FORK_PEER_SPAWN_TOOL, params, ctx),
@@ -328,7 +328,7 @@ export function registerSidequestPeerTools({
     label: "Scout Peer Spawn",
     description: "Launch a clean visible read-only scout/review peer Pi session.",
     promptSnippet:
-      "Use to launch a clean visible scout/review peer in the same workspace. It does not inherit the controller conversation and returns launch facts only.",
+      "Use to launch a clean visible scout/review peer in the same workspace. It does not inherit the controller conversation and returns launch facts only. Unscoped child cwd receives company provenance automatically.",
     parameters: scoutPeerSpawnParameters,
     execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
       executeScoutPeerSpawn(SCOUT_PEER_SPAWN_TOOL, params, ctx),
@@ -340,7 +340,7 @@ export function registerSidequestPeerTools({
     description:
       "Generate a self-contained handoff from the current conversation and launch it as the sole initial user message in a fresh clean Pi session.",
     promptSnippet:
-      "Use only when the operator explicitly asks to transfer current work into a fresh clean Pi session. The launch is continuation transport, not task completion proof.",
+      "Use only when the operator explicitly asks to transfer current work into a fresh clean Pi session. The launch is continuation transport, not task completion proof. Unscoped child cwd receives company provenance automatically; session mode is not a company switch.",
     parameters: freshHandoffSpawnParameters,
     execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
       executeFreshHandoffSpawn(FRESH_HANDOFF_SPAWN_TOOL, params, ctx),
