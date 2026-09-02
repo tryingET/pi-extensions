@@ -253,6 +253,20 @@ jobs:
           dolt config --global --set user.name "github-actions[bot]"
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Run package quality gate          dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Provide engineering-core and steward fixtures for agent-registry checks
+        if: env.RELEASE_COMPONENT == 'pi-agent-registry'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/ai-society/core" "$HOME/ai-society/agents"
+          git clone --depth 1 https://github.com/tryingET/core_engineering-core.git \
+            "$HOME/ai-society/core/engineering-core"
+          git clone --depth 1 https://github.com/tryingET/agent-adoption-steward.git \
+            "$HOME/ai-society/agents/agent-adoption-steward"
+          test -f "$HOME/ai-society/core/engineering-core/skills/profiles.json"
+          test -d "$HOME/ai-society/agents/agent-adoption-steward"
+
       - name: Run package quality gate
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         env:
