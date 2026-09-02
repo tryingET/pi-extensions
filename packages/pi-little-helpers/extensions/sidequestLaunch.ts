@@ -220,7 +220,7 @@ export async function launchPiQuestSession({
     ? undefined
     : resolveChildCompanyContext({ env, targetCwd: cwd, parentCwd: ctx.cwd });
   const piArgs =
-    companyProvenance?.source === "parent_cwd"
+    companyProvenance && companyProvenance.source !== "target_cwd"
       ? prefixPiArgsWithCompanyContext(rawPiArgs, companyProvenance)
       : rawPiArgs;
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
