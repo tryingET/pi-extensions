@@ -9,6 +9,7 @@ import {
   MIN_GH,
   buildEvidenceBody,
   buildGhAttachArgs,
+  buildGhCommentArgs,
   discoverPackages,
   expectedGifFor,
   ghMeetsMinimum,
@@ -68,6 +69,15 @@ test("buildEvidenceBody carries marker, table, and inline refs with alt text", (
   assert.ok(body.includes("| pi-agent-registry | fleet-lint-demo.gif | behavior at HEAD |"));
   assert.ok(body.includes("- head: `main (def5678)`"));
   assert.ok(body.includes("`just evidence 180`"));
+});
+
+test("buildGhCommentArgs keeps edit mode idempotent and paths consistent", () => {
+  const items = sampleItems().slice(0, 1);
+  const edit = buildGhCommentArgs({ kind: "pr", id: 180, bodyFile: "/tmp/body.md", items, editLast: true });
+  assert.deepEqual(edit.slice(0, 8), ["pr", "comment", "180", "--body-file", "/tmp/body.md", "--edit-last", "--create-if-none", "--attach"]);
+  const fresh = buildGhCommentArgs({ kind: "issue", id: 42, bodyFile: "/tmp/body.md", items, editLast: false });
+  assert.ok(!fresh.includes("--edit-last"));
+  assert.equal(fresh[0], "issue");
 });
 
 test("attach args and body refs stay path-identical so gh rewrites in place", () => {

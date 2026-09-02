@@ -8,11 +8,13 @@
  *
  * Usage:
  *   node scripts/release-evidence.mjs --pr 180 [--package pi-agent-registry]...
- *        [--base origin/main] [--task 5311] [--record] [--dry-run]
+ *        [--base origin/main] [--task 5311] [--record] [--edit-last] [--dry-run]
  *   node scripts/release-evidence.mjs --issue 42 [same flags]
  *
  * --pr and --issue are mutually exclusive; exactly one is required.
  * --record additionally writes an AK evidence receipt (requires --task).
+ * --edit-last updates the caller's own previous evidence comment instead of
+ * stacking new ones (gh: --edit-last --create-if-none); used by CI.
  */
 
 import { spawnSync } from "node:child_process";
@@ -96,6 +98,19 @@ export function buildEvidenceBody({ items, baseRef, headRef, headSha, generatedA
   return lines.join("\n");
 }
 
+/** Flat gh argument vector for the comment command incl. body, edit mode, attachments. */
+export function buildGhCommentArgs({ kind, id, bodyFile, items, editLast }) {
+  return [
+    kind === "pr" ? "pr" : "issue",
+    "comment",
+    String(id),
+    "--body-file",
+    bodyFile,
+    ...(editLast ? ["--edit-last", "--create-if-none"] : []),
+    ...buildGhAttachArgs(items),
+  ];
+}
+
 /** Flat gh argument vector for attachments: ["--attach", "<gif>#<alt>", ...] */
 export function buildGhAttachArgs(items) {
   const args = [];
@@ -148,6 +163,7 @@ function parseArgs(argv) {
       case "--base": opts.base = argv[++i]; break;
       case "--task": opts.task = argv[++i]; break;
       case "--record": opts.record = true; break;
+      case "--edit-last": opts.editLast = true; break;
       case "--dry-run": opts.dryRun = true; break;
       default: throw new Error(`unknown argument: ${arg}`);
     }
@@ -204,7 +220,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const target = opts.pr ? { kind: "pr", id: opts.pr } : { kind: "issue", id: opts.issue };
-  const command = `just evidence ${target.kind === "pr" ? "PR" : "ISSUE"}=${target.id}`;
+  const command = `just evidence ${target.id}`;
   const body = buildEvidenceBody({
     items,
     baseRef: opts.base,
@@ -223,9 +239,9 @@ export async function main(argv = process.argv.slice(2)) {
 
   const bodyFile = join(tmpdir(), `release-evidence-${Date.now()}.md`);
   writeFileSync(bodyFile, body);
-  const ghArgs = [target.kind === "pr" ? "pr" : "issue", "comment", String(target.id), "--body-file", bodyFile, ...buildGhAttachArgs(items)];
+  const ghArgs = buildGhCommentArgs({ kind: target.kind, id: target.id, bodyFile, items, editLast: Boolean(opts.editLast) });
   const url = run("gh", ghArgs, { cwd: repoRoot }).trim();
-  console.log(`posted: ${url}`);
+  console.log(`posted${opts.editLast ? " (edited last)" : ""}: ${url}`);
 
   if (opts.record) {
     const details = JSON.stringify({ url, target, packages, tapes: items.map((i) => i.gif), base: opts.base ?? null, head: `${headRef} (${headSha})`, generatedAt: new Date().toISOString() });

@@ -1,0 +1,77 @@
+name: release-evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to render tapes for and attach the evidence comment to"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-evidence-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  render-and-attach:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.head_ref, 'release-please--branches--main') &&
+       contains(github.event.pull_request.labels.*.name, 'autorelease: pending'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.22.2"
+          package-manager-cache: false
+
+      - name: Install ttyd 1.7.7 and vhs v0.11.0
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/ttyd" "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64"
+          sudo install -m 0755 "$RUNNER_TEMP/ttyd" /usr/local/bin/ttyd
+          curl -fsSL -o "$RUNNER_TEMP/vhs.deb" "https://github.com/charmbracelet/vhs/releases/download/v0.11.0/vhs_0.11.0_amd64.deb"
+          sudo dpkg -i "$RUNNER_TEMP/vhs.deb"
+          ttyd --version
+          vhs --version
+
+      - name: Ensure gh supports --attach (>= 2.99.0)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="$(gh --version | sed -n 's/^gh version \([0-9][0-9.]*\).*/\1/p' | head -1)"
+          if [ -n "$v" ] && [ "$(printf '%s\n' 2.99.0 "$v" | sort -V | head -1)" = "2.99.0" ]; then
+            echo "runner gh $v supports --attach"
+            exit 0
+          fi
+          echo "runner gh ${v:-unknown} too old for --attach; installing latest gh"
+          tag="$(gh api repos/cli/cli/releases/latest --jq .tag_name)"
+          ver="${tag#v}"
+          curl -fsSL -o "$RUNNER_TEMP/gh.tgz" "https://github.com/cli/cli/releases/download/${tag}/gh_${ver}_linux_amd64.tar.gz"
+          tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+          sudo install -m 0755 "$RUNNER_TEMP/gh_${ver}_linux_amd64/bin/gh" /usr/local/bin/gh
+          gh --version
+
+      - name: Render tapes and attach evidence comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+        run: node ./scripts/release-evidence.mjs --pr "$PR_NUMBER" --edit-last

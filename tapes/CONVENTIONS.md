@@ -65,3 +65,19 @@ Comment idempotency: each run posts a new comment; the gate greps for the
 marker, so one successful run per release PR is enough. Comment listing in the
 gate reads up to 100 comments per PR — if a release PR ever exceeds that,
 paginate in the gate, not here.
+
+## CI auto-render
+
+`.github/workflows/release-evidence.yml` renders and attaches automatically:
+
+- **Auto:** on release-please PRs (`release-please--branches--main` head +
+  `autorelease: pending` label) on open/sync/reopen/label — the runner installs
+  pinned `ttyd 1.7.7` + `vhs v0.11.0`, upgrades `gh` only when the runner image
+  still predates 2.99.0, and runs the same script with `--edit-last` so the
+  bot maintains **one** evidence comment per PR instead of stacking.
+- **Manual:** `workflow_dispatch` with a PR number (any PR, same render path).
+- CI posts as the Actions bot; `--edit-last` edits only the caller's own last
+  comment, so workstation runs and CI runs keep separate comments.
+- CI runs render HEAD only (no `--base` before-half; the release PR changelog
+  carries the textual before). AK receipts stay workstation-side — Actions
+  has no society DB access; the comment URL is the CI-visible evidence.
