@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.0...pi-agent-registry-v0.3.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **pi-agent-registry:** hermetic engineering-core fixture for CI publish (AK 5175) ([7078883](https://github.com/tryingET/pi-extensions/commit/70788834889d9d228d528ca3fd58be39cfaef7d1))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.2.0...pi-agent-registry-v0.3.0) (2026-09-01)
 
 
