@@ -48,6 +48,8 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/ttyd" "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64"
           sudo install -m 0755 "$RUNNER_TEMP/ttyd" /usr/local/bin/ttyd
           curl -fsSL -o "$RUNNER_TEMP/vhs.deb" "https://github.com/charmbracelet/vhs/releases/download/v0.11.0/vhs_0.11.0_amd64.deb"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           sudo dpkg -i "$RUNNER_TEMP/vhs.deb"
           ttyd --version
           vhs --version
