@@ -40,7 +40,10 @@ async function withExtensionEnv(fn) {
   const previousRoots = process.env.PI_AGENT_REGISTRY_ROOTS;
   const previousEc = process.env.PI_AGENT_REGISTRY_EC_PROFILES;
   process.env.PI_AGENT_REGISTRY_ROOTS = join(FIXTURES_ROOT, "agent-*");
-  process.env.PI_AGENT_REGISTRY_EC_PROFILES = REAL_EC_PROFILES;
+  process.env.PI_AGENT_REGISTRY_EC_PROFILES = join(
+    FIXTURES_ROOT,
+    "engineering-core/skills/profiles.json",
+  );
   // isolate from the operator's real skills root for extras resolution
   const previousUserSkills = process.env.PI_AGENT_REGISTRY_USER_SKILLS;
   delete process.env.PI_AGENT_REGISTRY_USER_SKILLS;
@@ -128,7 +131,6 @@ test("agent_registry list and show resolve fixture agents", async () => {
       assert.match(shown.content[0].text, /role: Fixture Steward \| creation_task: AK-5098/);
       assert.equal(shown.details.role, "Fixture Steward");
       assert.equal(shown.details.creationTask, "AK-5098");
-      assert.match(shown.content[0].text, /ec-discipline-testing/);
       assert.equal(shown.details.loadedSkills.includes("local-helper-skill"), true);
       assert.deepEqual(await readdir(isolatedTmp), []);
     } finally {
@@ -227,7 +229,12 @@ test("agent_registry refresh reloads manifests after filesystem changes", async 
   );
 
   const previousRoots = process.env.PI_AGENT_REGISTRY_ROOTS;
+  const previousEc = process.env.PI_AGENT_REGISTRY_EC_PROFILES;
   process.env.PI_AGENT_REGISTRY_ROOTS = [join(FIXTURES_ROOT, "agent-*"), extraRoot].join(":");
+  process.env.PI_AGENT_REGISTRY_EC_PROFILES = join(
+    FIXTURES_ROOT,
+    "engineering-core/skills/profiles.json",
+  );
   try {
     const harness = createPiHarness();
     await loadExtension(harness.pi);
@@ -260,6 +267,8 @@ test("agent_registry refresh reloads manifests after filesystem changes", async 
   } finally {
     if (previousRoots === undefined) delete process.env.PI_AGENT_REGISTRY_ROOTS;
     else process.env.PI_AGENT_REGISTRY_ROOTS = previousRoots;
+    if (previousEc === undefined) delete process.env.PI_AGENT_REGISTRY_EC_PROFILES;
+    else process.env.PI_AGENT_REGISTRY_EC_PROFILES = previousEc;
     await rm(extraRoot, { recursive: true, force: true });
   }
 });

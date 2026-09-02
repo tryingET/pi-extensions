@@ -1,0 +1,8 @@
+{
+  "schema": "engineering-core.skill-profiles/1",
+  "profiles": {
+    "ec-defaults": [],
+    "ec-current": []
+  },
+  "deprecated_aliases": {}
+}

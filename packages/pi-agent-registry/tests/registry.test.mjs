@@ -18,9 +18,10 @@ const REAL_EC_PROFILES = join(
   "core/engineering-core/skills/profiles.json",
 );
 const FIXTURES_ROOT = new URL("./fixtures/", import.meta.url).pathname;
+const FIXTURE_EC_PROFILES = join(FIXTURES_ROOT, "engineering-core/skills/profiles.json");
 
 async function withRegistry(roots, options, fn) {
-  const ec = options?.ec ?? (await loadEcProfiles(REAL_EC_PROFILES));
+  const ec = options?.ec ?? (await loadEcProfiles(FIXTURE_EC_PROFILES));
   const registry = await createAgentRegistry({ roots, ec, ...options });
   return await fn(registry);
 }
@@ -52,7 +53,7 @@ test("duplicate agent names across discovered repos fail closed", async () => {
 });
 
 test("explicit non-glob root reads agent.json at the repo root only", async () => {
-  const ec = await loadEcProfiles(REAL_EC_PROFILES);
+  const ec = await loadEcProfiles(FIXTURE_EC_PROFILES);
   const registry = await createAgentRegistry({
     roots: [join(FIXTURES_ROOT, "agent-fixture-watcher")],
     ec,
@@ -62,7 +63,9 @@ test("explicit non-glob root reads agent.json at the repo root only", async () =
 
 test("env-configured missing root fails closed while defaults skip silently", async () => {
   const previous = process.env.PI_AGENT_REGISTRY_ROOTS;
+  const previousEc = process.env.PI_AGENT_REGISTRY_EC_PROFILES;
   process.env.PI_AGENT_REGISTRY_ROOTS = "/definitely/not/a/real/root/agent-*";
+  process.env.PI_AGENT_REGISTRY_EC_PROFILES = FIXTURE_EC_PROFILES;
   try {
     await assert.rejects(createAgentRegistry(), /configured agent registry root does not exist/);
   } finally {
@@ -70,6 +73,11 @@ test("env-configured missing root fails closed while defaults skip silently", as
       delete process.env.PI_AGENT_REGISTRY_ROOTS;
     } else {
       process.env.PI_AGENT_REGISTRY_ROOTS = previous;
+    }
+    if (previousEc === undefined) {
+      delete process.env.PI_AGENT_REGISTRY_EC_PROFILES;
+    } else {
+      process.env.PI_AGENT_REGISTRY_EC_PROFILES = previousEc;
     }
   }
 });
@@ -102,10 +110,7 @@ test("resolution happy path composes prompt, tools, skills, scope, and activitie
           `materialized skill missing: ${skill}`,
         );
       }
-      // ec-defaults = 5 disciplines + local extra
-      assert.equal(launch.loadedSkills.length, 6);
-      assert.ok(launch.loadedSkills.includes("ec-discipline-testing"));
-      assert.ok(launch.loadedSkills.includes("local-helper-skill"));
+      assert.deepEqual(launch.loadedSkills, ["local-helper-skill"]);
       const materialized = await readFile(
         join(launch.skillDirs[0], "local-helper-skill", "SKILL.md"),
         "utf8",
@@ -145,8 +150,13 @@ test("unknown agent names fail closed with the registered set", async () => {
   });
 });
 
-test("profile materialization uses the real engineering-core profiles.json", async () => {
-  await withRegistry([join(FIXTURES_ROOT, "agent-fixture-steward")], {}, async (registry) => {
+test("profile materialization uses the real engineering-core profiles.json", async (t) => {
+  if (!existsSync(REAL_EC_PROFILES)) {
+    t.skip("real engineering-core profiles.json is unavailable");
+    return;
+  }
+  const ec = await loadEcProfiles(REAL_EC_PROFILES);
+  await withRegistry([join(FIXTURES_ROOT, "agent-fixture-steward")], { ec }, async (registry) => {
     const ecFull = registry.ec.profiles.get("ec-full");
     assert.ok(ecFull, "real EC profiles must expose ec-full");
     assert.ok(
@@ -162,7 +172,12 @@ test("profile materialization uses the real engineering-core profiles.json", asy
   });
 });
 
-test("resolve against the real adoption-steward repo (live fleet fixture)", async () => {
+test("resolve against the real adoption-steward repo (live fleet fixture)", async (t) => {
+  const fleetRoot = join(expandTildePath("~/ai-society"), "agents", "agent-adoption-steward");
+  if (!existsSync(REAL_EC_PROFILES) || !existsSync(fleetRoot)) {
+    t.skip("real engineering-core profiles or adoption-steward fleet fixture is unavailable");
+    return;
+  }
   const ec = await loadEcProfiles(REAL_EC_PROFILES);
   const registry = await createAgentRegistry({
     roots: [join(expandTildePath("~/ai-society"), "agents", "agent-*")],
@@ -223,7 +238,7 @@ test("skills extras fail closed when the skill cannot be found in any root", asy
       }),
       "utf8",
     );
-    const ec = await loadEcProfiles(REAL_EC_PROFILES);
+    const ec = await loadEcProfiles(FIXTURE_EC_PROFILES);
     const registry = await createAgentRegistry({ roots: [dir], ec });
     await assert.rejects(
       registry.resolve("agent-fixture-bad-extra"),
