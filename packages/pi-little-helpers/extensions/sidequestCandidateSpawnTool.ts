@@ -392,7 +392,7 @@ export function registerCandidatePeerSpawnTool({
     name: CANDIDATE_PEER_SPAWN_TOOL,
     label: "Candidate Peer Spawn",
     description:
-      "One-shot owner-authorized candidate launch. Requires exactly one pre-existing lifecycle-v2 permit matching the resolved repository and exact trimmed objective before it creates an isolated git worktree or launches a visible mutation peer; this tool cannot create or broaden that authority.",
+      "One-shot owner-authorized candidate launch. Requires exactly one pre-existing lifecycle-v2 permit matching the resolved repository and exact trimmed objective before it creates an isolated git worktree or launches a visible mutation peer; this tool cannot create or broaden that authority. Isolated worktrees receive controller company provenance automatically.",
     promptSnippet:
       "Call only after the owner/controller confirms exactly one lifecycle-v2 permit is authorized for the resolved repository and this exact objective. This is not a permit probe. If admission is blocked, stop and do not repeat the same call; retry only after confirmed owner admission-state change. It does not merge, push, open PRs, mutate AK, or claim promotion. Isolated worktrees are unscoped and receive controller company provenance automatically.",
     parameters: candidatePeerSpawnParameters,

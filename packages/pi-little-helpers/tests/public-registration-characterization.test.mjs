@@ -45,13 +45,19 @@ function register(options = {}, piOverrides = {}) {
 const COMMANDS = [
   [
     "fresh-handoff",
-    "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session",
+    "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session. Unscoped child cwd receives company provenance automatically; session mode is not a company switch",
   ],
-  ["sidequest", "Fork the current Pi session into a visible Ghostty peer"],
-  ["scoutpeer", "Launch a clean visible read-only scout/review peer in the current workspace"],
+  [
+    "sidequest",
+    "Fork the current Pi session into a visible Ghostty peer. Unscoped child cwd receives company provenance automatically",
+  ],
+  [
+    "scoutpeer",
+    "Launch a clean visible read-only scout/review peer in the current workspace. Unscoped child cwd receives company provenance automatically",
+  ],
   [
     "parallelquest",
-    "Launch a one-shot candidate peer only after owner authorization for the exact repository and objective; blocked admission must not be retried unchanged",
+    "Launch a one-shot candidate peer only after owner authorization for the exact repository and objective; blocked admission must not be retried unchanged. Isolated worktrees receive controller company provenance automatically",
   ],
   [
     "visible-loop",
@@ -78,21 +84,21 @@ const TOOL_CONTRACTS = [
     ["objective", "cwd", "reportBack", "parentPeerTarget"],
     ["objective"],
     "91de8a4206dee38ab44e49f3bba4357177cb4581373299844427dee514c6634a",
-    "db3e1592d276d20b34a6981d4b8a447d6a00f6084f71dd951a80083de7e40235",
+    "3032527f865591f423abf05e685d2a66d464617d86534a3a0e1ec4a7c2fdd1cb",
   ],
   [
     "scout_peer_spawn",
     ["role", "objective", "cwd", "reportBack", "parentPeerTarget", "context", "dod"],
     ["objective"],
     "80255cc05071dc7d0b15cd2d3d417f618dfbebb4539288003971a68e93ced22e",
-    "5fe13249fc7237e518fcae55bfb69ca0303f9d4f2bb9536b57ee499d6d346e6f",
+    "7cd01f270aaf0207bf15614e794ed972eecddb989208e79db6362ca0738a32e6",
   ],
   [
     "fresh_handoff_spawn",
     ["goal", "cwd"],
     [],
     "cbdad1d200939124550a48383401a495d41587166d139ef264d98bed42e17226",
-    "7850d82fc694456bd27528b7198652a3b394cd994c6fa7aee327d02f8b42c8e4",
+    "ee869778ea223bd11b0571c0a7ab6352849665246db34445e6f3bd0329e1e9ef",
   ],
   [
     "candidate_peer_spawn",
@@ -114,7 +120,7 @@ const TOOL_CONTRACTS = [
     ],
     ["objective"],
     "99b9c0ef0840535b2f331dc85cb31d312defca78aeabb385b2d956eda2421e23",
-    "1e046ff10678fcd4255521542f6af9f3f601fc2597b61be7c6e40df77c5dabe1",
+    "329b636e9c3f93a0921d9671b3991977cb19b8c42c743eceecc7a6fb1db6a055",
   ],
   [
     "candidate_peer_cleanup",

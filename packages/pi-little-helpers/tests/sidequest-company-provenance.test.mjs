@@ -130,7 +130,7 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
 
 test("spawn tool ads tell harnessed models provenance is automatic and session mode is not a company switch", () => {
   const extension = createSidequestExtension({ registerTools: true });
-  const { tools } = registerExtension(extension);
+  const { tools, commands } = registerExtension(extension);
   const names = [
     "fork_peer_spawn",
     "scout_peer_spawn",
@@ -145,6 +145,11 @@ test("spawn tool ads tell harnessed models provenance is automatic and session m
       /company provenance automatically/i,
       `${name} promptSnippet must advertise automatic company provenance`,
     );
+    assert.match(
+      tool.description,
+      /company provenance automatically/i,
+      `${name} description must advertise automatic company provenance when promptSnippet is stripped`,
+    );
   }
   assert.match(
     tools.get("fresh_handoff_spawn").promptSnippet,
@@ -154,4 +159,13 @@ test("spawn tool ads tell harnessed models provenance is automatic and session m
     tools.get("fork_peer_spawn").parameters.properties.cwd.description,
     /Do not set PI_COMPANY/,
   );
+  for (const name of ["sidequest", "scoutpeer", "fresh-handoff", "parallelquest"]) {
+    const command = commands.get(name);
+    assert.ok(command, name);
+    assert.match(
+      command.description,
+      /company provenance automatically/i,
+      `/${name} help must advertise automatic company provenance`,
+    );
+  }
 });

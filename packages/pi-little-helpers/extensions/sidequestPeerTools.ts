@@ -315,7 +315,8 @@ export function registerSidequestPeerTools({
   pi.registerTool({
     name: FORK_PEER_SPAWN_TOOL,
     label: "Fork Peer Spawn",
-    description: "Launch a visible forked-context peer Pi session.",
+    description:
+      "Launch a visible forked-context peer Pi session. Unscoped child cwd receives company provenance automatically.",
     promptSnippet:
       "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use. Unscoped child cwd receives company provenance automatically; do not pick this tool to set PI_COMPANY.",
     parameters: forkPeerSpawnParameters,
@@ -326,7 +327,8 @@ export function registerSidequestPeerTools({
   pi.registerTool({
     name: SCOUT_PEER_SPAWN_TOOL,
     label: "Scout Peer Spawn",
-    description: "Launch a clean visible read-only scout/review peer Pi session.",
+    description:
+      "Launch a clean visible read-only scout/review peer Pi session. Unscoped child cwd receives company provenance automatically.",
     promptSnippet:
       "Use to launch a clean visible scout/review peer in the same workspace. It does not inherit the controller conversation and returns launch facts only. Unscoped child cwd receives company provenance automatically.",
     parameters: scoutPeerSpawnParameters,
@@ -338,7 +340,7 @@ export function registerSidequestPeerTools({
     name: FRESH_HANDOFF_SPAWN_TOOL,
     label: "Fresh Handoff Spawn",
     description:
-      "Generate a self-contained handoff from the current conversation and launch it as the sole initial user message in a fresh clean Pi session.",
+      "Generate a self-contained handoff from the current conversation and launch it as the sole initial user message in a fresh clean Pi session. Unscoped child cwd receives company provenance automatically; session mode is not a company switch.",
     promptSnippet:
       "Use only when the operator explicitly asks to transfer current work into a fresh clean Pi session. The launch is continuation transport, not task completion proof. Unscoped child cwd receives company provenance automatically; session mode is not a company switch.",
     parameters: freshHandoffSpawnParameters,

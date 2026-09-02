@@ -33,23 +33,25 @@ export function registerSidequestCommands(
 
   pi.registerCommand(FRESH_HANDOFF_COMMAND, {
     description:
-      "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session",
+      "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session. Unscoped child cwd receives company provenance automatically; session mode is not a company switch",
     handler: handlers.freshHandoff,
   });
 
   pi.registerCommand(SIDEQUEST_COMMAND, {
-    description: "Fork the current Pi session into a visible Ghostty peer",
+    description:
+      "Fork the current Pi session into a visible Ghostty peer. Unscoped child cwd receives company provenance automatically",
     handler: handlers.sidequest,
   });
 
   pi.registerCommand(SCOUTPEER_COMMAND, {
-    description: "Launch a clean visible read-only scout/review peer in the current workspace",
+    description:
+      "Launch a clean visible read-only scout/review peer in the current workspace. Unscoped child cwd receives company provenance automatically",
     handler: handlers.scoutPeer,
   });
 
   pi.registerCommand(PARALLELQUEST_COMMAND, {
     description:
-      "Launch a one-shot candidate peer only after owner authorization for the exact repository and objective; blocked admission must not be retried unchanged",
+      "Launch a one-shot candidate peer only after owner authorization for the exact repository and objective; blocked admission must not be retried unchanged. Isolated worktrees receive controller company provenance automatically",
     handler: handlers.parallelQuest,
   });
 
