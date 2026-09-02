@@ -453,7 +453,9 @@ test("publish effects require a complete wave and published predecessors", () =>
   assert.match(gate, /actual_wave_id.*EXPECTED_WAVE_ID/u);
   assert.match(gate, /release-wave\.mjs tags[\s\S]*gh release view/u);
   assert.match(gate, /release-wave\.mjs predecessor-records[\s\S]*npm view/u);
-  assert.match(gate, /run\.conclusion === "success"[\s\S]*run\.displayTitle\?\.startsWith/u);
+  assert.match(gate, /predecessor superseded on npm/u);
+  assert.match(gate, /predecessor missing from npm/u);
+  assert.doesNotMatch(gate, /run\.conclusion === "success"/u);
   assert.match(gate, /release-wave\.mjs registry-prerequisites[\s\S]*npm view/u);
   assert.ok(workflow.indexOf("Validate immutable complete release wave") < workflow.indexOf("npm publish"));
 });
