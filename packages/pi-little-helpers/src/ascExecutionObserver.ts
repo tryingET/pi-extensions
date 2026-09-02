@@ -40,6 +40,7 @@ const MAX_RETAINED_GROUPS = 128;
 const TERMINAL_RETENTION_MS = 10 * 60 * 1000;
 const INACTIVE_GROUP_RETENTION_MS = 24 * 60 * 60 * 1000;
 const STALE_SNAPSHOT_RETENTION_MS = 10 * 60 * 1000;
+const ORPHAN_SNAPSHOT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_NAME_PATTERN = /^[a-f0-9]{64}\.json$/u;
 
 export type AscObserverPolicy = "auto" | "ghostty" | "off";
@@ -85,6 +86,7 @@ export interface AscExecutionObserverState {
     attemptId?: string;
     profile?: string;
     progressPhase?: string;
+    sequence?: number;
     latestTool?: string;
     usage?: ObserverUsage;
   };
@@ -254,6 +256,7 @@ export function createAscExecutionObserverController(
       groups.set(key, entry);
     }
 
+    if (isRedundantProgress(entry.state, event)) return;
     entry.state.controllerActive = true;
     const completedGroup = updateState(entry.state, event, at);
     if (completedGroup) entry.terminalAt = at;
@@ -373,6 +376,7 @@ function updateState(
     state.activeDispatch = {
       ...event.dispatch,
       ...(event.progress.phase ? { progressPhase: event.progress.phase } : {}),
+      ...(event.progress.sequence !== undefined ? { sequence: event.progress.sequence } : {}),
       ...(event.progress.latestTool ? { latestTool: event.progress.latestTool } : {}),
       ...(event.progress.usage ? { usage: event.progress.usage } : {}),
     };
@@ -404,6 +408,16 @@ function updateState(
     ...(event.terminal.elapsedMs !== undefined ? { elapsedMs: event.terminal.elapsedMs } : {}),
   };
   return true;
+}
+
+function isRedundantProgress(state: AscExecutionObserverState, event: ObservationEvent): boolean {
+  if (event.event !== "dispatch_progress" || event.progress?.sequence === undefined) return false;
+  const current = state.activeDispatch;
+  if (current?.sequence === undefined || event.progress.sequence > current.sequence) return false;
+  return (
+    current.dispatchId === event.dispatch?.dispatchId &&
+    current.attemptId === event.dispatch?.attemptId
+  );
 }
 
 function upsertPhase(
@@ -465,15 +479,13 @@ function pruneStaleObserverSnapshots(stateRoot: string, now: number): void {
         }
         const parsed = JSON.parse(readFileSync(candidate, "utf8")) as Record<string, unknown>;
         const updatedAt = typeof parsed.updatedAt === "string" ? Date.parse(parsed.updatedAt) : NaN;
-        const ownerPid = parsed.ownerPid;
         const inactive = parsed.controllerActive === false;
-        const ownerAbsent =
-          typeof ownerPid === "number" && Number.isSafeInteger(ownerPid) && !processAlive(ownerPid);
+        const ageMs = now - updatedAt;
         if (
           parsed.schema === ASC_EXECUTION_OBSERVER_STATE_SCHEMA &&
           Number.isFinite(updatedAt) &&
-          now - updatedAt >= STALE_SNAPSHOT_RETENTION_MS &&
-          (inactive || ownerAbsent)
+          ((inactive && ageMs >= STALE_SNAPSHOT_RETENTION_MS) ||
+            ageMs >= ORPHAN_SNAPSHOT_RETENTION_MS)
         ) {
           unlinkSync(candidate);
         }
@@ -560,16 +572,6 @@ function safeUnlinkPrivateState(statePath: string, stateRoot: string): void {
     if (isPrivateOwnedRegularFile(stat)) unlinkSync(resolvedPath);
   } catch {
     // Retention is best-effort and never affects execution or current observer state.
-  }
-}
-
-function processAlive(pid: number): boolean {
-  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
   }
 }
 

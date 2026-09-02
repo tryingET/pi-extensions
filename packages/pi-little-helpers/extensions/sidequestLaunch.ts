@@ -6,6 +6,10 @@ import { existsSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AscObserverLaunchRequest } from "../src/ascExecutionObserver.ts";
 import {
+  prefixPiArgsWithCompanyContext,
+  resolveChildCompanyContext,
+} from "../src/companyContextProvenance.ts";
+import {
   type DetachedGhosttyWindowLaunchRequest,
   launchDetachedGhosttyWindow,
 } from "./sidequestDetachedWindow.ts";
@@ -145,7 +149,7 @@ export async function launchPiQuestSession({
   placementPolicy = "visible-fallback",
 }: {
   pi: ExtensionAPI;
-  ctx: { model?: unknown };
+  ctx: { model?: unknown; cwd?: string };
   options: SidequestLaunchOptions;
   defaultPiBin: string;
   prompt: string;
@@ -207,11 +211,18 @@ export async function launchPiQuestSession({
   });
 
   const sessionMode: QuestSessionMode = sourceSessionFile ? "fork" : "clean";
-  const piArgs = command
+  const rawPiArgs = command
     ? [command.command, ...command.args]
     : sourceSessionFile
       ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
       : [piBin, ...modelArgs, prompt];
+  const companyProvenance = command
+    ? undefined
+    : resolveChildCompanyContext({ env, targetCwd: cwd, parentCwd: ctx.cwd });
+  const piArgs =
+    companyProvenance?.source === "parent_cwd"
+      ? prefixPiArgsWithCompanyContext(rawPiArgs, companyProvenance)
+      : rawPiArgs;
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
   const controllerDbusTarget =
     launchMode === "tab"

@@ -100,6 +100,7 @@ export class IntercomCompatibleAdapter {
   private readonly replyTracker = new ReplyTracker();
   private readonly peerProtocolLedger = new PeerProtocolLedger();
   private readonly peerProtocolWaiters = new Set<() => void>();
+  private peerProtocolVersion = 0;
 
   constructor(options: IntercomAdapterOptions = {}) {
     this.now = options.now ?? (() => Date.now());
@@ -132,6 +133,7 @@ export class IntercomCompatibleAdapter {
   async execute(
     runtime: PeerMessagingRuntime,
     request: IntercomToolRequest,
+    observationSignal?: AbortSignal,
   ): Promise<IntercomToolResponse> {
     switch (request.action) {
       case "list":
@@ -147,11 +149,11 @@ export class IntercomCompatibleAdapter {
       case "peer_status":
         return this.peerProtocolStatus(request, "peer");
       case "peer_watch":
-        return this.peerProtocolWatch(request, "peer");
+        return this.peerProtocolWatch(request, "peer", observationSignal);
       case "quest_status":
         return this.peerProtocolStatus(request, "quest");
       case "quest_watch":
-        return this.peerProtocolWatch(request, "quest");
+        return this.peerProtocolWatch(request, "quest", observationSignal);
       case "status":
         return this.status(runtime);
       default:
@@ -160,6 +162,7 @@ export class IntercomCompatibleAdapter {
   }
 
   private notifyPeerProtocolWaiters(): void {
+    this.peerProtocolVersion += 1;
     const waiters = [...this.peerProtocolWaiters];
     this.peerProtocolWaiters.clear();
     for (const waiter of waiters) {
@@ -194,7 +197,7 @@ export class IntercomCompatibleAdapter {
       return textResult(resolved.error ?? "Missing peer protocol run id", { isError: true });
     }
 
-    const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary);
+    const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary, this.now());
     return textResult(formatPeerProtocolSnapshot(snapshot, vocabulary), {
       details: { ...snapshot },
     });
@@ -213,6 +216,7 @@ export class IntercomCompatibleAdapter {
   private async peerProtocolWatch(
     request: IntercomToolRequest,
     vocabulary: "peer" | "quest",
+    observationSignal?: AbortSignal,
   ): Promise<IntercomToolResponse> {
     const resolved = this.resolvePeerProtocolRunId(request, vocabulary);
     if (!resolved.runId) {
@@ -221,43 +225,81 @@ export class IntercomCompatibleAdapter {
 
     const waitFor = request.waitFor ?? "final";
     const timeoutMs = request.timeoutMs ?? 30_000;
-    const deadline = this.now() + timeoutMs;
+    const deadline = Date.now() + timeoutMs;
 
     while (true) {
-      const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary);
+      const observedVersion = this.peerProtocolVersion;
+      const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary, this.now());
       if (this.peerProtocolWatchConditionMet(snapshot, waitFor)) {
         return textResult(formatPeerProtocolSnapshot(snapshot, vocabulary), {
-          details: { ...snapshot, timedOut: false, waitFor },
+          details: {
+            ...snapshot,
+            timedOut: false,
+            observationEnded: "condition_met",
+            executionAffected: false,
+            waitFor,
+          },
         });
       }
 
-      const remainingMs = deadline - this.now();
-      if (remainingMs <= 0) {
+      if (observationSignal?.aborted) {
         return textResult(
-          `Timed out waiting for ${waitFor} on ${resolved.runId}.\n${formatPeerProtocolSnapshot(snapshot, vocabulary)}`,
+          `Observation cancelled for ${resolved.runId}; execution was not cancelled and remains ${snapshot.executionHealth.state}.\n${formatPeerProtocolSnapshot(snapshot, vocabulary)}`,
           {
-            isError: true,
-            details: { ...snapshot, timedOut: true, waitFor },
+            details: {
+              ...snapshot,
+              timedOut: false,
+              observationEnded: "cancelled",
+              executionAffected: false,
+              waitFor,
+            },
           },
         );
       }
 
-      await new Promise<void>((resolve) => {
-        let waiter: (() => void) | undefined;
-        const timer = setTimeout(
-          () => {
-            if (waiter) this.peerProtocolWaiters.delete(waiter);
-            resolve();
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        return textResult(
+          `Observation ended after timeout while waiting for ${waitFor} on ${resolved.runId}; execution was not cancelled and remains ${snapshot.executionHealth.state}.\n${formatPeerProtocolSnapshot(snapshot, vocabulary)}`,
+          {
+            details: {
+              ...snapshot,
+              timedOut: true,
+              observationEnded: "timeout",
+              executionAffected: false,
+              waitFor,
+            },
           },
-          Math.min(remainingMs, 250),
         );
-        waiter = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-        this.peerProtocolWaiters.add(waiter);
-      });
+      }
+
+      await this.waitForPeerProtocolChange(remainingMs, observedVersion, observationSignal);
     }
+  }
+
+  private waitForPeerProtocolChange(
+    timeoutMs: number,
+    observedVersion: number,
+    observationSignal?: AbortSignal,
+  ): Promise<void> {
+    if (this.peerProtocolVersion !== observedVersion || observationSignal?.aborted) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.peerProtocolWaiters.delete(finish);
+        observationSignal?.removeEventListener("abort", finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      this.peerProtocolWaiters.add(finish);
+      observationSignal?.addEventListener("abort", finish, { once: true });
+      if (this.peerProtocolVersion !== observedVersion || observationSignal?.aborted) finish();
+    });
   }
 
   private async list(runtime: PeerMessagingRuntime): Promise<IntercomToolResponse> {

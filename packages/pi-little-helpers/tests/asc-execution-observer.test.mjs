@@ -81,6 +81,33 @@ test("ASC observer protocol event name stays aligned with producers", () => {
   assert.equal(ASC_EXECUTION_OBSERVATION_EVENT, "asc:execution-observation:v1");
 });
 
+test("ASC observer suppresses unchanged progress rewrites", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-unchanged-"));
+  let now = 1_700_000_001_000;
+  try {
+    const controller = createAscExecutionObserverController({
+      env: { TERM_PROGRAM: "ghostty", PI_ASC_OBSERVER_STATE_DIR: root },
+      stateRoot: root,
+      now: () => now,
+      async launch() {
+        return { ok: true, launchMode: "tab" };
+      },
+    });
+    controller.setHostContext(interactiveHost({ sessionId: "unchanged-session" }));
+    controller.handle(progressEvent());
+    await controller.flush();
+    const statePath = controller.statePathFor("transcendent-123");
+    const first = readFileSync(statePath, "utf8");
+
+    now += 60_000;
+    controller.handle(progressEvent());
+    await controller.flush();
+    assert.equal(readFileSync(statePath, "utf8"), first);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("ASC observer launches once per loop group and persists only bounded telemetry", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-"));
   const launches = [];

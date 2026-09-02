@@ -16,7 +16,13 @@ import type {
 import {
   createIntercomCompatibleAdapter,
   type IntercomIncomingMessage,
+  type IntercomToolResponse,
 } from "../src/intercom-adapter.ts";
+import type { PeerProtocolSnapshot } from "../src/intercom-protocol-ledger.ts";
+
+function protocolDetails(response: IntercomToolResponse): Partial<PeerProtocolSnapshot> {
+  return (response.details ?? {}) as Partial<PeerProtocolSnapshot>;
+}
 
 const SELF_PEER = {
   id: "self-session-12345678",
@@ -356,6 +362,18 @@ test("adapter classifies canonical peer protocol messages by peer run id", async
   assert.equal(result.details?.state, "final_received");
   assert.equal(result.details?.ackCount, 1);
   assert.equal(result.details?.finalCount, 1);
+  assert.deepEqual(result.details?.coordination, {
+    state: "final_received",
+    source: "peer_message_ledger",
+  });
+  assert.deepEqual(result.details?.executionHealth, {
+    state: "unknown",
+    owner: "pi-autonomous-session-control",
+  });
+  assert.equal(protocolDetails(result).effectDisposition?.state, "unknown");
+  assert.equal(protocolDetails(result).canonicalAuthority?.state, "unverified");
+  assert.deepEqual(protocolDetails(result).lineage?.messageIds, ["peer-ack-1", "peer-final-1"]);
+  assert.match(result.content[0]?.text ?? "", /execution=unknown effects=unknown/);
 });
 
 test("adapter keeps peer protocol state after the inbound reply is resolved", async () => {
@@ -457,6 +475,56 @@ test("adapter treats visible-loop iteration messages as allowed peer progress", 
   assert.match(result.content[0]?.text ?? "", /PROGRESS=1/);
 });
 
+test("adapter deduplicates redelivery by message id without losing exact-run lineage", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+  const ack = createMessage("PEER_ACK peer_run_id=peer-redelivery: started", { id: "same-ack" });
+
+  adapter.handleIncomingMessage(WORKER_A, ack);
+  adapter.handleIncomingMessage(WORKER_A, ack);
+
+  const result = await adapter.execute(runtime, {
+    action: "peer_status",
+    peerRunId: "peer-redelivery",
+  });
+  assert.equal(result.details?.ackCount, 1);
+  assert.equal(result.details?.duplicateAckCount, 0);
+  assert.equal(result.details?.duplicateDeliveryCount, 1);
+  assert.deepEqual(protocolDetails(result).lineage?.messageIds, ["same-ack"]);
+});
+
+test("bounded protocol history reserves exact ACK and FINAL lineage after progress saturation", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
+  for (let index = 0; index < 128; index += 1) {
+    adapter.handleIncomingMessage(
+      WORKER_A,
+      createMessage(`VISIBLE_LOOP_ITERATION peer_run_id=bounded-run: ${index}`, {
+        id: `progress-${index}`,
+      }),
+    );
+  }
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_ACK peer_run_id=bounded-run: started", { id: "bounded-ack" }),
+  );
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("PEER_FINAL peer_run_id=bounded-run: done", { id: "bounded-final" }),
+  );
+
+  const result = await adapter.execute(runtime, {
+    action: "peer_status",
+    peerRunId: "bounded-run",
+  });
+  assert.equal(result.details?.ackCount, 1);
+  assert.equal(result.details?.finalCount, 1);
+  assert.equal(protocolDetails(result).lineage?.ackFinalRetained, true);
+  assert.equal(protocolDetails(result).lineage?.droppedMessageCount, 2);
+  assert.ok(protocolDetails(result).lineage?.messageIds.includes("bounded-ack"));
+  assert.ok(protocolDetails(result).lineage?.messageIds.includes("bounded-final"));
+});
+
 test("adapter reports quest protocol duplicates and violations", async () => {
   const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
   const adapter = createIntercomCompatibleAdapter({ now: () => 2_000 });
@@ -520,9 +588,36 @@ test("adapter peer_watch waits for final while legacy quest_watch remains compat
     timeoutMs: 1,
   });
 
-  assert.equal(legacyTimeout.isError, true);
+  assert.equal(legacyTimeout.isError, undefined);
   assert.equal(legacyTimeout.details?.state, "no_messages");
+  assert.equal(protocolDetails(legacyTimeout).coordination?.state, "unknown");
   assert.equal(legacyTimeout.details?.timedOut, true);
+  assert.equal(legacyTimeout.details?.observationEnded, "timeout");
+  assert.equal(legacyTimeout.details?.executionAffected, false);
+});
+
+test("adapter cancellation ends only protocol observation", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter();
+  const cancellation = new AbortController();
+  const watch = adapter.execute(
+    runtime,
+    {
+      action: "peer_watch",
+      peerRunId: "cancelled-watch",
+      waitFor: "final",
+      timeoutMs: 10_000,
+    },
+    cancellation.signal,
+  );
+  cancellation.abort();
+
+  const result = await watch;
+  assert.equal(result.isError, undefined);
+  assert.equal(result.details?.observationEnded, "cancelled");
+  assert.equal(result.details?.executionAffected, false);
+  assert.equal(protocolDetails(result).executionHealth?.state, "unknown");
+  assert.match(result.content[0]?.text ?? "", /execution was not cancelled/i);
 });
 
 test("adapter quest_watch waits for final and times out when absent", async () => {
@@ -562,7 +657,11 @@ test("adapter quest_watch waits for final and times out when absent", async () =
     timeoutMs: 1,
   });
 
-  assert.equal(timeout.isError, true);
+  assert.equal(timeout.isError, undefined);
   assert.equal(timeout.details?.state, "no_messages");
+  assert.equal(protocolDetails(timeout).coordination?.state, "unknown");
   assert.equal(timeout.details?.timedOut, true);
+  assert.equal(timeout.details?.observationEnded, "timeout");
+  assert.equal(timeout.details?.executionAffected, false);
+  assert.match(timeout.content[0]?.text ?? "", /execution was not cancelled and remains unknown/i);
 });

@@ -284,6 +284,12 @@
       "reopen_trigger": "file grows past 760 LOC or the next owner-approved refactor touches this module"
     },
     {
+      "path": "packages/pi-peer-messaging/src/intercom-adapter.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-peer-messaging intercom-adapter module at 108% of the code budget after landing cancellation-safe peer protocol observation; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 594 LOC or the next owner-approved refactor touches this module"
+    },
+    {
       "path": "packages/pi-prompt-template-accelerator/extensions/ptx.ts",
       "owner": "softwareco/owned/pi-extensions",
       "reason": "pi-prompt-template-accelerator ptx module at 167% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",

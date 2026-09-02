@@ -48,14 +48,37 @@ export interface PeerProtocolSnapshot {
   questId: string;
   vocabulary: PeerProtocolVocabulary;
   state: PeerProtocolState;
+  coordination: {
+    state: "unknown" | "ack_received" | "final_received" | "protocol_violation";
+    source: "peer_message_ledger";
+  };
+  executionHealth: { state: "unknown"; owner: "pi-autonomous-session-control" };
+  effectDisposition: { state: "unknown"; owner: "execution_owner" };
+  freshness: {
+    state: "unknown" | "observed";
+    lastObservedAt?: number;
+    ageMs?: number;
+  };
+  canonicalAuthority: { state: "unverified"; owner: "external_authority_surface" };
+  lineage: {
+    exactRunId: string;
+    ackFinalRetained: true;
+    bounded: true;
+    droppedMessageCount: number;
+    messageIds: string[];
+  };
   ackCount: number;
   finalCount: number;
   progressCount: number;
   duplicateAckCount: number;
   duplicateFinalCount: number;
+  duplicateDeliveryCount: number;
   violationCount: number;
   messages: PeerProtocolMessage[];
 }
+
+const MAX_TRACKED_RUNS = 256;
+const MAX_MESSAGES_PER_RUN = 128;
 
 function phaseForProtocolKind(kind: PeerProtocolKind | "UNKNOWN"): PeerProtocolPhase {
   if (kind === "PEER_ACK" || kind === "QUEST_ACK") {
@@ -121,11 +144,38 @@ function parsePeerProtocolMessage(text: string): ParsedPeerProtocolMessage | und
 
 export class PeerProtocolLedger {
   private readonly messagesByRunId = new Map<string, PeerProtocolMessage[]>();
+  private readonly seenMessageIdsByRunId = new Map<string, Set<string>>();
+  private readonly duplicateDeliveriesByRunId = new Map<string, number>();
+  private readonly droppedMessagesByRunId = new Map<string, number>();
 
   recordIncomingMessage(from: PeerPresence, message: PeerMessage, receivedAt: number): void {
     const parsed = parsePeerProtocolMessage(message.content.text);
-    if (!parsed) {
+    if (!parsed) return;
+
+    const existing = this.messagesByRunId.get(parsed.runId);
+    if (!existing && this.messagesByRunId.size >= MAX_TRACKED_RUNS) return;
+    const seenIds = this.seenMessageIdsByRunId.get(parsed.runId) ?? new Set<string>();
+    if (seenIds.has(message.id)) {
+      this.duplicateDeliveriesByRunId.set(
+        parsed.runId,
+        (this.duplicateDeliveriesByRunId.get(parsed.runId) ?? 0) + 1,
+      );
       return;
+    }
+    if ((existing?.length ?? 0) >= MAX_MESSAGES_PER_RUN) {
+      const terminalFirst = parsed.phase === "ack" || parsed.phase === "final";
+      const alreadyRetained = existing?.some(
+        (entry) => entry.vocabulary === parsed.vocabulary && entry.phase === parsed.phase,
+      );
+      const replaceIndex = existing?.findIndex(
+        (entry) => entry.phase === "progress" || entry.phase === "unknown",
+      );
+      if (!terminalFirst || alreadyRetained || replaceIndex === undefined || replaceIndex < 0) {
+        this.noteDroppedMessage(parsed.runId);
+        return;
+      }
+      existing?.splice(replaceIndex, 1);
+      this.noteDroppedMessage(parsed.runId);
     }
 
     const entry = {
@@ -140,13 +190,19 @@ export class PeerProtocolLedger {
       preview: truncatePreview(message.content.text),
     } satisfies PeerProtocolMessage;
 
-    const existing = this.messagesByRunId.get(parsed.runId) ?? [];
-    existing.push(entry);
-    existing.sort((left, right) => left.receivedAt - right.receivedAt);
-    this.messagesByRunId.set(parsed.runId, existing);
+    const messages = existing ?? [];
+    messages.push(entry);
+    messages.sort((left, right) => left.receivedAt - right.receivedAt);
+    seenIds.add(message.id);
+    this.messagesByRunId.set(parsed.runId, messages);
+    this.seenMessageIdsByRunId.set(parsed.runId, seenIds);
   }
 
-  snapshot(peerRunId: string, vocabulary: "peer" | "quest"): PeerProtocolSnapshot {
+  snapshot(
+    peerRunId: string,
+    vocabulary: "peer" | "quest",
+    observedAt = Date.now(),
+  ): PeerProtocolSnapshot {
     const messages = [...(this.messagesByRunId.get(peerRunId) ?? [])].filter(
       (message) => message.vocabulary === vocabulary,
     );
@@ -162,16 +218,36 @@ export class PeerProtocolLedger {
           ? "ack_received"
           : "no_messages";
 
+    const lastObservedAt = messages.at(-1)?.receivedAt;
+    const coordinationState = state === "no_messages" ? "unknown" : state;
     return {
       peerRunId,
       questId: peerRunId,
       vocabulary,
       state,
+      coordination: { state: coordinationState, source: "peer_message_ledger" },
+      executionHealth: { state: "unknown", owner: "pi-autonomous-session-control" },
+      effectDisposition: { state: "unknown", owner: "execution_owner" },
+      freshness: {
+        state: lastObservedAt === undefined ? "unknown" : "observed",
+        ...(lastObservedAt === undefined
+          ? {}
+          : { lastObservedAt, ageMs: Math.max(0, observedAt - lastObservedAt) }),
+      },
+      canonicalAuthority: { state: "unverified", owner: "external_authority_surface" },
+      lineage: {
+        exactRunId: peerRunId,
+        ackFinalRetained: true,
+        bounded: true,
+        droppedMessageCount: this.droppedMessagesByRunId.get(peerRunId) ?? 0,
+        messageIds: messages.map((entry) => entry.message.id),
+      },
       ackCount,
       finalCount,
       progressCount,
       duplicateAckCount: Math.max(0, ackCount - 1),
       duplicateFinalCount: Math.max(0, finalCount - 1),
+      duplicateDeliveryCount: this.duplicateDeliveriesByRunId.get(peerRunId) ?? 0,
       violationCount,
       messages,
     } satisfies PeerProtocolSnapshot;
@@ -179,6 +255,16 @@ export class PeerProtocolLedger {
 
   clear(): void {
     this.messagesByRunId.clear();
+    this.seenMessageIdsByRunId.clear();
+    this.duplicateDeliveriesByRunId.clear();
+    this.droppedMessagesByRunId.clear();
+  }
+
+  private noteDroppedMessage(peerRunId: string): void {
+    this.droppedMessagesByRunId.set(
+      peerRunId,
+      (this.droppedMessagesByRunId.get(peerRunId) ?? 0) + 1,
+    );
   }
 }
 
@@ -199,7 +285,8 @@ export function formatPeerProtocolSnapshot(
 
   return [
     `${label} ${snapshot.peerRunId}: ${snapshot.state}`,
-    `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} PROGRESS=${snapshot.progressCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} violations=${snapshot.violationCount}`,
+    `coordination=${snapshot.coordination.state} execution=${snapshot.executionHealth.state} effects=${snapshot.effectDisposition.state} freshness=${snapshot.freshness.state} authority=${snapshot.canonicalAuthority.state}`,
+    `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} PROGRESS=${snapshot.progressCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} duplicateDelivery=${snapshot.duplicateDeliveryCount} violations=${snapshot.violationCount}`,
     "Messages:",
     rows,
   ].join("\n");
