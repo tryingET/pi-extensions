@@ -81,3 +81,11 @@ paginate in the gate, not here.
 - CI runs render HEAD only (no `--base` before-half; the release PR changelog
   carries the textual before). AK receipts stay workstation-side — Actions
   has no society DB access; the comment URL is the CI-visible evidence.
+- **Attachment upload needs a user token.** `gh --attach` uploads to
+  `uploads.github.com/user-attachments` (user-scoped assets); the Actions
+  `GITHUB_TOKEN` is an installation token with no user identity and is
+  rejected (`unsupported authentication type` — verified on runner
+  33598560994). The workflow therefore requires repo secret
+  **`EVIDENCE_GH_TOKEN`** (classic PAT with `repo` scope, or fine-grained PAT
+  with pull-requests read+write on this repo) and fails fast with setup
+  instructions when it is missing.

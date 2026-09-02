@@ -72,8 +72,24 @@ jobs:
           sudo install -m 0755 "$RUNNER_TEMP/gh_${ver}_linux_amd64/bin/gh" /usr/local/bin/gh
           gh --version
 
+      - name: Require user-token secret for attachment upload
+        env:
+          EVIDENCE_GH_TOKEN: ${{ secrets.EVIDENCE_GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EVIDENCE_GH_TOKEN:-}" ]; then
+            echo "::error::repo secret EVIDENCE_GH_TOKEN is not set."
+            echo "gh --attach uploads to uploads.github.com/user-attachments (user-scoped assets):"
+            echo "the Actions GITHUB_TOKEN is an installation token with no user identity and is"
+            echo "rejected with 'unsupported authentication type'."
+            echo "Fix: mint a classic PAT (repo scope) or fine-grained PAT (pull requests: read+write"
+            echo "on this repo) and add it as repo secret EVIDENCE_GH_TOKEN, then re-run this workflow."
+            exit 1
+          fi
+          echo "EVIDENCE_GH_TOKEN present"
+
       - name: Render tapes and attach evidence comment
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.EVIDENCE_GH_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
         run: node ./scripts/release-evidence.mjs --pr "$PR_NUMBER" --edit-last
