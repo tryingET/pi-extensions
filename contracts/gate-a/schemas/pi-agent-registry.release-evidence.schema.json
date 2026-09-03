@@ -1,0 +1,57 @@
+{
+  "$id": "https://ai-society.local/schemas/pi-agent-registry-release-evidence-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activation": {
+      "const": false
+    },
+    "agent_id": {
+      "pattern": "^urn:uuid:"
+    },
+    "approval": {
+      "const": false
+    },
+    "claim": {
+      "const": "resolved-release-evidence"
+    },
+    "executable_artifact_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "release_id": {
+      "type": "string"
+    },
+    "resolved_resources": {
+      "items": {
+        "$ref": "https://ai-society.local/schemas/provider-qualified-resource-ref-v1.json"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "pi-agent-registry.release-evidence/1"
+    },
+    "source_revision": {
+      "pattern": "^git:[0-9a-f]{40}$"
+    },
+    "verification": {
+      "enum": [
+        "verified",
+        "unproven",
+        "mismatch"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "agent_id",
+    "release_id",
+    "source_revision",
+    "resolved_resources",
+    "executable_artifact_digest",
+    "verification",
+    "claim",
+    "approval",
+    "activation"
+  ],
+  "type": "object"
+}

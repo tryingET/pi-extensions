@@ -1,0 +1,17 @@
+{
+  "approval": false,
+  "claim": "runtime-observation-and-effect-disposition",
+  "disposition": "confirmed_no_effects",
+  "observations": [
+    {
+      "effect_class": "A0",
+      "kind": "tool-call",
+      "status": "success",
+      "tool": "read"
+    }
+  ],
+  "permit_id": "fixture:permit:adoption-steward-a0a1",
+  "run_id": "fixture:run:adoption-steward-a0a1",
+  "runtime_attestation_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+  "schema": "asc.effect-receipt/1"
+}

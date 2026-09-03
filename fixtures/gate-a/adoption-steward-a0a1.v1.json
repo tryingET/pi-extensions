@@ -1,0 +1,134 @@
+{
+  "agent_id": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "asc": {
+    "effect_disposition": "unproven",
+    "effect_receipt_ref": null,
+    "pre_provider_is_not_pre_effect": true,
+    "process_claim": "unproven",
+    "required_effect_receipt_linkage": true,
+    "runtime_attestation_ref": null
+  },
+  "compatibility": {
+    "phase_2_path_preserved": true,
+    "rollback": "Disable the non-default strict contract adapter and retain existing registry/ASC/Vault-client behavior.",
+    "schema_1_preserved": true,
+    "strict_mode_default": false
+  },
+  "delegation": {
+    "child_request": {
+      "credentials": [],
+      "effects": [
+        "A0"
+      ],
+      "extension_hooks": [],
+      "not_after": "2099-01-01T00:10:00Z",
+      "resource_refs": [
+        "prompt-vault:skill-tree:core/adoption-inspection@sha256:11b62f0e07fac9c4899c54f072b2a429de354ac5fdfd5c8644eb75fb3f92c454"
+      ],
+      "tools": [
+        "read"
+      ]
+    },
+    "model_fields_can_widen": false,
+    "parent_permit_id": "fixture:permit:adoption-steward-a0a1",
+    "subset_required": true
+  },
+  "expected_runtime": {
+    "compaction": "disabled",
+    "context": [],
+    "credentials": [],
+    "extension_hooks": [],
+    "memory": [],
+    "modes": [],
+    "pre_effect_attestation_required": true,
+    "pre_task_provider_attestation_required": true,
+    "prompts": [
+      "prompt-vault:prompt:core/adoption-review@sha256:01e90ee31bc85709fcef032f3d8a40ff37e1afb6ad0b1ad6a728da4c51c54cc1"
+    ],
+    "provider_input_identity": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "session_mode": "fresh",
+    "skills": [
+      "prompt-vault:skill-tree:core/adoption-inspection@sha256:11b62f0e07fac9c4899c54f072b2a429de354ac5fdfd5c8644eb75fb3f92c454"
+    ],
+    "tools": [
+      "read"
+    ],
+    "transcript": []
+  },
+  "observed_runtime": {
+    "claim": "unproven",
+    "compaction": "unobserved",
+    "context": [],
+    "credentials": [],
+    "extension_hooks": [],
+    "fixture_only": true,
+    "memory": [],
+    "modes": [],
+    "pre_effect_attestation": null,
+    "pre_task_provider_attestation": null,
+    "prompts": [],
+    "provider_input_identity": null,
+    "session_id": null,
+    "skills": [],
+    "tools": [],
+    "transcript": []
+  },
+  "permit": {
+    "assurance": "A1",
+    "compaction": "disabled",
+    "credentials_ceiling": [],
+    "effects_ceiling": [
+      "A0",
+      "A1"
+    ],
+    "extension_hooks_ceiling": [],
+    "machine": "fixture-machine-one",
+    "memory": "none",
+    "permit_id": "fixture:permit:adoption-steward-a0a1",
+    "release_id": "fixture:release:adoption-steward-a0a1",
+    "resource_refs": [
+      "engineering-core:profile:ec-adoption-steward@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "prompt-vault:skill-tree:core/adoption-inspection@sha256:11b62f0e07fac9c4899c54f072b2a429de354ac5fdfd5c8644eb75fb3f92c454"
+    ],
+    "resume": "forbidden",
+    "tools_ceiling": [
+      "read"
+    ],
+    "transcript": "none",
+    "validity": {
+      "not_after": "2099-01-01T00:15:00Z",
+      "not_before": "2099-01-01T00:00:00Z"
+    },
+    "workspace": "~/ai-society/agents/agent-adoption-steward"
+  },
+  "registry": {
+    "approves_release": false,
+    "authorizes_run": false,
+    "build_identity": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "claim": "verified",
+    "logical_release_identity": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "release_id": "fixture:release:adoption-steward-a0a1",
+    "source_identity": "git-commit-sha1:0000000000000000000000000000000000000000"
+  },
+  "release": {
+    "acceptance_status": "not_present",
+    "accepted_by_ref": null,
+    "agent_contract_ref": "fixture:l0-agent-2",
+    "build_identity": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "logical_release_identity": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "release_id": "fixture:release:adoption-steward-a0a1",
+    "resolved_evidence_ref": "fixture:registry-resolved-release",
+    "source_identity": "git-commit-sha1:0000000000000000000000000000000000000000"
+  },
+  "schema": "ai-society.runtime-integration-fixture/1",
+  "status": "candidate_fixture_not_runtime_evidence",
+  "vault_view": {
+    "claim": "resolved",
+    "contains_authority": false,
+    "contains_credentials": false,
+    "narrowing_only": true,
+    "resource_refs": [
+      "prompt-vault:skill-tree:core/adoption-inspection@sha256:11b62f0e07fac9c4899c54f072b2a429de354ac5fdfd5c8644eb75fb3f92c454"
+    ]
+  }
+}

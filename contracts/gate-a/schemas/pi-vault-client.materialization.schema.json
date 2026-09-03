@@ -1,0 +1,45 @@
+{
+  "$id": "https://ai-society.local/schemas/pi-vault-materialization-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority_transfer": {
+      "const": false
+    },
+    "complete_skill_trees": {
+      "const": true
+    },
+    "invocation_policy_preserved": {
+      "const": true
+    },
+    "materialized_resources": {
+      "items": {
+        "$ref": "https://ai-society.local/schemas/provider-qualified-resource-ref-v1.json"
+      },
+      "type": "array"
+    },
+    "narrowing_only": {
+      "const": true
+    },
+    "resource_view_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "pi-vault-client.materialization/1"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "resource_view_digest",
+    "materialized_resources",
+    "complete_skill_trees",
+    "invocation_policy_preserved",
+    "narrowing_only",
+    "authority_transfer"
+  ],
+  "type": "object"
+}
