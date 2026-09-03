@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.11.4](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.3...pi-society-orchestrator-v0.11.4) (2026-09-03)
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** keep ASC 0.7.0 lock assertion on the publish path (AK 5175) ([2184e48](https://github.com/tryingET/pi-extensions/commit/2184e48868814f9ab219331e3d7d4a894c9ed051))
+
 ## [0.11.3](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.2...pi-society-orchestrator-v0.11.3) (2026-09-03)
 
 

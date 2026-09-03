@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-society-orchestrator",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "Cognitive-driven multi-agent orchestration across Agent Kernel, Prompt Vault, ROCS, and Pi runtime owners",
   "type": "module",
   "exports": {
