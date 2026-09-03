@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.5.0...pi-snapshot-edit-v0.5.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **canary:** cover host-contract deps, lock alignment, and nested floats (AK 5178) ([34637c0](https://github.com/tryingET/pi-extensions/commit/34637c052c68edaab5967b48f9d734565751c235))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.4.0...pi-snapshot-edit-v0.5.0) (2026-09-01)
 
 
