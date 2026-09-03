@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.11.5](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.4...pi-society-orchestrator-v0.11.5) (2026-09-03)
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** generate ASC registry owner from lock (AK 5340) ([50d7cbd](https://github.com/tryingET/pi-extensions/commit/50d7cbde24d08bdb2a6bb3b72ec3b23bfe506ae0))
+
 ## [0.11.4](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.3...pi-society-orchestrator-v0.11.4) (2026-09-03)
 
 
