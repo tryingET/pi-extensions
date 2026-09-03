@@ -3,6 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import {
+  ASC_PACKAGE_NAME as GENERATED_ASC_PACKAGE_NAME,
+  loadAscRegistryOwnerFromLock,
+  renderAscRegistryOwnerSource,
+  syncGeneratedAscRegistryOwner,
+} from "../scripts/generate-asc-registry-owner.mjs";
+import {
   ASC_MINIMUM_RELEASE_AGE_MS,
   ASC_PACKAGE_NAME,
   classifyAscBridgeLifecycle,
@@ -22,8 +28,6 @@ const ASC_051_INTEGRITY =
   "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==";
 const ASC_052_INTEGRITY =
   "sha512-y+RvaTMca0VoMDI66TwLx5RzdTQGvov4a7MbrGKFXWNaXa86Ml9n3O/b812s+5pFIJOibWF7WAbM4n5uPaV7Nw==";
-const ASC_070_INTEGRITY =
-  "sha512-hd7gQYjILAM2oaVbY4Ht9SzuXDtnhim/LQc2YoxfjcuQ5Ale776tbYeWHzj2NNUvbo5GzbfPgN2YQWgK7CqSLg==";
 
 function createManifest(ascSpec = "^0.5.0", overrides = {}) {
   return {
@@ -343,21 +347,59 @@ test("checked-in ASC lock records the proven registry artifact", () => {
   const packageDir = path.resolve(import.meta.dirname, "..");
   const pkg = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8"));
   const lock = JSON.parse(fs.readFileSync(path.join(packageDir, "package-lock.json"), "utf8"));
+  const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
   const result = evaluateAscRegistryLock({
     pkg,
     lock,
     registryReleaseState: {
-      versions: ["0.7.0"],
-      time: { "0.7.0": "2026-09-02T15:56:15.148Z" },
+      versions: [entry.version],
+      time: { [entry.version]: "2026-09-02T15:56:15.148Z" },
     },
-    registryArtifact: createRegistryArtifact("0.7.0", ASC_070_INTEGRITY),
+    registryArtifact: createRegistryArtifact(entry.version, entry.integrity),
     now: new Date("2026-09-10T00:00:00.000Z"),
   });
-  const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
   assert.equal(result.ok, true, result.issues.join("\n"));
   assert.equal(entry.link, undefined);
-  // Checked-in lock must match the published 0.7.0 registry tarball.
-  assert.equal(entry.version, "0.7.0");
-  assert.equal(entry.resolved, ascTarball("0.7.0"));
-  assert.equal(entry.integrity, ASC_070_INTEGRITY);
+  assert.equal(
+    pkg.dependencies[ASC_PACKAGE_NAME],
+    lock.packages[""].dependencies[ASC_PACKAGE_NAME],
+  );
+  assert.equal(entry.resolved, ascTarball(entry.version));
+  assert.match(entry.integrity, /^sha512-/);
+});
+
+test("generated ASC registry owner matches the lock and package.json selector", () => {
+  const packageDir = path.resolve(import.meta.dirname, "..");
+  assert.equal(GENERATED_ASC_PACKAGE_NAME, ASC_PACKAGE_NAME);
+  const result = syncGeneratedAscRegistryOwner(packageDir, { check: true });
+  assert.equal(result.ok, true, result.issues.join("\n"));
+  const pkg = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8"));
+  const lock = JSON.parse(fs.readFileSync(path.join(packageDir, "package-lock.json"), "utf8"));
+  const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
+  assert.equal(result.owner.version, entry.version);
+  assert.equal(result.owner.url, entry.resolved);
+  assert.equal(result.owner.integrity, entry.integrity);
+  assert.equal(result.owner.selector, pkg.dependencies[ASC_PACKAGE_NAME]);
+});
+
+test("generated ASC owner check fails when the committed file disagrees with the lock", () => {
+  const drifted = loadAscRegistryOwnerFromLock({
+    pkg: createManifest("^0.5.0"),
+    lock: createRegistryLock("0.5.2"),
+  });
+  assert.equal(drifted.ok, true, drifted.issues.join("\n"));
+  const stale = renderAscRegistryOwnerSource({
+    ...drifted.owner,
+    version: "0.0.0",
+  });
+  assert.notEqual(stale, renderAscRegistryOwnerSource(drifted.owner));
+  const missingLock = loadAscRegistryOwnerFromLock({
+    pkg: createManifest("^0.5.0"),
+    lock: { lockfileVersion: 3, packages: {} },
+  });
+  assert.equal(missingLock.ok, false);
+  assert.match(
+    missingLock.issues.join("\n"),
+    /missing node_modules\/@tryinget\/pi-autonomous-session-control/,
+  );
 });

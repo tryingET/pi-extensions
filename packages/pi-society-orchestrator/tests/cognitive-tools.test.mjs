@@ -7,7 +7,17 @@ import test from "node:test";
 import { getCognitiveToolByName, listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
 
 function seedVault(vaultDir) {
-  execFileSync("dolt", ["init", "-b", "main"], { cwd: vaultDir, encoding: "utf-8" });
+  execFileSync(
+    "dolt",
+    [
+      "init",
+      "--name=pi-society-orchestrator-tests",
+      "--email=pi-society-orchestrator-tests@example.invalid",
+      "-b",
+      "main",
+    ],
+    { cwd: vaultDir, encoding: "utf-8" },
+  );
   execFileSync(
     "dolt",
     [

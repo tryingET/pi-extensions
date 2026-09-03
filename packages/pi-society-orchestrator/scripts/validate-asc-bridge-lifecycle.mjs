@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { syncGeneratedAscRegistryOwner } from "./generate-asc-registry-owner.mjs";
 
 export const ASC_PACKAGE_NAME = "@tryinget/pi-autonomous-session-control";
 export const ASC_MINIMUM_RELEASE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -508,6 +509,15 @@ function main() {
     });
     if (!lockResult.ok) {
       for (const issue of lockResult.issues) console.error(issue);
+      process.exit(1);
+    }
+    const generated = syncGeneratedAscRegistryOwner(packageDir, {
+      check: true,
+      pkg: manifest,
+      lock,
+    });
+    if (!generated.ok) {
+      for (const issue of generated.issues) console.error(issue);
       process.exit(1);
     }
   }

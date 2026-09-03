@@ -418,6 +418,9 @@ test("release quality gate disables machine-local engineering-core smoke", () =>
   const step = workflowStep(workflow, "Run package quality gate");
   assert.match(step, /PI_ENGINEERING_SMOKE: "0"/);
   assert.match(step, /run: npm run check/);
+  assert.doesNotMatch(step, /inputs\.tag !=/u);
+  assert.doesNotMatch(step, /pi-agent-registry-v0\.3\.0/u);
+  assert.doesNotMatch(step, /pi-society-orchestrator-v0\.11\.1/u);
 });
 
 test("release-please creates one propagation-aware candidate and dispatches the validated order", () => {

@@ -79,14 +79,23 @@ test("ASC registry handoff atomically binds selector, regular lock, hidden lock,
       "utf8",
     ),
   );
+  const lockEntry =
+    regularLock.packages[`node_modules/${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name}`];
+  assert.equal(
+    GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.selector,
+    manifest.dependencies[GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name],
+  );
+  assert.equal(GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version, lockEntry.version);
+  assert.equal(GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.url, lockEntry.resolved);
+  assert.equal(GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.integrity, lockEntry.integrity);
   assert.deepEqual(
     classifyGovernedRuntimeAscRegistryOwnerEvidence(manifest, regularLock, hiddenLock),
     {
       name: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
-      version: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version,
-      selector: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.selector,
-      url: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.url,
-      integrity: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.integrity,
+      version: lockEntry.version,
+      selector: manifest.dependencies[GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name],
+      url: lockEntry.resolved,
+      integrity: lockEntry.integrity,
     },
   );
   assert.equal(

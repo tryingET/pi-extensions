@@ -2,6 +2,7 @@
 // read_when:
 //   - changing governed runtime constants verification.
 
+import { GOVERNED_RUNTIME_ASC_REGISTRY_OWNER } from "./governed-runtime-asc-owner.generated.ts";
 import { edge } from "./governed-runtime-cleanliness.ts";
 
 export const GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA =
@@ -52,19 +53,9 @@ export const GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS = [
 
 export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
 
-export const GOVERNED_RUNTIME_ASC_REGISTRY_OWNER = {
-  consumer: "packages/pi-society-orchestrator",
-  name: "@tryinget/pi-autonomous-session-control",
-  version: "0.7.0",
-  selector: "^0.7.0",
-  url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.7.0.tgz",
-  integrity:
-    "sha512-hd7gQYjILAM2oaVbY4Ht9SzuXDtnhim/LQc2YoxfjcuQ5Ale776tbYeWHzj2NNUvbo5GzbfPgN2YQWgK7CqSLg==",
-  specifiers: [
-    "@tryinget/pi-autonomous-session-control/execution",
-    "@tryinget/pi-autonomous-session-control",
-  ],
-} as const;
+// Lock identity (version/url/integrity) plus package.json selector. A lock bump
+// is the pin bump: regenerate with scripts/generate-asc-registry-owner.mjs.
+export { GOVERNED_RUNTIME_ASC_REGISTRY_OWNER };
 
 export const GOVERNED_RUNTIME_ASC_COMPILER = {
   name: "@typescript/native-preview",

@@ -67,7 +67,17 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
   const previousExecutionMemorySha = process.env.PI_ORCH_D2E_AK_SHA256;
 
   try {
-    execFileSync("dolt", ["init", "-b", "main"], { cwd: tempVaultDir, stdio: "ignore" });
+    execFileSync(
+      "dolt",
+      [
+        "init",
+        "--name=pi-society-orchestrator-tests",
+        "--email=pi-society-orchestrator-tests@example.invalid",
+        "-b",
+        "main",
+      ],
+      { cwd: tempVaultDir, stdio: "ignore" },
+    );
     execFileSync(
       "dolt",
       [

@@ -52,6 +52,8 @@ Gap = `.release-please-manifest.json` version vs `npm view name@version`. Do not
 
 Document and, with operator, change GitHub environment `npm-publish` so one review admits a whole `releaseOrder`, or so the `release-please` dispatch is not N human waits. Keep OIDC Trusted Publishing. Do not set repo `default_workflow_permissions` to write.
 
+Exact GitHub environment fields: `docs/project/2026-09-03-npm-publish-wave-admit.md`. Agent cannot flip required-reviewers.
+
 ### E — Remove emergency skips
 
 Delete `inputs.tag != 'pi-agent-registry-v0.3.0'` and `pi-society-orchestrator-v0.11.1` quality-gate exceptions once those tags are not in the live publish path.

@@ -5,7 +5,16 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -44,7 +53,17 @@ export const TOOL_PATHS = {
 };
 
 export function createVaultFixture(root) {
-  execFileSync("dolt", ["init", "-b", "main"], { cwd: root, stdio: "ignore" });
+  execFileSync(
+    "dolt",
+    [
+      "init",
+      "--name=pi-society-orchestrator-tests",
+      "--email=pi-society-orchestrator-tests@example.invalid",
+      "-b",
+      "main",
+    ],
+    { cwd: root, stdio: "ignore" },
+  );
   execFileSync(
     "dolt",
     [
@@ -263,6 +282,12 @@ export function createImmutableMaterializationCandidate(scratch) {
       stdio: ["pipe", "pipe", "pipe"],
     });
     assert.equal(applied.status, 0, applied.stderr?.toString());
+  }
+  const generatedOwnerRel =
+    "packages/pi-society-orchestrator/src/runtime/governed-runtime-asc-owner.generated.ts";
+  const generatedOwnerSrc = resolve(SOURCE_ROOT, generatedOwnerRel);
+  if (existsSync(generatedOwnerSrc)) {
+    copyFileSync(generatedOwnerSrc, resolve(stagingRoot, generatedOwnerRel));
   }
   execFileSync("git", ["-C", stagingRoot, "add", "--all"]);
   execFileSync(

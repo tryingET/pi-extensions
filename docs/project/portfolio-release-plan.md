@@ -46,3 +46,7 @@ Missing, extra, stale, reordered, or modified content fails verification. The wa
 A failed component leaves already published npm versions immutable. Re-run that component with the same wave and a new unique dispatch identity; exact-artifact inspection makes an exact existing version a verified no-op and rejects mismatched bytes. A consumer additionally requires a successful same-wave publish run for every predecessor, not merely an npm version with the expected name. Continue later components only after the failed predecessor succeeds. Never generate a replacement wave merely to hide a partial wave.
 
 The scripts do not grant approval to merge, push, tag, create a GitHub Release, publish to npm, configure OIDC, or change repository settings. Those remain repository-admin/release-operator effects.
+
+## Wave admission
+
+Human admit is one review of the combined release-please PR, not N `npm-publish` environment approvals. Keep the environment **name** `npm-publish` for npm OIDC Trusted Publishing. Empty **Required reviewers** on that environment so sequential `publish.yml` jobs do not each wait. Exact GitHub fields: `docs/project/2026-09-03-npm-publish-wave-admit.md`.

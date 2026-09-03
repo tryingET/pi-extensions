@@ -38,6 +38,9 @@ jobs:
       archive_name: ${{ steps.release-identifiers.outputs.archive_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Environment name is the npm OIDC Trusted Publisher binding, not N human
+    # admits. Wave admission is the combined release-please PR; see
+    # docs/project/2026-09-03-npm-publish-wave-admit.md.
     environment: npm-publish
     permissions:
       actions: read
@@ -255,7 +258,6 @@ jobs:
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run package quality gate
-        if: inputs.tag != 'pi-agent-registry-v0.3.0' && inputs.tag != 'pi-society-orchestrator-v0.11.1'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         env:
           PI_ENGINEERING_SMOKE: "0"

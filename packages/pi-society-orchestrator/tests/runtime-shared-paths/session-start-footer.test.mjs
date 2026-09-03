@@ -206,7 +206,15 @@ test("session_start footer refreshes vault health after startup drift", async ()
   const previousPiCompany = process.env.PI_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-health-"));
-  execFileSync("dolt", ["init"], { cwd: tempVaultDir, stdio: "ignore" });
+  execFileSync(
+    "dolt",
+    [
+      "init",
+      "--name=pi-society-orchestrator-tests",
+      "--email=pi-society-orchestrator-tests@example.invalid",
+    ],
+    { cwd: tempVaultDir, stdio: "ignore" },
+  );
   process.env.VAULT_DIR = tempVaultDir;
   process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "0";
@@ -316,7 +324,15 @@ test("session_start footer health retries respect the refresh interval", async (
   const previousPiCompany = process.env.PI_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-throttle-"));
-  execFileSync("dolt", ["init"], { cwd: tempVaultDir, stdio: "ignore" });
+  execFileSync(
+    "dolt",
+    [
+      "init",
+      "--name=pi-society-orchestrator-tests",
+      "--email=pi-society-orchestrator-tests@example.invalid",
+    ],
+    { cwd: tempVaultDir, stdio: "ignore" },
+  );
   process.env.VAULT_DIR = tempVaultDir;
   process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "1000";

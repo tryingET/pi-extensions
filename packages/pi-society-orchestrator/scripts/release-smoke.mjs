@@ -391,7 +391,17 @@ function liftBundledDependencies(packageDir) {
 }
 
 function seedVault(dir) {
-  execFileSync("dolt", ["init", "-b", "main"], { cwd: dir, encoding: "utf8" });
+  execFileSync(
+    "dolt",
+    [
+      "init",
+      "--name=pi-society-orchestrator-tests",
+      "--email=pi-society-orchestrator-tests@example.invalid",
+      "-b",
+      "main",
+    ],
+    { cwd: dir, encoding: "utf8" },
+  );
   execFileSync(
     "dolt",
     [
