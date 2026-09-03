@@ -25,7 +25,7 @@
   "packages/pi-provenance": "0.3.0",
   "packages/pi-session-compaction": "0.6.0",
   "packages/pi-snapshot-edit": "0.5.1",
-  "packages/pi-society-orchestrator": "0.11.2",
+  "packages/pi-society-orchestrator": "0.11.3",
   "packages/pi-society-startup-context": "0.3.1",
   "packages/pi-telemetry": "0.4.1",
   "packages/pi-toolbox-discovery": "0.4.1",

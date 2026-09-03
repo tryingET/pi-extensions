@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.11.3](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.2...pi-society-orchestrator-v0.11.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** pin governed ASC owner to published 0.7.0 (AK 5175) ([02a9306](https://github.com/tryingET/pi-extensions/commit/02a9306266725e0238a7ab94ca7291bec847686e))
+
 ## [0.11.2](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.1...pi-society-orchestrator-v0.11.2) (2026-09-02)
 
 
