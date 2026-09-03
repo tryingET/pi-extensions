@@ -1,0 +1,48 @@
+{
+  "activation": false,
+  "agent_id": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "approval": false,
+  "claim": "resolved-release-evidence",
+  "executable_artifact_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "release_id": "fixture:release:adoption-steward-a0a1",
+  "resolved_resources": [
+    {
+      "authority_transfer": false,
+      "content_digest": "sha256:c56e492b81e8f9a70635cc07e97b94e1bb0db7c0504e2f0aa78d29dfb2b4f7f9",
+      "kind": "prompt",
+      "name": "agent-adoption-steward/base",
+      "provider": "prompt-vault",
+      "revision": "sha256:c56e492b81e8f9a70635cc07e97b94e1bb0db7c0504e2f0aa78d29dfb2b4f7f9",
+      "schema": "ai-society.resource-ref/1"
+    },
+    {
+      "authority_transfer": false,
+      "content_digest": "sha256:3378c5fc0109bd0eb49531520a30fdad5e761adf0d44ceeae168797cf657b69b",
+      "kind": "profile",
+      "name": "ec-adoption-steward",
+      "provider": "engineering-core",
+      "revision": "sha256:3378c5fc0109bd0eb49531520a30fdad5e761adf0d44ceeae168797cf657b69b",
+      "schema": "ai-society.resource-ref/1",
+      "tree_digest": "sha256:5ef65be3f2772fc02d7cb937e47eff82108431bf98b7592de17881c42deceeba"
+    },
+    {
+      "authority_transfer": false,
+      "content_digest": "sha256:5ef65be3f2772fc02d7cb937e47eff82108431bf98b7592de17881c42deceeba",
+      "invocation_policy": {
+        "entrypoints": [
+          "ec-discipline-documentation"
+        ],
+        "model_invocation": "disabled"
+      },
+      "kind": "skill-tree",
+      "name": "ec-adoption-steward",
+      "provider": "engineering-core",
+      "revision": "sha256:5ef65be3f2772fc02d7cb937e47eff82108431bf98b7592de17881c42deceeba",
+      "schema": "ai-society.resource-ref/1",
+      "tree_digest": "sha256:5ef65be3f2772fc02d7cb937e47eff82108431bf98b7592de17881c42deceeba"
+    }
+  ],
+  "schema": "pi-agent-registry.release-evidence/1",
+  "source_revision": "git:0000000000000000000000000000000000000000",
+  "verification": "verified"
+}

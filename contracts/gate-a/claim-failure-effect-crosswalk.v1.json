@@ -1,0 +1,188 @@
+{
+  "integration_steward": "tryingET/pi-extensions",
+  "local_code_examples": {
+    "agent-kernel": {
+      "AK_CEILING_MISMATCH": "mismatch",
+      "AK_PERMIT_EXPIRED": "unproven",
+      "AK_PERMIT_REVOKED": "revoked"
+    },
+    "asc": {
+      "ASC_EFFECT_UNKNOWN": "effect_indeterminate",
+      "ASC_NO_EXTERNAL_EFFECTS": "confirmed_no_effects"
+    },
+    "pi-agent-registry": {
+      "REGISTRY_DIGEST_MISMATCH": "mismatch",
+      "REGISTRY_RESOURCE_NOT_FOUND": "unproven"
+    },
+    "pi-runtime": {
+      "PI_AMBIENT_RESOURCE_OBSERVED": "mismatch",
+      "PI_HOOK_UNOBSERVABLE": "unproven"
+    },
+    "prompt-vault": {
+      "PV_CONTENT_REVOKED": "revoked",
+      "PV_VISIBILITY_DENIED": "unproven"
+    }
+  },
+  "owner_claim_surfaces": {
+    "agent-kernel": [
+      "accepted",
+      "authorized",
+      "unproven",
+      "mismatch",
+      "revoked"
+    ],
+    "asc": [
+      "observed",
+      "settled",
+      "effect_indeterminate",
+      "confirmed_no_effects",
+      "mismatch"
+    ],
+    "governance-kernel": [
+      "declared",
+      "accepted",
+      "revoked",
+      "historical_only",
+      "forensic_only"
+    ],
+    "pi-agent-registry": [
+      "declared",
+      "resolved",
+      "built",
+      "verified",
+      "unproven",
+      "mismatch"
+    ],
+    "pi-runtime": [
+      "observed",
+      "verified",
+      "unproven",
+      "mismatch"
+    ],
+    "prompt-vault": [
+      "resolved",
+      "verified",
+      "unproven",
+      "mismatch",
+      "revoked",
+      "historical_only",
+      "forensic_only"
+    ],
+    "skillforge-deferred": [
+      "verified",
+      "unproven",
+      "mismatch"
+    ]
+  },
+  "prohibited_conflations": [
+    [
+      "declared",
+      "resolved"
+    ],
+    [
+      "resolved",
+      "accepted"
+    ],
+    [
+      "verified",
+      "accepted"
+    ],
+    [
+      "accepted",
+      "authorized"
+    ],
+    [
+      "authorized",
+      "observed"
+    ],
+    [
+      "observed",
+      "settled"
+    ],
+    [
+      "confirmed_no_effects",
+      "read_only"
+    ],
+    [
+      "source_commit",
+      "executable_identity"
+    ],
+    [
+      "historical_only",
+      "launch_eligible"
+    ],
+    [
+      "signature",
+      "appointment"
+    ],
+    [
+      "expired",
+      "revoked"
+    ]
+  ],
+  "schema": "ai-society.claim-failure-effect-crosswalk/1",
+  "semantic_rule": "This crosswalk aligns shared meanings while each owner retains local codes and authority. It is not a global enum or a semantic-ownership transfer. Expiry is a known authorization denial and is not revocation.",
+  "status": "candidate_integration_owner_acceptance_pending",
+  "terms": [
+    {
+      "meaning": "A source or intent claims a value; no resolution or authority is implied.",
+      "term": "declared"
+    },
+    {
+      "meaning": "Exact source and resource references were selected.",
+      "term": "resolved"
+    },
+    {
+      "meaning": "An executable/materialized artifact was produced with its own identity.",
+      "term": "built"
+    },
+    {
+      "meaning": "A runtime/effect surface was measured, without asserting expected equality.",
+      "term": "observed"
+    },
+    {
+      "meaning": "Evidence was checked against a named rule; verifier is not approver.",
+      "term": "verified"
+    },
+    {
+      "meaning": "A named owner accepted a contract or release through its process.",
+      "term": "accepted"
+    },
+    {
+      "meaning": "A current task-bound permit authorizes a bounded run/effect class.",
+      "term": "authorized"
+    },
+    {
+      "meaning": "The accountable effect owner accepted the terminal effect disposition.",
+      "term": "settled"
+    },
+    {
+      "meaning": "Required evidence is missing, expired, or the observer cannot establish the claim.",
+      "term": "unproven"
+    },
+    {
+      "meaning": "Expected and observed identities or surfaces differ.",
+      "term": "mismatch"
+    },
+    {
+      "meaning": "Previously usable authority/trust was withdrawn by its owner.",
+      "term": "revoked"
+    },
+    {
+      "meaning": "Effects may have occurred and cannot yet be settled.",
+      "term": "effect_indeterminate"
+    },
+    {
+      "meaning": "The effect custodian established that no external effects occurred.",
+      "term": "confirmed_no_effects"
+    },
+    {
+      "meaning": "Retained for history but not launch eligible.",
+      "term": "historical_only"
+    },
+    {
+      "meaning": "Retained under incident/legal custody and not launch eligible.",
+      "term": "forensic_only"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "$id": "https://ai-society.local/schemas/asc-effect-receipt-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approval": {
+      "const": false
+    },
+    "claim": {
+      "const": "runtime-observation-and-effect-disposition"
+    },
+    "disposition": {
+      "enum": [
+        "confirmed_no_effects",
+        "settled",
+        "effect_indeterminate"
+      ]
+    },
+    "observations": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "permit_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "runtime_attestation_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "schema": {
+      "const": "asc.effect-receipt/1"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "permit_id",
+    "runtime_attestation_digest",
+    "disposition",
+    "observations",
+    "claim",
+    "approval"
+  ],
+  "type": "object"
+}

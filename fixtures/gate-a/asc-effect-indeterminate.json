@@ -1,0 +1,15 @@
+{
+  "approval": false,
+  "claim": "runtime-observation-and-effect-disposition",
+  "disposition": "effect_indeterminate",
+  "observations": [
+    {
+      "kind": "process-exit",
+      "status": "unknown-after-crash"
+    }
+  ],
+  "permit_id": "fixture:permit:adoption-steward-a0a1",
+  "run_id": "fixture:run:adoption-steward-a0a1",
+  "runtime_attestation_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+  "schema": "asc.effect-receipt/1"
+}

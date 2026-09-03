@@ -1,0 +1,65 @@
+{
+  "$id": "https://ai-society.local/schemas/pi-capability-descriptor-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "authority_granted": {
+      "const": false
+    },
+    "default_active": {
+      "type": "boolean"
+    },
+    "effect_stage": {
+      "enum": [
+        "pre-task-provider",
+        "post-provider-pre-effect",
+        "effect",
+        "observation-only"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "tool",
+        "extension-hook"
+      ]
+    },
+    "model_callable": {
+      "type": "boolean"
+    },
+    "name": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "risk": {
+      "enum": [
+        "read",
+        "local-write",
+        "process",
+        "network",
+        "credential",
+        "external-effect"
+      ]
+    },
+    "schema": {
+      "const": "pi.capability-descriptor/1"
+    }
+  },
+  "required": [
+    "schema",
+    "kind",
+    "name",
+    "owner",
+    "artifact_digest",
+    "risk",
+    "effect_stage",
+    "model_callable",
+    "default_active",
+    "authority_granted"
+  ],
+  "type": "object"
+}

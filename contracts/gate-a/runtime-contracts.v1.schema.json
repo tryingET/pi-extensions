@@ -1,0 +1,60 @@
+{
+  "$id": "https://github.com/tryingET/pi-extensions/blob/main/contracts/gate-a/runtime-contracts.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agent_id": {
+      "pattern": "^urn:uuid:[0-9a-f-]+$",
+      "type": "string"
+    },
+    "asc": {
+      "type": "object"
+    },
+    "compatibility": {
+      "type": "object"
+    },
+    "delegation": {
+      "type": "object"
+    },
+    "expected_runtime": {
+      "type": "object"
+    },
+    "observed_runtime": {
+      "type": "object"
+    },
+    "permit": {
+      "type": "object"
+    },
+    "registry": {
+      "type": "object"
+    },
+    "release": {
+      "type": "object"
+    },
+    "schema": {
+      "const": "ai-society.runtime-integration-fixture/1"
+    },
+    "status": {
+      "const": "candidate_fixture_not_runtime_evidence"
+    },
+    "vault_view": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "status",
+    "agent_id",
+    "release",
+    "permit",
+    "registry",
+    "vault_view",
+    "expected_runtime",
+    "observed_runtime",
+    "asc",
+    "delegation",
+    "compatibility"
+  ],
+  "title": "Gate A public runtime integration fixture",
+  "type": "object"
+}

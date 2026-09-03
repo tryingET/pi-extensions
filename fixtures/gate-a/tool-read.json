@@ -1,0 +1,12 @@
+{
+  "artifact_digest": "sha256:1578d47b37e4bb565fc5ea3e8cf3f0e4b7f9ab85eb2cab3dc58f65190db76e11",
+  "authority_granted": false,
+  "default_active": false,
+  "effect_stage": "effect",
+  "kind": "tool",
+  "model_callable": true,
+  "name": "read",
+  "owner": "pi-mono",
+  "risk": "read",
+  "schema": "pi.capability-descriptor/1"
+}
