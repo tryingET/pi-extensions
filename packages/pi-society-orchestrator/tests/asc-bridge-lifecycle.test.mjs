@@ -356,6 +356,7 @@ test("checked-in ASC lock records the proven registry artifact", () => {
   const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
   assert.equal(result.ok, true, result.issues.join("\n"));
   assert.equal(entry.link, undefined);
+  // Checked-in lock must match the published 0.7.0 registry tarball.
   assert.equal(entry.version, "0.7.0");
   assert.equal(entry.resolved, ascTarball("0.7.0"));
   assert.equal(entry.integrity, ASC_070_INTEGRITY);
