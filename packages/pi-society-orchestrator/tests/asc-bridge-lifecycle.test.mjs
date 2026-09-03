@@ -22,6 +22,8 @@ const ASC_051_INTEGRITY =
   "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==";
 const ASC_052_INTEGRITY =
   "sha512-y+RvaTMca0VoMDI66TwLx5RzdTQGvov4a7MbrGKFXWNaXa86Ml9n3O/b812s+5pFIJOibWF7WAbM4n5uPaV7Nw==";
+const ASC_070_INTEGRITY =
+  "sha512-hd7gQYjILAM2oaVbY4Ht9SzuXDtnhim/LQc2YoxfjcuQ5Ale776tbYeWHzj2NNUvbo5GzbfPgN2YQWgK7CqSLg==";
 
 function createManifest(ascSpec = "^0.5.0", overrides = {}) {
   return {
@@ -344,14 +346,17 @@ test("checked-in ASC lock records the proven registry artifact", () => {
   const result = evaluateAscRegistryLock({
     pkg,
     lock,
-    registryReleaseState: createRegistryReleaseState(),
-    registryArtifact: createRegistryArtifact("0.5.2"),
-    now: REGISTRY_NOW,
+    registryReleaseState: {
+      versions: ["0.7.0"],
+      time: { "0.7.0": "2026-09-02T15:56:15.148Z" },
+    },
+    registryArtifact: createRegistryArtifact("0.7.0", ASC_070_INTEGRITY),
+    now: new Date("2026-09-10T00:00:00.000Z"),
   });
   const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
   assert.equal(result.ok, true, result.issues.join("\n"));
   assert.equal(entry.link, undefined);
-  assert.equal(entry.version, "0.5.2");
-  assert.equal(entry.resolved, ascTarball("0.5.2"));
-  assert.equal(entry.integrity, ASC_052_INTEGRITY);
+  assert.equal(entry.version, "0.7.0");
+  assert.equal(entry.resolved, ascTarball("0.7.0"));
+  assert.equal(entry.integrity, ASC_070_INTEGRITY);
 });
