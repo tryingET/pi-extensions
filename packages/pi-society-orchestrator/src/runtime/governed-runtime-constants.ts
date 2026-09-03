@@ -55,11 +55,11 @@ export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
 export const GOVERNED_RUNTIME_ASC_REGISTRY_OWNER = {
   consumer: "packages/pi-society-orchestrator",
   name: "@tryinget/pi-autonomous-session-control",
-  version: "0.5.2",
-  selector: "^0.5.0",
-  url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.5.2.tgz",
+  version: "0.7.0",
+  selector: "^0.7.0",
+  url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.7.0.tgz",
   integrity:
-    "sha512-y+RvaTMca0VoMDI66TwLx5RzdTQGvov4a7MbrGKFXWNaXa86Ml9n3O/b812s+5pFIJOibWF7WAbM4n5uPaV7Nw==",
+    "sha512-hd7gQYjILAM2oaVbY4Ht9SzuXDtnhim/LQc2YoxfjcuQ5Ale776tbYeWHzj2NNUvbo5GzbfPgN2YQWgK7CqSLg==",
   specifiers: [
     "@tryinget/pi-autonomous-session-control/execution",
     "@tryinget/pi-autonomous-session-control",
