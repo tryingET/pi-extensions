@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "rfc_review_persistence_verification",
+  "decision_id": 151,
+  "task_id": 5451,
+  "observed_at": "2026-09-05T21:54:10.296Z",
+  "review_memo": "docs/project/2026-09-05-visible-task-session-rfc-review-02.md",
+  "review_memo_sha256": "ecd9010c40559aa731b7d5da3f44bff9d54ff9a5cac5b307911f7165af28ce68",
+  "finding_inventory": "docs/project/2026-09-05-visible-task-session-review/findings-e79a3f5f7f7ac49bff16b4281fe7149fa28d3ff014f88551644a982c34103113.json",
+  "finding_inventory_sha256": "e79a3f5f7f7ac49bff16b4281fe7149fa28d3ff014f88551644a982c34103113",
+  "input_manifest_sha256": "e82bb62c18cb4b315349908ec450ad1a14202022b9744c14d3660b40ca8260af",
+  "candidate_commit": "f26fc1c263394e940ea7db593e589a9cbb43de31",
+  "reviewed_rfc_sha256": "a97c4acc15dcedeb17596882419f2c8a920918d394428e0b1912f419dee7cb14",
+  "independent_review": {
+    "peer_run_id": "scoutpeer-mtowwat9-e24a5c09",
+    "communication_id": "dc214ab5-34a7-44ec-89ed-138c6a35a90d",
+    "session_id": "01a07388-d122-7245-ac2e-375c3ff39149",
+    "model": "gpt-6-astra",
+    "provider": "not_independently_established",
+    "input_checks": "Reviewer matched 13 input working-file START/END and committed blobs; controller rechecked after persistence.",
+    "outcome": "revise_rfc",
+    "finding_state": "seven owner_blocked; proposal repairs adequate under declared preconditions; no new material technical defect found",
+    "lenses": 3
+  },
+  "observed_checks": [
+    "Thirteen manifest hashes still match; seven unique finding rows copied verbatim into content-addressed inventory.",
+    "Review memo docs-list strict matched one document and passed; docs-ref-check passed with zero parsed links; source refs are explicit prose paths.",
+    "git diff --check passed; original candidate/history unchanged."
+  ],
+  "limits": [
+    "Review stage only; owner ratification remains required.",
+    "No ADR, implementation, feature launch, install or full-repo CI.",
+    "AK attachment/readback and final commit occur later; not inferred here."
+  ]
+}

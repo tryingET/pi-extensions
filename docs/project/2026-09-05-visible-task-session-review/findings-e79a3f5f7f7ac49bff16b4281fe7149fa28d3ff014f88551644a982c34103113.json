@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "kind": "immutable_rfc_finding_inventory",
+  "decision_id": 151,
+  "task_id": 5451,
+  "track": "current_track",
+  "attempt": 2,
+  "origin_attempt_id": 624,
+  "review_outcome": "revise_rfc",
+  "immediate_action": "gather_missing_owner_dispositions",
+  "reviewed_rfc": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-02.md",
+  "reviewed_rfc_sha256": "a97c4acc15dcedeb17596882419f2c8a920918d394428e0b1912f419dee7cb14",
+  "review_memo": "docs/project/2026-09-05-visible-task-session-rfc-review-02.md",
+  "review_memo_sha256": "ecd9010c40559aa731b7d5da3f44bff9d54ff9a5cac5b307911f7165af28ce68",
+  "input_manifest_sha256": "e82bb62c18cb4b315349908ec450ad1a14202022b9744c14d3660b40ca8260af",
+  "reviewer_peer_run_id": "scoutpeer-mtowwat9-e24a5c09",
+  "findings": [
+    {
+      "id": "AUTH-01",
+      "severity": "high",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "1. AUTH-01 — HIGH; architecture-shaping requirement sufficiency; proposal repair adequate. R §§1–2,10 now selects the operator-requested fresh/unclaimed B and refuses parent-held transfer with explicit changed R4/B5/V4/U3 applicability. The original fresh-task-versus-transfer counterexample is answered, not dismissed. Remaining: AK task and Pi integration owner acknowledgment of need-to-contract fit; operator scope choice is observed but not their ratification. Dependencies: none; upstream of AUTH-02 and affected assurance claims.",
+      "proposal_repair": "adequate"
+    },
+    {
+      "id": "AUTH-02",
+      "severity": "high",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "2. AUTH-02 — HIGH; owner admission/recovery contract; proposal repair adequate conditionally on its declared operating precondition. R §4 and S §1 distinguish claimability from baseline admission, require ordered independent reads, retain unknown claim outcomes and prohibit automatic non-CAS unclaim. Stress narrative retained: a companion decision writer can change admission facts without this task's version changing; a claim can commit then return error; a racing recovery write can make native unclaim clear a different current claim. R correctly blocks or requires excluded competing edits rather than claiming those operations are atomic. Remaining: AK owner accepts and evidences the covered-writer coordination and exact failed/indeterminate-claim recovery disposition, with Pi concurrence on admitted baseline/release observations. Dependencies: AUTH-01; coupled with BOOT-01 and EXCL-01. Do not demand delegation machinery for B.",
+      "proposal_repair": "adequate_conditionally_on_declared_operating_precondition"
+    },
+    {
+      "id": "BOOT-01",
+      "severity": "high",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "3. BOOT-01 — HIGH; exclusive startup allocation; proposal repair adequate. R §5 and S §§2–3 select mandatory denial before ingress and retain lineage at internal provider/tool dispatch. Missing registration, callback exceptions and command-shaped data are no longer delegated to a best-effort input handler. Remaining: Pi runtime owner ratifies the supported host boundary/path coverage and fail-closed allocation; stock 0.84.4 remains unsupported. Dependencies: AUTH-01/02; coupled with BOOT-02. Production realization/proof remains post-ADR.",
+      "proposal_repair": "adequate"
+    },
+    {
+      "id": "BOOT-02",
+      "severity": "high",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "4. BOOT-02 — HIGH; trust/payload-integrity question; proposal repair adequate. R §§5,9–10 denies secondary objective-bearing queue/context ingress and unclassified late rewrites, binds raw/effective context separately and disables compaction/summarization while disclosing trusted effects/privacy limits. The H-to-H2 and independent-turn counterexamples are answered at contract level. Remaining: Pi runtime and integration/security owners accept supported resources/effects, final transformation boundary and constrained capability/task-length costs; exact profile realization is an implementation obligation. Dependencies: AUTH-02; coupled with BOOT-01.",
+      "proposal_repair": "adequate"
+    },
+    {
+      "id": "EXCL-01",
+      "severity": "high",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "5. EXCL-01 — HIGH; operational safety/liveness; proposal repair adequate. R §6 specifies independent keys, alias/common-Git handling, short reservation-only locking, no candidate nesting and retained exclusion across lease/reassignment. Different tasks in one checkout and the same task in different workspaces must conflict; no generation reset or controller exemption remains. Remaining: little-helpers/task owners, with candidate and lane coexistence owners where applicable, ratify namespace provisioning/versioning, conflict identity, closure/effect/claim evidence and enrolled-writer exclusion. Unmanaged-writer participation is not established by this RFC. Dependency: AUTH-02; interacts with MIG-01. Unknown cases remain blocked; do not add force-unlock.",
+      "proposal_repair": "adequate"
+    },
+    {
+      "id": "PKG-01",
+      "severity": "medium",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "6. PKG-01 — MEDIUM; owner ratification and verification applicability; proposal allocation remains coherent. R §7 retains explicit production/test separation and emitted-JS/bin/exports/files/dependency closure without a fake ExtensionAPI or public arbitrary-command escape. Production exec presence must not select test handshake/placement shortcuts. Remaining: little-helpers/package owner ratifies the ABI/allocation and retained G2-P1/packed/observer oracles. Coupled with BOOT-01. No pre-ADR install, export implementation or feature canary is required to close the design-level decision.",
+      "proposal_repair": "adequate"
+    },
+    {
+      "id": "MIG-01",
+      "severity": "medium",
+      "state": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "reviewer_disposition_verbatim": "7. MIG-01 — MEDIUM; compatibility/rollout boundary; proposal repair adequate. R §8 explicitly excludes first-release lane replacement, enumerates later translate/refuse options, requires enrollment coexistence disposition and preserves inspect/recovery through withdrawal. The legacy multi-print-to-interactive and fallback counterexamples are answered. Remaining: lane/package owners accept that boundary and the means of excluding competing direct-spawn use in enrollment; later migration mechanics remain separately scoped. Dependencies: AUTH-01, BOOT-01, EXCL-01.",
+      "proposal_repair": "adequate"
+    }
+  ],
+  "new_material_technical_findings": [],
+  "non_material_nice_to_have": "Already supplied in revision02; no additional prose table requested.",
+  "claim_limit": "Independent review judged proposal repairs adequate under declared preconditions; seven owner-ratification closures remain blocked. No source owner acceptance, ADR or implemented behavior."
+}
