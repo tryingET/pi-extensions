@@ -266,10 +266,49 @@ export function ghosttyVersionSupportsSurfaceId(output: string): boolean {
   return major > 1 || (major === 1 && minor >= 4);
 }
 
+export function ghosttySurfaceIdProbeIndicatesSupport(output: string): boolean {
+  // A build that recognizes the +new-tab --surface-id flag fails argument
+  // parsing on a deliberately invalid value BEFORE creating any tab
+  // ("Error parsing args: error.InvalidCharacter"). A build without the
+  // +new-tab action reports an unknown-action error instead, and a build
+  // that would silently ignore the flag produces no parse error at all,
+  // so only the explicit parse-failure signature counts as support.
+  return /Error parsing args:\s*error\./i.test(output);
+}
+
+export const SURFACE_ID_CAPABILITY_PROBE_VALUE = "zz-invalid-surface-id-capability-probe";
+
 export async function supportsGhosttySurfaceId(
   execRunner: ExecRunner,
   ghosttyBin: string,
 ): Promise<boolean> {
+  // Probe the actual flag capability instead of trusting only the version
+  // string: origin/main snapshots carry the surface-id flag while still
+  // reporting pre-1.4 dev versions (e.g. 1.3.2-main-+<sha>), so a pure
+  // version gate would silently downgrade targeting to untargeted tabs
+  // after every rebuild. The invalid probe value fails argument parsing
+  // before any tab is created on builds that recognize the flag; a killed,
+  // empty, or errored probe is inconclusive and falls through to the
+  // legacy version-string gate instead of failing closed.
+  try {
+    const probe = await execRunner(
+      ghosttyBin,
+      ["+new-tab", `--surface-id=${SURFACE_ID_CAPABILITY_PROBE_VALUE}`],
+      { timeout: GHOSTTY_PROBE_TIMEOUT_MS },
+    );
+    const probeOutput = `${probe?.stdout || ""}\n${probe?.stderr || ""}`;
+    if (
+      probe &&
+      !probe.killed &&
+      probe.code !== 0 &&
+      ghosttySurfaceIdProbeIndicatesSupport(probeOutput)
+    ) {
+      return true;
+    }
+  } catch {
+    // Inconclusive probe (exec failure, stub mismatch, or timeout): fall
+    // through to the version-string gate below.
+  }
   try {
     const result = await execRunner(ghosttyBin, ["+version"], {
       timeout: GHOSTTY_PROBE_TIMEOUT_MS,

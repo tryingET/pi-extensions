@@ -42,9 +42,12 @@ export {
   findGhosttyAncestor,
   findGhosttyAncestorBin,
   getGhosttySurfaceId,
+  ghosttySurfaceIdProbeIndicatesSupport,
   ghosttyVersionSupportsSurfaceId,
   resolveControllerGhosttyDbusTarget,
   resolveGhosttyBin,
+  supportsGhosttySurfaceId,
+  SURFACE_ID_CAPABILITY_PROBE_VALUE,
 } from "./sidequestGhostty.ts";
 
 const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(

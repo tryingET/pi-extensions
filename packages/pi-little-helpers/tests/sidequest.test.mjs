@@ -9,9 +9,12 @@ import test from "node:test";
 import {
   createSidequestExtension,
   getGhosttySurfaceId,
+  ghosttySurfaceIdProbeIndicatesSupport,
   ghosttyVersionSupportsSurfaceId,
   resolveControllerGhosttyDbusTarget,
   resolveGhosttyBin,
+  supportsGhosttySurfaceId,
+  SURFACE_ID_CAPABILITY_PROBE_VALUE,
 } from "../extensions/sidequest.ts";
 import {
   createContext,
@@ -41,6 +44,55 @@ test("ghosttyVersionSupportsSurfaceId gates the 1.4+ surface-id action flag", ()
   assert.equal(ghosttyVersionSupportsSurfaceId("Ghostty 1.4.0"), true);
   assert.equal(ghosttyVersionSupportsSurfaceId("  - version: 2.0.0\n"), true);
   assert.equal(ghosttyVersionSupportsSurfaceId("not a version"), false);
+});
+
+test("ghosttySurfaceIdProbeIndicatesSupport recognizes only flag parse failures", () => {
+  // A build that recognizes --surface-id fails argument parsing before any
+  // tab is created (verified against origin/main builds).
+  assert.equal(
+    ghosttySurfaceIdProbeIndicatesSupport("Error parsing args: error.InvalidCharacter"),
+    true,
+  );
+  assert.equal(ghosttySurfaceIdProbeIndicatesSupport("Error parsing args: error.Overflow"), true);
+  // A build without the +new-tab action reports an unknown-action error instead.
+  assert.equal(
+    ghosttySurfaceIdProbeIndicatesSupport(
+      "Error: unknown CLI action specified. CLI actions are specified with the '+' character.",
+    ),
+    false,
+  );
+  // Ambiguous silent output must never count as support.
+  assert.equal(ghosttySurfaceIdProbeIndicatesSupport(""), false);
+});
+
+test("supportsGhosttySurfaceId accepts dev-versioned builds that carry the flag", async () => {
+  // Origin/main snapshots report pre-1.4 dev versions while carrying the
+  // surface-id flag; the capability probe must recover full targeting.
+  const supported = await supportsGhosttySurfaceId(async (_command, args) => {
+    if (args[0] === "+new-tab") {
+      return { code: 1, stderr: "Error parsing args: error.InvalidCharacter" };
+    }
+    return { code: 0, stdout: "Ghostty 1.3.2-main-+492300cad\n" };
+  }, LOCAL_GHOSTTY_ORIGIN_MAIN_BIN);
+  assert.equal(supported, true);
+});
+
+test("supportsGhosttySurfaceId falls back to the version gate on inconclusive probes", async () => {
+  const unsupported = await supportsGhosttySurfaceId(async (_command, args) => {
+    if (args[0] === "+new-tab") {
+      return { code: 1, stderr: "Error: unknown CLI action specified." };
+    }
+    return { code: 0, stdout: "Ghostty 1.3.1-arch2\n" };
+  }, "/usr/bin/ghostty");
+  assert.equal(unsupported, false);
+
+  const supportedViaVersion = await supportsGhosttySurfaceId(async (_command, args) => {
+    if (args[0] === "+new-tab") {
+      return { code: 0, stdout: "" };
+    }
+    return { code: 0, stdout: "Ghostty 1.4.0-origin-main-9d8fbd15\n" };
+  }, LOCAL_GHOSTTY_ORIGIN_MAIN_BIN);
+  assert.equal(supportedViaVersion, true);
 });
 
 test("resolveGhosttyBin prefers the current stock Ghostty session binary over the sidequest wrapper", () => {
@@ -105,6 +157,15 @@ test("sidequest uses the local wrapper for tab launch when the current Ghostty l
     if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
       return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
     }
+    if (
+      isLocalGhosttyWrapper(command) &&
+      args[0] === "+new-tab" &&
+      args[1] === `--surface-id=${SURFACE_ID_CAPABILITY_PROBE_VALUE}`
+    ) {
+      // Capability probe: the recognized flag fails argument parsing before
+      // any tab is created, so the +version gate is never consulted.
+      return { code: 1, stderr: "Error parsing args: error.InvalidCharacter" };
+    }
     if (isLocalGhosttyWrapper(command) && args[0] === "+new-tab") {
       return { code: 0, stdout: "" };
     }
@@ -136,7 +197,7 @@ test("sidequest uses the local wrapper for tab launch when the current Ghostty l
     [
       ["/usr/bin/ghostty", "+help"],
       [LOCAL_GHOSTTY_WRAPPER, "+help"],
-      [LOCAL_GHOSTTY_WRAPPER, "+version"],
+      [LOCAL_GHOSTTY_WRAPPER, "+new-tab"],
       [LOCAL_GHOSTTY_WRAPPER, "+new-tab"],
     ],
   );
@@ -280,6 +341,10 @@ test("sidequest does not duplicate a peer after a nonzero same-window launcher e
     if (args[0] === "+version") {
       return { code: 0, stdout: "Ghostty 1.4.0\n" };
     }
+    if (args[0] === "+new-tab" && args[1] === `--surface-id=${SURFACE_ID_CAPABILITY_PROBE_VALUE}`) {
+      // Capability probe: recognized flag fails argument parsing.
+      return { code: 1, stderr: "Error parsing args: error.InvalidCharacter" };
+    }
     if (args[0] === "+new-tab") {
       return {
         code: 1,
@@ -316,7 +381,7 @@ test("sidequest does not duplicate a peer after a nonzero same-window launcher e
     execStub.calls.map(({ command, args }) => [command, args[0]]),
     [
       ["/usr/bin/ghostty", "+help"],
-      ["/usr/bin/ghostty", "+version"],
+      ["/usr/bin/ghostty", "+new-tab"],
       ["/usr/bin/ghostty", "+new-tab"],
     ],
   );
@@ -334,6 +399,10 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
     }
     if (args[0] === "+version") {
       return { code: 0, stdout: "Ghostty 1.4.0\n" };
+    }
+    if (args[0] === "+new-tab" && args[1] === `--surface-id=${SURFACE_ID_CAPABILITY_PROBE_VALUE}`) {
+      // Capability probe: recognized flag fails argument parsing.
+      return { code: 1, stderr: "Error parsing args: error.InvalidCharacter" };
     }
     if (args[0] === "+new-tab") {
       return { code: 0, stdout: "" };
@@ -365,7 +434,7 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
     execStub.calls.map(({ command, args }) => [command, args[0]]),
     [
       ["/usr/bin/ghostty", "+help"],
-      ["/usr/bin/ghostty", "+version"],
+      ["/usr/bin/ghostty", "+new-tab"],
       ["/usr/bin/ghostty", "+new-tab"],
     ],
   );
@@ -455,7 +524,10 @@ test("sidequest targets the Ghostty single-instance server instead of the sidequ
   ]);
   assert.ok(
     !execStub.calls.some(
-      ({ command, args }) => isLocalGhosttyWrapper(command) && args[0] === "+new-tab",
+      ({ command, args }) =>
+        isLocalGhosttyWrapper(command) &&
+        args[0] === "+new-tab" &&
+        args.includes("sidequest-pi"),
     ),
   );
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
@@ -530,7 +602,10 @@ test("sidequest targets the normal origin/main Ghostty broker by controller exec
   assert.equal(activation.args[13], "--");
   assert.ok(
     !execStub.calls.some(
-      ({ command, args }) => command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+new-tab",
+      ({ command, args }) =>
+        command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN &&
+        args[0] === "+new-tab" &&
+        args.includes("sidequest-pi"),
     ),
   );
   assert.match(harness.notifications[0].message, /targeted Ghostty single-instance process 222/);
@@ -713,7 +788,10 @@ test("sidequest omits surface-id for Ghostty builds before the action flag exist
   await sidequest.handler("avoid unsupported surface flag", harness.ctx);
 
   const launchCall = execStub.calls.find(
-    (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+    (call) =>
+      call.command === "/usr/bin/ghostty" &&
+      call.args[0] === "+new-tab" &&
+      call.args.includes("sidequest-pi"),
   );
   assert.ok(launchCall);
   assert.ok(!launchCall.args.some((arg) => arg.startsWith("--surface-id=")));
@@ -760,6 +838,11 @@ test("fresh-handoff launches a clean Pi session and auto-submits exactly one gen
       return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
     }
     if (args[0] === "+version") return { code: 0, stdout: "Ghostty 1.4.0\n" };
+    if (args[0] === "+new-tab" && args[1]?.startsWith("--surface-id=zz-invalid-surface-id")) {
+      // Capability probe: the recognized flag fails argument parsing before any
+      // tab is created.
+      return { code: 1, stderr: "Error parsing args: error.InvalidCharacter" };
+    }
     if (args[0] === "+new-tab") return { code: 0, stdout: "" };
     throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
   });
@@ -792,7 +875,9 @@ test("fresh-handoff launches a clean Pi session and auto-submits exactly one gen
   assert.match(generationCalls[0].runtimeContext, /abc123/);
   assert.match(generationCalls[0].runtimeContext, /AK ready tasks/);
   assert.match(generationCalls[0].runtimeContext, /4660/);
-  const launch = execStub.calls.find(({ args }) => args[0] === "+new-tab");
+  const launch = execStub.calls.find(
+    ({ args }) => args[0] === "+new-tab" && args.includes("sidequest-pi"),
+  );
   assert.ok(launch);
   assert.deepEqual(extractPiArgs(launch.args), [
     "pi",

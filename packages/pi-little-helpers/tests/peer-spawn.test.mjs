@@ -617,7 +617,10 @@ test("scout_peer_spawn reportBack none makes intercom disabled explicit", async 
   );
 
   const launchCall = execStub.calls.find(
-    (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+    (call) =>
+      call.command === "/usr/bin/ghostty" &&
+      call.args[0] === "+new-tab" &&
+      call.args.includes("sidequest-pi"),
   );
   assert.ok(launchCall);
   const prompt = extractPiArgs(launchCall.args).at(-1);
@@ -687,7 +690,10 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
   );
 
   const launchCall = execStub.calls.find(
-    (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+    (call) =>
+      call.command === "/usr/bin/ghostty" &&
+      call.args[0] === "+new-tab" &&
+      call.args.includes("sidequest-pi"),
   );
   assert.ok(launchCall);
   assert.match(extractShellCommand(launchCall.args), /cd '\/repo'/);

@@ -7,7 +7,10 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createSidequestExtension } from "../extensions/sidequest.ts";
+import {
+  createSidequestExtension,
+  SURFACE_ID_CAPABILITY_PROBE_VALUE,
+} from "../extensions/sidequest.ts";
 import { ASC_EXECUTION_OBSERVATION_EVENT } from "../src/ascExecutionObserver.ts";
 import {
   createContext,
@@ -194,6 +197,14 @@ test("automatic ASC observer targets the normal origin/main broker exactly", asy
         if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+help") {
           return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
         }
+        if (
+          command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN &&
+          args[0] === "+new-tab" &&
+          args[1] === `--surface-id=${SURFACE_ID_CAPABILITY_PROBE_VALUE}`
+        ) {
+          // Capability probe: recognized flag fails argument parsing.
+          return { code: 1, stderr: "Error parsing args: error.InvalidCharacter" };
+        }
         if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+version") {
           return { code: 0, stdout: "Ghostty 1.4.0-origin-main-9d8fbd15b3b4\n" };
         }
@@ -236,7 +247,10 @@ test("automatic ASC observer targets the normal origin/main broker exactly", asy
     assert.equal(launches[0].args[13], "--");
     assert.equal(
       calls.some(
-        ({ command, args }) => command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+new-tab",
+        ({ command, args }) =>
+          command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN &&
+          args[0] === "+new-tab" &&
+          !args.includes(`--surface-id=${SURFACE_ID_CAPABILITY_PROBE_VALUE}`),
       ),
       false,
     );

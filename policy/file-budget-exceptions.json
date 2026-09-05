@@ -1,5 +1,5 @@
 {
-  "notes": "Owner-scoped brownfield exceptions for files exceeding readability budgets. Every entry names an owner, a genuine justification, and a reopen trigger that must fire before the exception is reconsidered. Stale entries (file no longer over budget) and unknown paths are rejected by scripts/file-budget-audit.mjs with a non-zero exit in both warn-only and fail modes — remove entries when their files are split below budget.",
+  "notes": "Owner-scoped brownfield exceptions for files exceeding readability budgets. Every entry names an owner, a genuine justification, and a reopen trigger that must fire before the exception is reconsidered. Stale entries (file no longer over budget) and unknown paths are rejected by scripts/file-budget-audit.mjs with a non-zero exit in both warn-only and fail modes \u2014 remove entries when their files are split below budget.",
   "exceptions": [
     {
       "path": "docs/project/2026-04-22-rfc-peer-session-messaging-primitive.md",
@@ -240,6 +240,12 @@
       "owner": "softwareco/owned/pi-extensions",
       "reason": "pi-little-helpers suite at 103% of the test budget (1034/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
       "reopen_trigger": "suite grows past 1138 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-little-helpers/tests/sidequest.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Sidequest launch/ghostty characterization suite at 106% of the test budget; surface-id capability probing added launch-vs-probe call selection coverage that belongs with the adjacent launch contract tests, and extraction needs a dedicated characterization pass not yet scheduled.",
+      "reopen_trigger": "file grows past 1166 LOC or the next owner-approved sidequest test-suite refactor"
     },
     {
       "path": "packages/pi-little-helpers/tests/visible-loop-child-checkpoint.test.mjs",

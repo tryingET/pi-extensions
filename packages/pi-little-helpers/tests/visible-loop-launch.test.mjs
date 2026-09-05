@@ -399,7 +399,10 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
     assert.equal(config.cwd, "/repo");
     assert.ok(
       !execStub.calls.some(
-        ({ command, args }) => command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+new-tab",
+        ({ command, args }) =>
+          command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN &&
+          args[0] === "+new-tab" &&
+          args.includes("sidequest-pi"),
       ),
     );
     assert.match(

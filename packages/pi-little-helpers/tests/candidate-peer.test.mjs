@@ -189,7 +189,10 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
     ]);
 
     const launchCall = execStub.calls.find(
-      (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+      (call) =>
+        call.command === "/usr/bin/ghostty" &&
+        call.args[0] === "+new-tab" &&
+        call.args.includes("sidequest-pi"),
     );
     assert.ok(launchCall);
     assert.match(
@@ -443,7 +446,10 @@ test("candidate_peer_spawn reportBack none makes intercom disabled explicit", as
     );
 
     const launchCall = execStub.calls.find(
-      (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+      (call) =>
+        call.command === "/usr/bin/ghostty" &&
+        call.args[0] === "+new-tab" &&
+        call.args.includes("sidequest-pi"),
     );
     assert.ok(launchCall);
     const prompt = extractPiArgs(launchCall.args).at(-1);
@@ -727,7 +733,10 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.ok(result.details.worktreePath.endsWith("/runner-guard-workspace"));
 
     const launchCall = execStub.calls.find(
-      (call) => call.command === "/usr/bin/ghostty" && call.args[0] === "+new-tab",
+      (call) =>
+        call.command === "/usr/bin/ghostty" &&
+        call.args[0] === "+new-tab" &&
+        call.args.includes("sidequest-pi"),
     );
     assert.ok(launchCall);
     assert.ok(launchCall.args.includes("--surface-id=21"));

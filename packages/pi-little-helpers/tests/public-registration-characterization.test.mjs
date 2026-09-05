@@ -317,7 +317,9 @@ test("sidequest keeps PI_SIDEQUEST_PI_BIN as an import-time fallback", async () 
     };
 
     await commands.get("sidequest").handler("characterize import fallback", ctx);
-    const launch = calls.find(({ args }) => args[0] === "+new-tab");
+    const launch = calls.find(
+      ({ args }) => args[0] === "+new-tab" && args.includes("sidequest-pi"),
+    );
     assert.ok(launch);
     const marker = launch.args.indexOf("sidequest-pi");
     assert.notEqual(marker, -1);
