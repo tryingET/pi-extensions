@@ -131,10 +131,16 @@ function extractAccountId(token: string): string | undefined {
   }
 }
 
-async function buildCodexHeaders(ctx: ExtensionContext): Promise<Headers> {
+export async function buildCodexHeaders(
+  ctx: ExtensionContext,
+  allowSubscriptionAliases = false,
+): Promise<Headers> {
   const model = ctx.model;
   if (!model) throw new Error("Select an OpenAI Codex subscription model first.");
-  if (model.provider !== "openai-codex") {
+  if (
+    model.provider !== "openai-codex" &&
+    !(allowSubscriptionAliases && /^openai-codex-\d+$/.test(model.provider))
+  ) {
     throw new Error("Codex reset credits require an OpenAI Codex subscription model.");
   }
 
