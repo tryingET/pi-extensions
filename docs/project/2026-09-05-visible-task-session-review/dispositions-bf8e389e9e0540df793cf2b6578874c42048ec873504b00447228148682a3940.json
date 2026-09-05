@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "kind": "local_rfc_revision_dispositions",
+  "decision_id": 151,
+  "task_id": 5451,
+  "origin_review_attempt": 625,
+  "origin_inventory": "docs/project/2026-09-05-visible-task-session-review/findings-e79a3f5f7f7ac49bff16b4281fe7149fa28d3ff014f88551644a982c34103113.json",
+  "origin_inventory_sha256": "e79a3f5f7f7ac49bff16b4281fe7149fa28d3ff014f88551644a982c34103113",
+  "revised_rfc": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-03.md",
+  "revised_rfc_sha256": "b6271a187109a7e0a5d021b96903b4e664fd5827d275a79e4502b78f6bbcf716",
+  "owner_verification": "docs/project/2026-09-05-visible-task-session-review/owner-dispositions-03-verification.json",
+  "owner_verification_sha256": "e5a74e3078260511a3dcef4a9bf2fb45fae8cde478a26c380c35fc8734e58ddb",
+  "findings": [
+    {
+      "id": "AUTH-01",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5462,
+        5463
+      ],
+      "revised_sections": "2,4.1,9",
+      "proposal_disposition": "local_proposal_accepted",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    },
+    {
+      "id": "AUTH-02",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5462,
+        5463
+      ],
+      "revised_sections": "4",
+      "proposal_disposition": "conditional_owner_protocol_incorporated",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    },
+    {
+      "id": "BOOT-01",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5463
+      ],
+      "revised_sections": "3,4.2,5",
+      "proposal_disposition": "conditional_local_host_allocation_incorporated",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    },
+    {
+      "id": "BOOT-02",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5463
+      ],
+      "revised_sections": "5",
+      "proposal_disposition": "accepted_constrained_profile_incorporated",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    },
+    {
+      "id": "EXCL-01",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5462,
+        5463,
+        5464
+      ],
+      "revised_sections": "4.4,6,7",
+      "proposal_disposition": "conditional_custody_protocols_reconciled",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    },
+    {
+      "id": "PKG-01",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5463
+      ],
+      "revised_sections": "6",
+      "proposal_disposition": "local_proposal_accepted",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    },
+    {
+      "id": "MIG-01",
+      "original_state": "owner_blocked",
+      "owner_tasks": [
+        5463,
+        5464
+      ],
+      "revised_sections": "7",
+      "proposal_disposition": "conditional_enrollment_amendment_incorporated",
+      "legal_finding_closure": "pending_fresh_independent_review",
+      "implementation_and_affected_use": "not_authorized_or_proved"
+    }
+  ],
+  "rejected_assumptions": [
+    "unspecified manual authority-writer freeze",
+    "current per-command gate equals startup interval",
+    "stock TUI or upstream approval required for local SDK host",
+    "inference fetch covers Codex WS/OAuth refresh",
+    "migration deferral means no minimum enrollment controls"
+  ],
+  "limits": [
+    "Source-owner conditional proposal acceptance only; no accepted policy, ADR, installed capability, enrolled writer population or live proof.",
+    "All earlier review inventories remain immutable."
+  ]
+}

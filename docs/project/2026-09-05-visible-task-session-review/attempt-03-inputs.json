@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "kind": "local_rfc_review_input_manifest",
+  "decision_id": 151,
+  "task_id": 5451,
+  "track": "current_track",
+  "review_closure_mode": "bootstrap_single_track",
+  "origin_attempt": 625,
+  "revision": 3,
+  "base_repo_commit": "0abe8ebe4a9c978af58dedb52470c4f3c163aca7",
+  "procedure_ref": "prompt-vault:layer12-070-decision-rfc-review",
+  "procedure_dispatch_posture": "text_ok",
+  "inputs": [
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc.md",
+      "sha256": "e6a7bde8460c8e24c4cec877019879d28394a5571607b7d0103cb2029c5c1dc0"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-decision-inputs.md",
+      "sha256": "a28d5f5e1a25abe75d957f03ec8681a69df00f776c031e9dbf92646fd3642868"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-design.md",
+      "sha256": "82029ff772f54386c915d84d5691ac59baa4f28338f56f2bd0f2327ea6a79baa"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-discovery.md",
+      "sha256": "57e5dafe9b008425662dc6ef77eddefa1229b9ee47fda8f076507cbbae699125"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-review.md",
+      "sha256": "c5f6eb27bb33cd324df33c1c4c270bcb7c5afdd3e6b09a97cc03036bb7970e3e"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-rfc-review-01-plan.md",
+      "sha256": "9919df284ac6a56832d783dbdc8c802a8ba27133d41d03459c1f4e5faf7e801c"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-rfc-review-01.md",
+      "sha256": "3e53a2081accf041943770ee0fc22a9ffe2402ee84b9a4d8e95371bec5afae0d"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-review/findings-c8ef2f97a0f3a233325d0156b11f37d72894b5d1886381536c2119973f7fa69f.json",
+      "sha256": "c8ef2f97a0f3a233325d0156b11f37d72894b5d1886381536c2119973f7fa69f"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-02.md",
+      "sha256": "a97c4acc15dcedeb17596882419f2c8a920918d394428e0b1912f419dee7cb14"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-source-findings-02.md",
+      "sha256": "ddb92fc6f967eee4dba0d994fcd46766ee212a38aff31c4601914d2f808a3675"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-adjudication-02.md",
+      "sha256": "4a9b09cae2fcd2ccf8894c9c9782c700cde8bd62aee165d7e5c581a765a17226"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-rfc-review-02-plan.md",
+      "sha256": "f3f33229805d86f7dc12339addd0b5f1f470bdad784efd29fbf1996c62fc58be"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-review/dispositions-26c9aba7bb5725076bd82a4ae6cea8073b20dbcc8bdfe3f434a988f8198a7cab.json",
+      "sha256": "26c9aba7bb5725076bd82a4ae6cea8073b20dbcc8bdfe3f434a988f8198a7cab"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-rfc-review-02.md",
+      "sha256": "ecd9010c40559aa731b7d5da3f44bff9d54ff9a5cac5b307911f7165af28ce68"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-review/findings-e79a3f5f7f7ac49bff16b4281fe7149fa28d3ff014f88551644a982c34103113.json",
+      "sha256": "e79a3f5f7f7ac49bff16b4281fe7149fa28d3ff014f88551644a982c34103113"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-ak-owner-disposition-03.md",
+      "sha256": "f0ee062489462a0d8596f9b0a42d896c47b2872811083b206c60c8525ec3eda4"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-pi-owner-disposition-03.md",
+      "sha256": "6025a63009a2ca7b7637c330b1bc3b8b123780f8e96d97b7176e7b11f7d63a3e"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-lane-owner-disposition-03.md",
+      "sha256": "f7d8cf75e3f26a06a481e0e6510c556194085b66ec7e2c5a4da642e8ecdef2c2"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-adjudication-03.md",
+      "sha256": "b7c0c19d74517b3ecc92657fe476ff425e4405ec42f14de87f82278317dbb988"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-03.md",
+      "sha256": "b6271a187109a7e0a5d021b96903b4e664fd5827d275a79e4502b78f6bbcf716"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-rfc-review-03-plan.md",
+      "sha256": "754f13dda8271ea80f6c416c6f937d5e91d66af599812a8d45e0e4d8a63aadbd"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-review/owner-dispositions-03-verification.json",
+      "sha256": "e5a74e3078260511a3dcef4a9bf2fb45fae8cde478a26c380c35fc8734e58ddb"
+    },
+    {
+      "path": "docs/project/2026-09-05-visible-task-session-review/dispositions-bf8e389e9e0540df793cf2b6578874c42048ec873504b00447228148682a3940.json",
+      "sha256": "bf8e389e9e0540df793cf2b6578874c42048ec873504b00447228148682a3940"
+    }
+  ],
+  "limits": [
+    "Hashes bind exact changed candidate and owner conditions; base commit precedes this artifact landing.",
+    "Actual owner technical dispositions now exist; fresh review decides whether conditions are sufficiently incorporated.",
+    "No ADR acceptance or runtime implementation."
+  ]
+}

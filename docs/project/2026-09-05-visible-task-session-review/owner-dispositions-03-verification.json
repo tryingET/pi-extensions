@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "kind": "local_owner_transcription_verification",
+  "decision_id": 151,
+  "task_id": 5451,
+  "observed_at": "2026-09-05T23:03:13.472Z",
+  "operator_authorization": {
+    "value": "Authorize these bounded local owner-disposition tasks",
+    "channel": "interview_answer_returned_before_timeout",
+    "not_claimed": "submitted_complete_form; upstream approval; ADR or runtime/policy acceptance"
+  },
+  "owners": [
+    {
+      "task": 5462,
+      "evidence": 8383,
+      "peer": "scoutpeer-mtoy26tp-74f1c1d2",
+      "path": "docs/project/2026-09-05-visible-task-session-ak-owner-disposition-03.md",
+      "sha256": "f0ee062489462a0d8596f9b0a42d896c47b2872811083b206c60c8525ec3eda4",
+      "verified_response_sha256": "5e088fbbde381dd9c64f0e115a763b0b376d60325b67e800747fa0d777f9bb28",
+      "verification": "delegate confirmed operative transcription, requested exact T1->T2 corrections; reverse-normalization hash matches approved source",
+      "normalizations": [
+        "After T1 -> After T2 (explicit DB unlock)",
+        "writer-family races T0–T1 -> T0–T2"
+      ]
+    },
+    {
+      "task": 5463,
+      "evidence": 8384,
+      "peer": "scoutpeer-mtoy26tz-f55e0364",
+      "path": "docs/project/2026-09-05-visible-task-session-pi-owner-disposition-03.md",
+      "sha256": "6025a63009a2ca7b7637c330b1bc3b8b123780f8e96d97b7176e7b11f7d63a3e",
+      "verified_response_sha256": "eaf8c9ba4f757564e46e36b79368e8225262c064d4f8cd606c7b837e30587b96",
+      "verification": "delegate confirmed operative transcription and requested precise private-config wording; reverse-normalization plus formatting hash matches approved source",
+      "normalizations": [
+        "no credentials/configuration reads -> no credential or private runtime/model/auth configuration reads",
+        "prospective nonexistent config/state paths rendered in fenced text, unchanged values and semantics"
+      ]
+    },
+    {
+      "task": 5464,
+      "evidence": 8385,
+      "peer": "scoutpeer-mtoy26u6-8931dbe3",
+      "path": "docs/project/2026-09-05-visible-task-session-lane-owner-disposition-03.md",
+      "sha256": "f7d8cf75e3f26a06a481e0e6510c556194085b66ec7e2c5a4da642e8ecdef2c2",
+      "verification": "delegate confirmed exact hash and faithful operative transcription; no corrections"
+    }
+  ],
+  "limits": [
+    "This verifies supplied local technical dispositions, not source policy adoption, legal ADR closure or operational proof.",
+    "Controller independently matched 36 selected owner-source hashes and all 13 prior review inputs.",
+    "No owner assignee file mutation, AK/DB access, credentials or feature experiments."
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "local_revised_rfc_verification",
+  "decision_id": 151,
+  "task_id": 5451,
+  "observed_at": "2026-09-05T23:03:59.605Z",
+  "input_manifest_sha256": "81d268055dfa96ab1d7d5c2d93e4dd8b7f9cafeca96142d044dfd97fddd3fd97",
+  "revised_rfc_sha256": "b6271a187109a7e0a5d021b96903b4e664fd5827d275a79e4502b78f6bbcf716",
+  "checks": {
+    "unique_input_hashes": 23,
+    "owner_source_hashes": 36,
+    "prior_review_inputs_unchanged": 13,
+    "owner_transcriptions": "three owner-verified; requested normalizations/format changes exactly reverse to verified hashes",
+    "finding_ids": 7,
+    "docs_list_strict": {
+      "matched": 6,
+      "result": "pass"
+    },
+    "docs_ref_check": {
+      "documents": 6,
+      "result": "pass"
+    },
+    "new_document_whitespace_and_budgets": "pass"
+  },
+  "semantic_limit": "Local source-owner proposal conditions incorporated; independent RFC03 review not yet executed. No policy adoption, ADR, code, install, enrollment or live proof.",
+  "verification_correction": "Prospective not-created config/state paths were fenced as proposed values instead of live file references; no directory/file created to appease link checks."
+}
