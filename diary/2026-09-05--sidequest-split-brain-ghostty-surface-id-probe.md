@@ -71,6 +71,17 @@ sentinel. Probe-success stubs skip `+version`, keeping sequence assertions tight
 
 ## Follow-ups
 
+- **Desktop-entry leak found and sealed (same night)**: the system entry
+  `/usr/share/applications/com.mitchellh.ghostty.desktop` hardcodes
+  `Exec=/usr/bin/ghostty --gtk-single-instance=true`, so fuzzel (niri Mod+Space/Mod+D)
+  always launched system 1.3.1 regardless of the keybinding and PATH shim. Restored a
+  local override at `~/.local/share/applications/com.mitchellh.ghostty.desktop` pointing
+  at `ghostty-origin-main/current/bin/ghostty` (the operator had a local override until
+  2026-05-12, per the dated backups in that directory). Launch-path coverage is now:
+  niri keybinding (absolute current), bare-PATH `ghostty` (shim), fuzzel/desktop entry
+  (override). Residual: a controller window still running /usr/bin/ghostty execs its own
+  exe for sidequest window fallback; close legacy 1.3.1 windows as their sessions idle.
+- Close the remaining `/usr/bin/ghostty` fallback windows so the fleet is one build.
 - Close the remaining `/usr/bin/ghostty` fallback windows so the fleet is one build.
 - Next rebuild promotion (`rebuild.sh` manual `mv` + `ln -sfn`) is now safe for targeting:
   the probe recognizes the flag regardless of the dev version string, but the running
