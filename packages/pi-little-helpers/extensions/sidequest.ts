@@ -46,8 +46,8 @@ export {
   ghosttyVersionSupportsSurfaceId,
   resolveControllerGhosttyDbusTarget,
   resolveGhosttyBin,
-  supportsGhosttySurfaceId,
   SURFACE_ID_CAPABILITY_PROBE_VALUE,
+  supportsGhosttySurfaceId,
 } from "./sidequestGhostty.ts";
 
 const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(

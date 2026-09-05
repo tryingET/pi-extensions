@@ -13,8 +13,8 @@ import {
   ghosttyVersionSupportsSurfaceId,
   resolveControllerGhosttyDbusTarget,
   resolveGhosttyBin,
-  supportsGhosttySurfaceId,
   SURFACE_ID_CAPABILITY_PROBE_VALUE,
+  supportsGhosttySurfaceId,
 } from "../extensions/sidequest.ts";
 import {
   createContext,
@@ -525,9 +525,7 @@ test("sidequest targets the Ghostty single-instance server instead of the sidequ
   assert.ok(
     !execStub.calls.some(
       ({ command, args }) =>
-        isLocalGhosttyWrapper(command) &&
-        args[0] === "+new-tab" &&
-        args.includes("sidequest-pi"),
+        isLocalGhosttyWrapper(command) && args[0] === "+new-tab" && args.includes("sidequest-pi"),
     ),
   );
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
