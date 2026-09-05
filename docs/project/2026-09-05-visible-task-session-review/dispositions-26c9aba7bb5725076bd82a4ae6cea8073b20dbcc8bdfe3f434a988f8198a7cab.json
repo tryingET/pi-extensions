@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "kind": "local_rfc_revision_dispositions",
+  "decision_id": 151,
+  "task_id": 5451,
+  "origin_review_attempt": 624,
+  "origin_inventory": "docs/project/2026-09-05-visible-task-session-review/findings-c8ef2f97a0f3a233325d0156b11f37d72894b5d1886381536c2119973f7fa69f.json",
+  "origin_inventory_sha256": "c8ef2f97a0f3a233325d0156b11f37d72894b5d1886381536c2119973f7fa69f",
+  "revised_rfc": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-02.md",
+  "revised_rfc_sha256": "a97c4acc15dcedeb17596882419f2c8a920918d394428e0b1912f419dee7cb14",
+  "source_findings_sha256": "ddb92fc6f967eee4dba0d994fcd46766ee212a38aff31c4601914d2f808a3675",
+  "adjudication_sha256": "4a9b09cae2fcd2ccf8894c9c9782c700cde8bd62aee165d7e5c581a765a17226",
+  "operator_input": {
+    "observed_choice": "Fresh, unclaimed tasks on a trusted single-user workstation; refuse parent-held task transfer",
+    "scope_choice_only": true,
+    "deferral": 270
+  },
+  "findings": [
+    {
+      "id": "AUTH-01",
+      "original_state": "open",
+      "proposal_disposition": "Operator selected B explicitly; delegated authentication and transfer applicability removed for B, stronger A retained as future decision; no owner acceptance inferred.",
+      "revised_sections": "1,2,10",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "operator",
+        "AK task owner",
+        "Pi integration"
+      ],
+      "operator_scope_choice": "resolved",
+      "requirement_delta": "explicit",
+      "remaining": "AK task and Pi integration owner acknowledgement"
+    },
+    {
+      "id": "AUTH-02",
+      "original_state": "open",
+      "proposal_disposition": "Unchanged native claim; expected v+1 and independent baseline comparisons; explicitly selected cooperative startup ordering, not CAS or continuous revocation; commit-then-read ambiguity and non-CAS owner unclaim recovery specified.",
+      "revised_sections": "4",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "AK task/claim owner"
+      ]
+    },
+    {
+      "id": "BOOT-01",
+      "original_state": "open",
+      "proposal_disposition": "Required host task mode plus no-initial-task-prompt profile; deny absent handler and alternative ingress; CLI diagnosed-load-error claim corrected; local run lineage covers internal rounds/provider/tool dispatch.",
+      "revised_sections": "5",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "Pi runtime owner"
+      ]
+    },
+    {
+      "id": "BOOT-02",
+      "original_state": "open",
+      "proposal_disposition": "Literal objective and frozen ordered context/provider profile; reject secondary queue/context objectives; actual resource loader effects bounded; compaction disabled with explicit usability cost; no same-UID containment.",
+      "revised_sections": "5,9,10",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "Pi runtime owner",
+        "integration/security owner"
+      ]
+    },
+    {
+      "id": "EXCL-01",
+      "original_state": "open",
+      "proposal_disposition": "Separate task/workspace conflict predicates; short namespace lock only, durable reservation across owner calls; no nested candidate admission; controller/unmanaged writer coexistence explicit; no automatic expiry or unlock.",
+      "revised_sections": "6",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "little-helpers",
+        "task owner",
+        "candidate lifecycle owner"
+      ]
+    },
+    {
+      "id": "PKG-01",
+      "original_state": "open",
+      "proposal_disposition": "Same package, explicit production versus test boundary, emitted-JS public exports and no registration imports; G2-P1 and packed/live proof retained at lawful later stage.",
+      "revised_sections": "7",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "little-helpers/package owner"
+      ]
+    },
+    {
+      "id": "MIG-01",
+      "original_state": "open",
+      "proposal_disposition": "First-release legacy replacement excluded; first-use coexistence still gated; explicit later option translation/refusal and rollback preserving inspector/history without direct-spawn fallback.",
+      "revised_sections": "8,9,10",
+      "resolution": "owner_blocked",
+      "owner_acceptance": "not_observed",
+      "required_owners": [
+        "lane owner",
+        "package owner"
+      ]
+    }
+  ],
+  "limits": [
+    "Advisory local projection, not canonical finding closure or owner authority.",
+    "Original attempt624 inventory and candidate remain unchanged.",
+    "Source investigation and conceptual adjudication do not ratify contracts.",
+    "Fresh review and normal owner stages remain required; no ADR or executable behavior claimed."
+  ]
+}

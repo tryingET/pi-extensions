@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "local_revised_rfc_verification",
+  "decision_id": 151,
+  "task_id": 5451,
+  "observed_at": "2026-09-05T21:44:37.729Z",
+  "input_manifest": "docs/project/2026-09-05-visible-task-session-review/attempt-02-inputs.json",
+  "input_manifest_sha256": "e82bb62c18cb4b315349908ec450ad1a14202022b9744c14d3660b40ca8260af",
+  "revised_rfc_sha256": "a97c4acc15dcedeb17596882419f2c8a920918d394428e0b1912f419dee7cb14",
+  "checks": {
+    "unique_input_hashes": 13,
+    "source_identity_hashes": 23,
+    "original_inputs_unchanged": 6,
+    "finding_ids": 7,
+    "explicit_owner_blocked": 7,
+    "docs_list_strict": {
+      "matched": 4,
+      "result": "pass",
+      "scope": "/home/tryinget/.local/state/pi-quests/tmp/vts-revision02-doc-scope.MgyvQi.md"
+    },
+    "docs_ref_check": {
+      "documents": 4,
+      "references": 12,
+      "result": "pass"
+    },
+    "whitespace": "pass"
+  },
+  "semantic_verification": {
+    "source_attribution": "two read-only scouts plus bounded controller corroboration; not owner acceptance",
+    "proposal_response": "seven finding responses mapped to revised sections",
+    "independent_rfc_review": "not_yet_executed"
+  },
+  "corrected_verification_failures": [
+    "First source hash attempt hit Node execFileSync default output buffer; bounded 16MiB read-only retry passed.",
+    "Initial docs-list scratch scopes used unsupported wikilink/missing-section shape; recovered previous working Read first + backtick format; four selected docs matched and passed."
+  ],
+  "limits": [
+    "Source/artifact integrity and authored proposal trace only, not behavioral proof.",
+    "No owner ratification, ADR, package install, proposed-feature launch, provider experiment or full-repo CI.",
+    "Commit and later AK outcome require separate receipts."
+  ]
+}
