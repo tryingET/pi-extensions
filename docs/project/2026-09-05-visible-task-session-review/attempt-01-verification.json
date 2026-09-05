@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "rfc_review_persistence_verification",
+  "observed_at": "2026-09-05T20:24:25Z",
+  "task_id": 5445,
+  "decision_id": 151,
+  "reviewed_rfc_sha256": "e6a7bde8460c8e24c4cec877019879d28394a5571607b7d0103cb2029c5c1dc0",
+  "review_memo_sha256": "3e53a2081accf041943770ee0fc22a9ffe2402ee84b9a4d8e95371bec5afae0d",
+  "input_manifest_sha256": "3705c73458eb307d41dcd38017245a99ae08aaf2c1cd9db8b08296fb4b412a69",
+  "finding_inventory": "docs/project/2026-09-05-visible-task-session-review/findings-c8ef2f97a0f3a233325d0156b11f37d72894b5d1886381536c2119973f7fa69f.json",
+  "finding_inventory_sha256": "c8ef2f97a0f3a233325d0156b11f37d72894b5d1886381536c2119973f7fa69f",
+  "observed_checks": [
+    "Six source/plan hashes match attempt-01-inputs.json and candidate remains unchanged.",
+    "Finding filename content address and embedded RFC/memo digests match actual bytes.",
+    "Seven unique OPEN findings; all dependency and coupled-with IDs resolve.",
+    "Canonical docs-list strict passes for the seven exact task docs.",
+    "Canonical docs-ref-check passes for review memo and plan.",
+    "Explicit trailing-whitespace checks and git diff --check pass.",
+    "Frozen source baseline commit6343e5c8 passed the existing doc-only staged pre-commit gate."
+  ],
+  "independent_review": {
+    "peer_run_id": "scoutpeer-mtotmev9-9c33310a",
+    "session_id": "01a07334-e77d-76e8-8de2-0a53786de4a2",
+    "model": "gpt-6-astra",
+    "provider": "not_independently_established",
+    "source_hash_check": "reviewer matched primary working-file start/end and committed blob hash",
+    "outcome": "revise_rfc",
+    "lenses": 3,
+    "track": "current_track"
+  },
+  "limitations": [
+    "This is review-artifact integrity and design-stage evidence, not a revised-candidate verification receipt.",
+    "No RFC findings are resolved by these structural checks.",
+    "No live launch, task transfer, package install, provider experiment, full-repo CI or ADR acceptance occurred.",
+    "AK attachment and later commit identities must be read from their own receipts, not inferred from this pre-attachment file."
+  ]
+}

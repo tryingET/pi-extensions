@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "kind": "immutable_rfc_finding_inventory",
+  "decision_id": 151,
+  "task_id": 5445,
+  "track": "current_track",
+  "attempt": 1,
+  "review_outcome": "revise_rfc",
+  "reviewed_rfc": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc.md",
+  "reviewed_rfc_sha256": "e6a7bde8460c8e24c4cec877019879d28394a5571607b7d0103cb2029c5c1dc0",
+  "review_memo": "docs/project/2026-09-05-visible-task-session-rfc-review-01.md",
+  "review_memo_sha256": "3e53a2081accf041943770ee0fc22a9ffe2402ee84b9a4d8e95371bec5afae0d",
+  "input_manifest_sha256": "3705c73458eb307d41dcd38017245a99ae08aaf2c1cd9db8b08296fb4b412a69",
+  "representation": "Structured projection of the immutable reviewer memo; full source references and required owner dispositions remain in that memo.",
+  "findings": [
+    {"id":"AUTH-01","severity":"high","classification":"architecture_shaping_open_question","state":"open","source":"RFC lines21-27,56-76,105,117; design ConOps/R4","counterexample":"A fresh unclaimed local task needs no parent-held task transfer, while a parent-held task cannot be transferred under non-delegating B.","required_disposition":"Operator and task/integration owners select first-use assurance and included/excluded cases; explicitly revise inherited requirement applicability.","owners":["operator","AK task owner","Pi integration"],"depends_on":[]},
+    {"id":"AUTH-02","severity":"high","classification":"must_fix_owner_contract","state":"open","source":"RFC lines58-68,81-86,106; decision-inputs G1; design admission","counterexample":"An allowed actor string is not authenticated identity; claim success followed by message-admission failure has unresolved recovery effects.","required_disposition":"Pin assurance-appropriate owner operations and claimant/failure recovery; no implied transfer, authentication or launch-local grant.","owners":["AK task/claim owner"],"depends_on":["AUTH-01"],"coupled_with":["EXCL-01","BOOT-01"]},
+    {"id":"BOOT-01","severity":"high","classification":"must_fix_startup_allocation","state":"open","source":"RFC lines78-89,107,119; decision-inputs lines34-45","counterexample":"Missing/throwing optional input handler or command-shaped initial payload bypasses the expected refusal.","required_disposition":"Allocate mandatory supported startup boundary and explicit denial/error/other-turn behavior with source-grounded negative narratives.","owners":["Pi runtime owner"],"depends_on":["AUTH-01","AUTH-02"],"coupled_with":["BOOT-02"]},
+    {"id":"BOOT-02","severity":"high","classification":"architecture_shaping_trust_question","state":"open","source":"RFC lines82-86,108,119-121; decision-inputs lines39-45; design R3/B3/V3","counterexample":"Hash H is admitted but another extension transforms it to H2 or starts a separate turn; private bytes may be exposed before the model gate.","required_disposition":"Define trusted startup resources/effects and exact payload-transform rejection or revalidation; distinguish privacy from model admission and avoid sandbox claims.","owners":["Pi runtime owner","integration/security owner"],"depends_on":["AUTH-02"],"coupled_with":["BOOT-01"]},
+    {"id":"EXCL-01","severity":"high","classification":"must_fix_operational_safety_liveness","state":"open","source":"RFC lines85-87,109; design lines119-127 and B7/B8/V5","counterexample":"Old generation survives reassignment; different task IDs share a checkout but evade a tuple-only lock; candidate/launch lock order deadlocks.","required_disposition":"Specify canonical namespace/conflict keys, durable reservation/recovery, non-bypassing lock order or no nesting, and owner quiescence/fencing/overlap route.","owners":["little-helpers","task owner","candidate lifecycle owner"],"depends_on":["AUTH-02"]},
+    {"id":"PKG-01","severity":"medium","classification":"material_owner_ratification","state":"open","source":"RFC lines91-97,110,119-121; decision-inputs G2-P1","counterexample":"Production options.exec activates test shortcuts; development TS imports work while packed emitted-JS dependencies are absent.","required_disposition":"Ratify coherent same-package production ports and emitted-JS boundary; retain G2-P1 and packed/observer proof as later affected-use gates, not pre-ADR implementation.","owners":["little-helpers/package owner"],"depends_on":[],"coupled_with":["BOOT-01"]},
+    {"id":"MIG-01","severity":"medium","classification":"material_compatibility_question","state":"open","source":"RFC lines111,125-131; design G3/B11/V7; discovery lane-script row","counterexample":"Legacy multi-task print callers silently become interactive or withdrawal revives unsafe direct Ghostty spawning.","required_disposition":"Choose compatibility/coexistence/withdrawal contract or explicit first-release migration exclusion with separate owner gate; never unsafe automatic fallback.","owners":["lane owner","package owner"],"depends_on":["AUTH-01","BOOT-01","EXCL-01"]}
+  ],
+  "non_material_nice_to_have": ["One compact example contrasting fresh claimable task, parent-held refusal under B, and indeterminate prior attempt requiring inspection."],
+  "closure_limit": "This inventory records open findings, not disposition or runtime authority. A new review requires a changed verified candidate and finding-level resolutions."
+}

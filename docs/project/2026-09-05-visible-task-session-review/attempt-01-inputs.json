@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "local_rfc_review_input_manifest",
+  "decision_id": 151,
+  "task_id": 5445,
+  "track": "current_track",
+  "review_closure_mode": "bootstrap_single_track",
+  "source_repo_commit": "6343e5c8c5750acce2a758c3d5e04e02f8ae0949",
+  "procedure_ref": "prompt-vault:layer12-070-decision-rfc-review",
+  "procedure_dispatch_posture": "text_ok",
+  "reviewer_peer_run_id": "scoutpeer-mtotmev9-9c33310a",
+  "inputs": [
+    {"role":"primary_rfc","path":"docs/project/2026-09-05-visible-task-session-authority-startup-rfc.md","sha256":"e6a7bde8460c8e24c4cec877019879d28394a5571607b7d0103cb2029c5c1dc0"},
+    {"role":"source_investigation","path":"docs/project/2026-09-05-visible-task-session-decision-inputs.md","sha256":"a28d5f5e1a25abe75d957f03ec8681a69df00f776c031e9dbf92646fd3642868"},
+    {"role":"design","path":"docs/project/2026-09-05-visible-task-session-design.md","sha256":"82029ff772f54386c915d84d5691ac59baa4f28338f56f2bd0f2327ea6a79baa"},
+    {"role":"discovery","path":"docs/project/2026-09-05-visible-task-session-discovery.md","sha256":"57e5dafe9b008425662dc6ef77eddefa1229b9ee47fda8f076507cbbae699125"},
+    {"role":"prior_design_review_not_rfc_closure","path":"docs/project/2026-09-05-visible-task-session-review.md","sha256":"c5f6eb27bb33cd324df33c1c4c270bcb7c5afdd3e6b09a97cc03036bb7970e3e"},
+    {"role":"attempt_plan","path":"docs/project/2026-09-05-visible-task-session-rfc-review-01-plan.md","sha256":"9919df284ac6a56832d783dbdc8c802a8ba27133d41d03459c1f4e5faf7e801c"}
+  ],
+  "limits": [
+    "Manifest binds source bytes and review correlation; it is not AK authority or runtime proof.",
+    "Attempt plan is authored after the frozen candidate commit; its exact bytes are bound separately.",
+    "Canonical external lifecycle documents must be recorded as consulted sources, not assumed to be contained in this repo commit."
+  ]
+}
