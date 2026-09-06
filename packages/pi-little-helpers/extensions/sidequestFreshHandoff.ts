@@ -122,8 +122,17 @@ export function createFreshHandoffExecutor({
     const notify = (message: string, type: "error" | "info") => {
       if (notifyOperator && commandContext.hasUI) commandContext.ui.notify(message, type);
     };
+    notify("fresh-handoff: capturing live Git/AK readback…", "info");
     const runtimeContext = await collectRuntimeContext({ pi, options, cwd });
     const generator = options.generateHandoffPrompt ?? generateSessionCompactionHandoffPrompt;
+    const model = (commandContext as { model?: { provider?: string; id?: string } }).model;
+    const modelLabel =
+      model?.provider && model?.id ? `${model.provider}/${model.id}` : "the active model";
+    notify(
+      `fresh-handoff: generating the handoff prompt from the full conversation via ${modelLabel} ` +
+        "(LLM summarization — the slow step, often 1–3 minutes); the Ghostty tab launches right after",
+      "info",
+    );
     let prompt: string;
     try {
       prompt = await generator({

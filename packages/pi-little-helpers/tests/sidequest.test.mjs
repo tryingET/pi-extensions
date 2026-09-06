@@ -887,11 +887,16 @@ test("fresh-handoff launches a clean Pi session and auto-submits exactly one gen
   ]);
   assert.equal(extractPiArgs(launch.args).includes("--fork"), false);
   assert.equal(extractPiArgs(launch.args).filter((arg) => arg === generatedPrompt).length, 1);
-  assert.equal(harness.notifications.length, 1);
+  assert.equal(harness.notifications.length, 3);
   assert.equal(harness.notifications[0].type, "info");
-  assert.match(harness.notifications[0].message, /clean Pi session/);
-  assert.match(harness.notifications[0].message, /auto-submitted one generated handoff/);
-  assert.match(harness.notifications[0].message, /current Ghostty tab/);
+  assert.match(harness.notifications[0].message, /capturing live Git\/AK readback/);
+  assert.equal(harness.notifications[1].type, "info");
+  assert.match(harness.notifications[1].message, /generating the handoff prompt/);
+  assert.match(harness.notifications[1].message, /openai\/gpt-4o/);
+  assert.equal(harness.notifications[2].type, "info");
+  assert.match(harness.notifications[2].message, /clean Pi session/);
+  assert.match(harness.notifications[2].message, /auto-submitted one generated handoff/);
+  assert.match(harness.notifications[2].message, /current Ghostty tab/);
 });
 
 test("fresh_handoff_spawn launches the same clean handoff without inheriting context", async () => {
@@ -984,9 +989,11 @@ test("fresh-handoff works without arguments and reports a truthful new-window fa
   assert.ok(launch);
   assert.equal(extractPiArgs(launch.args).includes("--fork"), false);
   assert.equal(extractPiArgs(launch.args).at(-1), generatedPrompt);
-  assert.equal(harness.notifications.length, 1);
-  assert.match(harness.notifications[0].message, /new Ghostty window/);
-  assert.match(harness.notifications[0].message, /does not support \+new-tab/);
+  assert.equal(harness.notifications.length, 3);
+  assert.match(harness.notifications[0].message, /capturing live Git\/AK readback/);
+  assert.match(harness.notifications[1].message, /generating the handoff prompt/);
+  assert.match(harness.notifications[2].message, /new Ghostty window/);
+  assert.match(harness.notifications[2].message, /does not support \+new-tab/);
 });
 
 test("fresh-handoff does not launch when owner-scoped prompt generation fails", async () => {
@@ -1007,12 +1014,13 @@ test("fresh-handoff does not launch when owner-scoped prompt generation fails", 
 
   assert.equal(execStub.calls.length, 4);
   assert.ok(execStub.calls.every(({ command }) => command === "git" || command === "ak"));
-  assert.deepEqual(harness.notifications, [
-    {
-      type: "error",
-      message: "fresh-handoff could not generate a handoff: model unavailable",
-    },
-  ]);
+  assert.equal(harness.notifications.length, 3);
+  assert.match(harness.notifications[0].message, /capturing live Git\/AK readback/);
+  assert.match(harness.notifications[1].message, /generating the handoff prompt/);
+  assert.deepEqual(harness.notifications[2], {
+    type: "error",
+    message: "fresh-handoff could not generate a handoff: model unavailable",
+  });
 });
 
 test("sidequest defaults to slash commands, visible-loop, and standard peer-spawn tools", () => {
