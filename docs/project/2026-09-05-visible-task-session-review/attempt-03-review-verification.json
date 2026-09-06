@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "local_independent_rfc_review_verification",
+  "decision_id": 151,
+  "task_id": 5451,
+  "observed_at": "2026-09-06T22:17:43.263Z",
+  "candidate_commit": "6f761c5549586f54f4a42be2d8395fe2d4b3fe69",
+  "input_manifest": "docs/project/2026-09-05-visible-task-session-review/attempt-03-inputs.json",
+  "input_manifest_sha256": "81d268055dfa96ab1d7d5c2d93e4dd8b7f9cafeca96142d044dfd97fddd3fd97",
+  "reviewed_rfc": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-03.md",
+  "reviewed_rfc_sha256": "b6271a187109a7e0a5d021b96903b4e664fd5827d275a79e4502b78f6bbcf716",
+  "review_memo": "docs/project/2026-09-05-visible-task-session-rfc-review-03.md",
+  "review_memo_sha256": "22c1ef7e9766cb9723e71aa9422f5c3133f0e7390fd43cd90d1606167b1c45e8",
+  "review_body_sha256": "58f87d609859fb21ebdfeaebb67bdbcd8067ec303003d1dfec5afed78185e203",
+  "review_communication": "daa7dcac-5434-4487-879d-ab22de2e46e0",
+  "reviewer_peer_run_id": "scoutpeer-mtqd3l30-412025b1",
+  "inventory_ref": "docs/project/2026-09-05-visible-task-session-review/findings-78aec293801eb8fa1e44510f0bf98a968f1fd5a1f8f53875cfe2fdd74ee9db54.json",
+  "inventory_sha256": "78aec293801eb8fa1e44510f0bf98a968f1fd5a1f8f53875cfe2fdd74ee9db54",
+  "review_outcome": "ready_for_adr",
+  "checks": {
+    "working_and_commit_input_hashes": 23,
+    "owner_source_hashes": 36,
+    "exact_review_body_preservation": "pass",
+    "inventory_equals_reviewer_json": "pass",
+    "unique_resolved_proposal_findings": 7,
+    "new_material_findings": 0,
+    "docs_list_strict": "pass",
+    "docs_ref_require_tracked": "pass",
+    "memo_whitespace_and_budget": "pass"
+  },
+  "task_posture": {
+    "observed_status": "claimed",
+    "claimant": "session-01a0728e-b862-7544-a5bd-f198b710f81d",
+    "entity_version": 5,
+    "lease_expires_at": "2026-09-06T02:43:38.995776011+00:00",
+    "lease_expired": true,
+    "reset_renew_reclaim_or_bulk_release_performed": false,
+    "continuation_basis": "Explicit operator continuation; same existing task/controller/scope. Ordinary approved-pin complete_task_tx checks claimed/running, deferral and dependency truth, not lease-clock expiry. Expiry is not effect closure or permission to reassign. Recheck canonical state before lifecycle disposition."
+  },
+  "limits": [
+    "Review is ready_for_adr at proposal stage; this receipt precedes AK attachment/readback.",
+    "No ADR acceptance, source policy/code mutation, namespace or enrollment, package install, feature launch or live proof.",
+    "Source hashes and documentation validation do not prove implemented enforcement; later owner gates remain."
+  ]
+}

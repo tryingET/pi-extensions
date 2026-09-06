@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "kind": "immutable_rfc_finding_inventory",
+  "decision_id": 151,
+  "task_id": 5451,
+  "track": "current_track",
+  "attempt": 3,
+  "origin_attempt_id": 625,
+  "reviewer_peer_run_id": "scoutpeer-mtqd3l30-412025b1",
+  "reviewed_rfc": "docs/project/2026-09-05-visible-task-session-authority-startup-rfc-03.md",
+  "reviewed_rfc_sha256": "b6271a187109a7e0a5d021b96903b4e664fd5827d275a79e4502b78f6bbcf716",
+  "frozen_commit": "6f761c5549586f54f4a42be2d8395fe2d4b3fe69",
+  "input_manifest_sha256": "81d268055dfa96ab1d7d5c2d93e4dd8b7f9cafeca96142d044dfd97fddd3fd97",
+  "review_outcome": "ready_for_adr",
+  "next_legal_move": "gather_missing_artifacts",
+  "immediate_action": "controller_persist_validate_attach_and_read_back_this_review",
+  "subsequent_move_if_current_ready_closure_confirmed": "open_adr_pack",
+  "adr_legal_now": false,
+  "hash_checks": {
+    "start": "2026-09-06T22:07:34Z",
+    "end": "2026-09-06T22:11:27.353Z",
+    "candidate_inputs": 23,
+    "working_and_frozen_blobs_match_at_start_and_end": true,
+    "manifest_working_matches_at_start_and_end": true,
+    "manifest_frozen_blob_matches_at_end": true,
+    "owner_sources_matched_twice": 36,
+    "mismatches": 0
+  },
+  "findings": [
+    {
+      "id": "AUTH-01",
+      "severity": "high",
+      "classification": "architecture_shaping_open_question",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5462,
+        5463
+      ],
+      "owners": [
+        "AK task owner",
+        "Pi integration"
+      ],
+      "source": "RFC03 sections1-2,4.1,9; RFC02 section10; AK/Pi owner dispositions Actual local decisions",
+      "counterexample_disposition": "Fresh ordinary B selected with actual owner fit acceptance; parent-held transfer/authenticated delegation explicitly excluded and inherited applicability changed.",
+      "depends_on": [],
+      "required_correction": null,
+      "remaining_gate": "Accepted ADR and lawful implementation/affected-use scope; no stronger identity assurance implied."
+    },
+    {
+      "id": "AUTH-02",
+      "severity": "high",
+      "classification": "must_fix_owner_contract",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5462,
+        5463
+      ],
+      "owners": [
+        "AK task/claim owner",
+        "local Pi integration"
+      ],
+      "source": "RFC03 section4; AK owner Selected future closed protocol, After startup and recovery, Finite AK/Pi protocol concurrence; Pi owner AK interval concurrence",
+      "counterexample_disposition": "Separate-call companion drift replaced by actual new T0-T2 custody; normalization/time drift, committed-error uncertainty and racing unclaim addressed explicitly without CAS or replay claims.",
+      "depends_on": [
+        "AUTH-01"
+      ],
+      "coupled_with": [
+        "BOOT-01",
+        "EXCL-01"
+      ],
+      "required_correction": null,
+      "remaining_gate": "Owner no-maintenance/startup/recovery implementation, writer-trigger custody and independent fault proof after ADR."
+    },
+    {
+      "id": "BOOT-01",
+      "severity": "high",
+      "classification": "must_fix_startup_allocation",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5463
+      ],
+      "owners": [
+        "local Pi/little-helpers host owner"
+      ],
+      "source": "RFC03 sections3-5; Pi owner Selected owner and module allocation, Mandatory supported path/refusal map, AK interval concurrence",
+      "counterexample_disposition": "Missing optional hook and command/secondary ingress cannot serve as admission; selected sealed host keeps handles private and releases once only after durable T1, T2 and bound CLOSED.",
+      "depends_on": [
+        "AUTH-01",
+        "AUTH-02"
+      ],
+      "coupled_with": [
+        "BOOT-02"
+      ],
+      "required_correction": null,
+      "remaining_gate": "Installed sealed-host construction/path coverage and lifetime/FD/sidecar/CLOSED fault tests after ADR."
+    },
+    {
+      "id": "BOOT-02",
+      "severity": "high",
+      "classification": "architecture_shaping_trust_question",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5463
+      ],
+      "owners": [
+        "local Pi host/provider integration",
+        "account owner for separately lawful credential preparation"
+      ],
+      "source": "RFC03 section5; Pi owner Closed bootstrap effect/resource set and Same-provider Astra/Codex capability",
+      "counterexample_disposition": "Late objective rewrite/secondary turn excluded; guarded native SSE body including compressed forms selected; WS/retry/refresh and account substitution refused; trusted effects and confidentiality limits explicit.",
+      "depends_on": [
+        "AUTH-02"
+      ],
+      "coupled_with": [
+        "BOOT-01"
+      ],
+      "required_correction": null,
+      "remaining_gate": "Exact requested model/account/profile, actual send/tool/auth denial and representative task-usefulness proof before activation."
+    },
+    {
+      "id": "EXCL-01",
+      "severity": "high",
+      "classification": "must_fix_operational_safety_liveness",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5462,
+        5463,
+        5464
+      ],
+      "owners": [
+        "little-helpers",
+        "AK task owner",
+        "lane/candidate/automation/effect owners for actual enrollment"
+      ],
+      "source": "RFC03 sections4.4,6-7; all three owner custody/namespace/retirement dispositions",
+      "counterexample_disposition": "Different tasks/shared checkout and same task/different checkout conflict independently; stale generations retain history; namespace/AK inversion avoided; unknown competing writers prohibit enrollment.",
+      "depends_on": [
+        "AUTH-02"
+      ],
+      "coupled_with": [
+        "MIG-01"
+      ],
+      "required_correction": null,
+      "remaining_gate": "Positive actual authority/workspace writer and prior-effect custody, installed state/inspect identity, concurrency and retirement proof."
+    },
+    {
+      "id": "PKG-01",
+      "severity": "medium",
+      "classification": "material_owner_ratification",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5463
+      ],
+      "owners": [
+        "little-helpers/package owner",
+        "orchestrator adapter owner"
+      ],
+      "source": "RFC03 section6; retained RFC02 section7; Pi owner Namespace, conflict and ABI choices",
+      "counterexample_disposition": "Actual local acceptance retains explicit production/test split, emitted dependency closure and G2-P1; existing TS exports and internal observer policy remain supported.",
+      "depends_on": [],
+      "coupled_with": [
+        "BOOT-01"
+      ],
+      "required_correction": null,
+      "remaining_gate": "Independent packed CLI/adapter tests and installed CLI/Pi production behavior parity after ADR."
+    },
+    {
+      "id": "MIG-01",
+      "severity": "medium",
+      "classification": "material_compatibility_question",
+      "prior_state": "owner_blocked",
+      "state": "resolved_at_proposal_stage",
+      "owner_tasks": [
+        5463,
+        5464
+      ],
+      "owners": [
+        "lane owner",
+        "package owner"
+      ],
+      "source": "RFC03 section7; lane owner Accepted future adapter behavior, Selected enrollment contract, Preconditions by stage",
+      "counterexample_disposition": "Replacement deferred, minimum custody/discovery/support withdrawal not deferred; batches/ambiguous options refuse before effects, and withdrawal cannot restore legacy fallback or clear unresolved history.",
+      "depends_on": [
+        "AUTH-01",
+        "BOOT-01",
+        "EXCL-01"
+      ],
+      "required_correction": null,
+      "remaining_gate": "Separately scoped minimum enrollment controls before activation; later compatibility migration with unresolved-state rollback proof."
+    }
+  ],
+  "new_material_technical_findings": [],
+  "material_must_fix_count": 0,
+  "material_nice_to_have_count": 0,
+  "architecture_shaping_open_question_count": 0,
+  "material_cross_cutting_contradiction_count": 0,
+  "nonblocking_open_question_count": 0,
+  "claim_limit": "Proposal-stage finding resolution recommendation only. Canonical closure awaits authorized controller persistence/attachment/readback. No accepted ADR, changed policy, implemented feature, actual enrollment or live proof."
+}
