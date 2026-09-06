@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "kind": "adr_acceptance_verification",
+  "decision_id": 151,
+  "task_id": 5477,
+  "observed_at": "2026-09-06T23:45:01.148Z",
+  "operator_instruction": "proceed to adr",
+  "authorization_evidence_id": 8415,
+  "accepted_adr": {
+    "path": "docs/adr/2026-09-06-visible-task-session-authority-startup.md",
+    "sha256": "6db4ce80dca8ec2d8cec296ddb14a11f32f09db1d976d874ad53f6375609dd35",
+    "commit": "645aa29e48a38f6223cba3d6ce238b08d85fa9f4"
+  },
+  "review_basis": {
+    "attempt_id": 626,
+    "artifact_id": 1400,
+    "outcome": "ready_for_adr",
+    "review_commit": "02e24547eb3af015136166c2c6045bc81f553176",
+    "candidate_commit": "6f761c5549586f54f4a42be2d8395fe2d4b3fe69",
+    "input_manifest_sha256": "81d268055dfa96ab1d7d5c2d93e4dd8b7f9cafeca96142d044dfd97fddd3fd97"
+  },
+  "independent_fidelity": {
+    "dispatch_id": "dispatch-1788738071551",
+    "result": "faithful_no_substantive_discrepancies",
+    "reviewed_draft_sha256": "041624b5d081b61b2150d2ee568538c3894bedb0c24754005e093bd8a1b04407",
+    "final_delta": "Two status/authority lines only; reversing them reproduces the exact reviewed draft hash."
+  },
+  "checks": {
+    "candidate_inputs_unchanged": 23,
+    "owner_source_hashes_current_before_acceptance": 36,
+    "adr_links_tracked": 10,
+    "docs_strict": "pass",
+    "reference_check": "pass",
+    "budget_and_whitespace": "pass",
+    "exact_staged_adr_path": "pass",
+    "precommit_smoke": "pass",
+    "committed_adr_matches_working": "pass"
+  },
+  "canonical_readback": {
+    "decision": {
+      "id": 151,
+      "scope": "cross_repo",
+      "repo_scope": null,
+      "title": "Visible task-session authority assurance and fail-closed Pi startup",
+      "rfc_ref": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/docs/project/2026-09-05-visible-task-session-authority-startup-rfc-03.md",
+      "significance_tier": "architecture",
+      "state": "adr_recorded",
+      "review_mode": null,
+      "review_closure_mode": "bootstrap_single_track",
+      "review_outcome": "ready_for_adr",
+      "adr_ref": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/docs/adr/2026-09-06-visible-task-session-authority-startup.md",
+      "outcome": "accepted",
+      "evidence_ref": "evidence:8416",
+      "created_at": "2026-09-05T19:08:25.449828958+00:00",
+      "updated_at": "2026-09-06T23:44:22.513099978+00:00"
+    },
+    "legal_review_closure": {
+      "artifact_id": 1400,
+      "artifact_kind": "review_memo",
+      "artifact_ref": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/docs/project/2026-09-05-visible-task-session-rfc-review-03.md",
+      "created_at": "2026-09-06T22:18:16.351487619+00:00",
+      "review_outcome": "ready_for_adr"
+    },
+    "post_adr_continuation_truth": {
+      "adr_recorded": true,
+      "adr_ref": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/docs/adr/2026-09-06-visible-task-session-authority-startup.md",
+      "decision_outcome": "accepted",
+      "current_implementation_plan": null,
+      "current_validation_rollout_rollback": null,
+      "continuation_artifacts": [],
+      "missing_execution_artifacts": [
+        "implementation_plan",
+        "validation_rollout_rollback"
+      ],
+      "pending_linked_task_reevaluations": [],
+      "ready_for_post_adr_execution_tracking": false,
+      "ready_for_unblocked": false,
+      "ready_for_kes_learning_closure": false
+    }
+  },
+  "evidence_id": 8416,
+  "limits": [
+    "Readback is a dated projection; AK owns current decision state.",
+    "Accepted architecture only; no implementation plan or validation/rollout/rollback pack exists yet.",
+    "No code, schema, source-policy adoption, install, namespace enrollment, provider experiment, live canary or execution unblocking.",
+    "Unrelated dirty working-tree changes preserved; no claim reset or recovery performed."
+  ]
+}
