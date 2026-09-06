@@ -1,79 +1,41 @@
-name: Ripwire stack bootstrap
+name: Ripwire stack evaluation sources
 on:
   push:
     branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-stack-bootstrap.yml]
 permissions:
   contents: read
-concurrency:
-  group: ripwire-stack-bootstrap
-  cancel-in-progress: false
 jobs:
-  source:
+  sources:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Export public source with commit identities
-        run: |
-          git bundle create "$RUNNER_TEMP/pi-extensions.bundle" HEAD
-          git rev-parse HEAD > "$RUNNER_TEMP/source-head.txt"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ripwire-stack-source
-          path: |
-            ${{ runner.temp }}/pi-extensions.bundle
-            ${{ runner.temp }}/source-head.txt
-          retention-days: 3
-  runtime:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.19.0
-      - name: Provision locked package tools without lifecycle scripts
-        working-directory: packages/pi-context-packer
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Package isolated runtime tools
-        run: |
-          mkdir -p "$RUNNER_TEMP/runtime/bin"
-          cp "$(command -v node)" "$RUNNER_TEMP/runtime/bin/node"
-          cp -a packages/pi-context-packer/node_modules "$RUNNER_TEMP/runtime/node_modules"
-          cp packages/pi-context-packer/package-lock.json "$RUNNER_TEMP/runtime/package-lock.json"
-          node --version > "$RUNNER_TEMP/runtime/node-version.txt"
-          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/ripwire-stack-runtime.tgz" runtime
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ripwire-stack-runtime
-          path: ${{ runner.temp }}/ripwire-stack-runtime.tgz
-          retention-days: 3
-  ripwire:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
           repository: redhat-et/ripwire
           ref: 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          path: ripwire
+          fetch-depth: 0
           persist-credentials: false
-      - name: Build pinned source, no install or agent activation
+      - uses: actions/checkout@v4
+        with:
+          repository: Aider-AI/aider
+          ref: 5dc9490bb35f9729ef2c95d00a19ccd30c26339c
+          path: aider
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Export pinned public source snapshots
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DRIPWIRE_TESTS=OFF
-          cmake --build build --parallel 2
-          mkdir -p "$RUNNER_TEMP/ripwire-bin"
-          cp build/ripwire "$RUNNER_TEMP/ripwire-bin/ripwire"
-          sha256sum build/ripwire > "$RUNNER_TEMP/ripwire-bin/sha256.txt"
-          git rev-parse HEAD > "$RUNNER_TEMP/ripwire-bin/source-sha.txt"
-          ./build/ripwire --version > "$RUNNER_TEMP/ripwire-bin/version.txt"
-          c++ --version > "$RUNNER_TEMP/ripwire-bin/compiler.txt"
+          git -C ripwire archive --format=tar HEAD | gzip > "$RUNNER_TEMP/ripwire-source.tar.gz"
+          git -C ripwire rev-parse HEAD > "$RUNNER_TEMP/ripwire-source.sha"
+          git -C aider archive --format=tar HEAD | gzip > "$RUNNER_TEMP/aider-source.tar.gz"
+          git -C aider rev-parse HEAD > "$RUNNER_TEMP/aider-source.sha"
       - uses: actions/upload-artifact@v4
         with:
-          name: ripwire-stack-binary
-          path: ${{ runner.temp }}/ripwire-bin/
+          name: ripwire-evaluation-sources
+          path: |
+            ${{ runner.temp }}/ripwire-source.tar.gz
+            ${{ runner.temp }}/ripwire-source.sha
+            ${{ runner.temp }}/aider-source.tar.gz
+            ${{ runner.temp }}/aider-source.sha
           retention-days: 3
