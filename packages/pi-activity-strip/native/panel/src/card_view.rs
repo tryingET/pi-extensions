@@ -17,6 +17,7 @@ pub struct CardView {
     prompt: gtk::Label,
     reply: gtk::Label,
     path: gtk::Label,
+    pid: gtk::Label,
     activation: gtk::Label,
     inspector: gtk::Grid,
 }
@@ -60,9 +61,10 @@ impl CardView {
         let prompt = inspector_row(&inspector, 1, "prompt");
         let reply = inspector_row(&inspector, 2, "reply");
         let path = inspector_row(&inspector, 3, "path");
+        let pid = inspector_row(&inspector, 4, "pid");
         let activation = label("activation", gtk::Align::Start);
         activation.set_visible(false);
-        inspector.attach(&activation, 0, 4, 2, 1);
+        inspector.attach(&activation, 0, 5, 2, 1);
 
         content.append(&header);
         content.append(&footer);
@@ -134,6 +136,7 @@ impl CardView {
             prompt,
             reply,
             path,
+            pid,
             activation,
             inspector,
         }
@@ -171,6 +174,11 @@ impl CardView {
             .set_text(text_or(&card.last_prompt_preview, "—"));
         self.reply.set_text(text_or(&card.assistant_preview, "—"));
         self.path.set_text(text_or(&card.cwd, "—"));
+        if card.pid > 0 {
+            self.pid.set_text(&card.pid.to_string());
+        } else {
+            self.pid.set_text("—");
+        }
 
         for class in [
             "state-idle",
@@ -198,9 +206,15 @@ impl CardView {
         if stalled {
             self.root.add_css_class("stalled");
         }
+        let pid_note = if card.pid > 0 {
+            format!("pid {}", card.pid)
+        } else {
+            "no pid".to_owned()
+        };
         self.root.set_tooltip_text(Some(&format!(
-            "Focus {}",
-            text_or(&card.repo_label, "Pi session")
+            "Focus {} ({})",
+            text_or(&card.repo_label, "Pi session"),
+            pid_note
         )));
         let accessible_label = format!(
             "{}, {}, press Enter to focus its Ghostty window",

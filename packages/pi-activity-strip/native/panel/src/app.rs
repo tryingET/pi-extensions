@@ -407,6 +407,7 @@ impl App {
                 self.end_engagement();
                 root.set_keyboard_mode(KeyboardMode::None);
                 self.apply_expansion(widgets, root, None);
+                root.set_exclusive_zone(-1);
                 root.set_visible(false);
             }
             emit(
