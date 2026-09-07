@@ -70,3 +70,9 @@ remains the fallback. No additional backend is used.
 The RW-04 dogfood gate exercises both the packed API and the installed registered
 Pi `context_pack` closure against isolated code targets. Runtime helpers are
 separate from registration so the extension remains under its file budget.
+
+## RW-05 — focused source
+
+Hash-bound source expansion uses the pinned binary and the same approved corpus.
+The packed dogfood scenario verifies definitions below line 120, duplicate names,
+wrong-line refusal and stale content. The installed Pi closure also expands a real symbol.

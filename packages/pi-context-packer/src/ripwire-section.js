@@ -30,7 +30,7 @@ export async function buildRipwireSection(plan, env = {}) {
         ],
       }
     : await collectRipwire(
-        { root: plan.repoRoot ?? plan.cwd, objective: plan.objective, limit: 12 },
+        { root: plan.repoRoot ?? plan.cwd, objective: plan.objective, limit: 12, code: plan.code },
         { ...env.ripwire, signal: env.signal },
       );
   return {

@@ -50,3 +50,12 @@ checks an exact clean candidate and emits an independently rerunnable receipt.
 An offline registered-tool smoke is not a model-task benchmark or independent authorship.
 
 The package does not apply edits, run validation commands, install tools, or move task authority.
+
+### Focused source expansion
+
+After discovery, call `context_pack` with `providers.ripwire: "required"` and
+`code: { mode: "expand", selection: { path, name, line, contentSha256 } }`.
+Copy the repo-relative path, literal symbol, line and source SHA-256 from the discovery
+packet. The adapter rechecks source content and requires exactly one matching body;
+a stale hash, mismatched line or ambiguous definition refuses instead of guessing.
+Body and ancillary-context omissions are explicit. Redacted output is not editable source.

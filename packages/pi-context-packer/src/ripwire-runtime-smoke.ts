@@ -3,7 +3,9 @@ summary: "Prove real ripwire execution through the installed context_pack tool c
 read_when:
   - "Changing installed code-discovery verification."
 */
+
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,6 +43,29 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
     assert.ok(text?.type === "text" && text.text.includes("source SHA-256:"));
     const runs = result.details?.providerRuns as Record<string, { analyzedFiles?: number }>;
     assert.equal(runs?.ripwire?.analyzedFiles, 1);
+    if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 5) {
+      const body = await tool.execute(
+        "ripwire-registered-expand",
+        {
+          ...args,
+          code: {
+            mode: "expand",
+            selection: {
+              path: "src/capability.ts",
+              line: 1,
+              name: "providerIsExecutable",
+              contentSha256: createHash("sha256").update(source).digest("hex"),
+            },
+          },
+        },
+        undefined,
+        undefined,
+        context,
+      );
+      assert.equal(body.details?.ok, true);
+      assert.ok(body.content.some((x) => x.type === "text" && x.text.includes("mode === 'wired'")));
+      console.log("ripwire registered expansion PASS");
+    }
     const off = await tool.execute(
       "ripwire-registered-off",
       { ...args, providers: { ...args.providers, ripwire: "off" } },

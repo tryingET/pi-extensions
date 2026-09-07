@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { boundContextText, defineReadOnlyContextProvider } from "./provider-api.js";
 import { copyApprovedCorpus } from "./ripwire-corpus.js";
 import { discoveryArguments, prepareRipwire } from "./ripwire-exec.js";
+import { expandSelected } from "./ripwire-expansion.js";
 import { parseRipwireCandidates } from "./ripwire-output.js";
 
 const PUBLIC_ERRORS = new Set([
@@ -26,6 +27,10 @@ const PUBLIC_ERRORS = new Set([
   "source_changed",
   "directory_changed",
   "source_path_changed",
+  "invalid_code_request",
+  "invalid_code_selection",
+  "stale_selection",
+  "ambiguous_selection",
 ]);
 export async function collectRipwire(input, options = {}) {
   options.signal?.throwIfAborted();
@@ -35,12 +40,15 @@ export async function collectRipwire(input, options = {}) {
     const corpusRoot = join(scratch, "corpus");
     await mkdir(corpusRoot, { mode: 0o700 });
     const corpus = await copyApprovedCorpus(input.root, corpusRoot, options);
-    const parsed = corpus.files.size
-      ? parseRipwireCandidates(
-          await runtime.run(discoveryArguments(corpusRoot, input.objective, input.limit ?? 20)),
-          corpus,
-        )
-      : { records: [], total: 0, capped: false, weak: false, route: "empty_corpus" };
+    const parsed =
+      input.code?.mode === "expand"
+        ? await expandSelected(runtime, corpusRoot, corpus, input.code.selection)
+        : corpus.files.size
+          ? parseRipwireCandidates(
+              await runtime.run(discoveryArguments(corpusRoot, input.objective, input.limit ?? 20)),
+              corpus,
+            )
+          : { records: [], total: 0, capped: false, weak: false, route: "empty_corpus" };
     const omissions = [];
     const omitted = (reason, detail) => omissions.push({ provider: "ripwire", reason, detail });
     if (!parsed.records.length)
@@ -64,20 +72,40 @@ export async function collectRipwire(input, options = {}) {
     return {
       ok: true,
       items: parsed.records.map((record) => {
-        const content = boundContextText(
-          `${record.path}:${record.line}\n${record.signature || record.name}`,
-          8000,
-        ).text;
+        const bounded = boundContextText(
+          `${record.path}:${record.line}\n${record.content ?? record.signature ?? record.name}`,
+          16000,
+        );
+        const content = bounded.text;
+        if (bounded.truncated)
+          omitted(
+            "body_truncated",
+            "Source content exceeded the per-item cap; use a narrower native read for the remainder.",
+          );
+        if (record.redacted || bounded.redactionCount)
+          omitted(
+            "redacted",
+            "Credential-shaped text was redacted; this projection is not byte-exact source.",
+          );
+        if (record.scrubbed) omitted("scrubbed", "Upstream reports source-byte scrubbing.");
+        if (record.ancillaryOmitted)
+          omitted(
+            "ancillary_omitted",
+            "Callee signature enrichment is omitted from this focused body packet.",
+          );
         return {
           id: `ripwire:${record.path}:${record.line}:${record.canonicalId}`,
           kind: "symbol",
           content,
-          contentMode: "signature",
+          contentMode: record.content !== undefined ? "body" : "signature",
           bytes: Buffer.byteLength(content),
           estimatedTokens: Math.ceil(Buffer.byteLength(content) / 4),
           provenance: {
             provider: "ripwire",
             path: record.path,
+            symbol: record.name,
+            truncated: bounded.truncated,
+            redacted: record.redacted || bounded.redactionCount > 0,
             line: record.line,
             canonicalId: record.canonicalId,
             rank: record.rank,

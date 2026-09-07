@@ -3,8 +3,10 @@ summary: "Builds bounded provider plans from safe seeds, workspace trust checks,
 read_when:
   - "Changing context_plan normalization, provider selection, risk reporting, or its compact result contract."
 */
+
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { CODE_REQUEST_SCHEMA, normalizeCodeRequest } from "./code-request.js";
 import {
   hasControlCharacter,
   hasSchemeOrDrivePrefix,
@@ -649,6 +651,18 @@ const buildRisks = ({
 
 export const buildContextPlan = (input = {}, env = {}) => {
   const raw = asObject(input);
+  let code;
+  try {
+    code = normalizeCodeRequest(raw.code);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        "Invalid code request; expansion requires a safe path, literal symbol, line and source SHA-256.",
+      ],
+      nonAuthorizations: nonAuthorizations(),
+    };
+  }
   const unknownProvider = Object.keys(asObject(raw.providers)).some(
     (key) => !PROVIDER_IDS.includes(key),
   );
@@ -710,6 +724,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
 
   return {
     ok: true,
+    code,
     objective,
     cwd,
     ...(repoRoot ? { repoRoot } : {}),
@@ -814,6 +829,7 @@ export const CONTEXT_PLAN_PARAMETERS = {
   type: "object",
   additionalProperties: false,
   properties: {
+    code: CODE_REQUEST_SCHEMA,
     objective: {
       type: "string",
       description: "Task/question to plan context for.",

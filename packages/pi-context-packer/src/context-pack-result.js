@@ -27,6 +27,9 @@ const formatPacketItem = (item) => {
     item.provenance?.command
       ? `- command: ${markdownInlineLabel(item.provenance.command, "unknown")}`
       : undefined,
+    item.provenance?.symbol
+      ? `- symbol: ${markdownInlineLabel(item.provenance.symbol)}`
+      : undefined,
     item.provenance?.contentSha256
       ? `- source SHA-256: ${markdownInlineLabel(item.provenance.contentSha256)}`
       : undefined,

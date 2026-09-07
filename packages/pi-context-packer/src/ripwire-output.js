@@ -5,7 +5,7 @@ read_when:
 */
 import { safeRelative } from "./ripwire-corpus.js";
 
-function decode(value) {
+export function decode(value) {
   if (/&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)/u.test(value))
     throw new Error("unknown_entity");
   return value.replace(/&([^;]+);/gu, (_, entity) => {
@@ -24,7 +24,7 @@ function decode(value) {
     return String.fromCodePoint(code);
   });
 }
-function attributes(text) {
+export function attributes(text) {
   const out = Object.create(null);
   while (text.trim()) {
     const match = /^\s+([a-z_]+)="([^"<>]*)"/u.exec(text);
