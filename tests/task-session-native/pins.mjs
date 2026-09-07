@@ -83,6 +83,14 @@ export async function verifyPins(pins) {
     assert.equal(sha(readFileSync(pins.ak.identity)), receipt.source_identity_sha256);
     assert.deepEqual(json(pins.ak.identity).source_sha256, pins.ak.sources);
     assert.equal(await fileHash(pins.pi.tar), pins.pi.tarHash);
+    if (pins.pi.packedArtifacts) {
+      assert.equal(sha(readFileSync(pins.pi.packEvidence)), pins.pi.packEvidenceSha256);
+      for (const packed of pins.pi.packedArtifacts) {
+        assert(json(pins.pi.packEvidence).packages.some((p) => p.name === packed.name));
+        assert.equal(await fileHash(packed.path), packed.sha256);
+        assert(readFileSync(join(pins.pi.root, pins.pi.ownerMemo), "utf8").includes(packed.sha256));
+      }
+    }
     assert(readFileSync(join(pins.pi.root, pins.pi.ownerMemo), "utf8").includes(pins.pi.tarHash));
     assert.deepEqual(
       inventory(pins.pi.root, ["runtime"], true),

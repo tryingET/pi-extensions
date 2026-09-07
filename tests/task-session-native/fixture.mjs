@@ -13,6 +13,7 @@ import {
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { provisionModel } from "./model-fixture.mjs";
 import { digest, json, sha } from "./pins.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -43,11 +44,11 @@ export function available(path) {
   );
   return result.status === 0;
 }
-export function native(pins, root, operation) {
+export function native(pins, root, operation, ...args) {
   // No AK command dispatch/default DB/environment. Only the unshipped bounded fixture API.
   const result = spawnSync(
     pins.artifacts.native_fixture.path,
-    [operation, join(root, "new-synthetic.db")],
+    [operation, join(root, "new-synthetic.db"), ...args],
     {
       cwd: root,
       encoding: "utf8",
@@ -64,9 +65,9 @@ export function native(pins, root, operation) {
   );
   return parsed;
 }
-export async function setup(pins, scenario) {
+export async function setup(pins, scenario, schemaVersion = 43) {
   const temp = realpathSync(process.env.TMPDIR);
-  const root = mkdtempSync(join(temp, "task5479-native-process-task5513-"));
+  const root = mkdtempSync(join(temp, `task5479-native-process-task5513-v${schemaVersion}-`));
   process.stderr.write(`task5513 owned synthetic root: ${root}\n`);
   // Fail before SDK import/DB creation rather than capture ambient instructions.
   for (let path = temp; ; path = dirname(path)) {
@@ -89,7 +90,10 @@ export async function setup(pins, scenario) {
     pathToFileURL(join(sdkRoot, json(join(sdkRoot, "package.json")).exports["./compat"].import))
       .href
   );
-  const seed = native(pins, root, "--initialize");
+  assert([40, 43].includes(schemaVersion));
+  const seed = native(pins, root, schemaVersion === 40 ? "--initialize-40" : "--initialize");
+  const initialOracle = native(pins, root, "--fault-oracle");
+  assert.equal(initialOracle.schema_version, schemaVersion);
   const checkout = seed.repo; // Actual native registered repo, not a hand-authored task/baseline.
   mkdirSync(join(checkout, ".git"));
   mkdirSync(join(checkout, "src"));
@@ -204,67 +208,9 @@ export async function setup(pins, scenario) {
     },
   };
   let modelResolution;
-  if (scenario === "owner-model-recover") {
-    mkdirSync(join(root, "model-sources"), { mode: 0o700 });
-    const source = {
-      schema: "pi.task-session.model-source.v1",
-      implementation: "pinned-native-codex-sse-v1",
-      requested: {
-        provider: "synthetic-owner",
-        model: "synthetic-requested-alias",
-        account: pin.account,
-      },
-      resolved: {
-        provider: "synthetic-wire-provider",
-        model: "synthetic-native-wire-model",
-        account: pin.account,
-      },
-      api: "openai-codex-responses",
-      baseUrl: "https://chatgpt.com/backend-api",
-      transport: "sse",
-      auth: { kind: "oauth", provider: "openai-codex", refresh: false },
-      metadata: {
-        name: "Synthetic task5513 owner model",
-        reasoning: true,
-        input: ["text", "image"],
-        contextWindow: 131072,
-        maxTokens: 8192,
-        costMicroUsdPerMillion: {
-          input: 1250000,
-          output: 9000000,
-          cacheRead: 125000,
-          cacheWrite: 0,
-        },
-        thinkingLevelMap: {
-          off: "none",
-          minimal: "minimal",
-          low: "low",
-          medium: "medium",
-          high: "high",
-          xhigh: "xhigh",
-          max: null,
-        },
-      },
-    };
-    assert.equal(getModel("openai-codex", source.resolved.model), undefined);
-    const sourceDigest = digest(source);
-    state.durableWrite(join(root, "model-sources", `${sourceDigest}.json`), source, true);
-    const { loadOwnerModel } = await import(`${dist}/model-source.js`);
-    const loaded = loadOwnerModel(locator, sourceDigest, source.requested);
-    Object.assign(pin, {
-      schema: "pi.task-session.profile.v2",
-      ...source.requested,
-      modelSourceDigest: sourceDigest,
-      modelDigest: sha(JSON.stringify(loaded.model)),
-    });
-    modelResolution = {
-      schema: "pi.task-session.model-resolution.v1",
-      implementation: source.implementation,
-      requested: source.requested,
-      resolved: source.resolved,
-      sourceDigest,
-      modelDigest: pin.modelDigest,
-    };
+  if (scenario === "owner-model-recover" || scenario.startsWith("owner-off-null")) {
+    modelResolution = provisionModel({ root, pin, state, scenario });
+    assert.equal(getModel("openai-codex", modelResolution.resolved.model), undefined);
   }
   if (scenario === "profile-mismatch") pin.modelDigest = "0".repeat(64);
   if (scenario === "pin-mismatch") pin.producer.policyDigest = "0".repeat(64);
@@ -288,6 +234,13 @@ export async function setup(pins, scenario) {
     locator,
     checkout,
     scenario,
+    schemaVersion,
+    orchestratorAdapter: pathToFileURL(
+      join(
+        dirname(runtimeRoot),
+        "pi-society-orchestrator/dist/task-session/task-session-adapter.js",
+      ),
+    ).href,
     lock,
     akRoot: pins.ak.root,
     protocol,
@@ -298,7 +251,7 @@ export async function setup(pins, scenario) {
     modelResolution,
   };
   writeFileSync(join(root, "fixture.json"), JSON.stringify(config), { mode: 0o600 });
-  return { root, checkout, locator, request, pin, config, dist, state, pins, lock };
+  return { root, checkout, locator, request, pin, config, dist, state, pins, lock, initialOracle };
 }
 export function startSupervisor(f, payload, mode = "startup") {
   const invocation = (f.invocations ?? 0) + 1;

@@ -107,30 +107,42 @@ const memoPath = "docs/project/2026-09-07-visible-task-session-pi-implementation
 const memo = blob(piRepo, piRef, memoPath);
 put(join(piRoot, memoPath), memo);
 piSources[memoPath] = sha(memo);
-const tarName = "tryinget-pi-little-helpers-0.9.0.tgz";
-const tarHash = await fileHash(join(packed, tarName));
-assert(memo.includes(tarHash), "owner source memo must identify this exact packed artifact");
-copyFileSync(join(packed, tarName), join(packet, tarName));
-chmodSync(join(packet, tarName), 0o400);
+const packReceiptBytes = readFileSync(join(packed, "evidence.json"));
+put(join(packet, "pi-pack-evidence.json"), packReceiptBytes);
+const packReceipt = JSON.parse(packReceiptBytes);
 mkdirSync(join(piRoot, "runtime"), { recursive: true, mode: 0o700 });
 cpSync(join(packed, "node_modules"), join(piRoot, "runtime/node_modules"), {
   recursive: true,
   verbatimSymlinks: true,
 });
 const runtimeRoot = join(piRoot, "runtime/node_modules/@tryinget/pi-little-helpers");
-const extracted = join(packet, "tar-check");
-mkdirSync(extracted, { mode: 0o700 });
-const members = execFileSync("/usr/bin/tar", ["-tzf", join(packet, tarName)], { encoding: "utf8" })
-  .trim()
-  .split("\n");
-assert(members.every((p) => p.startsWith("package/") && !p.split("/").includes("..")));
-execFileSync("/usr/bin/tar", ["-xzf", join(packet, tarName), "-C", extracted]);
-for (const [path, hash] of Object.entries(inventory(join(extracted, "package"), ["."])))
-  assert.equal(
-    sha(readFileSync(join(runtimeRoot, path))),
-    hash,
-    `installed package differs from packed bytes: ${path}`,
-  );
+const packedArtifacts = [];
+for (const name of ["@tryinget/pi-little-helpers", "@tryinget/pi-society-orchestrator"]) {
+  const entry = packReceipt.packages.find((p) => p.name === name);
+  assert(entry);
+  const tarHash = await fileHash(join(packed, entry.filename));
+  assert(memo.includes(tarHash), "owner memo must bind exact packed artifact");
+  const tar = join(packet, entry.filename);
+  copyFileSync(join(packed, entry.filename), tar);
+  chmodSync(tar, 0o400);
+  const extracted = join(packet, "tar-check", name.split("/")[1]);
+  mkdirSync(extracted, { recursive: true, mode: 0o700 });
+  const members = execFileSync("/usr/bin/tar", ["-tzf", tar], { encoding: "utf8" })
+    .trim()
+    .split("\n");
+  assert(members.every((p) => p.startsWith("package/") && !p.split("/").includes("..")));
+  execFileSync("/usr/bin/tar", ["-xzf", tar, "-C", extracted]);
+  const installed = join(piRoot, "runtime/node_modules", name);
+  for (const [path, hash] of Object.entries(inventory(join(extracted, "package"), ["."])))
+    assert.equal(
+      sha(readFileSync(join(installed, path))),
+      hash,
+      `installed package differs: ${path}`,
+    );
+  packedArtifacts.push({ name, path: tar, sha256: tarHash });
+}
+const tarName = packedArtifacts[0].path;
+const tarHash = packedArtifacts[0].sha256;
 const runtimeInventory = inventory(piRoot, ["runtime"], true);
 const pins = {
   schema: "pi.task-session.native-integration-pins.v2",
@@ -153,7 +165,10 @@ const pins = {
     sources: piSources,
     runtimeRoot,
     runtimeInventory,
-    tar: join(packet, tarName),
+    tar: tarName,
+    packedArtifacts,
+    packEvidence: join(packet, "pi-pack-evidence.json"),
+    packEvidenceSha256: sha(packReceiptBytes),
     tarHash,
     ownerMemo: memoPath,
   },

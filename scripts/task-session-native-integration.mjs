@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Freeze is a preparation receipt, never a native passing result. No build fallback.
+import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pendingNativeCases } from "../tests/task-session-native/coverage.mjs";
 import {
+  digest,
   head,
   inventory,
   json,
@@ -50,6 +52,13 @@ try {
     writeFileSync(output, `${JSON.stringify(pins, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     console.log(`FROZEN_NOT_EXECUTED ${output}`);
   } else if (verb === "run" && (args.length === 1 || args.length === 2)) {
+    const harnessPaths = [
+      "tests/task-session-native",
+      ...readdirSync(join(root, "scripts"))
+        .filter((n) => n.startsWith("task-session-native") && n.endsWith(".mjs"))
+        .map((n) => `scripts/${n}`),
+    ];
+    const harnessSourceHashes = inventory(root, harnessPaths);
     const pins = await verifyPins(json(args[0])); // No SDK, fixture or DB operation before this gate.
     const temp = process.env.TMPDIR;
     if (!temp || !existsSync(temp) || realpathSync(temp) !== resolve(temp))
@@ -74,6 +83,11 @@ try {
       },
     );
     await verifyPins(pins); // Source churn invalidates compatibility even if assertions passed.
+    assert.deepEqual(
+      inventory(root, harnessPaths),
+      harnessSourceHashes,
+      "harness drift during execution",
+    );
     if (result.error) throw result.error;
     process.exitCode = result.status ?? 1;
     if (result.status === 0 && pendingNativeCases.length) {
@@ -81,6 +95,19 @@ try {
         JSON.stringify({ status: "PARTIAL_NATIVE_EVIDENCE_NOT_COMPLETE", pendingNativeCases }),
       );
       process.exitCode = 78;
+    } else if (result.status === 0) {
+      console.log(
+        JSON.stringify({
+          status: args[1]
+            ? "SELECTED_NATIVE_CASES_PASSED_NOT_FULL_MATRIX"
+            : "FROZEN_NATIVE_SOURCE_MATRIX_PASSED",
+          publicG2: false,
+          live: false,
+          installed: false,
+          taskCompletionAuthority: false,
+          harnessSourceDigest: digest(harnessSourceHashes),
+        }),
+      );
     }
   } else if (verb === "static" && args.length === 0) {
     const result = spawnSync(
