@@ -30,7 +30,8 @@
   "exports": {
     ".": "./src/context-pack.js",
     "./api": "./src/provider-api.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./ripwire": "./src/ripwire-provider.js"
   },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",

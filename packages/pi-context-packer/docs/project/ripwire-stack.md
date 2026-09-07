@@ -33,3 +33,24 @@ fresh Pi registered-tool smoke. Missing prerequisites are BLOCKED, not passing s
 
 Use one detached worktree and isolated Pi roots per candidate. Evidence identifies the exact
 commit and package digest. Implementer re-execution is not independent external review.
+
+## RW-03: trusted adapter
+
+`@tryinget/pi-context-packer/ripwire` exports the read-only provider. It is not yet selected by
+`context_pack`. Provision the CLI explicitly; this package does not install tools or agent skills.
+Set `PI_CONTEXT_PACKER_RIPWIRE_BIN` to an absolute executable path. Linux x64 has a recorded default
+build digest; another operator-approved build requires `PI_CONTEXT_PACKER_RIPWIRE_SHA256` and must
+report the supported version. A supplied digest is an operator trust decision, not upstream build
+attestation. The reviewed source is `93c8edaafdb5499e89939cc2cebd0429e278e86f`.
+
+Source traversal currently requires Linux `/proc` descriptor-relative reads. Other profiles fail
+closed until they have an equally anchored implementation and verification. The approved corpus
+contains regular programming-language files (maximum 512 KiB each, 10,000 files, 64 MiB total).
+Hidden entries, vendor/generated directories, symlinks and explicitly excluded paths are not read.
+Tests are not categorically excluded. Git-ignore rules are not an implicit authority boundary.
+The corpus is copied outside the source tree, the verified executable bytes run with no cache,
+and raw process errors are withheld. Snapshot identity is not a multi-file filesystem transaction.
+
+`RW-03` dogfood uses the real provisioned binary and tests exclusions, symlinks, a wrong-digest
+negative control, cancellation, and source preservation. Raw subprocess or compiler output is
+not promoted into a packet. Use Pi read/search tools on refusal; there is no other code backend.

@@ -27,7 +27,7 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 if (
   flags.size !== 3 ||
-  !["RW-01", "RW-02"].includes(flags.get("--gate")) ||
+  !["RW-01", "RW-02", "RW-03"].includes(flags.get("--gate")) ||
   !/^[a-f0-9]{40}$/u.test(flags.get("--candidate-sha"))
 )
   throw new Error("Expected --gate RW-01|RW-02 --candidate-sha SHA --output-dir EXTERNAL_DIR");
@@ -91,6 +91,14 @@ try {
     [join(repo, "scripts/package-quality-gate.sh"), "pre-push", "packages/pi-context-packer"],
     { cwd: repo },
   );
+  if (Number(flags.get("--gate").slice(3)) >= 3 && !process.env.PI_CONTEXT_PACKER_RIPWIRE_BIN) {
+    receipt.checks.push({
+      name: "ripwire-prerequisite",
+      status: "BLOCKED",
+      reason: "binary_not_configured",
+    });
+    throw new Error("Ripwire binary required");
+  }
   const packed = JSON.parse(
     run("pack", "npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch]),
   );

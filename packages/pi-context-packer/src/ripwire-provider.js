@@ -1,0 +1,140 @@
+/**
+summary: "Read-only ripwire candidate provider over a private approved-corpus snapshot."
+read_when:
+  - "Changing code discovery, candidate provenance, or explicit failure reporting."
+*/
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { boundContextText, defineReadOnlyContextProvider } from "./provider-api.js";
+import { copyApprovedCorpus } from "./ripwire-corpus.js";
+import { discoveryArguments, prepareRipwire } from "./ripwire-exec.js";
+import { parseRipwireCandidates } from "./ripwire-output.js";
+
+const PUBLIC_ERRORS = new Set([
+  "ripwire_not_configured",
+  "ripwire_digest_required",
+  "ripwire_digest_mismatch",
+  "ripwire_version_unsupported",
+  "invalid_root",
+  "invalid_objective",
+  "invalid_limit",
+  "invalid_exclusion_policy",
+  "anchored_reads_unavailable",
+  "corpus_entry_limit",
+  "corpus_size_limit",
+  "source_changed",
+  "directory_changed",
+  "source_path_changed",
+]);
+export async function collectRipwire(input, options = {}) {
+  options.signal?.throwIfAborted();
+  const scratch = await mkdtemp(join(tmpdir(), "pi-ripwire-"));
+  try {
+    const runtime = await prepareRipwire(scratch, options);
+    const corpusRoot = join(scratch, "corpus");
+    await mkdir(corpusRoot, { mode: 0o700 });
+    const corpus = await copyApprovedCorpus(input.root, corpusRoot, options);
+    const parsed = corpus.files.size
+      ? parseRipwireCandidates(
+          await runtime.run(discoveryArguments(corpusRoot, input.objective, input.limit ?? 20)),
+          corpus,
+        )
+      : { records: [], total: 0, capped: false, weak: false, route: "empty_corpus" };
+    const omissions = [];
+    const omitted = (reason, detail) => omissions.push({ provider: "ripwire", reason, detail });
+    if (!parsed.records.length)
+      omitted(
+        "no_results",
+        "No code candidates found in the approved corpus; use Pi read/search tools.",
+      );
+    if (parsed.capped)
+      omitted(
+        "candidate_limit",
+        "Lower-ranked candidates omitted; narrow the task or request a larger limit.",
+      );
+    if (parsed.weak)
+      omitted("weak_evidence", "Low lexical evidence; verify candidate relevance in source.");
+    const skipped = Object.values(corpus.skipped).reduce((a, b) => a + b, 0);
+    if (skipped)
+      omitted(
+        "scope_exclusions",
+        `${skipped} entries excluded by code-corpus policy; this is not whole-repository completeness.`,
+      );
+    return {
+      ok: true,
+      items: parsed.records.map((record) => {
+        const content = boundContextText(
+          `${record.path}:${record.line}\n${record.signature || record.name}`,
+          8000,
+        ).text;
+        return {
+          id: `ripwire:${record.path}:${record.line}:${record.canonicalId}`,
+          kind: "symbol",
+          content,
+          contentMode: "signature",
+          bytes: Buffer.byteLength(content),
+          estimatedTokens: Math.ceil(Buffer.byteLength(content) / 4),
+          provenance: {
+            provider: "ripwire",
+            path: record.path,
+            line: record.line,
+            canonicalId: record.canonicalId,
+            rank: record.rank,
+            score: record.score,
+            route: parsed.route,
+            snapshotId: corpus.snapshotId,
+            contentSha256: record.contentSha256,
+            binarySha256: runtime.binarySha256,
+          },
+          authority:
+            "Heuristic code-discovery evidence; not a complete call graph or edit authorization.",
+          rationale:
+            "Ranked by ripwire for the requested objective; score is comparable only within this route.",
+          freshness:
+            "individually stable source reads copied to a private snapshot; not a filesystem transaction",
+        };
+      }),
+      omissions,
+      state: {
+        snapshotId: corpus.snapshotId,
+        analyzedFiles: corpus.files.size,
+        analyzedBytes: corpus.totalBytes,
+        skipped: corpus.skipped,
+        totalRanked: parsed.total,
+        route: parsed.route,
+        weak: parsed.weak,
+        sourceRevision: runtime.sourceRevision,
+        sourceProvenance: runtime.sourceProvenance,
+        binarySha256: runtime.binarySha256,
+        precision: "heuristic",
+        cache: "disabled",
+        noSourceWrites: true,
+      },
+    };
+  } catch (error) {
+    options.signal?.throwIfAborted();
+    const reason = PUBLIC_ERRORS.has(error.message) ? error.message : "provider_failed";
+    return {
+      ok: false,
+      items: [],
+      omissions: [
+        {
+          provider: "ripwire",
+          reason,
+          detail:
+            "Ripwire unavailable or refused; use Pi read/search tools. Raw process diagnostics withheld.",
+        },
+      ],
+    };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+export const ripwireProvider = defineReadOnlyContextProvider({
+  id: "ripwire",
+  version: "v1",
+  collect: collectRipwire,
+  authority: "Read-only, operator-provisioned code discovery over an approved corpus.",
+});
