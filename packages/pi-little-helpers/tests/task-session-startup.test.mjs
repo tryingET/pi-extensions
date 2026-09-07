@@ -19,7 +19,7 @@ import { installedHostBuild } from "../dist/task-session/build-identity.js";
 import { encodeFrame, FrameDecoder } from "../dist/task-session/channel.js";
 import { bytesDigest, digest, parseJson } from "../dist/task-session/json.js";
 import { launchReserved } from "../dist/task-session/launch.js";
-import { loadHostProfile, loadProfile } from "../dist/task-session/profile.js";
+import { loadHostProfile, loadProfile, preflightProfile } from "../dist/task-session/profile.js";
 import { durableWrite, physicalIdentity, readSnapshot } from "../dist/task-session/state.js";
 
 const fixture = (name) =>
@@ -170,8 +170,53 @@ test("provisioned content-addressed profile and credential load is exact and rea
   await assert.rejects(loadHostProfile(f.locator, f.request.profile));
   assert.equal(readSnapshot(f.locator).attempts.length, 0);
 });
+for (const reasoning of ["off", "minimal", "low", "medium", "high", "xhigh"]) {
+  test(`I03 supported gpt-5.4 reasoning remains exact: ${reasoning}`, async (t) => {
+    const f = setup(),
+      pin = { ...f.pin, reasoning },
+      reference = digest(pin);
+    if (reference !== f.request.profile)
+      durableWrite(join(f.root, "profiles", `${reference}.json`), pin, true);
+    const path = join(f.root, "profiles", `${reference}.json`),
+      before = readFileSync(path);
+    const namespaceBefore = readFileSync(join(f.root, "state.json"));
+    let sends = 0;
+    t.mock.method(globalThis, "fetch", () => {
+      sends++;
+      throw Error("unexpected_network");
+    });
+    assert.equal((await preflightProfile(f.locator, reference)).reasoning, reasoning);
+    const loaded = await loadHostProfile(f.locator, reference);
+    assert.equal(loaded.profile.reasoning, reasoning);
+    const { sealedHost } = await import("../dist/task-session/host.js");
+    const { captureResources } = await import("../dist/task-session/resources.js");
+    const host = await sealedHost(
+      {
+        incarnation: "supported-reasoning",
+        cwd: f.checkout,
+        objective: "synthetic reasoning fidelity",
+        profile: loaded.profile,
+        resources: captureResources(f.checkout, pin.agentDir),
+      },
+      loaded.credential,
+      {
+        send: async () => {
+          sends++;
+          throw Error("unexpected_send");
+        },
+      },
+    );
+    assert.equal(host.identity.reasoning, reasoning);
+    assert.equal(host.inspect().phase, "prepared");
+    await host.stop();
+    assert.equal(sends, 0);
+    assert.deepEqual(readFileSync(path), before);
+    assert.deepEqual(readFileSync(join(f.root, "state.json")), namespaceBefore);
+  });
+}
 for (const defect of [
   "model-digest",
+  "unsupported-reasoning",
   "account",
   "lifetime",
   "missing-credential",
@@ -180,6 +225,13 @@ for (const defect of [
   test(`I03 ${defect}: pre-reservation refusal without spawn`, async (t) => {
     const f = setup(),
       pin = structuredClone(f.pin);
+    if (defect === "unsupported-reasoning") {
+      pin.reasoning = "max";
+      const { clampThinkingLevel } = await import("@earendil-works/pi-ai/compat");
+      const model = getModel("openai-codex", "gpt-5.4");
+      assert.equal(bytesDigest(JSON.stringify(model)), pin.modelDigest);
+      assert.equal(clampThinkingLevel(model, pin.reasoning), "xhigh");
+    }
     if (defect === "model-digest") pin.modelDigest = "0".repeat(64);
     if (defect === "missing-credential") pin.credentialDigest = "0".repeat(64);
     if (defect === "account" || defect === "lifetime") {
@@ -196,13 +248,14 @@ for (const defect of [
     if (reference !== f.request.profile)
       durableWrite(join(f.root, "profiles", `${reference}.json`), pin, true);
     const before = readFileSync(join(f.root, "state.json"));
+    const profileBefore = readFileSync(join(f.root, "profiles", `${reference}.json`));
     const calls = { plan: 0, viewer: 0, supervisor: 0, network: 0 };
     t.mock.method(globalThis, "fetch", () => {
       calls.network++;
       throw Error("unexpected_network");
     });
     await assert.rejects(
-      launchReserved({ ...f.request, profile: reference }, f.locator, {
+      launchReserved({ ...f.request, profile: reference, reasoning: pin.reasoning }, f.locator, {
         plan: async () => {
           calls.plan++;
           if (defect !== "lifetime-during-plan") throw Error("unexpected_plan");
@@ -224,12 +277,17 @@ for (const defect of [
           calls.supervisor++;
         },
       }),
-      defect === "model-digest"
-        ? /model_pin_mismatch/
-        : defect === "missing-credential"
-          ? /ENOENT/
-          : /auth_refresh_required_or_account_mismatch/,
+      defect === "unsupported-reasoning"
+        ? /reasoning_profile_unsupported/
+        : defect === "model-digest"
+          ? /model_pin_mismatch/
+          : defect === "missing-credential"
+            ? /ENOENT/
+            : /auth_refresh_required_or_account_mismatch/,
     );
+    if (defect === "unsupported-reasoning")
+      await assert.rejects(loadHostProfile(f.locator, reference), /reasoning_profile_unsupported/);
+    assert.deepEqual(readFileSync(join(f.root, "profiles", `${reference}.json`)), profileBefore);
     t.mock.restoreAll();
     assert.deepEqual(calls, {
       plan: defect === "lifetime-during-plan" ? 1 : 0,

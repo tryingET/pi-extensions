@@ -91,9 +91,12 @@ export async function loadHostProfile(locator: Locator, reference: string) {
   const runDeadline = Date.now() + p.runSeconds * 1000;
   assertCredentialMetadata(c as OAuthCredential, { account: p.account, runDeadline });
   // Pure built-in catalog only; no ModelRuntime/default config/auth store construction here.
-  const { getModel } = await import("@earendil-works/pi-ai/compat");
+  const { getModel, clampThinkingLevel } = await import("@earendil-works/pi-ai/compat");
   const model = getModel("openai-codex", p.model as "gpt-5.4");
   if (!model || bytesDigest(JSON.stringify(model)) !== p.modelDigest) refuse("model_pin_mismatch");
+  // Same pinned pure normalization used by createAgentSession; refuse, never downgrade.
+  if (clampThinkingLevel(model, p.reasoning) !== p.reasoning)
+    refuse("reasoning_profile_unsupported");
   const profile: CodexProfile = {
     model,
     reasoning: p.reasoning,
