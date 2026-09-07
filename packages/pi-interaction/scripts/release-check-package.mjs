@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseNpmPackJson } from "../../../scripts/npm-pack-json.mjs";
+import { createReleaseSmokeEnvironment } from "./release-smoke-env.mjs";
 
 const dependencyFields = ["dependencies", "optionalDependencies", "peerDependencies"];
 const runtimeDependencyFields = ["dependencies", "optionalDependencies"];
@@ -55,7 +56,7 @@ function run(command, args, options = {}) {
   console.log(`== ${command} ${args.join(" ")} (${cwd})`);
   const result = spawnSync(command, args, {
     cwd,
-    env: { ...process.env, ...(options.env ?? {}) },
+    env: options.replaceEnv ? (options.env ?? {}) : { ...process.env, ...(options.env ?? {}) },
     encoding: "utf8",
     stdio: "pipe",
   });
@@ -296,6 +297,12 @@ if (pkg.name !== pkg.name.toLowerCase())
 
 const dependencyPackages = listLocalDependencies(packageDir);
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-interaction-release-check-"));
+
+// See release-smoke-env.mjs: the smoke tree is installed and then executed, so it runs detached
+// from the developer's npm configuration -- no auth token in reach, and no release-age quarantine
+// turning an upstream peer's fresh publish into an ENOVERSIONS failure of this package.
+const smokeSandbox = createReleaseSmokeEnvironment({ tempDir });
+const smokeOptions = { cwd: tempDir, env: smokeSandbox.env, replaceEnv: true };
 const createdTarballs = [];
 function restorePublishManifest() {
   if (!manifestStatePaths.some(statePathExists)) {
@@ -471,8 +478,6 @@ validatePackedManifest(
   `Packed package.json (${packageTarballPath})`,
 );
 
-run("npm", ["init", "-y"], { cwd: tempDir });
-
 if (dependencyTarballs.length > 0) {
   run(
     "npm",
@@ -483,13 +488,15 @@ if (dependencyTarballs.length > 0) {
       "--no-fund",
       ...dependencyTarballs.map((dependencyPackage) => dependencyPackage.tarballPath),
     ],
-    { cwd: tempDir },
+    smokeOptions,
   );
 }
 
-run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", packageTarballPath], {
-  cwd: tempDir,
-});
+run(
+  "npm",
+  ["install", "--ignore-scripts", "--no-audit", "--no-fund", packageTarballPath],
+  smokeOptions,
+);
 console.log(`Coordinated local artifact-set install OK for ${pkg.name}.`);
 
 if (pkg.main || pkg.exports) {
@@ -500,7 +507,7 @@ if (pkg.main || pkg.exports) {
       "-e",
       `import(${JSON.stringify(pkg.name)}).then(() => console.log(${JSON.stringify(`Import smoke OK for ${pkg.name}`)})).catch((error) => { console.error(error?.stack || error?.message || error); process.exit(1); });`,
     ],
-    { cwd: tempDir },
+    smokeOptions,
   );
 } else {
   console.log(`Import smoke skipped for ${pkg.name}: package.json has no main or exports entry.`);

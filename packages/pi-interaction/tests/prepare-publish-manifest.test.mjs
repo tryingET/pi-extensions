@@ -6,6 +6,10 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseNpmPackJson } from "../../../scripts/npm-pack-json.mjs";
+import {
+  createReleaseSmokeEnvironment,
+  RELEASE_SMOKE_INHERITED_VARIABLES,
+} from "../scripts/release-smoke-env.mjs";
 
 const groupDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lifecycleScript = path.join(groupDir, "scripts", "prepare-publish-manifest.mjs");
@@ -397,4 +401,94 @@ test("dependency validation cleans ownership before returning failure", (t) => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /does not exist/);
   assertRestored(fixture);
+});
+
+test("the release smoke environment is detached from the developer's npm configuration", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "release-smoke-env-test-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const tempDir = path.join(root, "smoke");
+  const ambientHome = path.join(root, "ambient-home");
+  fs.mkdirSync(tempDir);
+  fs.mkdirSync(ambientHome);
+  // Stand in for the developer's machine: a quarantine window and a registry credential.
+  fs.writeFileSync(
+    path.join(ambientHome, ".npmrc"),
+    "min-release-age=7\n//registry.npmjs.org/:_authToken=smoke-test-token\n",
+  );
+  const ambientEnv = {
+    PATH: process.env.PATH,
+    HOME: ambientHome,
+    USERPROFILE: ambientHome,
+    XDG_CONFIG_HOME: path.join(ambientHome, ".config"),
+    XDG_CACHE_HOME: path.join(ambientHome, ".cache"),
+    NODE_AUTH_TOKEN: "smoke-test-node-auth",
+    NPM_TOKEN: "smoke-test-npm-token",
+    GITHUB_TOKEN: "smoke-test-github-token",
+    ANTHROPIC_API_KEY: "smoke-test-provider-key",
+    npm_config_userconfig: path.join(ambientHome, ".npmrc"),
+    npm_config_globalconfig: path.join(ambientHome, ".npmrc-global"),
+    npm_config_min_release_age: "7",
+  };
+
+  const sandbox = createReleaseSmokeEnvironment({ tempDir, env: ambientEnv });
+
+  assert.notEqual(
+    sandbox.userNpmrc,
+    sandbox.globalNpmrc,
+    "npm exits before resolving anything if one path is loaded as both user and global config",
+  );
+  assert.equal(fs.readFileSync(sandbox.userNpmrc, "utf8"), "");
+  assert.equal(fs.readFileSync(sandbox.globalNpmrc, "utf8"), "");
+
+  // The tree is executed, not just installed, so this is an allowlist and nothing else survives.
+  const allowed = new Set([
+    ...RELEASE_SMOKE_INHERITED_VARIABLES,
+    "HOME",
+    "USERPROFILE",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "npm_config_userconfig",
+    "npm_config_globalconfig",
+    "npm_config_cache",
+  ]);
+  assert.deepEqual(
+    Object.keys(sandbox.env).filter((key) => !allowed.has(key)),
+    [],
+    "every variable reaching the executed tree must be one this sandbox chose to pass",
+  );
+  for (const secret of ["NODE_AUTH_TOKEN", "NPM_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY"]) {
+    assert.equal(sandbox.env[secret], undefined, `${secret} must not reach imported module code`);
+  }
+  assert.equal(sandbox.env.HOME, sandbox.sandboxHome, "the credential file must be out of reach");
+  assert.equal(
+    sandbox.env.XDG_CONFIG_HOME,
+    sandbox.configHome,
+    "XDG-aware tools ignore HOME, so leaving these behind makes the HOME override cosmetic",
+  );
+  for (const leaked of ["npm_config_min_release_age", "npm_config_userconfig"]) {
+    assert.notEqual(
+      sandbox.env[leaked],
+      ambientEnv[leaked],
+      "npm exports its whole config as npm_config_*; inheriting one re-attaches the ambient config",
+    );
+  }
+
+  // Without a package.json here, npm's project-config walk escapes the temp dir and lands on the
+  // developer's ~/.npmrc, which is exactly how the quarantine came back.
+  assert.ok(pathEntryExists(path.join(tempDir, "package.json")));
+  assert.equal(fs.readFileSync(path.join(tempDir, ".npmrc"), "utf8"), "");
+
+  const readMinReleaseAge = (env) =>
+    spawnSync("npm", ["config", "get", "min-release-age"], {
+      cwd: tempDir,
+      env,
+      encoding: "utf8",
+    }).stdout?.trim();
+
+  assert.equal(readMinReleaseAge(ambientEnv), "7", "anti-vacuity: the ambient window is real");
+  assert.notEqual(
+    readMinReleaseAge(sandbox.env),
+    "7",
+    "a fresh upstream publish must not fail this package's install with ENOVERSIONS",
+  );
 });
