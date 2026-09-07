@@ -119,3 +119,17 @@ lookup before relocation. It is disclosed, not relabeled zero reads; no mutation
 Corrected final proof relocates OS home. Earlier stale schema, incomplete fixture policy, directory
 mode, lock-phase assertion and stop argv mistakes were fixed before final proof. Real deployment,
 publication/G2/provider and independent acceptance remain pending; cdeef ordinary pin unchanged.
+
+
+## D151-DEP-R1/R2 scope-v8 continuation (same authorized diary path)
+
+Operator e8504: UNKNOWN custody / DO NOT ENROLL Compass. Open/red `429b202d`, full-string/code-point
+repair `e9e092a7`, owner early ABI3/invariant consumption + prepared withdrawal matrix `ce3bac1b`.
+Observed 188 focused, 628 declared little-helpers, 474 safe orchestrator and 124 packed tests. Normal
+hooks, no live activation and only the existing two owner-JSON formatter exceptions. The old ABI2 stage
+is rejected before probe/promotion. New owner native source/stage had not yet been published at last
+inspection (owner HEAD890795c6e); the prepared 58-case replacement ROOT matrix is NOT an executed result.
+The earlier34 proof/logs and prior failed-pack unknown locator reads remain historical and explicit.
+See existing [public evidence](../docs/project/2026-09-07-visible-task-session-public-implementation.md)
+and generic receipt `depR1R2` section for exact commits, pins, checks and stage handoff. No new diary date
+path, live account/config/custody change, ordinary-cdeef upgrade or unrelated package mutation.

@@ -93,5 +93,111 @@
   },
   "liveActivation": false,
   "taskAcceptance": false,
-  "independentReviewPending": true
+  "independentReviewPending": true,
+  "supersessionNotice": "Original ABI2/34-case fields below remain historical; they are NOT repair/native publication authority. See depR1R2.",
+  "depR1R2": {
+    "schema": "pi.task-session.dep-r1-r2-repair-evidence.v1",
+    "status": "independent_checks_passed_replacement_native_proof_pending",
+    "historicalReceiptSha256": "8346d9b74bf4361eab7272d1c733c30eb23736b53932c139044365d35dd63f97",
+    "sourceCommits": [
+      "429b202d416bd040635c806a1542261e5eefa850",
+      "e9e092a740668694775101133d159fb7c509ed6f",
+      "ce3bac1ba0747225058f4f804ecf1797544ac7ef"
+    ],
+    "ownerContract": {
+      "status": "early owner-published contract, source implementation not yet committed at last observation",
+      "observedHead": "890795c6e",
+      "protocolSha256": "9a7221c1c9d13fd57f1b7e37d9c16046ef6f87f9e7495836364bb8866bb9e64b",
+      "deploymentSha256": "a9bac2b23ec3f83d6c5f6c206f1021484ccadaa645bc3fea21350c608f3cd4df",
+      "workerAbi": "ak.task-session.worker.v3",
+      "opaqueRecoveryInvariant": true
+    },
+    "operator": {
+      "evidence": 8504,
+      "custody": "UNKNOWN",
+      "compassEnrollment": "DO_NOT_ENROLL",
+      "livePublication": false
+    },
+    "observed": {
+      "focused": 188,
+      "littleHelpersDeclared": 628,
+      "orchestratorSafe": 474,
+      "packedStartupReview": 124,
+      "oldStageRejectedBeforeNativeProbe": true
+    },
+    "notExecuted": {
+      "replacementStage": true,
+      "publicNativeRepairMatrix": true,
+      "reason": "No new committed owner fix/inert ABI3 stage published yet. Do not substitute old ABI2 stage."
+    },
+    "preparedMatrix": {
+      "total": 58,
+      "perSchema": 29,
+      "historicalCasesPreserved": 34,
+      "withdrawalCases": 18,
+      "descriptorFileSyscallCases": 2,
+      "ownerCodecPatternCases": 4,
+      "verified": false
+    },
+    "pack": {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-pack-proof-W75uOT",
+      "producerIntegration": false,
+      "tarballs": [
+        {
+          "name": "tryinget-pi-little-helpers-0.9.0.tgz",
+          "sha256": "1cdafc36309a9dec53fda63d04fbe18b2a12b7f7553951ad0e430d4380b1639b"
+        },
+        {
+          "name": "tryinget-pi-society-orchestrator-0.11.5.tgz",
+          "sha256": "78ff208963aaaef834cd34c9dc95ba50d3b561cadbd8cb0b4c0a1992d39b08de"
+        }
+      ]
+    },
+    "logs": [
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-red.log",
+        "sha256": "7b7e97ab4efac9663de737f05f495c4c2cfd1c07eb4526dc92a3f56824bee1e6"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-green.log",
+        "sha256": "a0ef6c1169cc7a1b886eb779f5c19b4004b800c2c0dddf999160d19c383e2ea3"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-v3-focused.log",
+        "sha256": "5bf1e2606b43b4a3252f59300bc846445d66947b41062881f060143e25d10e91"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-final-check.log",
+        "sha256": "f7f256e32e8de6e827001fa837dfc8e721719ba6829185e4041f6c93f8b5045c"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-v3-orch.log",
+        "sha256": "b7967b44d42c0c90e7513a8010ea265bda6258834c88ba6059b535e0afe1c7e2"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-final-pack.log",
+        "sha256": "ad5d5a3c410e875e01ba51b8c5e2d13b911c42401a968cab60abbdd1a74a5bf6"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-old-stage-refusal.log",
+        "sha256": "9950ca0e5db470205f40dc5a028a7f8cccec6bc7f9ab2abe780e8c3b7ca9fb20"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-repro-commit.log",
+        "sha256": "ec474b09df827ce39152d0e5d0b3178653658ac49b9080dd8f1f6d55cf7264d3"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-source-commit.log",
+        "sha256": "3a39aaa39a2c0b704163384aad65ebc758bca63d6210238195c0b357166b2e9c"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-depr-v3-source-commit.log",
+        "sha256": "55c95f9f6c4677e3f79895a8b2f62b266a621d6afd54593d53283103052091c7"
+      }
+    ],
+    "liveLocatorReadsThisContinuation": false,
+    "priorFailedPackLocatorReads": "unknown; preserved, never recast as zero",
+    "liveActivation": false,
+    "independentAcceptance": false
+  }
 }

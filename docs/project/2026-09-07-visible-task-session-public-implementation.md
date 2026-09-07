@@ -236,3 +236,73 @@ The two owner-JSON formatter-only exceptions remain the entire lint exception sc
 
 At this reopening, AK HEAD remains 890795c6e and the new owner schema/stage is not yet published.
 Independent pattern tests can proceed; replacement public native success cannot be claimed yet.
+
+### DEP-R1/R2 continuation disposition — independent checks passed; new stage pending
+
+Main commits:
+- `429b202d416bd040635c806a1542261e5eefa850`: opened findings and committed deliberately red
+  Python/JavaScript generation/reason full-string counterexamples before repair.
+- `e9e092a740668694775101133d159fb7c509ed6f`: exact-start/actual-end pattern matching, avoiding
+  JavaScript final-newline `$`; preserves regex backtracking and uses Unicode code-point lengths.
+- `ce3bac1ba0747225058f4f804ecf1797544ac7ef`: consumes the owner's early-published ABI3 contract,
+  mandatory opaque `recovery_invariant_digest`, profile/publication shape checks and prepared ROOT matrix.
+
+The owner memo now publishes the precise config-derived invariant: entire parsed policy except ONLY
+`task_session.state` and `task_session.generation`. Pi does not compute that invariant, inspect policy
+semantics or open policy/database/lock paths. Profile binding retains the full policy SHA; independently
+validated descriptor/publication bindings include the opaque invariant. No duplicate policy-diff engine
+or invented profile field was added. The owner owns historical actual T0 lock identity and recovery rules.
+
+Byte-exact owner contract pins currently consumed:
+- Protocol `9a7221c1c9d13fd57f1b7e37d9c16046ef6f87f9e7495836364bb8866bb9e64b`.
+- Deployment `a9bac2b23ec3f83d6c5f6c206f1021484ccadaa645bc3fea21350c608f3cd4df`.
+
+These are the early-published contract files, not evidence of a committed native fix or completed stage.
+At last inspection the owner HEAD was still `890795c6e`; source/native repair was in progress. Future
+owner commit may change bytes; recompare exact schema/closure hashes before executing replacement proof.
+Old ABI2 descriptors/publications now refuse. The freezer rejects the old stage's ABI2 manifest before
+native version/ABI probes or packet promotion; the historical stage is not repurposed as proof.
+
+Observed independent verification on this continuation:
+
+| Check | Result |
+| --- | --- |
+| Focused package suite | 188/188 |
+| Little-helpers declared check | 628/628 + lint/typecheck/structure/release gates; isolated HOME/concurrency4/live-smoke skip |
+| Safe orchestrator suite | 474/474 + lint/typecheck; exact live-loader case excluded |
+| Extracted package startup/review | 124/124; synthetic SDK/native-addon/PTY, not actual ABI3 AK authority |
+| Normal main hooks and whitespace | passed; no bypass / no new lint exceptions |
+
+R2 tests execute isolated Python `re.fullmatch` against owner-schema patterns, compare JS acceptance
+for generation/reason LF/CR/CRLF, line separators, non-ASCII/astral characters, whitespace, empty and
+length-boundary values, and cover hash/commit trailing terminators and code-point versus UTF-16 length.
+Every async public capability test uses OS-identity relocation BEFORE invocation, including the corrected
+pack probe. No live locator/credential/provider operation was added. The prior failed pack's unknown
+locator reads remain recorded and are not relabeled zero.
+
+Latest independent pack (NOT replacement producer proof):
+`$TMPDIR/task5480-pack-proof-W75uOT/evidence.json`, producerIntegration:false / liveActivation:false.
+- little-helpers0.9.0: `1cdafc36309a9dec53fda63d04fbe18b2a12b7f7553951ad0e430d4380b1639b`.
+- orchestrator0.11.5: `78ff208963aaaef834cd34c9dc95ba50d3b561cadbd8cb0b4c0a1992d39b08de`.
+
+**Prepared, NOT EXECUTED:** the additive ROOT matrix retains the historical 34 case names and adds
+18 withdrawal/recovery cases (both schemas), two actual-owner describe file-syscall checks, and four
+cross-language tests consuming the owner's frozen fixture corpus/actual Python codec. Planned total
+58, NOT a passing count. Each withdrawal case first requires a known-valid public plan, actual default
+native admission, SDK effect, host closure and owned effect-disposition receipt. Cases cover unchanged
+policy enabled and valid advanced-generation recovery-only; changed-policy enabled, unchanged generation,
+changed lock directory, replaced inode (also original OFD held), operational timeout and nominal metadata
+drift. Negatives require exact intended owner errors before once-marker/native start with unchanged DB
+family/oracles/history. Future synthetic publication/profile are fully repinned from owner descriptor
+facts. Real/global policy is never changed. The descriptor test requires no DB/lock path in strace file
+syscalls with unreadable synthetic DB and absent lock directory. No native verdict is substituted.
+
+Stop/handoff: no new committed owner source/inert ABI3 stage had been published at this disposition.
+Do not run the matrix with the old stage or claim a replacement result. After AK5479 publishes its one
+new stage, verify its exact manifest/closure/Git/version/ABI3, freeze a NEW packet with the existing
+script, rerun both public schema matrices and record a distinct hash-bound result. The generic receipt's
+`depR1R2` section is distinct; original 34-case fields/logs remain historical. Real operator custody is
+still **UNKNOWN / DO NOT ENROLL Compass**. Publication/profile activation, namespace enrollment,
+provider/Ghostty/Pi canaries and Task5480/Decision151 acceptance remain held. No other git writers or
+unrelated5508/limits/interaction/AK5133 work was modified. No deployment, live claims, cleanup or recovery
+was performed by this continuation; new recovery tests remain unexecuted pending the proper stage.
