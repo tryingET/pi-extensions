@@ -49,7 +49,7 @@ try {
     await verifyPins(pins);
     writeFileSync(output, `${JSON.stringify(pins, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     console.log(`FROZEN_NOT_EXECUTED ${output}`);
-  } else if (verb === "run" && args.length === 1) {
+  } else if (verb === "run" && (args.length === 1 || args.length === 2)) {
     const pins = await verifyPins(json(args[0])); // No SDK, fixture or DB operation before this gate.
     const temp = process.env.TMPDIR;
     if (!temp || !existsSync(temp) || realpathSync(temp) !== resolve(temp))
@@ -59,6 +59,7 @@ try {
       [
         "--test",
         "--test-concurrency=1",
+        ...(args[1] ? [`--test-name-pattern=${args[1]}`] : []),
         join(root, "tests/task-session-native/integration.test.mjs"),
       ],
       {

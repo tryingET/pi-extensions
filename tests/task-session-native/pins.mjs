@@ -2,7 +2,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import {
+  createReadStream,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+} from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
 export const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -25,11 +32,15 @@ export async function fileHash(path) {
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest("hex");
 }
-export function inventory(root, paths) {
+export function inventory(root, paths, links = false) {
   const out = {};
   function visit(path) {
     const s = lstatSync(path);
-    assert(!s.isSymbolicLink(), `symlink closure: ${path}`);
+    if (s.isSymbolicLink()) {
+      assert(links && realpathSync(path).startsWith(root + sep), `external symlink: ${path}`);
+      out[relative(root, path)] = `symlink:${readlinkSync(path)}`;
+      return;
+    }
     if (s.isDirectory()) for (const name of readdirSync(path).sort()) visit(join(path, name));
     else {
       assert(s.isFile());
@@ -59,22 +70,54 @@ export function sourceCheck(root, entries) {
   }
 }
 export async function verifyPins(pins) {
-  assert.equal(pins.schema, "pi.task-session.native-integration-pins.v1");
   assert.equal(pins.releasePin, false);
-  for (const owner of [pins.ak, pins.pi]) {
-    assert.equal(realpathSync(owner.root), owner.root);
-    assert.equal(head(owner.root), owner.head, "owner HEAD drift; refreeze before running");
-    sourceCheck(owner.root, owner.sources);
+  let receipt;
+  if (pins.schema === "pi.task-session.native-integration-pins.v2") {
+    // A frozen verification packet is not represented as the current working tree.
+    for (const owner of [pins.ak, pins.pi]) {
+      assert.equal(realpathSync(owner.root), owner.root);
+      sourceCheck(owner.root, owner.sources);
+    }
+    receipt = json(pins.ak.receipt);
+    assert.equal(sha(readFileSync(pins.ak.receipt)), pins.ak.receiptSha256);
+    assert.equal(sha(readFileSync(pins.ak.identity)), receipt.source_identity_sha256);
+    assert.deepEqual(json(pins.ak.identity).source_sha256, pins.ak.sources);
+    assert.equal(await fileHash(pins.pi.tar), pins.pi.tarHash);
+    assert(readFileSync(join(pins.pi.root, pins.pi.ownerMemo), "utf8").includes(pins.pi.tarHash));
+    assert.deepEqual(
+      inventory(pins.pi.root, ["runtime"], true),
+      pins.pi.runtimeInventory,
+      "frozen dependency/runtime drift",
+    );
+    receipt = {
+      ...receipt,
+      artifacts: receipt.artifacts.map((a) => ({
+        ...a,
+        kind:
+          a.kind === "native-worker-fixture"
+            ? "native_fixture"
+            : a.kind === "candidate-debug"
+              ? "candidate_debug"
+              : a.kind,
+      })),
+    };
+  } else {
+    assert.equal(pins.schema, "pi.task-session.native-integration-pins.v1");
+    for (const owner of [pins.ak, pins.pi]) {
+      assert.equal(realpathSync(owner.root), owner.root);
+      assert.equal(head(owner.root), owner.head, "owner HEAD drift; refreeze before running");
+      sourceCheck(owner.root, owner.sources);
+    }
+    assert.deepEqual(
+      inventory(pins.pi.root, piPaths),
+      pins.pi.sources,
+      "Pi closure additions/deletions",
+    );
+    receipt = json(pins.ak.receipt);
+    assert.equal(sha(readFileSync(pins.ak.receipt)), pins.ak.receiptSha256);
+    assert.equal(receipt.source_commit, pins.ak.sourceCommit);
+    assert.deepEqual(receipt.source_sha256, pins.ak.sources);
   }
-  assert.deepEqual(
-    inventory(pins.pi.root, piPaths),
-    pins.pi.sources,
-    "Pi closure additions/deletions",
-  );
-  const receipt = json(pins.ak.receipt);
-  assert.equal(sha(readFileSync(pins.ak.receipt)), pins.ak.receiptSha256);
-  assert.equal(receipt.source_commit, pins.ak.sourceCommit);
-  assert.deepEqual(receipt.source_sha256, pins.ak.sources);
   for (const kind of ["native_fixture", "candidate_debug"]) {
     const artifact = pins.artifacts[kind];
     assert(

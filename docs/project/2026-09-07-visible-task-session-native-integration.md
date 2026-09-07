@@ -8,6 +8,10 @@ type: implementation_evidence
 
 # Task5513 — early native integration, NOT complete
 
+**Historical preparation receipt:** actual native execution subsequently passed sixteen
+cases against a frozen artifact pair. See [the native interop continuation](2026-09-07-visible-task-session-native-interop.md).
+The initial non-execution statements below describe this earlier preparation only.
+
 ## Observed result and stop
 
 **No native integration case has executed.** Both native artifacts in the AK

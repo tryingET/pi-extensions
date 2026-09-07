@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -33,8 +34,15 @@ export const trace = (root, name = "host") => {
     .filter(Boolean)
     .map((s) => JSON.parse(s));
 };
-export const available = (path) =>
-  spawnSync("/usr/bin/flock", ["-n", path, "/usr/bin/true"]).status === 0;
+export function available(path) {
+  const result = spawnSync("/usr/bin/flock", ["-n", path, "/usr/bin/true"]);
+  assert([0, 1].includes(result.status), "flock probe failed, not evidence of exclusion");
+  appendFileSync(
+    join(dirname(dirname(path)), "observer-trace.jsonl"),
+    `${JSON.stringify({ event: "independent-flock", at: Date.now(), available: result.status === 0 })}\n`,
+  );
+  return result.status === 0;
+}
 export function native(pins, root, operation) {
   // No AK command dispatch/default DB/environment. Only the unshipped bounded fixture API.
   const result = spawnSync(
@@ -49,7 +57,12 @@ export function native(pins, root, operation) {
     },
   );
   assert.equal(result.status, 0, `native ${operation}: ${result.stderr} ${result.error ?? ""}`);
-  return result.stdout.trim() ? JSON.parse(result.stdout) : undefined;
+  const parsed = result.stdout.trim() ? JSON.parse(result.stdout) : undefined;
+  appendFileSync(
+    join(root, "native-observations.jsonl"),
+    `${JSON.stringify({ operation, at: Date.now(), code: result.status, observation: parsed })}\n`,
+  );
+  return parsed;
 }
 export async function setup(pins, scenario) {
   const temp = realpathSync(process.env.TMPDIR);
@@ -61,13 +74,20 @@ export async function setup(pins, scenario) {
       assert(!existsSync(join(path, name)), `non-synthetic resource ancestor: ${join(path, name)}`);
     if (path === dirname(path)) break;
   }
-  const distPath = join(pins.pi.root, "packages/pi-little-helpers/dist/task-session");
+  const runtimeRoot = pins.pi.runtimeRoot ?? join(pins.pi.root, "packages/pi-little-helpers");
+  const distPath = join(runtimeRoot, "dist/task-session");
   const dist = pathToFileURL(distPath).href;
   const state = await import(`${dist}/state.js`);
   const { installedHostBuild } = await import(`${dist}/build-identity.js`);
-  const require = createRequire(join(pins.pi.root, "packages/pi-little-helpers/package.json"));
+  const require = createRequire(join(runtimeRoot, "package.json"));
+  const sdkRoot = require.resolve
+    .paths("@earendil-works/pi-ai")
+    .map((p) => join(p, "@earendil-works/pi-ai"))
+    .find((p) => existsSync(join(p, "package.json")));
+  assert(sdkRoot);
   const { getModel } = await import(
-    pathToFileURL(require.resolve("@earendil-works/pi-ai/compat")).href
+    pathToFileURL(join(sdkRoot, json(join(sdkRoot, "package.json")).exports["./compat"].import))
+      .href
   );
   const seed = native(pins, root, "--initialize");
   const checkout = seed.repo; // Actual native registered repo, not a hand-authored task/baseline.
@@ -183,6 +203,69 @@ export async function setup(pins, scenario) {
       hostBuildDigest: installedHostBuild(),
     },
   };
+  let modelResolution;
+  if (scenario === "owner-model-recover") {
+    mkdirSync(join(root, "model-sources"), { mode: 0o700 });
+    const source = {
+      schema: "pi.task-session.model-source.v1",
+      implementation: "pinned-native-codex-sse-v1",
+      requested: {
+        provider: "synthetic-owner",
+        model: "synthetic-requested-alias",
+        account: pin.account,
+      },
+      resolved: {
+        provider: "synthetic-wire-provider",
+        model: "synthetic-native-wire-model",
+        account: pin.account,
+      },
+      api: "openai-codex-responses",
+      baseUrl: "https://chatgpt.com/backend-api",
+      transport: "sse",
+      auth: { kind: "oauth", provider: "openai-codex", refresh: false },
+      metadata: {
+        name: "Synthetic task5513 owner model",
+        reasoning: true,
+        input: ["text", "image"],
+        contextWindow: 131072,
+        maxTokens: 8192,
+        costMicroUsdPerMillion: {
+          input: 1250000,
+          output: 9000000,
+          cacheRead: 125000,
+          cacheWrite: 0,
+        },
+        thinkingLevelMap: {
+          off: "none",
+          minimal: "minimal",
+          low: "low",
+          medium: "medium",
+          high: "high",
+          xhigh: "xhigh",
+          max: null,
+        },
+      },
+    };
+    assert.equal(getModel("openai-codex", source.resolved.model), undefined);
+    const sourceDigest = digest(source);
+    state.durableWrite(join(root, "model-sources", `${sourceDigest}.json`), source, true);
+    const { loadOwnerModel } = await import(`${dist}/model-source.js`);
+    const loaded = loadOwnerModel(locator, sourceDigest, source.requested);
+    Object.assign(pin, {
+      schema: "pi.task-session.profile.v2",
+      ...source.requested,
+      modelSourceDigest: sourceDigest,
+      modelDigest: sha(JSON.stringify(loaded.model)),
+    });
+    modelResolution = {
+      schema: "pi.task-session.model-resolution.v1",
+      implementation: source.implementation,
+      requested: source.requested,
+      resolved: source.resolved,
+      sourceDigest,
+      modelDigest: pin.modelDigest,
+    };
+  }
   if (scenario === "profile-mismatch") pin.modelDigest = "0".repeat(64);
   if (scenario === "pin-mismatch") pin.producer.policyDigest = "0".repeat(64);
   const request = {
@@ -211,11 +294,15 @@ export async function setup(pins, scenario) {
     syntheticAccess: credential.access,
     objective: request.objective,
     dist,
+    expectedModel: modelResolution?.resolved.model ?? pin.model,
+    modelResolution,
   };
   writeFileSync(join(root, "fixture.json"), JSON.stringify(config), { mode: 0o600 });
   return { root, checkout, locator, request, pin, config, dist, state, pins, lock };
 }
 export function startSupervisor(f, payload, mode = "startup") {
+  const invocation = (f.invocations ?? 0) + 1;
+  f.invocations = invocation;
   const child = spawn("/usr/bin/python3", ["-B", join(here, "supervisor.py"), f.root, mode], {
     cwd: f.root,
     detached: true,
@@ -232,7 +319,11 @@ export function startSupervisor(f, payload, mode = "startup") {
   });
   const done = new Promise((resolve, reject) => {
     child.once("error", reject);
-    child.once("exit", (code, signal) => resolve({ code, signal, out, err }));
+    child.once("exit", (code, signal) => {
+      const result = { code, signal, out, err };
+      writeFileSync(join(f.root, `supervisor-${mode}-${invocation}.json`), JSON.stringify(result));
+      resolve(result);
+    });
   });
   child.stdin.on("error", () => {});
   child.stdin.end(JSON.stringify(payload));

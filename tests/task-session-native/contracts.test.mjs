@@ -18,7 +18,9 @@ test("static: all root harness JavaScript parses without loading the SDK or AK",
     ...readdirSync(here)
       .filter((p) => p.endsWith(".mjs"))
       .map((p) => join(here, p)),
-    join(root, "scripts/task-session-native-integration.mjs"),
+    ...readdirSync(join(root, "scripts"))
+      .filter((n) => n.startsWith("task-session-native") && n.endsWith(".mjs"))
+      .map((n) => join(root, "scripts", n)),
   ]) {
     const result = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);

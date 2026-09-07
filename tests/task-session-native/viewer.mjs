@@ -8,7 +8,10 @@ const config = JSON.parse(readFileSync(join(root, "fixture.json")));
 const { runViewer } = await import(`${config.dist}/viewer.js`);
 await runViewer(config.locator, attempt, (_inspect, _stop, quit) => {
   const timer = setInterval(() => {
-    if (existsSync(join(root, "quit-viewer"))) quit();
+    if (existsSync(join(root, "quit-viewer"))) {
+      clearInterval(timer);
+      quit();
+    }
   }, 20);
   return () => clearInterval(timer);
 });

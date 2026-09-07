@@ -28,6 +28,7 @@ assert(
 const pins = await verifyPins(json(process.env.TASK_SESSION_NATIVE_PINS));
 const cases = [
   "complete-recover",
+  "owner-model-recover",
   "baseline-drift",
   "commit-result-loss",
   "host-failure",
@@ -45,6 +46,7 @@ const cases = [
 ];
 for (const scenario of cases)
   test(`ACTUAL native AK + sealed Pi: ${scenario}`, { timeout: 240000 }, async (t) => {
+    const successful = ["complete-recover", "owner-model-recover"].includes(scenario);
     const f = await setup(pins, scenario);
     t.diagnostic(`owned synthetic evidence retained: ${f.root}`);
     const { launchReserved } = await import(`${f.dist}/launch.js`);
@@ -200,15 +202,14 @@ for (const scenario of cases)
       const events = trace(f.root),
         sends = events.filter((e) => e.event === "fetch");
       assert.equal(events.filter((e) => e.event === "forbidden-fetch").length, 0);
-      const expectedSends =
-        scenario === "complete-recover" ? 2 : scenario === "domain-after-send" ? 1 : 0;
+      const expectedSends = successful ? 2 : scenario === "domain-after-send" ? 1 : 0;
       assert.equal(
         sends.length,
         expectedSends,
         JSON.stringify({ launchError: launchError?.message, events }),
       );
       const proof = join(f.checkout, "src/proof.txt");
-      assert.equal(existsSync(proof), scenario === "complete-recover");
+      assert.equal(existsSync(proof), successful);
       if (expectedSends) {
         const closedIndex = events.findIndex((e) => e.value?.kind === "CLOSED");
         assert(closedIndex >= 0 && closedIndex < events.findIndex((e) => e.event === "fetch"));
@@ -219,7 +220,7 @@ for (const scenario of cases)
               send.authorizationMatches &&
               send.hasObjective,
           );
-          assert.equal(send.model, "gpt-5.4");
+          assert.equal(send.model, f.config.expectedModel);
           assert.equal(send.reasoning.effort, "high");
           assert.equal(send.stream, true);
           assert.match(send.url, /^https:\/\/chatgpt\.com\/backend-api\/codex\/responses$/);
@@ -263,8 +264,16 @@ for (const scenario of cases)
           !existsSync(join(dir, "ak-admission.json")),
           "no fabricated admission after failed result",
         );
-      if (scenario === "complete-recover") {
+      if (successful) {
         assert.ifError(launchError);
+        if (scenario === "owner-model-recover") {
+          for (const name of ["intent.json", "dispatch.json", "host-terminal.json"])
+            assert.deepEqual(
+              json(join(dir, name)).modelResolution,
+              f.config.modelResolution,
+              `exact owner resolution: ${name}`,
+            );
+        }
         const admission = json(join(dir, "ak-admission.json"));
         exchange(events, admission, json(join(dir, "t1.json")), after);
         claimEffects(baseline, after, admission.body.claim);
