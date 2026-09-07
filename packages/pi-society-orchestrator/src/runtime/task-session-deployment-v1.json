@@ -1,0 +1,406 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ak.task-session.deployment.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "ak.task-session.descriptor.v1"
+    },
+    "platform": {
+      "const": "linux"
+    },
+    "state": {
+      "enum": [
+        "enabled",
+        "recovery-only",
+        "disabled",
+        "unavailable"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "pattern": "[a-z_]{1,80}"
+    },
+    "operations": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "enum": [
+          "plan",
+          "supervise",
+          "recover"
+        ]
+      }
+    },
+    "authority": {
+      "const": false
+    },
+    "database_opened": {
+      "const": false
+    },
+    "database_locked": {
+      "const": false
+    },
+    "bindings": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/bindings"
+        }
+      ]
+    },
+    "worker_test_support": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "platform",
+    "state",
+    "reason",
+    "operations",
+    "authority",
+    "database_opened",
+    "database_locked",
+    "bindings",
+    "worker_test_support"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "pin": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "[a-f0-9]{40}"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "commit"
+      ],
+      "additionalProperties": false
+    },
+    "worker": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "[a-f0-9]{40}"
+        },
+        "abi": {
+          "const": "ak.task-session.worker.v2"
+        },
+        "manifest_path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "commit",
+        "abi",
+        "manifest_path",
+        "manifest_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "ak.task-session.config.v1"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
+        },
+        "state": {
+          "enum": [
+            "enabled",
+            "recovery-only",
+            "disabled"
+          ]
+        },
+        "worker": {
+          "$ref": "#/$defs/worker"
+        },
+        "gate_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "deployment_schema_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "protocol_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "supervisor_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "host_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "host_build_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "bulk_recovery_suspended": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema",
+        "generation",
+        "state",
+        "worker",
+        "gate_sha256",
+        "binding_sha256",
+        "deployment_schema_sha256",
+        "protocol_sha256",
+        "supervisor_sha256",
+        "host_sha256",
+        "host_build_digest",
+        "bulk_recovery_suspended"
+      ],
+      "additionalProperties": false
+    },
+    "bindings": {
+      "type": "object",
+      "properties": {
+        "policy_path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "policy_generation": {
+          "type": "string",
+          "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
+        },
+        "ordinary_binary": {
+          "$ref": "#/$defs/pin"
+        },
+        "worker": {
+          "$ref": "#/$defs/worker"
+        },
+        "gate_path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "gate_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "deployment_schema_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "protocol_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "supervisor_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "host_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "host_build_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "database_selector_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        }
+      },
+      "required": [
+        "policy_path",
+        "policy_sha256",
+        "policy_generation",
+        "ordinary_binary",
+        "worker",
+        "gate_path",
+        "gate_sha256",
+        "binding_sha256",
+        "deployment_schema_sha256",
+        "protocol_sha256",
+        "supervisor_sha256",
+        "host_sha256",
+        "host_build_digest",
+        "database_selector_digest"
+      ],
+      "additionalProperties": false
+    },
+    "plan_owner": {
+      "type": "object",
+      "properties": {
+        "policy_path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "policy_generation": {
+          "type": "string",
+          "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
+        },
+        "ordinary_binary": {
+          "$ref": "#/$defs/pin"
+        },
+        "worker": {
+          "$ref": "#/$defs/worker"
+        },
+        "gate_path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
+        },
+        "gate_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "deployment_schema_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "protocol_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "supervisor_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "host_sha256": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "host_build_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "database_selector_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "database_identity": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        }
+      },
+      "required": [
+        "policy_path",
+        "policy_sha256",
+        "policy_generation",
+        "ordinary_binary",
+        "worker",
+        "gate_path",
+        "gate_sha256",
+        "binding_sha256",
+        "deployment_schema_sha256",
+        "protocol_sha256",
+        "supervisor_sha256",
+        "host_sha256",
+        "host_build_digest",
+        "database_selector_digest",
+        "database_identity"
+      ],
+      "additionalProperties": false
+    },
+    "plan_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "evaluated_at",
+        "baseline_digest",
+        "baseline",
+        "authority",
+        "owner"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "ak.task-session.baseline.v1"
+        },
+        "evaluated_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "baseline_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "baseline": {
+          "type": "object"
+        },
+        "authority": {
+          "const": false
+        },
+        "owner": {
+          "$ref": "#/$defs/plan_owner"
+        }
+      }
+    }
+  }
+}

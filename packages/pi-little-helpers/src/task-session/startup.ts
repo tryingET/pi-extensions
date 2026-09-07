@@ -7,6 +7,7 @@ import { taskSessionRequest } from "./core.js";
 import { assertSdkIdentity } from "./identity.js";
 import { digest, id, integer, parseJson, record, refuse } from "./json.js";
 import { modelIdentity } from "./model-source.js";
+import { assertProducerProfile, type requireInstalledProducer } from "./producer.js";
 import { interpretTaskSessionPlan } from "./producer-adapter.js";
 import { hash, loadHostProfile, loadProfile } from "./profile.js";
 import type { PrivateChannel } from "./socket-channel.js";
@@ -62,6 +63,7 @@ export async function runHost(
   locator: Locator,
   send: SendPort,
   interpret: (value: unknown) => WireMessage,
+  producer?: Awaited<ReturnType<typeof requireInstalledProducer>>,
 ) {
   let closedVerified = false;
   let admission: AdmissionChannel | undefined;
@@ -129,6 +131,7 @@ export async function runHost(
       resolutionStatus: "unverified",
     };
     const assertCustody = () => {
+      producer?.assertStable();
       const snapshot = readSnapshot(locator);
       if (snapshot.withdrawn || !snapshot.attempts.some((a) => digest(a) === digest(attempt)))
         refuse("custody_changed");
@@ -163,6 +166,7 @@ export async function runHost(
     if (installedHostBuild() !== seed.hostBuildDigest) refuse("host_build_mismatch");
     assertSdkIdentity();
     const loaded = await loadHostProfile(locator, request.profile);
+    if (producer) assertProducerProfile(producer.bindings, loaded.pin);
     if (digest(loaded.profile.resolution) !== digest(intent.modelResolution))
       refuse("model_resolution_drift");
     for (const k of ["provider", "model", "reasoning", "account"] as const)

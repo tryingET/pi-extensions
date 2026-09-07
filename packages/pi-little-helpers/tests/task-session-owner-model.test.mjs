@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { zstdDecompressSync } from "node:zlib";
-import { launchTaskSession, taskSessionRequest } from "../dist/task-session/core.js";
+import { taskSessionRequest } from "../dist/task-session/core.js";
 import { sealedHost } from "../dist/task-session/host.js";
 import { bytesDigest, digest, parseJson } from "../dist/task-session/json.js";
 import { launchReserved } from "../dist/task-session/launch.js";
@@ -26,7 +26,7 @@ test("I04 nonbuiltin alias: literal identity, native SDK serializer, same OAuth 
     () => taskSessionRequest({ ...f.request, modelSource: f.source }),
     /invalid_fields/,
   );
-  await assert.rejects(launchTaskSession(f.request), /ak_producer_verification_pending/);
+  // Public unconfigured launch refusal is tested with isolated OS-home resources in task-session-public-profiles.
   let sends = 0;
   t.mock.method(globalThis, "fetch", () => {
     throw Error("unexpected_live_fetch");

@@ -1,7 +1,21 @@
 import { readObservation, requestStop } from "./bridge.js";
-import { classifyTaskSessionRequest, producer } from "./classify.js";
+import { classifySnapshot, producer } from "./classify.js";
 import { digest, id, integer, record, refuse, text } from "./json.js";
-import { accountLocator, canonicalPath, readSnapshot } from "./state.js";
+import {
+  describeInstalledProducer,
+  readInstalledBaseline,
+  requireInstalledProducer,
+} from "./producer.js";
+import { requireTaskSessionProducer } from "./producer-adapter.js";
+import { preflightProfile } from "./profile.js";
+import {
+  accountLocator,
+  assertSnapshotDomains,
+  canonicalPath,
+  conflicts,
+  occupied,
+  readSnapshot,
+} from "./state.js";
 
 export { classifyTaskSessionRequest } from "./classify.js";
 export { taskSessionProfiles } from "./profiles.js";
@@ -54,7 +68,26 @@ export function taskSessionRequest(input: unknown): TaskSessionRequest {
   if (new Set(r.context).size !== r.context.length) refuse("duplicate_context");
   return structuredClone(r) as TaskSessionRequest;
 }
-export function taskSessionCapability() {
+const reason = (error: unknown) =>
+  error instanceof Error && /^[a-z_]+$/.test(error.message)
+    ? error.message
+    : "producer_configuration_unavailable";
+export async function taskSessionCapability() {
+  let available = false,
+    blockers: string[] = [],
+    configuration: unknown = null;
+  try {
+    const locator = accountLocator(),
+      snapshot = readSnapshot(locator);
+    assertSnapshotDomains(snapshot);
+    if (snapshot.withdrawn || !snapshot.inventoryComplete) refuse("namespace_not_admitting");
+    const state = await describeInstalledProducer(locator);
+    configuration = state.descriptor;
+    requireTaskSessionProducer(state.descriptor, state.bindings);
+    available = true;
+  } catch (error) {
+    blockers = [reason(error)];
+  }
   return {
     schema: "pi.task-session.capability.v1",
     producer,
@@ -69,49 +102,114 @@ export function taskSessionCapability() {
       "classify",
       "classify-installed",
     ],
-    admissionAvailable: false,
-    blockers: ["ak_producer_verification_pending", "installed_profile_and_custody_unverified"],
+    admissionAvailable: available,
+    blockers,
+    configuration,
+    authority: false,
     profile:
       "native Codex SSE; zero retries; no OAuth refresh; literal resources; no secondary input",
     recovery:
       "Host closure, effect disposition and owner-native AK claim resolution are independent. No automatic retirement.",
   };
 }
-export function planTaskSession(input: unknown) {
-  const r = taskSessionRequest(input);
-  const classification = classifyTaskSessionRequest({
-    schema: "pi.task-session.classify-request.v1",
-    requestId: r.requestId,
-    akInstance: r.akInstance,
-    taskIds: [r.taskId],
-    cwd: r.cwd,
-  });
-  return {
-    schema: "pi.task-session.plan.v1",
-    requestDigest: digest(r),
-    requestId: r.requestId,
-    classification,
-    capability: taskSessionCapability(),
-    launchable: false,
-  };
+async function admissionContext(request: TaskSessionRequest) {
+  const locator = accountLocator(),
+    snapshot = readSnapshot(locator);
+  assertSnapshotDomains(snapshot);
+  if (snapshot.withdrawn || !snapshot.inventoryComplete) refuse("namespace_not_admitting");
+  const domain = snapshot.domains.find(
+    (d) =>
+      d.akInstance === request.akInstance &&
+      d.taskId === request.taskId &&
+      d.checkout === request.cwd,
+  );
+  if (!domain) refuse("canonical_domain_missing");
+  if (!snapshot.enrolled.some((d) => digest(d) === digest(domain))) refuse("not_enrolled");
+  if (snapshot.attempts.some((a) => occupied(a) && conflicts(a.domain, domain)))
+    refuse("domain_occupied");
+  const pin = await preflightProfile(locator, request.profile);
+  for (const key of ["provider", "model", "account", "reasoning"] as const)
+    if (pin[key] !== request[key]) refuse("requested_profile_mismatch");
+  const state = await requireInstalledProducer(locator, pin);
+  return { locator, pin, state, snapshot };
+}
+export async function planTaskSession(input: unknown) {
+  const request = taskSessionRequest(input);
+  try {
+    const { locator, pin, state, snapshot } = await admissionContext(request);
+    const baseline = await readInstalledBaseline(
+      state,
+      request.taskId,
+      pin.producer.databaseIdentity,
+      request.cwd,
+    );
+    const { captureResources } = await import("./resources.js");
+    captureResources(request.cwd, pin.agentDir, request.context);
+    const current = readSnapshot(locator);
+    assertSnapshotDomains(current);
+    if (digest(current) !== digest(snapshot)) refuse("namespace_changed_during_plan");
+    const checked = await preflightProfile(locator, request.profile);
+    if (digest(checked) !== digest(pin)) refuse("profile_preflight_changed");
+    state.assertStable();
+    return {
+      schema: "pi.task-session.plan.v1",
+      requestDigest: digest(request),
+      requestId: request.requestId,
+      classification: classifySnapshot(
+        {
+          schema: "pi.task-session.classify-request.v1",
+          requestId: request.requestId,
+          akInstance: request.akInstance,
+          taskIds: [request.taskId],
+          cwd: request.cwd,
+        },
+        snapshot,
+      ),
+      launchable: true,
+      authority: false,
+      admission: "requires_native_T0_T1_T2_CLOSED",
+      owner: state.bindings,
+      baseline,
+    };
+  } catch (error) {
+    return {
+      schema: "pi.task-session.plan.v1",
+      requestDigest: digest(request),
+      requestId: request.requestId,
+      launchable: false,
+      authority: false,
+      blockers: [reason(error)],
+    };
+  }
 }
 export async function launchTaskSession(input: unknown): Promise<unknown> {
   const request = taskSessionRequest(input);
-  const adapter = await import("./producer-adapter.js");
-  adapter.requireTaskSessionProducer();
-  const { launchReserved, productionViewer, invokeSupervisor, readNativeBaseline } = await import(
-    "./launch.js"
+  const existing = readSnapshot(accountLocator()).attempts.find(
+    (a) => a.requestId === request.requestId,
   );
-  const { loadProfile } = await import("./profile.js");
-  const locator = accountLocator(),
-    pin = loadProfile(locator, request.profile);
+  if (existing) {
+    if (existing.semanticDigest !== digest(request)) refuse("request_digest_conflict");
+    return { schema: "pi.task-session.launch.v1", status: "existing", attempt: existing };
+  }
+  const { locator, pin, state } = await admissionContext(request);
+  const { launchReserved, productionViewer, invokeSupervisor } = await import("./launch.js");
+  const { encodeTaskSessionStartup } = await import("./producer-adapter.js");
   return launchReserved(request, locator, {
-    plan: (request) =>
-      readNativeBaseline(pin.producer.executable, pin.producer.entrypointDigest, request),
-    openViewer: productionViewer,
+    plan: () =>
+      readInstalledBaseline(state, request.taskId, pin.producer.databaseIdentity, request.cwd),
+    beforeReserve: () => state.assertStable(),
+    openViewer: async (attempt, cwd) => {
+      state.assertStable();
+      return productionViewer(attempt, cwd);
+    },
     supervise: async (input) => {
-      const payload = adapter.encodeTaskSessionStartup(input);
-      await invokeSupervisor(pin.producer.executable, pin.producer.entrypointDigest, payload);
+      state.assertStable();
+      await invokeSupervisor(
+        state.bindings.gate_path,
+        state.bindings.gate_sha256,
+        encodeTaskSessionStartup(input),
+        true,
+      );
     },
   });
 }

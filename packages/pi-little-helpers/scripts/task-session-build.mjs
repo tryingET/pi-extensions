@@ -113,6 +113,12 @@ copyFileSync(
   "../pi-society-orchestrator/dist/task-session/task-session-adapter.js",
   "dist/task-session/producer-adapter.js",
 );
+// TypeScript reformats imported JSON. Restore owner contract bytes before hashing/packing.
+for (const name of ["protocol", "deployment"])
+  copyFileSync(
+    `../pi-society-orchestrator/src/runtime/task-session-${name}-v1.json`,
+    `../pi-society-orchestrator/dist/task-session/task-session-${name}-v1.json`,
+  );
 copyFileSync(
   "../pi-society-orchestrator/dist/task-session/task-session-protocol-v1.json",
   "dist/task-session/task-session-protocol-v1.json",
@@ -125,6 +131,10 @@ for (const [source, target] of [
   copyFileSync(`dist/task-session/${source}`, `dist/task-session/${target}`);
   chmodSync(`dist/task-session/${target}`, 0o755);
 }
+copyFileSync(
+  "../pi-society-orchestrator/dist/task-session/task-session-deployment-v1.json",
+  "dist/task-session/task-session-deployment-v1.json",
+);
 writeFileSync("dist/task-session/package.json", JSON.stringify({ type: "module" }));
 const { bytesDigest, canonical } = await import("../dist/task-session/json.js");
 const files = Object.fromEntries(

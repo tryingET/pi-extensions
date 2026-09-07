@@ -11,15 +11,16 @@ try {
   const channel = openAdoptedChannel();
   const { accountLocator } = await import("./state.js");
   const { runHost } = await import("./startup.js");
-  const { interpretTaskSessionMessage, requireTaskSessionProducer } = await import(
-    "./producer-adapter.js"
-  );
-  requireTaskSessionProducer();
+  const { interpretTaskSessionMessage } = await import("./producer-adapter.js");
+  const { requireInstalledProducer } = await import("./producer.js");
+  const locator = accountLocator();
+  const producer = await requireInstalledProducer(locator);
   const result = await runHost(
     channel,
-    accountLocator(),
+    locator,
     { send: (url, init) => fetch(url, init) },
     interpretTaskSessionMessage,
+    producer,
   );
   if (result.closedVerified) {
     native().closeCustody();

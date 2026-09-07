@@ -333,7 +333,8 @@ test("actual AK source fixtures decode without asserting native integration read
   );
   for (const [name, value] of Object.entries(draft.definition_fixtures))
     assert.deepEqual(interpretTaskSessionDefinition(name, value), value);
-  assert.equal(taskSessionAdapterIdentity.integrationReady, false);
+  assert.equal(taskSessionAdapterIdentity.configurationRequired, true);
+  assert.equal(Object.hasOwn(taskSessionAdapterIdentity, "integrationReady"), false);
 });
 for (const mutation of draft.invalid_mutations_of_valid_0)
   test(`AK producer negative fixture ${mutation.path.join(".")}`, () => {

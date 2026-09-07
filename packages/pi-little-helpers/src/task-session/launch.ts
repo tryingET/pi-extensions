@@ -46,6 +46,7 @@ export function validateBaseline(value: unknown, request: TaskSessionRequest): N
   return b as NativeBaseline;
 }
 export interface LaunchPorts {
+  beforeReserve?(): void;
   plan(request: TaskSessionRequest): Promise<unknown>;
   openViewer(attempt: string, cwd: string): Promise<{ ok: boolean }>;
   supervise(input: {
@@ -89,6 +90,7 @@ export async function launchReserved(
   privatePath(parent, true);
   const checked = await preflightProfile(locator, request.profile); // Recheck after the asynchronous native baseline.
   if (digest(checked.resolution) !== digest(pin.resolution)) refuse("model_resolution_drift");
+  ports.beforeReserve?.();
   const attempt = reserve(locator, request.requestId, digest(request), domain);
   const dir = join(parent, attempt.attempt, attempt.incarnation);
   // Exclusive directory creation is launch-effect ownership; never retry a partially started incarnation.
@@ -209,12 +211,13 @@ export async function invokeSupervisor(
   executable: string,
   expectedDigest: string,
   payload: unknown,
+  fixedGate = false,
 ): Promise<void> {
   if (bytesDigest(readFileSync(executable)) !== expectedDigest) refuse("ak_binary_changed");
   const bytes = JSON.stringify(payload);
   if (Buffer.byteLength(bytes) > 65536) refuse("startup_request_too_large");
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(executable, ["task-session", "supervise"], {
+    const child = spawn(executable, [...(fixedGate ? ["--"] : []), "task-session", "supervise"], {
       detached: true,
       stdio: ["pipe", "ignore", "ignore"],
       env: { PATH: "/usr/bin:/bin", HOME: userInfo().homedir, LANG: "C.UTF-8" },

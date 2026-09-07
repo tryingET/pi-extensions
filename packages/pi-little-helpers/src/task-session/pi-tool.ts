@@ -16,7 +16,7 @@ export default function taskSessionTool(pi: ExtensionAPI) {
     name: "task_session",
     label: "Task session",
     description:
-      "Discover, plan, launch or DB-free inspect an exact fresh ordinary visible task session. Launch currently refuses: AK producer integration is blocked. No fork/resume, automatic recovery or legacy fallback.",
+      "Discover, plan, launch or DB-free inspect an exact fresh ordinary visible task session. Launch requires compatible owner-published worker/configuration/pins and native admission. No fork/resume, automatic recovery or legacy fallback.",
     parameters: Type.Object(
       {
         operation: Type.String({
@@ -31,7 +31,7 @@ export default function taskSessionTool(pi: ExtensionAPI) {
       let result: unknown;
       try {
         if (params.operation === "capability" && !params.request && !params.requestId)
-          result = taskSessionCapability();
+          result = await taskSessionCapability();
         else if (params.operation === "profiles" && !params.request && !params.requestId)
           result = await taskSessionProfiles();
         else if (params.operation === "identity" && !params.request && !params.requestId)
@@ -41,7 +41,7 @@ export default function taskSessionTool(pi: ExtensionAPI) {
         else if (params.operation === "inspect" && !params.request)
           result = inspectTaskSession(params.requestId);
         else if (params.operation === "plan" && params.request && !params.requestId)
-          result = planTaskSession(parseJson(params.request, 65536));
+          result = await planTaskSession(parseJson(params.request, 65536));
         else if (params.operation === "launch" && params.request && !params.requestId)
           result = await launchTaskSession(parseJson(params.request, 65536));
         else throw new Error("invalid_fields");

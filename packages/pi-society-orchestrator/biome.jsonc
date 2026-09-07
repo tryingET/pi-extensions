@@ -20,6 +20,16 @@
       "!**/*.generated.*"
     ]
   },
+  // AK-owned contract bytes are copied verbatim and SHA256-pinned. Do not reformat.
+  "overrides": [
+    {
+      "includes": [
+        "src/runtime/task-session-protocol-v1.json",
+        "src/runtime/task-session-deployment-v1.json"
+      ],
+      "formatter": { "enabled": false }
+    }
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

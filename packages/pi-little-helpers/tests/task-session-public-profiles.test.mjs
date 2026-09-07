@@ -79,3 +79,20 @@ test("profile catalog rejects unknown files rather than presenting a partial inv
   writeFileSync(join(f.root, "profiles", "unexpected.txt"), "synthetic");
   await assert.rejects(profileCatalog(f.locator), /profile_catalog_unexpected_entry/);
 });
+
+test("public unconfigured launch/plan/capability deny without worker or provider calls", () => {
+  const f = fixture(),
+    before = readFileSync(join(f.root, "state.json"));
+  const result = JSON.parse(
+    run(f, [
+      "--input-type=module",
+      "-e",
+      `import {launchTaskSession,planTaskSession,taskSessionCapability} from './dist/task-session/core.js';const request=${JSON.stringify(f.request)};let refused=false;try{await launchTaskSession(request)}catch{refused=true}console.log(JSON.stringify({refused,plan:await planTaskSession(request),capability:await taskSessionCapability()}));`,
+    ]),
+  );
+  assert.equal(result.refused, true);
+  assert.equal(result.plan.launchable, false);
+  assert.equal(result.capability.admissionAvailable, false);
+  assert.deepEqual(readFileSync(join(f.root, "state.json")), before);
+  assert.deepEqual(readdirSync(join(f.root, "attempts")), []);
+});

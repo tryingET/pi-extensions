@@ -65,6 +65,8 @@ run("npm", [
 ]);
 const proof = `
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import {syncBuiltinESMExports} from 'node:module';
 import {taskSessionCapability} from '@tryinget/pi-little-helpers/task-session-core';
 import {taskSessionAdapterIdentity} from '@tryinget/pi-society-orchestrator/task-session-adapter';
 import {native} from './node_modules/@tryinget/pi-little-helpers/dist/task-session/native.js';
@@ -74,8 +76,11 @@ import {sealedHost} from './node_modules/@tryinget/pi-little-helpers/dist/task-s
 import {captureResources} from './node_modules/@tryinget/pi-little-helpers/dist/task-session/resources.js';
 import {getModel} from '@earendil-works/pi-ai/compat';
 import {zstdDecompressSync} from 'node:zlib';
-assert.equal(taskSessionCapability().admissionAvailable,false);
-assert.equal(taskSessionAdapterIdentity.integrationReady,false);
+const account=os.userInfo(),emptyHome=process.cwd()+'/unprovisioned-os-home';mkdirSync(emptyHome,{mode:0o700});
+os.userInfo=()=>({...account,homedir:emptyHome});syncBuiltinESMExports();
+assert.equal((await taskSessionCapability()).admissionAvailable,false);
+assert.equal(taskSessionAdapterIdentity.configurationRequired,true);
+assert.equal(Object.hasOwn(taskSessionAdapterIdentity,"integrationReady"),false);
 assertSdkIdentity();
 const shared='node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js';
 const original=readFileSync(shared);try{writeFileSync(shared,Buffer.concat([original,Buffer.from('\\n// synthetic tamper\\n')]));assert.throws(assertSdkIdentity,/sdk_identity_unsupported/);}finally{writeFileSync(shared,original);}
@@ -104,6 +109,7 @@ const suites = [
   "task-session-owner-model.test.mjs",
   "task-session-owner-reasoning.test.mjs",
   "task-session-public-profiles.test.mjs",
+  "task-session-producer.test.mjs",
 ];
 for (const suite of suites)
   writeFileSync(

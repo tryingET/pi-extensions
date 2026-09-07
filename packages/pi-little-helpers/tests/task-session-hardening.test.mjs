@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { lstatSync, mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { syncBuiltinESMExports } from "node:module";
+import os, { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { classifyNamespace } from "../dist/task-session/classify.js";
@@ -147,7 +148,15 @@ test("stop after successful preflight is rechecked at actual tool execute", () =
   assert.equal(effects, 0);
   assert.throws(execute);
 });
-test("Pi projection parity and controller draft preservation", async () => {
+test("Pi projection parity and controller draft preservation", async (t) => {
+  const account = os.userInfo(),
+    home = mkdtempSync(join(tmpdir(), "task5480-capability-home-"));
+  t.mock.method(os, "userInfo", () => ({ ...account, homedir: home }));
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
   let registered;
   const draft = "/literal unsent draft";
   const pi = {
@@ -163,7 +172,7 @@ test("Pi projection parity and controller draft preservation", async () => {
   taskSessionTool(pi);
   assert.equal(registered.name, "task_session");
   const result = await registered.execute("id", { operation: "capability" });
-  assert.deepEqual(JSON.parse(result.content[0].text), taskSessionCapability());
+  assert.deepEqual(JSON.parse(result.content[0].text), await taskSessionCapability());
   assert.equal(draft, "/literal unsent draft");
   const bad = await registered.execute("id", {
     operation: "launch",

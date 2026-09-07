@@ -2,12 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ak.task-session.protocol.v1",
   "title": "Decision151 AK producer private protocol v1",
-  "x-status": "implementation-in-progress-native-verification-blocked",
-  "$comment": "Source contract; not installed/runtime proof. Rust execution and cross-owner integration must pass before consumer activation. CLOSED is channel-local and never persisted.",
+  "x-status": "separate-worker-source-under-review",
+  "$comment": "Controller reports R1-R6 resolved and historical task5513 42-case interoperability complete, evidence8487. Operator selected separately pinned worker, evidence8488; ordinary approved_binary remains cdeef. New binding/native proofs and inert staging do not authorize publication, global ordinary upgrade or activation. No live catalog imported.",
   "x-transport": {
-    "public_command": ["ak", "task-session", "supervise"],
-    "public_input": "supervise: one startup_request JSON; recover: one recovery_request JSON. plan: {task_id} JSON under ordinary gate, query-only. No fd/exec/path/profile-environment overrides.",
-    "host_command": ["/home/tryinget/.local/libexec/pi-task-sessions/host-v1"],
+    "public_command": [
+      "ak",
+      "task-session",
+      "supervise"
+    ],
+    "public_input": "describe: no input, versioned DB/lock-free owner descriptor. plan: {task_id} JSON through separately pinned worker under the same canonical serialization; query-only. supervise: one startup_request JSON; recover: one recovery_request JSON. No caller FD/binary/DB/policy/environment overrides.",
+    "host_command": [
+      "/home/tryinget/.local/libexec/pi-task-sessions/host-v1"
+    ],
     "host_fd_0": "Private AF_UNIX SOCK_STREAM socketpair endpoint; bidirectional length-framed protocol",
     "host_fd_1": "Same open file description of permanent canonical AK flock file; opened unlocked by supervisor, deliberately inherited through stdio mapping",
     "host_fd_2": "Bounded diagnostics only, never protocol or credentials",
@@ -15,29 +21,44 @@
     "framing": "4 byte unsigned big-endian byte length followed by strict UTF-8 JSON, no BOM; at most 1048576 payload bytes",
     "parsing": "Duplicate keys, unknown fields/kinds/versions, floats, negative integers, depth > 16, strings > 65536 UTF-8 bytes and arrays > 4096 elements refuse",
     "digests": "SHA256 lowercase hex over exact bounded canonical JSON: recursively lexicographic ASCII object keys, compact separators, no ASCII escaping, integers only; reject non-ASCII object keys. Digest fields never include themselves",
-    "sequence": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"],
+    "sequence": [
+      "PREPARED",
+      "ADMISSION_RESULT",
+      "T1_PUBLISHED",
+      "CLOSED"
+    ],
     "sidecar": "Private immutable t1.json in the already reserved attempt/incarnation directory under the provisioned namespace; host fsyncs file and directory without namespace mutex; supervisor independently compares durable bytes to T1_PUBLISHED before explicit unlock",
     "closed": "Private one-shot channel/phase/incarnation-bound message after explicit T2 unlock, not an on-disk receipt, not replayable after restart; dispatch also requires valid local outcome, deadline and post-unlock persistence",
     "failure": "No automatic retry/unclaim; no EOF/timeout/finally unlock; surviving host retains OFD and denies dispatch on supervisor failure; all-holder death is not effect or claim retirement",
     "bootstrap": "Supervisor sends pi.task-session.host-bootstrap.v1 seed on FD0 before PREPARED; fields exactly match $defs/host_bootstrap.",
-    "worker": "Fixed approved AK binary -d policy.database.path task-session owner-private; fd0 private duplex socket, fd1 inherited canonical OFD. Ordinary gate refuses owner-private. One worker_request frame and one admission body result, no retry.",
-    "policy_gate": "No activation without later controller-published policy.task_session protocol_sha256, host_sha256, host_build_digest, supervisor_sha256. host_sha256 pins fixed executable bytes; host_build_digest binds Pi-owned immutable package closure checked by host. Current runtime policy is unchanged.",
+    "worker": "Separately pinned task_session.worker binary -d policy.database.path task-session owner-private; ABI v2 adds the fixed owner-generated private policy locator. FD0 duplex and FD1 same canonical OFD unchanged. Both pins, full policy, manifest/ABI and closure independently checked before DB open. Ordinary gate rejects private entrypoints. No public policy/FD/binary overrides or fallback.",
+    "policy_gate": "Separate worker configuration and DB-free owner descriptor are defined by task-session-deployment-v1.json. Complete policy SHA binds both ordinary approved_binary and task_session.worker, generation, manifest/ABI and closure. No activation from descriptor, staging or source-review status. Current runtime policy is unchanged.",
     "database_identity": "SHA256 canonical JSON {path:canonical database path,device:st_dev,inode:st_ino}; checked after T0 and worker result. Policy digest is SHA256 exact policy bytes. Protocol digest is SHA256 exact schema file bytes.",
-    "baseline": "ak.task-session.baseline.v1: evaluated_at outside baseline_digest. Baseline binds typed task, raw complete relevant task/scope/companion/deferral/repo/dependency/decision membership rows, evidence attached or historical task_ref rows, effective_deferral and lease_expired. Integer SQL fields stored as strings in raw rows; row vectors sorted deterministically.",
-    "recovery": "Existing private host-closure.json and effect-disposition.json must validate before T0. Preserved ak-admission.json binds exact claim. Immutable ak-recovery-started.json prevents replay; ak-recovery-result.json published+fsynced under new interval. Native failure is unresolved, never retried.",
-    "effect_accounting": "Only exact task version v+1 and native status/claim tuple, task-row evidence attachment restoration with unchanged provenance, elapsed active deferral expiry fields, one native task transition receipt plus per-expired-deferral receipts, and claim event. Unexpected raw family or prior receipt drift fails the transaction and is conservatively unresolved once native mutation was entered.",
-    "opener": "Backend READ_WRITE without CREATE. Task-session preflight refuses rollback journal and missing/invalid/pending engine migration marker before opening. Core skips journal-mode mutation, migration, evidence/issue reconciliation and repair. Native byte-level WAL/open fault proof remains pending; do not activate from source assertions.",
+    "baseline": "ak.task-session.baseline.v1: evaluated_at outside baseline_digest. Baseline binds typed task, raw complete relevant task/scope/companion/deferral/repo/dependency/decision membership rows, evidence attached or historical task_ref rows, effective_deferral and lease_expired. Integer SQL fields stored as strings in raw rows; row vectors sorted deterministically. Schema profile is selected from the complete validated stored migration ledger (versions and names) and exact independent frozen catalog: only 40 and 43. Ordinary authority families are identical for both; no dynamic skip of missing families, no begin/composition/impact activation.",
+    "recovery": "Existing private host-closure.json and effect-disposition.json must validate before T0. Preserved ak-admission.json binds exact claim. Immutable ak-recovery-started.json prevents replay; ak-recovery-result.json published+fsynced under new interval. Native failure is unresolved, never retried. ak-owner-binding.json freezes original deployment bindings. Only policy SHA/generation may advance for compatible exact recovery; unchanged worker, ordinary pin, closure and database generation required. ak-recovery-binding.json preserves old/current binding evidence without rewriting admission history. Withdrawal never releases a claim automatically.",
+    "effect_accounting": "Only exact task version v+1 and native status/claim tuple, task-row evidence attachment restoration with unchanged provenance, elapsed active deferral expiry fields, one native task transition receipt plus per-expired-deferral receipts, and claim event. Unexpected raw family or prior receipt drift fails the transaction and is conservatively unresolved once native mutation was entered. Trigger SQL must match parsed shipped migration definitions independently of the caller baseline; unknown or same-name replaced triggers refuse before mutation. All catalog table/index/view/trigger definitions (excluding physical rootpage addresses) must equal the version-selected committed catalog generated from NEW native schema40 or schema43 storage; caller baseline cannot bless FK cascades or other unsupported schema additions/definition drift.",
+    "opener": "Writable admission and query-only plan both require existing regular main, valid native header, existing namespace gate/use records and exact native generation identity. Retain native ReadOnlyExisting namespace binding across native open/close to prohibit quiescent rebind; close without checkpoint. Refuse missing WAL/FEC, empty/corrupt WAL, corrupt/truncated/uncommitted tails, bad FEC, missing/empty/corrupt/stale namespace use and nonempty gate. Valid empty FEC/gate are native byte-neutral states. Pure pinned-engine validators bound sidecars to 64 MiB. Whole-family names/bytes are tested for these refusal and valid-empty cases on NEW synthetic DBs; no repair/provisioning is performed by task-session.",
     "bulk_recovery": "Supervisor and native worker require future policy.task_session.bulk_recovery_suspended=true. Ordinary gate refuses release-expired while set. Named owner reinstates only after host/effect/claim retirement. This does not inventory or intercept unknown external/direct callers."
   },
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocol", "kind", "binding", "body"],
+  "required": [
+    "protocol",
+    "kind",
+    "binding",
+    "body"
+  ],
   "properties": {
     "protocol": {
       "const": "ak.task-session.v1"
     },
     "kind": {
-      "enum": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"]
+      "enum": [
+        "PREPARED",
+        "ADMISSION_RESULT",
+        "T1_PUBLISHED",
+        "CLOSED"
+      ]
     },
     "binding": {
       "$ref": "#/$defs/binding"
@@ -224,7 +245,14 @@
     "claim": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["task_id", "repo", "version", "claimed_by", "claimed_at", "lease_expires_at"],
+      "required": [
+        "task_id",
+        "repo",
+        "version",
+        "claimed_by",
+        "claimed_at",
+        "lease_expires_at"
+      ],
       "properties": {
         "task_id": {
           "type": "integer",
@@ -268,7 +296,11 @@
       ],
       "properties": {
         "outcome": {
-          "enum": ["ADMITTED", "DENIED", "UNRESOLVED"]
+          "enum": [
+            "ADMITTED",
+            "DENIED",
+            "UNRESOLVED"
+          ]
         },
         "baseline_digest": {
           "$ref": "#/$defs/digest"
@@ -294,7 +326,11 @@
           ]
         },
         "effects": {
-          "enum": ["not_attempted", "committed_verified", "indeterminate"]
+          "enum": [
+            "not_attempted",
+            "committed_verified",
+            "indeterminate"
+          ]
         },
         "reason": {
           "$ref": "#/$defs/id"
@@ -394,10 +430,17 @@
     "t1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outcome", "admission_digest", "no_dispatch"],
+      "required": [
+        "outcome",
+        "admission_digest",
+        "no_dispatch"
+      ],
       "properties": {
         "outcome": {
-          "enum": ["ADMITTED", "DENIED"]
+          "enum": [
+            "ADMITTED",
+            "DENIED"
+          ]
         },
         "admission_digest": {
           "$ref": "#/$defs/digest"
@@ -410,10 +453,16 @@
     "closed": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outcome", "t1_digest"],
+      "required": [
+        "outcome",
+        "t1_digest"
+      ],
       "properties": {
         "outcome": {
-          "enum": ["ADMITTED", "DENIED"]
+          "enum": [
+            "ADMITTED",
+            "DENIED"
+          ]
         },
         "t1_digest": {
           "$ref": "#/$defs/digest"
@@ -551,7 +600,12 @@
     "recovery_request": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema", "attempt", "incarnation", "claim"],
+      "required": [
+        "schema",
+        "attempt",
+        "incarnation",
+        "claim"
+      ],
       "properties": {
         "schema": {
           "const": "ak.task-session.recovery.v1"
@@ -688,7 +742,11 @@
       ],
       "properties": {
         "outcome": {
-          "enum": ["RECOVERED", "DENIED", "UNRESOLVED"]
+          "enum": [
+            "RECOVERED",
+            "DENIED",
+            "UNRESOLVED"
+          ]
         },
         "baseline_digest": {
           "$ref": "#/$defs/digest"
@@ -714,7 +772,11 @@
           ]
         },
         "effects": {
-          "enum": ["not_attempted", "committed_verified", "indeterminate"]
+          "enum": [
+            "not_attempted",
+            "committed_verified",
+            "indeterminate"
+          ]
         },
         "reason": {
           "$ref": "#/$defs/id"
@@ -854,7 +916,11 @@
     "native_recovery_request": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["claim", "host_closure_digest", "effect_disposition_digest"],
+      "required": [
+        "claim",
+        "host_closure_digest",
+        "effect_disposition_digest"
+      ],
       "properties": {
         "claim": {
           "$ref": "#/$defs/claim"
@@ -870,10 +936,16 @@
     "worker_request": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocol", "binding", "admission", "recovery"],
+      "required": [
+        "protocol",
+        "binding",
+        "admission",
+        "recovery",
+        "owner_policy_path"
+      ],
       "properties": {
         "protocol": {
-          "const": "ak.task-session.worker.v1"
+          "const": "ak.task-session.worker.v2"
         },
         "binding": {
           "$ref": "#/$defs/binding"
@@ -897,13 +969,22 @@
               "type": "null"
             }
           ]
+        },
+        "owner_policy_path": {
+          "type": "string",
+          "pattern": "/[^\\x00-\\x1f]+",
+          "maxLength": 4096
         }
       }
     },
     "task_scope": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["allowed_paths", "required_paths", "forbidden_paths"],
+      "required": [
+        "allowed_paths",
+        "required_paths",
+        "forbidden_paths"
+      ],
       "properties": {
         "allowed_paths": {
           "type": "array",
@@ -978,7 +1059,14 @@
           ]
         },
         "status": {
-          "enum": ["pending", "claimed", "running", "done", "failed", "blocked"]
+          "enum": [
+            "pending",
+            "claimed",
+            "running",
+            "done",
+            "failed",
+            "blocked"
+          ]
         },
         "priority": {
           "type": "integer",
@@ -1078,7 +1166,12 @@
     "baseline": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["task", "families", "effective_deferral", "lease_expired"],
+      "required": [
+        "task",
+        "families",
+        "effective_deferral",
+        "lease_expired"
+      ],
       "properties": {
         "task": {
           "$ref": "#/$defs/task"
@@ -1206,7 +1299,12 @@
     "plan_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocol", "evaluated_at", "baseline_digest", "baseline"],
+      "required": [
+        "protocol",
+        "evaluated_at",
+        "baseline_digest",
+        "baseline"
+      ],
       "properties": {
         "protocol": {
           "const": "ak.task-session.baseline.v1"

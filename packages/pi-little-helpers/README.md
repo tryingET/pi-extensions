@@ -40,10 +40,11 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 
 The additive emitted `pi-task-session` CLI, `task_session` Pi tool and
 [`task-session` skill](skills/task-session/SKILL.md) expose one read-only discovery/plan/
-inspection/classification and account-bound identity surface. **Launch is blocked:** native AK verification and rollout remain gated. Do not fall back to ordinary claim/spawn recipes.
+inspection/classification and account-bound identity surface. **Launch requires installed owner publication:** exact separate-worker/configuration/closure pins, namespace enrollment, profile preflight and native admission. Missing, disabled or mismatched configuration refuses; no ordinary-worker or legacy fallback. No live deployment is claimed.
 Independent sealed SDK/Codex/state/native components are tested synthetically; this is not
 installed or enrolled launch proof. The emitted host/viewer and full synthetic startup tests do not establish native AK effects. See the repo
-[implementation evidence](../../docs/project/2026-09-07-visible-task-session-pi-implementation.md).
+[implementation evidence](../../docs/project/2026-09-07-visible-task-session-pi-implementation.md) and
+[current public binding contract](../../docs/project/2026-09-07-visible-task-session-public-implementation.md).
 Requested aliases require a private, content-addressed owner model source bound by the selected profile;
 no ambient registry, inferred Astra mapping or endpoint/auth fallback is used. Requested and resolved
 identities remain separate in observations and receipts.
