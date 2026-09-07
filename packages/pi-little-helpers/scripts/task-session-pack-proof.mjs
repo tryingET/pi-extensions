@@ -102,6 +102,7 @@ const suites = [
   "task-session-review.test.mjs",
   "task-session-identity.test.mjs",
   "task-session-owner-model.test.mjs",
+  "task-session-owner-reasoning.test.mjs",
 ];
 for (const suite of suites)
   writeFileSync(

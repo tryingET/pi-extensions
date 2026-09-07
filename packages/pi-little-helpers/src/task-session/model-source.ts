@@ -47,6 +47,25 @@ export function modelResolution(
     modelDigest: bytesDigest(JSON.stringify(model)),
   };
 }
+const OWNER_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+function ownerThinkingLevels(model: Pick<Model<Api>, "reasoning" | "thinkingLevelMap">) {
+  const map = record(model.thinkingLevelMap, [...OWNER_THINKING_LEVELS]);
+  // A closed owner declaration is not the SDK's permissive/defaulted capability catalog.
+  for (const [level, value] of Object.entries(map))
+    if (value !== null && value !== (level === "off" ? "none" : level))
+      refuse("owner_model_reasoning_remap_forbidden");
+  const hasReasoning = OWNER_THINKING_LEVELS.some(
+    (level) => level !== "off" && map[level] !== null,
+  );
+  if (model.reasoning !== hasReasoning || (!model.reasoning && map.off !== "none"))
+    refuse("owner_model_reasoning_capabilities_invalid");
+  return OWNER_THINKING_LEVELS.filter((level) => map[level] !== null);
+}
+/** Explicit membership precedes (and never replaces) the pinned SDK clamp-equality check. */
+export function assertOwnerThinkingLevel(model: Model<Api>, requested: string): void {
+  if (!ownerThinkingLevels(model).some((level) => level === requested))
+    refuse("reasoning_profile_unsupported");
+}
 /** Literal metadata only; neither provider labels nor implementation names are import targets. */
 export function loadOwnerModel(locator: Locator, reference: string, requested: ModelLabels) {
   if (!/^[a-f0-9]{64}$/.test(reference)) refuse("invalid_model_source_digest");
@@ -104,19 +123,8 @@ export function loadOwnerModel(locator: Locator, reference: string, requested: M
   for (const value of Object.values(cost))
     if (!Number.isSafeInteger(value) || value < 0 || value > 1e12)
       refuse("owner_model_cost_invalid");
-  const map = record(m.thinkingLevelMap, [
-    "off",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "max",
-  ]);
-  // No concealed downgrade: each declared effort is identity-mapped (off maps to native none).
-  for (const [level, value] of Object.entries(map))
-    if (value !== null && value !== (level === "off" ? "none" : level))
-      refuse("owner_model_reasoning_remap_forbidden");
+  const map = record(m.thinkingLevelMap, [...OWNER_THINKING_LEVELS]);
+  ownerThinkingLevels({ reasoning: m.reasoning, thinkingLevelMap: map });
   const model: Model<"openai-codex-responses"> = {
     id: resolved.model,
     name: m.name,
@@ -133,9 +141,7 @@ export function loadOwnerModel(locator: Locator, reference: string, requested: M
     },
     contextWindow: m.contextWindow,
     maxTokens: m.maxTokens,
-    thinkingLevelMap: Object.fromEntries(
-      ["off", "minimal", "low", "medium", "high", "xhigh", "max"].map((k) => [k, map[k]]),
-    ),
+    thinkingLevelMap: Object.fromEntries(OWNER_THINKING_LEVELS.map((k) => [k, map[k]])),
   };
   return { model, resolution: modelResolution(model, original, reference) };
 }

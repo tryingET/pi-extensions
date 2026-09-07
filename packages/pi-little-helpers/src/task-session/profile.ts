@@ -4,7 +4,12 @@ import { assertCredentialMetadata } from "./auth-metadata.js";
 import type { CodexProfile } from "./codex.js";
 import { assertSdkIdentity } from "./identity.js";
 import { bytesDigest, digest, integer, parseJson, record, refuse, text } from "./json.js";
-import { loadOwnerModel, modelResolution, profileResolution } from "./model-source.js";
+import {
+  assertOwnerThinkingLevel,
+  loadOwnerModel,
+  modelResolution,
+  profileResolution,
+} from "./model-source.js";
 import { canonicalPath, type Locator, privatePath, privateRead } from "./state.js";
 export function hash(value: unknown): string {
   if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) refuse("invalid_digest");
@@ -106,6 +111,7 @@ export async function loadHostProfile(locator: Locator, reference: string) {
     : undefined;
   const model = owned ? owned.model : getModel("openai-codex", p.model as "gpt-5.4");
   if (!model || bytesDigest(JSON.stringify(model)) !== p.modelDigest) refuse("model_pin_mismatch");
+  if (owned) assertOwnerThinkingLevel(model, p.reasoning);
   // Same pinned pure normalization used by createAgentSession; refuse, never downgrade.
   if (clampThinkingLevel(model, p.reasoning) !== p.reasoning)
     refuse("reasoning_profile_unsupported");
