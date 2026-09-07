@@ -78,7 +78,7 @@ const contextPlanTool: ContextPackerToolDefinition = {
   promptGuidelines: [
     "Use context_plan for cross-source planning before collecting large code/docs/task context.",
     "Treat the result as a read-only plan and provider-boundary membrane, not as task/evidence authority.",
-    "Explicitly select providers.ripwire=required for code discovery without filename seeds; Pi read/search remains available. Use separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
+    "Automatic code discovery is not approved in this build. Explicitly select providers.ripwire=required for code discovery without filename seeds; Pi read/search remains available. Use separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
     "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
   ],
   parameters: CONTEXT_PLAN_PARAMETERS,

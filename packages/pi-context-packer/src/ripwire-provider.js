@@ -13,6 +13,7 @@ import { copyApprovedCorpus } from "./ripwire-corpus.js";
 import { discoveryArguments, prepareRipwire } from "./ripwire-exec.js";
 import { expansionArguments, parseExpansion } from "./ripwire-expansion.js";
 import { parseRipwireCandidates } from "./ripwire-output.js";
+import { ripwireDisabled } from "./ripwire-policy.js";
 
 const PUBLIC_ERRORS = new Set([
   "ripwire_not_configured",
@@ -38,6 +39,19 @@ const PUBLIC_ERRORS = new Set([
 ]);
 export async function collectRipwire(input, options = {}) {
   options.signal?.throwIfAborted();
+  if (ripwireDisabled(options))
+    return {
+      ok: false,
+      items: [],
+      omissions: [
+        {
+          provider: "ripwire",
+          reason: "operator_disabled",
+          detail:
+            "Operator disabled code discovery; no process was invoked. Use Pi read/search tools.",
+        },
+      ],
+    };
   const scratch = await mkdtemp(join(tmpdir(), "pi-ripwire-"));
   try {
     const runtime = await prepareRipwire(scratch, options);

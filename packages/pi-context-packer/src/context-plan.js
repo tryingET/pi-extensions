@@ -21,6 +21,7 @@ import {
   buildContextPackExecutionSummary,
   contextPackProviderCapability,
 } from "./provider-capabilities.js";
+import { plannedRipwirePolicy } from "./ripwire-policy.js";
 
 export { contextPackProviderCapability } from "./provider-capabilities.js";
 
@@ -547,11 +548,6 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
   if (requestedMode === "off") return { posture: "skipped", reason: "provider disabled by caller" };
   if (requestedMode === "required")
     return { posture: "selected", reason: "provider required by caller" };
-  if (provider === "ripwire")
-    return {
-      posture: "optional",
-      reason: "explicit ripwire selection required; automatic activation is off",
-    };
   if (providerMatches(provider, objective, seeds)) {
     return { posture: "selected", reason: "provider matches objective or seeds" };
   }
@@ -564,7 +560,15 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
 const buildProviderPlans = ({ objective, seeds, providers, budget, env }) =>
   PROVIDER_IDS.map((provider) => {
     const mode = normalizeMode(providers[provider]);
-    const { posture, reason } = postureForProvider(provider, mode, objective, seeds);
+    const { posture, reason } =
+      provider === "ripwire"
+        ? plannedRipwirePolicy({
+            mode,
+            codeIntent: providerMatches(provider, objective, seeds),
+            budget,
+            env,
+          })
+        : postureForProvider(provider, mode, objective, seeds);
     const selected = posture === "selected" || posture === "optional";
     const capability = contextPackProviderCapability(provider, env, { reason });
     return {

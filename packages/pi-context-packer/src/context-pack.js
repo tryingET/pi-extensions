@@ -591,7 +591,10 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       remainingBudget,
       providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "ripwire"),
     });
-    if (!result.ok || (result.section.items.length > 0 && selection.keptCount === 0)) {
+    if (
+      result.state.required &&
+      (!result.ok || (result.section.items.length > 0 && selection.keptCount === 0))
+    ) {
       requiredProviderFailures.push("ripwire");
     }
   }

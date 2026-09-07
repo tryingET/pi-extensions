@@ -4,7 +4,7 @@ read_when:
   - "Changing code-provider execution policy or required-provider outcomes."
 */
 import { dedupeCodeItems } from "./code-working-set.js";
-import { outputLimits } from "./packet-budget.js";
+import { outputLimits } from "./packet-budget-limits.js";
 import { collectRipwire } from "./ripwire-provider.js";
 
 export async function buildRipwireSection(plan, env = {}) {

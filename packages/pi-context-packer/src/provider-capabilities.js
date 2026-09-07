@@ -3,6 +3,7 @@ summary: "Classifies context providers as executable, preflight-gated, eligibili
 read_when:
   - "Changing provider wiring posture, session eligibility, or recommended next actions."
 */
+import { ripwireDisabled } from "./ripwire-policy.js";
 import { hasHighSessionContextPressure } from "./session-context.js";
 
 const PROVIDER_CAPABILITIES = Object.freeze({
@@ -29,6 +30,12 @@ const PROVIDER_CAPABILITIES = Object.freeze({
 export const contextPackProviderCapability = (provider, env = {}, planContext = {}) => {
   const capability = PROVIDER_CAPABILITIES[provider];
   if (!capability) return { adapterStatus: "unknown", executionStatus: "owner_routed" };
+  if (provider === "ripwire" && ripwireDisabled(env.ripwire))
+    return {
+      adapterStatus: "guarded",
+      executionStatus: "blocked_by_safety_gate",
+      executionCondition: "operator_disabled",
+    };
   if (
     provider === "session" &&
     (planContext.reason === "provider required by caller" ||

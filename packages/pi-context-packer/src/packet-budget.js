@@ -3,7 +3,10 @@ summary: "Fit the complete rendered packet, preserving explicit omissions and ho
 read_when:
   - "Changing output ceilings, tokenizer fallback, or post-render selection."
 */
-import { compactSessionContextUsage } from "./session-context.js";
+import { nonnegative, outputLimits } from "./packet-budget-limits.js";
+
+export { outputLimits } from "./packet-budget-limits.js";
+
 import {
   buildDogfoodObservationTemplate,
   buildMeasurementHints,
@@ -11,26 +14,6 @@ import {
 } from "./session-measurement.js";
 
 const bytes = (text) => Buffer.byteLength(text, "utf8");
-const nonnegative = (value) => Number.isSafeInteger(value) && value >= 0;
-
-export function outputLimits(budget = {}, env = {}) {
-  const configured = nonnegative(budget.maxTokens) ? budget.maxTokens : 40_000;
-  const reserve = nonnegative(budget.reserveTokens) ? budget.reserveTokens : 0;
-  const usage = compactSessionContextUsage(env.contextUsage);
-  const remaining = nonnegative(env.remainingInputTokens)
-    ? env.remainingInputTokens
-    : nonnegative(usage.tokens) && nonnegative(usage.windowTokens)
-      ? Math.max(0, usage.windowTokens - usage.tokens)
-      : null;
-  const tokens = Math.max(0, Math.min(configured, remaining ?? configured) - reserve);
-  // An estimate is not a tokenizer guarantee. The independently enforced byte cap is exact.
-  const exactCounter = typeof env.countTokens === "function" ? env.countTokens : null;
-  const maxBytes = Math.min(
-    nonnegative(budget.maxBytes) ? budget.maxBytes : configured * 4,
-    exactCounter ? Number.MAX_SAFE_INTEGER : tokens * 2,
-  );
-  return { tokens, maxBytes, remaining, reserve, exactCounter };
-}
 
 function refresh(result) {
   const { packet, plan } = result;

@@ -11,6 +11,11 @@ system4d:
 
 # @tryinget/pi-context-packer
 
+Ripwire is the only code provider. Automatic selection is not approved; use explicit
+`providers.ripwire: "required"` after operator provisioning. Set
+`PI_CONTEXT_PACKER_RIPWIRE_DISABLED=1` to block all ripwire invocation.
+See [rollout and evidence](docs/project/ripwire-rollout.md).
+
 Read-only context planning and packet assembly for Pi. Instructions, Markdown/docs-list,
 Git posture, and session metadata remain available. Prompt Vault, AK, and FCOS remain
 owner-routed. Ripwire is available for explicit, read-only code discovery:
