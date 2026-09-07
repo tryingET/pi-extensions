@@ -18,7 +18,7 @@ All notable changes to this project should be documented here.
 ### Features
 
 - Draw the ribbon in Ghostty's own theme and follow the desktop between light and dark. The `theme` setting is resolved per colour scheme from the same files Ghostty reads, state colours reuse the terminal's meanings, and a change reloads one stylesheet rather than restarting the panel. `PI_ACTIVITY_STRIP_COLOR_SCHEME` pins one scheme.
-- Inset the surface by the compositor's own window gap on three sides and round it to the same radius as tiled windows, so the ribbon reads as a peer of them instead of a bar fused to the screen edge. The reservation grows from 84px to 100px accordingly.
+- Inset the surface by the compositor's own window gap on three sides and round it to the same radius as tiled windows, so the ribbon reads as a peer of them instead of a bar fused to the screen edge. The reservation grows from 84px to 92px accordingly.
 - Replace the two floating panels with a single bar: one continuous surface with a hairline edge, a quiet identity block, and flat cards whose left edge carries their state.
 - Report live Codex state on its cards: the running tool and its command, turn count, approval and sandbox policy, prompt and reply. Sessions are bound to processes through Codex's own thread index by an open rollout descriptor, or by being the only session created in that directory after the process started.
 - Retire hook records left behind by sessions that ended without firing their end hook, once no live tab claims them and they have stopped being recent.
