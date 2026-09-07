@@ -1,0 +1,52 @@
+{
+  "schema": "pi.task-session.native-integration-preparation.v1",
+  "task": 5513,
+  "status": "pending_native_export_not_complete",
+  "native_cases_executed": 0,
+  "native_case_definitions": 15,
+  "static_oracle_unit_passed": 8,
+  "static_oracle_unit_failed": 0,
+  "artifact_gate_exit": 78,
+  "artifact_gate_reason": "PENDING_ARTIFACT",
+  "pi_start_head": "d40b39ee15f4e4faaa4dbaa15942d6abd031fa1c",
+  "pi_prelanding_head": "0a73e9322accfaacdc263639922d23270c3cd3ef",
+  "ak_start_and_prelanding_head": "11b56173df5924be56db652d15b26d3675702575",
+  "historical_ak_source_commit": "42b60082928272f8ba3ee1773187d8a64d866564",
+  "historical_owner_receipt_sha256": "fd8ad571831e18acd1e068ce125177f95bfc610309ae895dfbc8a547e6addf2a",
+  "historical_artifacts": [
+    {"kind": "native_fixture", "sha256": "2068a329d862bde69ccf81872e20bd6c877ac8bef009981f079762b437958659", "exists": false, "release_pin": false},
+    {"kind": "candidate_debug", "sha256": "eea8259d53b38a6306ea35d0faba1aa2dd5407f8a580c547aeed6ef113c8251a", "exists": false, "release_pin": false}
+  ],
+  "observed_ak_source_drift_from_historical_receipt": [
+    "crates/ak-cli/src/main.rs",
+    "crates/ak-cli/src/task_session.rs",
+    "crates/ak-cli/tests/task_session_cli.rs",
+    "crates/ak-cli/tests/task_session_native_process.rs",
+    "crates/ak-core/src/db.rs",
+    "crates/ak-core/src/task_session_snapshot.rs",
+    "crates/ak-core/src/task_session_tests.rs",
+    "crates/ak-db/src/lib.rs",
+    "crates/ak-db/src/task_session_open.rs",
+    "crates/ak-db/src/task_session_tests.rs"
+  ],
+  "logs_under_parent_TMPDIR": [
+    {"file": "task5513-static-landing.log", "sha256": "dcc6441dc5ae913e436f7d4c99034e8e17c04c3182be4899f29741a2c7b7da6e"},
+    {"file": "task5513-native-gate.log", "sha256": "d6fabd558aa5d8e537a85ca08d4b7aa37ae144beeb62dd8d6bbae2940cd80da1"},
+    {"file": "task5513-producer-source-check.json", "sha256": "ade648c98a5c5487449dc4d069a4ad7eda51d62231f5da70349a7aa06c9ad085"},
+    {"file": "task5513-biome-landing.log", "sha256": "0d5d0facebd60eee2d2e89a58b3c290197211aa90326dbf9e90612e96137db9d"}
+  ],
+  "required_pending": [
+    "updated owner-exported native fixture and debug artifacts, hashes, source-verification receipt",
+    "native claim-statement fault and postcommit readback fault through bounded same-production-worker API",
+    "I04 frozen source/emitted provenance and actual native owner-model alias case",
+    "execute and debug all real-process cases before claiming any native compatibility"
+  ],
+  "public_entrypoint_positive_coverage": false,
+  "source_to_emission_correspondence_verified_here": false,
+  "full_database_effect_audit": false,
+  "full_monorepo_check_run": false,
+  "ak_commands_or_authoritative_database_access": false,
+  "native_build_or_dependency_install": false,
+  "live_activation_enrollment_credentials_provider_or_Ghostty": false,
+  "task_completion_claim": false
+}
