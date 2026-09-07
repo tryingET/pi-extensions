@@ -7,11 +7,11 @@ import { writeObservation } from "./bridge.js";
 import type { TaskSessionRequest } from "./core.js";
 import { bytesDigest, digest, parseJson, record, refuse, text } from "./json.js";
 import { interpretTaskSessionPlan } from "./producer-adapter.js";
-import { loadProfile } from "./profile.js";
-import { captureResources } from "./resources.js";
+import { preflightProfile } from "./profile.js";
 import { launchRestrictedTaskSessionWindow } from "./restricted-transport.js";
 import {
   type Attempt,
+  assertSnapshotDomains,
   durableWrite,
   type Locator,
   privatePath,
@@ -65,15 +65,17 @@ export async function launchReserved(
   ports: LaunchPorts,
 ) {
   const snapshot = readSnapshot(locator);
+  assertSnapshotDomains(snapshot);
   const existing = snapshot.attempts.find((a) => a.requestId === request.requestId);
   if (existing) {
     if (existing.semanticDigest !== digest(request)) refuse("request_digest_conflict");
     return { schema: "pi.task-session.launch.v1", status: "existing", attempt: existing };
   }
-  const pin = loadProfile(locator, request.profile);
+  const pin = await preflightProfile(locator, request.profile);
   for (const k of ["provider", "model", "account", "reasoning"] as const)
     if (pin[k] !== request[k]) refuse("requested_profile_mismatch");
   const baseline = validateBaseline(await ports.plan(request), request);
+  const { captureResources } = await import("./resources.js");
   const resources = captureResources(request.cwd, pin.agentDir, request.context);
   const domain = snapshot.domains.find(
     (d) =>
@@ -84,6 +86,7 @@ export async function launchReserved(
   if (!domain) refuse("canonical_domain_missing");
   const parent = join(locator.root, "attempts");
   privatePath(parent, true);
+  await preflightProfile(locator, request.profile); // Recheck after the asynchronous native baseline.
   const attempt = reserve(locator, request.requestId, digest(request), domain);
   const dir = join(parent, attempt.attempt, attempt.incarnation);
   // Exclusive directory creation is launch-effect ownership; never retry a partially started incarnation.

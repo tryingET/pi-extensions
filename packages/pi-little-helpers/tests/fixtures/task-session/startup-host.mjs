@@ -1,7 +1,7 @@
 import { native } from "../../../dist/task-session/native.js";
 
 native().adoptCustody(); // identical first capability operation to the emitted fixed bootstrap
-const { readFileSync, writeFileSync, existsSync } = await import("node:fs");
+const { readFileSync, writeFileSync, existsSync, mkdirSync } = await import("node:fs");
 const { join } = await import("node:path");
 const { zstdDecompressSync } = await import("node:zlib");
 const root = process.argv[2];
@@ -23,6 +23,11 @@ const result = await runHost(
         join(root, "send.json"),
         JSON.stringify({ sends, model: body.model, transport: "sse" }),
       );
+      if (config.topologyDrift) {
+        const changed = join(root, "replacement-common-git");
+        mkdirSync(changed);
+        writeFileSync(join(config.checkout, ".git", "commondir"), `${changed}\n`);
+      }
       if (config.stop) {
         writeFileSync(join(root, "viewer-action"), "s");
         await new Promise((r) => setTimeout(r, 250));

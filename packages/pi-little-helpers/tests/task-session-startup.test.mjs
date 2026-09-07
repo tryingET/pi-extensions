@@ -170,10 +170,84 @@ test("provisioned content-addressed profile and credential load is exact and rea
   await assert.rejects(loadHostProfile(f.locator, f.request.profile));
   assert.equal(readSnapshot(f.locator).attempts.length, 0);
 });
+for (const defect of [
+  "model-digest",
+  "account",
+  "lifetime",
+  "missing-credential",
+  "lifetime-during-plan",
+]) {
+  test(`I03 ${defect}: pre-reservation refusal without spawn`, async (t) => {
+    const f = setup(),
+      pin = structuredClone(f.pin);
+    if (defect === "model-digest") pin.modelDigest = "0".repeat(64);
+    if (defect === "missing-credential") pin.credentialDigest = "0".repeat(64);
+    if (defect === "account" || defect === "lifetime") {
+      const c = parseJson(
+        readFileSync(join(f.root, "credentials", `${pin.credentialDigest}.json`)),
+      );
+      if (defect === "account")
+        c.access = `synthetic.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "wrong-account" } })).toString("base64url")}.synthetic`;
+      else c.expires = Date.now() + 1000;
+      pin.credentialDigest = digest(c);
+      durableWrite(join(f.root, "credentials", `${pin.credentialDigest}.json`), c, true);
+    }
+    const reference = digest(pin);
+    if (reference !== f.request.profile)
+      durableWrite(join(f.root, "profiles", `${reference}.json`), pin, true);
+    const before = readFileSync(join(f.root, "state.json"));
+    const calls = { plan: 0, viewer: 0, supervisor: 0, network: 0 };
+    t.mock.method(globalThis, "fetch", () => {
+      calls.network++;
+      throw Error("unexpected_network");
+    });
+    await assert.rejects(
+      launchReserved({ ...f.request, profile: reference }, f.locator, {
+        plan: async () => {
+          calls.plan++;
+          if (defect !== "lifetime-during-plan") throw Error("unexpected_plan");
+          const now = Date.now;
+          t.mock.method(Date, "now", () => now() + 3600000);
+          const baseline = baselineFor(f.checkout);
+          return {
+            protocol: "ak.task-session.baseline.v1",
+            evaluated_at: new Date().toISOString(),
+            baseline_digest: digest(baseline),
+            baseline,
+          };
+        },
+        openViewer: async () => {
+          calls.viewer++;
+          return { ok: true };
+        },
+        supervise: async () => {
+          calls.supervisor++;
+        },
+      }),
+      defect === "model-digest"
+        ? /model_pin_mismatch/
+        : defect === "missing-credential"
+          ? /ENOENT/
+          : /auth_refresh_required_or_account_mismatch/,
+    );
+    t.mock.restoreAll();
+    assert.deepEqual(calls, {
+      plan: defect === "lifetime-during-plan" ? 1 : 0,
+      viewer: 0,
+      supervisor: 0,
+      network: 0,
+    });
+    assert.deepEqual(readFileSync(join(f.root, "state.json")), before);
+    assert.equal(readSnapshot(f.locator).attempts.length, 0);
+    const { readdirSync } = await import("node:fs");
+    assert.deepEqual(readdirSync(join(f.root, "attempts")), []);
+  });
+}
 for (const scenario of [
   "complete",
   "real-tui",
   "stop",
+  "topology-after-send",
   "lost-supervisor",
   "wrong-binding",
   "post-closed-write-failure",
@@ -198,6 +272,11 @@ for (const scenario of [
       ]).status,
       0,
     );
+    if (scenario === "topology-after-send") {
+      const cfg = JSON.parse(readFileSync(join(f.root, "fixture.json"), "utf8"));
+      cfg.topologyDrift = true;
+      writeFileSync(join(f.root, "fixture.json"), JSON.stringify(cfg));
+    }
     let viewer, supervisor;
     let attempt;
     try {
@@ -345,7 +424,7 @@ for (const scenario of [
           readObservation(f.locator, attempt.attempt).events.some((e) => e.type === "tool_end"),
         );
       } else {
-        assert.equal(result.sends, scenario === "stop" ? 1 : 0);
+        assert.equal(result.sends, ["stop", "topology-after-send"].includes(scenario) ? 1 : 0);
         assert.equal(existsSync(join(f.checkout, "proof.txt")), false);
       }
       if (!result.closedVerified)
@@ -363,20 +442,19 @@ for (const scenario of [
       assert.equal(state.attempts[0].effectsDisposed, false);
       assert.equal(state.attempts[0].hostClosed, false);
       let effects = 0;
-      assert.equal(
-        (
-          await launchReserved(f.request, f.locator, {
-            openViewer: async () => {
-              effects++;
-              return { ok: true };
-            },
-            supervise: async () => {
-              effects++;
-            },
-          })
-        ).status,
-        "existing",
-      );
+      const repeat = () =>
+        launchReserved(f.request, f.locator, {
+          openViewer: async () => {
+            effects++;
+            return { ok: true };
+          },
+          supervise: async () => {
+            effects++;
+          },
+        });
+      if (scenario === "topology-after-send")
+        await assert.rejects(repeat, /domain_git_topology_changed/);
+      else assert.equal((await repeat()).status, "existing");
       assert.equal(effects, 0);
     } finally {
       writeFileSync(join(f.root, "fixture-release"), "release owned synthetic holder");

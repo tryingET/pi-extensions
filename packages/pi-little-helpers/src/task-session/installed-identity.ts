@@ -2,7 +2,7 @@ import { classificationRequest, classifySnapshot, producer } from "./classify.js
 import { digest, record, refuse } from "./json.js";
 import {
   accountLocator,
-  assertDomainPhysical,
+  assertSnapshotDomains,
   type Locator,
   readSnapshot,
   type Snapshot,
@@ -12,7 +12,7 @@ export function identityFromSnapshot(s: Snapshot) {
   const instances = [...new Set(s.domains.map((d) => d.akInstance))];
   if (s.withdrawn || !s.inventoryComplete || instances.length !== 1)
     refuse("canonical_instance_unavailable");
-  for (const domain of s.domains) assertDomainPhysical(domain);
+  assertSnapshotDomains(s);
   const identity = {
     schema: "pi.task-session.installed-identity.v1",
     producer,

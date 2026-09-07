@@ -180,32 +180,20 @@ test("immutable T1 cannot replace existing record", () => {
 });
 test("whole request classification: outside, mixed, missing, task cross-checkout", () => {
   const { state } = fixture();
-  const outside = {
-    ...d,
-    taskId: 2,
-    checkout: "/outside",
-    commonGit: "/outside/.git",
-    sharedEffects: [],
-  };
+  const outside = { ...fixture().d, taskId: 2, sharedEffects: [] };
   state.domains.push(outside);
   const request = {
     schema: "pi.task-session.classify-request.v1",
     requestId: "r",
     akInstance: "synthetic",
     taskIds: [2],
-    cwd: "/outside",
+    cwd: outside.checkout,
   };
-  assert.equal(classifySnapshot(request, state, "/outside/.git").classification, "outside");
-  assert.equal(
-    classifySnapshot({ ...request, taskIds: [1, 2] }, state, "/outside/.git").classification,
-    "enrolled",
-  );
-  assert.equal(
-    classifySnapshot({ ...request, taskIds: [3] }, state, "/outside/.git").classification,
-    "unknown",
-  );
+  assert.equal(classifySnapshot(request, state).classification, "outside");
+  assert.equal(classifySnapshot({ ...request, taskIds: [1, 2] }, state).classification, "enrolled");
+  assert.equal(classifySnapshot({ ...request, taskIds: [3] }, state).classification, "unknown");
   state.inventoryComplete = false;
-  assert.equal(classifySnapshot(request, state, "/outside/.git").classification, "unknown");
+  assert.equal(classifySnapshot(request, state).classification, "unknown");
 });
 test("default denial irreversible before construction", () => {
   const g = new DispatchGuard("i", "p");

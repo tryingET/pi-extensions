@@ -97,13 +97,19 @@ writeFileSync(join(scratch, "proof.mjs"), proof);
 const verified = JSON.parse(run(process.execPath, ["proof.mjs"]));
 // Run the same real startup/bridge process suite against the extracted artifact, not source dist.
 mkdirSync(join(scratch, "tests/fixtures/task-session"), { recursive: true });
-writeFileSync(
-  join(scratch, "tests/task-session-startup.test.mjs"),
-  readFileSync(join(root, "tests/task-session-startup.test.mjs"), "utf8").replaceAll(
-    "../dist/task-session/",
-    "../node_modules/@tryinget/pi-little-helpers/dist/task-session/",
-  ),
-);
+const suites = [
+  "task-session-startup.test.mjs",
+  "task-session-review.test.mjs",
+  "task-session-identity.test.mjs",
+];
+for (const suite of suites)
+  writeFileSync(
+    join(scratch, "tests", suite),
+    readFileSync(join(root, "tests", suite), "utf8").replaceAll(
+      "../dist/task-session/",
+      "../node_modules/@tryinget/pi-little-helpers/dist/task-session/",
+    ),
+  );
 for (const file of [
   "startup-host.mjs",
   "startup-real-tui.mjs",
@@ -121,8 +127,9 @@ for (const file of [
   );
   writeFileSync(join(scratch, "tests/fixtures/task-session", file), data);
 }
-run(process.execPath, ["--test", "tests/task-session-startup.test.mjs"]);
+run(process.execPath, ["--test", ...suites.map((s) => `tests/${s}`)]);
 verified.packedStartupProcessSuite = true;
+verified.packedReviewRegressions = true;
 const help = run(process.execPath, [
   "node_modules/@tryinget/pi-little-helpers/dist/task-session/bin.js",
   "--help",

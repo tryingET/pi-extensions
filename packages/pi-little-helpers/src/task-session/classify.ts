@@ -1,9 +1,11 @@
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { commonGit } from "./git.js";
+
+export { commonGit } from "./git.js";
+
 import { digest, id, integer, record, refuse } from "./json.js";
 import {
   accountLocator,
-  assertDomainPhysical,
+  assertSnapshotDomains,
   canonicalPath,
   conflicts,
   type Locator,
@@ -37,38 +39,9 @@ export function classificationRequest(v: unknown): ClassificationRequest {
   canonicalPath(r.cwd);
   return structuredClone(r) as ClassificationRequest;
 }
-/** Filesystem-only Git identity, no git process, no hooks, no DB. */
-export function commonGit(cwd: string): string {
-  const dot = join(cwd, ".git");
-  const s = lstatSync(dot);
-  if (s.isSymbolicLink()) refuse("git_identity_ambiguous");
-  let gitDir = dot;
-  if (s.isFile()) {
-    if (s.size > 4096) refuse("git_identity_ambiguous");
-    const m = /^gitdir: ([^\r\n]+)\n?$/.exec(
-      new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(dot)),
-    );
-    if (!m) refuse("git_identity_ambiguous");
-    gitDir = realpathSync(resolve(cwd, m[1]));
-  } else if (!s.isDirectory()) refuse("git_identity_ambiguous");
-  try {
-    const path = join(gitDir, "commondir");
-    const stat = lstatSync(path);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096)
-      refuse("git_identity_ambiguous");
-    const value = readFileSync(path, "utf8").trim();
-    if (!value || value.includes("\n")) refuse("git_identity_ambiguous");
-    return realpathSync(resolve(gitDir, value));
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-  }
-  return realpathSync(gitDir);
-}
-export function classifySnapshot(
-  request: ClassificationRequest,
-  s: Snapshot,
-  git = commonGit(request.cwd),
-) {
+export function classifySnapshot(request: ClassificationRequest, s: Snapshot) {
+  assertSnapshotDomains(s);
+  const git = commonGit(request.cwd);
   const base = {
     schema: "pi.task-session.classification.v1",
     producer,
@@ -103,7 +76,6 @@ export function classifySnapshot(
 }
 export function classifyNamespace(request: ClassificationRequest, locator: Locator) {
   const snapshot = readSnapshot(locator);
-  for (const domain of snapshot.domains) assertDomainPhysical(domain);
   return classifySnapshot(request, snapshot);
 }
 export function classifyTaskSessionRequest(input: unknown) {

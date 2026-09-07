@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
+import { commonGit } from "./git.js";
 import { canonical, digest, id, integer, parseJson, record, refuse, text } from "./json.js";
 import { native } from "./native.js";
 
@@ -38,6 +39,7 @@ export function assertDomainPhysical(d: Domain): void {
     physicalIdentity(d.commonGit) !== d.physical.commonGit
   )
     refuse("domain_replaced");
+  if (commonGit(d.checkout) !== d.commonGit) refuse("domain_git_topology_changed");
 }
 export interface Attempt {
   requestId: string;
@@ -276,6 +278,7 @@ export function reserve(
     if (!n.tryLock(handle)) refuse("namespace_busy");
     try {
       const s = readSnapshot(locator);
+      assertSnapshotDomains(s);
       assertDomainPhysical(d);
       const existing = s.attempts.find((a) => a.requestId === requestId);
       if (existing) {
@@ -306,4 +309,14 @@ export function reserve(
   } finally {
     n.closeMutex(handle);
   }
+}
+
+/** Admission checks only: inspection must retain even physically stale custody. */
+export function assertSnapshotDomains(s: Snapshot): void {
+  for (const d of [
+    ...s.domains,
+    ...s.enrolled,
+    ...s.attempts.filter(occupied).map((a) => a.domain),
+  ])
+    assertDomainPhysical(d);
 }

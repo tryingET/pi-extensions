@@ -11,6 +11,7 @@ import { hash, loadHostProfile, loadProfile } from "./profile.js";
 import type { PrivateChannel } from "./socket-channel.js";
 import {
   assertDomainPhysical,
+  assertSnapshotDomains,
   durableWrite,
   type Locator,
   privateRead,
@@ -117,6 +118,7 @@ export async function runHost(
       const snapshot = readSnapshot(locator);
       if (snapshot.withdrawn || !snapshot.attempts.some((a) => digest(a) === digest(attempt)))
         refuse("custody_changed");
+      assertSnapshotDomains(snapshot);
       assertDomainPhysical(attempt.domain);
       assertNotStopped(dir, attempt);
     };

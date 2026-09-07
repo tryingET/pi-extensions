@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import type { OAuthCredential } from "@earendil-works/pi-ai";
+import { assertCredentialMetadata } from "./auth-metadata.js";
 import type { CodexProfile } from "./codex.js";
+import { assertSdkIdentity } from "./identity.js";
 import { bytesDigest, digest, integer, parseJson, record, refuse, text } from "./json.js";
 import { canonicalPath, type Locator, privatePath, privateRead } from "./state.js";
 export function hash(value: unknown): string {
@@ -75,6 +77,7 @@ export function loadProfile(locator: Locator, reference: string): ProfilePin {
   return structuredClone(p) as ProfilePin;
 }
 export async function loadHostProfile(locator: Locator, reference: string) {
+  assertSdkIdentity();
   const p = loadProfile(locator, reference);
   privatePath(join(locator.root, "credentials"), true);
   const c = record(
@@ -85,6 +88,8 @@ export async function loadHostProfile(locator: Locator, reference: string) {
   text(c.access);
   text(c.refresh);
   integer(c.expires);
+  const runDeadline = Date.now() + p.runSeconds * 1000;
+  assertCredentialMetadata(c as OAuthCredential, { account: p.account, runDeadline });
   // Pure built-in catalog only; no ModelRuntime/default config/auth store construction here.
   const { getModel } = await import("@earendil-works/pi-ai/compat");
   const model = getModel("openai-codex", p.model as "gpt-5.4");
@@ -93,7 +98,12 @@ export async function loadHostProfile(locator: Locator, reference: string) {
     model,
     reasoning: p.reasoning,
     account: p.account,
-    runDeadline: Date.now() + p.runSeconds * 1000,
+    runDeadline,
   };
   return { pin: p, profile, credential: structuredClone(c) as OAuthCredential };
+}
+
+/** Read-only admission preflight: credentials never escape to the launch controller. */
+export async function preflightProfile(locator: Locator, reference: string): Promise<ProfilePin> {
+  return (await loadHostProfile(locator, reference)).pin;
 }

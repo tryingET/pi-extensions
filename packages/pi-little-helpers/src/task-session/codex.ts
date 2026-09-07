@@ -9,9 +9,11 @@ import type {
 } from "@earendil-works/pi-ai";
 import { streamSimple as nativeCodexStream } from "@earendil-works/pi-ai/api/openai-codex-responses";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { AUTH_MARGIN_MS, assertCredentialMetadata } from "./auth-metadata.js";
 import type { DispatchGuard } from "./dispatch.js";
 import { bytesDigest, refuse } from "./json.js";
-export const AUTH_MARGIN_MS = 360000; // native 5 minutes + versioned 60 second safety margin
+
+export { AUTH_MARGIN_MS } from "./auth-metadata.js";
 export interface CodexProfile {
   model: Model<Api>;
   reasoning: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -48,15 +50,6 @@ export function readonlyCredentials(
       guard.deny("credential_mutation_forbidden");
     },
   });
-}
-function accountId(access: string): string {
-  try {
-    return JSON.parse(Buffer.from(access.split(".")[1], "base64url").toString("utf8"))[
-      "https://api.openai.com/auth"
-    ].chatgpt_account_id;
-  } catch {
-    return refuse("credential_account_invalid");
-  }
 }
 /** Per-request post-serializer and actual-send boundary. Never installs a global network hook. */
 export function guardedCodexOptions(
@@ -168,12 +161,7 @@ export async function codexRuntime(
     profile.model.samplingParams
   )
     refuse("codex_profile_unsupported");
-  if (
-    credential.type !== "oauth" ||
-    accountId(credential.access) !== profile.account ||
-    credential.expires <= profile.runDeadline + AUTH_MARGIN_MS
-  )
-    refuse("auth_refresh_required_or_account_mismatch");
+  assertCredentialMetadata(credential, profile);
   const runtime = await ModelRuntime.create({
     credentials: readonlyCredentials(credential, profile, guard),
     modelsPath: null,
