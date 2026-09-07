@@ -28,7 +28,7 @@ def recover(data, directory):
         assert re.fullmatch(r'[0-9]{2}-[a-z0-9-]+\.txt', part)
         p = directory/part
         assert p.stat().st_size < 30000
-        chunks += p.read_text().splitlines()
+        chunks += [line for line in p.read_text().splitlines() if line.strip()]
     assert len(chunks) == n
     rows = []
     for i,line in enumerate(chunks):
