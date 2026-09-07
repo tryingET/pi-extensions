@@ -183,8 +183,9 @@ which need not equal the caller checkout. The adapter remains default-denied: AK
 but native compilation/tests never started because workstation heavy-job custody preflight blocked.
 This is NOT an integration-ready producer. Do not flip readiness from source or fixture presence.
 
-SDK integrity preflight uses builtins only, before credential reads/SDK import: exact 0.84.4 versions,
-522 JavaScript files across pi-ai/coding-agent/agent-core/tui, and actual nested dependency resolution.
+SDK integrity preflight uses builtins only, before credential reads/SDK import. The original 522-JavaScript-file
+check is superseded by the I02 correction below: package metadata, entrypoints and complete package-owned
+file inventories for the four pinned SDK packages.
 Packed tests detect transitive serializer-source tampering. SDK provider error/abort remains an explicit
 guard outcome, not a successful host finish; `promptReturned` does not assert useful task completion.
 
@@ -280,3 +281,82 @@ and incomplete top-level-only orchestrator discovery) were corrected before thes
 These are implementation defects, not unavailable-live-evidence excuses. Dispositions remain open
 until source fixes and named regression/packaging checks are observed. No producer fence removal,
 live credentials/config/provider/AK/DB access, enrollment or activation is authorized by this review.
+
+
+### I01/I02/I03 corrected dispositions — implementation/regression proof, independent review pending
+
+Open findings were persisted in commit `9863f7d2` before source changes. Fix commit:
+`3c710d83645eaeeea9db5b6d9bd3405f1531a6f7` (normal pre-commit hook passed).
+All three implementation findings are **fixed with focused and packed regressions passing**;
+parent independent review/acceptance remains pending. This does not close global task5480 or Decision151.
+
+**D151-I01 — FIXED.** `git.ts` is the shared filesystem-only Git resolver. `state.ts` now checks
+checkout-to-commonGit topology alongside device/inode identities. `assertSnapshotDomains` covers all
+inventory/enrollment domains and all independently occupied attempt domains. Classification, installed
+identity, mutex-held reservation and host custody checks use it. Classification no longer accepts a caller-
+supplied cached Git identity. A dangling commondir target cannot fall back to the old Git directory.
+Inspection still reads and preserves stale custody; no metadata rebinding, record clearing or retirement.
+
+`task-session-review.test.mjs` proves unchanged checkout/G1 inode plus redirected gitdir/commondir refuses,
+including enrolled-only and occupied-only historical domains. The original request starts outside; a
+separate, nonpersisted corrected-domain copy demonstrates why the new topology would be enrolled.
+Namespace bytes remain unchanged by refusal. `task-session-startup.test.mjs` adds actual separate-host
+metadata drift after the first synthetic provider send: no write-tool effect or second send occurs, and
+occupancy stays unresolved. This is boundary-check evidence, not a hostile-filesystem race-proof sandbox.
+
+**D151-I02 — FIXED.** `identity.ts` discovers package roots without deriving them from mutable export
+entrypoints. It pins exact package.json bytes (the reviewed 0.84.4 metadata), all **2164 package-owned files**
+across pi-ai/coding-agent/agent-core/tui, and exact resolved main/consumed compat/Codex entrypoint URLs.
+No .mjs/.cjs/extensionless executable omission; symlink/special-file entries and nested source node_modules
+are rejected. SDK-to-SDK dependency resolution remains checked. Top-level dependency trees are separately
+resolved, not absorbed into these package-owned file digests; this is not arbitrary transitive supply-chain
+or hostile same-UID/module-cache attestation.
+
+`task-session-identity.test.mjs` copies only installed SDK package source into owned scratch and uses fresh
+processes: approved control passes; compat/main redirection with unchanged version/approved JS, legacy main
+outside the package, added .mjs/.cjs, source tamper and nested dependency additions all refuse. Redirected
+code never writes its execution marker. No live SDK/config files are modified by these probes.
+
+**D151-I03 — FIXED.** `auth-metadata.ts` shares the existing account/lifetime policy without importing a
+provider/runtime. `profile.ts` performs builtin-only SDK verification, immutable profile/credential reads,
+account/expiry metadata validation and pinned native-catalog model validation. `preflightProfile` returns
+only the pin to the controller, not credentials. `launch.ts` invokes it before any native-plan/viewer/
+supervisor port and again after asynchronous baseline acquisition, before reservation. SDK-dependent
+resource imports are delayed until after the initial preflight. Child validation remains in place.
+No refresh, OAuth conversion, ModelRuntime creation or provider send is part of this preflight.
+
+Five I03 negatives assert unchanged namespace bytes, no attempt directory entries, no viewer/supervisor/
+fetch call: wrong modelDigest, wrong account, insufficient lifetime, absent credential, and lifetime becoming
+insufficient during the scripted baseline callback. The first four also make zero plan calls; the last uses
+exactly one synthetic plan callback. Existing positive startup/model/tool tests continue to pass.
+
+### Review-fix validation and exact artifact receipt
+
+- Focused `npm run task-session:test`: **95/95 passed**.
+- Little-helpers declared `SKIP_PI_SMOKE=1 npm run check`, isolated HOME/concurrency 4:
+  **432/432 passed**, with structure/file-budget/lint/typecheck/release checks green within that explicit gate.
+- Orchestrator recursively discovered safe suite: **474/474 passed**. The single live Pi-loader case remains
+  explicitly excluded; the earlier non-temp assertion was fixed separately in `943cdd85`.
+- Both real tarballs install with scripts disabled; public exports, fixed CLI, native loading/locking,
+  SDK identity and actual compressed synthetic Codex serialization pass. **31/31 packed startup/review
+  regression tests pass** against extracted runtime, including the new I01/I02/I03 negatives.
+- Normal source hook and staged whitespace passed. No production readiness flag or producer schema changed.
+
+Final receipt: `$TMPDIR/task5480-pack-proof-ente7x/` (`evidence.json`, `command-*.log`, both tarballs).
+Previous receipts remain historical evidence; the updated little-helpers bytes need a newly reviewed pin.
+Versions are still unchanged/unreleased.
+
+| Artifact | SHA256 | Bytes / entries |
+| --- | --- | --- |
+| `tryinget-pi-little-helpers-0.9.0.tgz` | `b578656ca250880860e77befa30ac52db663775b90cb0446bb300408b3ff40e6` | 283669 / 134 |
+| `tryinget-pi-society-orchestrator-0.11.5.tgz` | `32356f3d3cfa67f9d2aca59cf9b2b7e09418d8af72dbcbd4b6694083963beddd` | 365746 / 117 |
+
+Logs: `$TMPDIR/task5480-review-final-{focused,check,orch,pack}.log`,
+`task5480-review-source-commit.log`; initial failures remain in review logs (null-prototype digest fixture
+integration and duplicate immutable fixture creation were corrected, not bypassed).
+
+Residual gates: parent independent review; actual native AK verification and cross-owner fault/effect proof;
+approved owner provisioning/profiles/pins/installation; live Pi/Ghostty/provider gates; broader power-loss/
+filesystem-fault and supported-platform validation. Public launch and host entry still invoke the unconditional
+producer-verification fence. No AK/DB/native AK build, live auth/config/provider, installation, enrollment,
+claim mutation/recovery, other-worker signaling or out-of-scope source changes were performed.

@@ -41,3 +41,18 @@ workstation heavy-job custody preflight, not a missing Pi bootstrap. Public laun
 Installation/pins/provisioning, native cross-owner fault proof, live visibility/provider canary and release
 acceptance remain owner gates. No live config/auth, AK/DB invocation, enrollment, recovery, other-worker
 signaling or canonical feature-checkout transport-fix mutation occurred. Task5480 remains unaccepted.
+
+
+## Review correction: evidence8436 / I01 I02 I03
+
+Committed open finding notes first (`9863f7d2`), then fixes with normal hooks
+(`3c710d83645eaeeea9db5b6d9bd3405f1531a6f7`). Directory identity alone did not establish Git topology;
+JS-only hashing did not establish SDK export identity; child-only compatibility checks were too late to
+prevent deterministically invalid reservations. All three defects now have focused and packed regressions.
+
+Observed: 95 focused tests; 432 little-helpers tests and declared checks with live smoke gated; 474 safe
+orchestrator tests with the live loader excluded; 31 packed startup/review tests. Final pack hashes and
+finding-level source/test dispositions are in the implementation evidence. Parent independent review remains
+pending; package/SDK compatibility checks are not same-UID sandbox or live/native claimability proof.
+Public producer fence unchanged. No activation, native AK build, live credentials/config/provider/AK/DB,
+recovery, enrollment or out-of-scope source mutation. Old artifact proofs remain historical, not new pins.
