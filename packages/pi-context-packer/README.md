@@ -13,8 +13,18 @@ system4d:
 
 Read-only context planning and packet assembly for Pi. Instructions, Markdown/docs-list,
 Git posture, and session metadata remain available. Prompt Vault, AK, and FCOS remain
-owner-routed. This increment intentionally has no code retrieval backend; use Pi's
-ordinary read/search tools while the opt-in ripwire stack is implemented.
+owner-routed. Ripwire is available for explicit, read-only code discovery:
+
+```json
+{"objective":"Find the provider capability checks","providers":{"ripwire":"required"}}
+```
+
+Filename seeds are optional. `auto` does not yet activate ripwire. The operator must
+provision the supported executable and set `PI_CONTEXT_PACKER_RIPWIRE_BIN` to its
+absolute path. See [the stack contract](docs/project/ripwire-stack.md) for the
+pinned build, digest, approved-corpus policy, and Linux support boundary.
+The package never installs a tool or changes agent settings. Ordinary Pi read/search
+remains available when discovery is unavailable or insufficient.
 
 ## Migration
 

@@ -27,7 +27,7 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 if (
   flags.size !== 3 ||
-  !["RW-01", "RW-02", "RW-03"].includes(flags.get("--gate")) ||
+  !["RW-01", "RW-02", "RW-03", "RW-04"].includes(flags.get("--gate")) ||
   !/^[a-f0-9]{40}$/u.test(flags.get("--candidate-sha"))
 )
   throw new Error("Expected --gate RW-01|RW-02 --candidate-sha SHA --output-dir EXTERNAL_DIR");
@@ -151,6 +151,9 @@ try {
           NPM_CONFIG_PREFIX: join(scratch, "npm"),
           INSTALLED_PACKAGE_ROOT: installed,
           NO_COLOR: "1",
+          PI_CONTEXT_PACKER_DOGFOOD_GATE: flags.get("--gate"),
+          PI_CONTEXT_PACKER_RIPWIRE_BIN: process.env.PI_CONTEXT_PACKER_RIPWIRE_BIN,
+          PI_CONTEXT_PACKER_RIPWIRE_SHA256: process.env.PI_CONTEXT_PACKER_RIPWIRE_SHA256,
         },
       },
     );
@@ -158,6 +161,11 @@ try {
       !text.includes("context-packer runtime registration and registered tool closure execution OK")
     )
       throw new Error("Runtime marker absent");
+    if (
+      Number(flags.get("--gate").slice(3)) >= 4 &&
+      !text.includes("ripwire registered discovery PASS")
+    )
+      throw new Error("Ripwire registered execution marker absent");
   }
 } catch (error) {
   if (!receipt.checks.some((check) => check.status !== "PASS"))

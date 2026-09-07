@@ -54,3 +54,19 @@ and raw process errors are withheld. Snapshot identity is not a multi-file files
 `RW-03` dogfood uses the real provisioned binary and tests exclusions, symlinks, a wrong-digest
 negative control, cancellation, and source preservation. Raw subprocess or compiler output is
 not promoted into a packet. Use Pi read/search tools on refusal; there is no other code backend.
+
+## RW-04 — opt-in packet discovery
+
+`context_pack` and `context_plan` accept `providers.ripwire: "required"` for
+repository-wide discovery over the approved corpus. No code-path or symbol seed
+is required. `off` and the current `auto` mode make no ripwire call. Execution
+still requires the operator-configured pinned binary; models cannot choose its
+path, digest, exclusion policy, environment, or arguments. The normal packet
+carries source-content hashes and snapshot identity with ranked signatures.
+Required-provider failures produce an incomplete error packet with explicit
+omissions, not an apparently successful empty discovery. Native Pi read/search
+remains the fallback. No additional backend is used.
+
+The RW-04 dogfood gate exercises both the packed API and the installed registered
+Pi `context_pack` closure against isolated code targets. Runtime helpers are
+separate from registration so the extension remains under its file budget.

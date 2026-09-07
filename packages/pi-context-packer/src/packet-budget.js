@@ -35,6 +35,18 @@ export function outputLimits(budget = {}, env = {}) {
 function refresh(result) {
   const { packet, plan } = result;
   const sections = packet.sections;
+  for (const [provider, run] of Object.entries(packet.providerRuns ?? {})) {
+    if (
+      run.required &&
+      run.observedItems > 0 &&
+      !sections.some((section) => section.provider === provider && section.items.length)
+    ) {
+      packet.requiredProviderFailures ??= [];
+      if (!packet.requiredProviderFailures.includes(provider))
+        packet.requiredProviderFailures.push(provider);
+      packet.ok = false;
+    }
+  }
   for (const section of sections) {
     section.bytes = section.items.reduce((sum, item) => sum + item.bytes, 0);
     section.estimatedTokens = section.items.reduce((sum, item) => sum + item.estimatedTokens, 0);
@@ -106,7 +118,7 @@ export function fitRenderedPacket(input, env, render) {
       if (!fits(text)) text = "";
     }
     return {
-      ok: !reason,
+      ok: !reason && result.packet?.ok !== false,
       result,
       text,
       accounting: {
@@ -122,7 +134,7 @@ export function fitRenderedPacket(input, env, render) {
         reserveTokens: limits.reserve,
         hostRemainingTokens: limits.remaining,
         removedItems,
-        reason,
+        reason: reason ?? (result.packet?.ok === false ? "required_provider_unavailable" : null),
       },
     };
   } catch {

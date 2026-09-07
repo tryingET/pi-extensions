@@ -22,7 +22,7 @@ import {
 
 export { contextPackProviderCapability } from "./provider-capabilities.js";
 
-const PROVIDER_IDS = ["agents", "git", "docs", "session", "prompt_vault", "ak", "fcos"];
+const PROVIDER_IDS = ["agents", "git", "docs", "ripwire", "session", "prompt_vault", "ak", "fcos"];
 
 const DEFAULT_MAX_TOKENS = 40_000;
 const DEFAULT_RESERVE_TOKENS = 12_000;
@@ -46,6 +46,7 @@ const CONTEXT_PLAN_SEED_KIND_SET = new Set(CONTEXT_PLAN_SEED_KINDS);
 const isMarkdownPath = (value) => /\.md$/i.test(value);
 
 const PROVIDER_AUTHORITY = {
+  ripwire: "Read-only heuristic code discovery; not a complete graph or edit authorization.",
   agents:
     "Repo-bounded AGENTS/CLAUDE instruction projection; global and above-repo Pi-loaded instruction files are outside this packet provider.",
   git: "Current workspace git posture; read-only status/diff metadata only.",
@@ -66,6 +67,17 @@ const NON_AUTHORIZATIONS = Object.freeze([
 const nonAuthorizations = () => [...NON_AUTHORIZATIONS];
 
 const PROVIDER_KEYWORDS = {
+  ripwire: [
+    "code",
+    "symbol",
+    "definition",
+    "implementation",
+    "refactor",
+    "typescript",
+    "javascript",
+    "python",
+    "bug",
+  ],
   docs: ["doc", "docs", "markdown", "architecture", "policy", "adr", "rfc", "readme"],
   session: ["context", "token", "tokens", "tool-call", "tool call", "compact", "window"],
   prompt_vault: [
@@ -497,6 +509,8 @@ const normalizeWorkspace = (raw, env) => {
 };
 
 const seedMatchesProvider = (provider, seed) => {
+  if (provider === "ripwire")
+    return seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value));
   if (provider === "docs") return seed.kind === "path" && isMarkdownPath(seed.value);
   if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
   if (provider === "fcos") return seed.kind === "fcos";
@@ -531,6 +545,11 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
   if (requestedMode === "off") return { posture: "skipped", reason: "provider disabled by caller" };
   if (requestedMode === "required")
     return { posture: "selected", reason: "provider required by caller" };
+  if (provider === "ripwire")
+    return {
+      posture: "optional",
+      reason: "explicit ripwire selection required; automatic activation is off",
+    };
   if (providerMatches(provider, objective, seeds)) {
     return { posture: "selected", reason: "provider matches objective or seeds" };
   }
@@ -699,7 +718,11 @@ export const buildContextPlan = (input = {}, env = {}) => {
     unavailableCodeSeeds: safeSeeds.filter(
       (seed) => seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value)),
     ),
-    codeContextStatus: "unavailable",
+    codeContextStatus: providerPlans.some(
+      (entry) => entry.provider === "ripwire" && entry.posture === "selected",
+    )
+      ? "runtime_preflight_required"
+      : "unavailable",
     executionSummary: buildContextPackExecutionSummary(providerPlans),
     ownerSurfaceRecommendations,
     ...(omittedSeeds.length ? { omittedSeeds } : {}),

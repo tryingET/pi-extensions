@@ -100,7 +100,7 @@ test("context-packer extension registers command and all model-callable tools", 
     result.details.runtimeContract.registeredToolContract,
     "context-packer-registered-tools-v1",
   );
-  assert.equal(result.details.runtimeContract.runtimeBuild, "code-migration-v1");
+  assert.equal(result.details.runtimeContract.runtimeBuild, "ripwire-discovery-v1");
 
   const aggregate = await tools.get("context_dogfood_summarize").execute("tool-call-2", {
     evaluations: [result.details.dogfoodObservationEvaluation],

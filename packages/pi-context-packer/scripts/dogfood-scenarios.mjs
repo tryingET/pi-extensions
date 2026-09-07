@@ -96,6 +96,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
     "RW-01": migrationScenario,
     "RW-02": (await import("./dogfood-budget.mjs")).budgetScenario,
     "RW-03": (await import("./dogfood-adapter.mjs")).adapterScenario,
+    "RW-04": (await import("./dogfood-discovery.mjs")).discoveryScenario,
   };
   assert.ok(scenarios[process.argv[2]], "Scenario not implemented at this candidate");
   console.log(JSON.stringify(await scenarios[process.argv[2]]()));

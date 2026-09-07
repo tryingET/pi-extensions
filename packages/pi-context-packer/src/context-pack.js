@@ -17,6 +17,7 @@ import {
 } from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
 import { isPlannedUnwiredContextPackProvider } from "./provider-capabilities.js";
+import { buildRipwireSection } from "./ripwire-section.js";
 import {
   buildDogfoodObservationTemplate,
   buildMeasurementHints,
@@ -499,6 +500,8 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const repoRoot = resolve(plan.repoRoot ?? plan.cwd);
   const providerIds = selectedProviderIds(plan);
   const sections = [];
+  const providerRuns = {};
+  const requiredProviderFailures = [];
   const sessionAwareness = buildSessionAwareness({ ...env, cwd });
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const providerBudgets = new Map();
@@ -511,8 +514,11 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     };
   });
   if (
-    plan.unavailableCodeSeeds.length > 0 ||
-    /\b(code|symbol|implementation|refactor|typescript|javascript|python)\b/iu.test(plan.objective)
+    !providerIds.includes("ripwire") &&
+    (plan.unavailableCodeSeeds.length > 0 ||
+      /\b(code|symbol|implementation|refactor|typescript|javascript|python)\b/iu.test(
+        plan.objective,
+      ))
   ) {
     omissions.push({
       provider: "code",
@@ -574,6 +580,22 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     });
   }
 
+  if (providerIds.includes("ripwire")) {
+    const result = await buildRipwireSection(plan, env);
+    providerRuns.ripwire = result.state;
+    omissions.push(...result.omissions);
+    const selection = appendSectionWithinBudget({
+      sections,
+      omissions,
+      section: result.section,
+      remainingBudget,
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "ripwire"),
+    });
+    if (!result.ok || (result.section.items.length > 0 && selection.keptCount === 0)) {
+      requiredProviderFailures.push("ripwire");
+    }
+  }
+
   if (providerIds.includes("session") && shouldShowSessionSection({ plan, sessionAwareness })) {
     const result = buildSessionSection({ sessionAwareness });
     const selection = appendSectionWithinBudget({
@@ -629,7 +651,9 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const ownerSurfaceRecommendations = plan.ownerSurfaceRecommendations ?? [];
   const nextOwnerActions = ownerSurfaceRecommendations.map(ownerActionFromRecommendation);
   const packet = {
-    ok: true,
+    ok: requiredProviderFailures.length === 0,
+    providerRuns,
+    requiredProviderFailures,
     objective: plan.objective,
     generatedAt: dogfoodObservationTemplate.packet.generatedAt,
     cwd,

@@ -27,6 +27,12 @@ const formatPacketItem = (item) => {
     item.provenance?.command
       ? `- command: ${markdownInlineLabel(item.provenance.command, "unknown")}`
       : undefined,
+    item.provenance?.contentSha256
+      ? `- source SHA-256: ${markdownInlineLabel(item.provenance.contentSha256)}`
+      : undefined,
+    item.provenance?.snapshotId
+      ? `- snapshot: ${markdownInlineLabel(item.provenance.snapshotId)}`
+      : undefined,
     `- rationale: ${markdownInlineLabel(item.rationale, "none")}`,
   ].filter(Boolean);
   return [heading, ...meta, "", markdownFence(item.id, item.content)].join("\n");
@@ -66,6 +72,11 @@ const formatUnboundedPacket = (result, diagnostics = false) => {
     : undefined;
   return [
     `# Context packet: ${markdownInlineLabel(packet.objective, "objective")}`,
+    ...(packet.requiredProviderFailures?.length
+      ? [
+          "Required code provider unavailable or omitted; packet is incomplete. Use Pi read/search tools.",
+        ]
+      : []),
     "",
     `Selected provider content: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
     "Budget accounting: final rendered output is bounded; provider-content totals exclude scaffolding.",
@@ -129,6 +140,16 @@ const compactProvenance = (provenance = {}) => ({
     ? { commandRef: "packet Markdown item metadata", commandOmitted: true }
     : {}),
   ...(provenance.ref ? { ref: provenance.ref } : {}),
+  ...(provenance.provider === "ripwire"
+    ? {
+        rank: provenance.rank,
+        line: provenance.line,
+        route: provenance.route,
+        snapshotId: provenance.snapshotId,
+        contentSha256: provenance.contentSha256,
+        binarySha256: provenance.binarySha256,
+      }
+    : {}),
 });
 
 const compactMeasurementReceipt = (receipt) => ({
@@ -168,6 +189,8 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
       absolutePathsOmitted: true,
     },
     budget: cloneProjection(packet.budget),
+    providerRuns: cloneProjection(packet.providerRuns ?? {}),
+    requiredProviderFailures: [...(packet.requiredProviderFailures ?? [])],
     totals: cloneProjection(packet.totals),
     ...(renderedMarkdown ? { renderedMarkdown } : {}),
     sections: packet.sections.map((section, sectionIndex) => ({

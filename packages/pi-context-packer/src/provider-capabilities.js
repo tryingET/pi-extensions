@@ -6,6 +6,10 @@ read_when:
 import { hasHighSessionContextPressure } from "./session-context.js";
 
 const PROVIDER_CAPABILITIES = Object.freeze({
+  ripwire: Object.freeze({
+    adapterStatus: "guarded",
+    executionStatus: "runtime_preflight_required",
+  }),
   agents: Object.freeze({ adapterStatus: "wired", executionStatus: "executable_now" }),
   git: Object.freeze({ adapterStatus: "wired", executionStatus: "executable_now" }),
   docs: Object.freeze({ adapterStatus: "wired", executionStatus: "executable_now" }),
