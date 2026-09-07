@@ -22,7 +22,9 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | Extension | Description |
 |---|---|
 | `code-block-picker` | Pick a code block from the conversation and copy it safely to the clipboard |
-| `codex-reset` | Inspect banked OpenAI Codex rate-limit resets and spend one through an explicit, idempotent confirmation flow |
+| `codex-reset` | Owns `/resets status\|use\|manage` capability routing and the compatible `/codex-reset` account-bound, confirmed redemption flow |
+| `limits` | Runway subscription cockpit: compare supported provider quotas, key allowance/wallet balances and reset timelines; inspect or explicitly switch |
+| `reset-inventory` | `subscription_resets` read-only machine query for exact-provider reset counts and expiry; no redemption or login |
 | `html-output-browser` | Auto-open written/edited HTML files in the browser, append clickable `file://` links to tool output, and expose `/artifacts` / `/show-artifacts` plus `Ctrl+Shift+S` to pick an openable artifact from the workspace or recently written outside it |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
 | `session-presence` | Publish exact Pi session identity for Steve's Ghostty/Niri hourly observation and hot restore flow |
@@ -121,19 +123,76 @@ Adoption rejects symlink or path ambiguity (including lifecycle publication root
 
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
 
-## Codex reset credits
+## Limits / Runway
 
-Use `/codex-reset status` to inspect the active OpenAI Codex subscription account without spending anything. It lists every available banked reset with both relative and absolute expiry times. Use `/codex-reset` or `/codex-reset use` to review that same list and then explicitly confirm spending one credit.
+Overview defaults to **soonest displayed quota renewal**, then **lowest Left percentage** for ties. Unknown renewal/remaining values sort last; monetary balances are not ranked against quota percentages. Passed renewal timestamps keep their chronological position and refresh warning. Search and attention filtering preserve this order; the active account stays selected without being pinned to the top.
+
+`/limits` (or `/limits all`) opens **Runway** on its **Overview** tab: one compact row per subscription, so eight accounts fit at 75 columns × 24 terminal rows. Five independent columns show **Subscription · Left · Renews · Banked · Expires**. Left is compact (15 characters at the default table width, capped at 18 on wide tables) rather than stretching across spare space. Quota renewal belongs to the tightest reported primary window shown in the quota cell (week, 5h, etc.), never an unrelated window's earlier date. An unreported renewal stays `unknown`; monetary balances have no quota renewal (`—`). Choose a row, then Enter/→ opens its **Subscription** tab; ← returns to Overview with the same selection. **Horizon** arranges reported quota renewals and Codex credit expiries chronologically. Tab/Shift+Tab moves between all three views without switching subscriptions. Below 64 terminal columns, an explicitly labelled selected-account panel preserves all five fields; ↑↓ chooses another account, and widening restores the table. Very short terminals request more space rather than silently dropping a field. Short table layouts page subscriptions. Subscription and Horizon retain independent scroll positions.
+
+**Banked reset expiry** is separate from quota renewal: `↺3` in **BANKED** means three reported available resets, while `6d 0h` in **EXPIRES** is their earliest reported eligible expiry. The count stays neutral. Only the expiry countdown turns **yellow** with `!` within **3 days (72h)**, or **red** with `!!` within **1 day (24h)**. Passed expiry timestamps stay red with `!!past ↻`; passed quota renewals show `past ↻`. Both require refresh, not an assumption that renewal or consumption happened. `↺?` is unknown count, `↺0` / `none` is known zero, `?` / `unknown` means inventory could not be read, `login` means app sign-in is required, `multi` means separate per-window inventories (inspect details; do not sum counts), and `n/s` marks reset inspection unsupported by this integration (not proof that the provider offers none). `?` beside expiry marks missing dates, including partially dated banks. Check-health prefixes appear before the subscription name independently of all five values: `↻` checking, `…` queued, `~` partial, `!` failed with no quota data, `old` retained data after a failed check. Subscription and Horizon use the same expiry thresholds; individual dates remain in Subscription.
+
+Compact monetary cells use **K** for key allowance and **W** for account wallet (USD), e.g. `K$5.00 W$8.62`. `K∞` means an uncapped **key only**, never an unlimited wallet. `?` is unknown/unavailable, not zero; `~` monetary values are rounded to fit (e.g. `~12.3K` USD). The selected monetary row's footer and `?` help explain the legend; Subscription retains precise amounts.
+
+**Attention** isolates expiring reset credits, low quota, failed checks, partial balances and known empty wallets/key allowances. The compact overview footer identifies the selected provider; full labels, details and separate balance sections remain in Subscription.
+
+Supported identities: Codex (including numbered multi-pass accounts), Claude (`anthropic`), GitHub Copilot, z.ai, Grok (`xai`), OpenCode Go and OpenRouter. The six non-Codex base providers require an installed sub-core implementing `sub-core:usage-request:v1`; older/missing cores show an actionable unavailable state without breaking Codex. The bridge makes one exact-provider request at a time, never the bulk cache/action API, and introduces no static dependency on a machine-local checkout.
+
+**Different things look different.** Time-window quota has remaining-percent meters. OpenRouter has separate USD **key allowance** and **account wallet** sections, not fake subscription percentages. An uncapped key does not imply an unlimited wallet; unknown is not zero. Banked-reset inventory is available for Codex and through compatible sub-core for Grok/z.ai; missing sign-in and unsupported adapters are explicit, never zero counts. Percentages indicate quota pressure, not equal amounts of work or a predicted number of hours remaining.
+
+| Key | Action |
+| --- | --- |
+| `/`, Ctrl+F | Fuzzy search labels, provider names, plans and status |
+| ↑/↓, j/k | Choose an account in Overview; scroll Subscription or Horizon |
+| Enter, → | Inspect the selected Subscription — **never switches subscriptions** |
+| Tab / Shift+Tab | Cycle Overview → Subscription → Horizon, or reverse |
+| ← | Return to Overview, preserving selection and search |
+| PgUp/PgDn, Ctrl+U/D | Page Overview rows; scroll detailed windows or the timeline |
+| r / Shift+R | Refresh selected / all accounts |
+| s | Switch to the selected subscription, keeping the model if available |
+| a | Reveal the active account |
+| o | Cycle sort: quota renewal + lowest left (default) → credit expiry → active first → most base quota left |
+| ! | Toggle needs-attention filter |
+| t | Open Horizon; press again to return to Overview |
+| Home/End, g/G | First/last account or detail line |
+| ? | Scrollable keyboard guide |
+| Esc, q | Return to Overview first; there clear attention/search filters, then close. In search mode Esc clears and exits search |
+
+`/limits current` prints the active supported subscription, including non-Codex providers. In print/JSON/RPC modes, `/limits` prints all allowed accounts instead of opening a TUI-only component. Configured aliases and the active signed-out subscription stay visible with actionable guidance; unused, unconfigured base providers are omitted.
+
+Browsing/refreshing does not switch accounts, spend reset credits, or persist quota snapshots. Refreshes run at most two accounts concurrently, coalesce duplicate requests, and isolate per-account/per-endpoint failures. Missing values remain unknown; old data retained after a failed refresh is explicitly marked. Closing/reloading aborts dashboard waits and prevents queued checks or late confirmations from dispatching new actions; host-owned authentication or a model switch already dispatched may still finish. Switching is disabled during a running turn and requires confirmation if it would also change the model.
+
+Account discovery uses the live model registry, with labels and exact project `allowedSubs` restrictions projected read-only from multi-pass configuration. Restrictions are checked before account reads and switches, including `/limits current` and queued refreshes; malformed scope fails closed. Close and reopen after changing account configuration. Codex remains account-bound through the host credential resolver. Other providers are **provider-level snapshots**, using sub-core's native credential precedence (which may include CLI credentials), not proof of identity with a custom model's credential override. Numbered non-Codex aliases are shown as unsupported rather than borrowing the base account's quota. Gemini/Antigravity/Kiro and optional risky providers are not added by this slice. The dashboard uses existing Pi theme tokens and introduces no new palette or `DESIGN.md` contract.
+
+Grok and OpenCode Go usage endpoints are undocumented and may change. Grok reports subscription OAuth quota, not developer API credit; Go windows are not Zen wallet credit. Provider fetchers and credentials stay owned by sub-core. Dashboard snapshots stay in memory and are not sent as model turns. Explicit `subscription_resets` tool results do enter model context; they omit raw token IDs and credentials.
+
+Reset-credit expiry is distinct from a usage-window reset date; neither is an OAuth token expiry or a subscription cancellation date. Spending is a separate, explicitly confirmed `/codex-reset` operation on the active subscription.
+
+## Subscription resets
+
+`subscription_resets({ provider: "xai" })` is the read-only machine query (omit provider for the active subscription). It returns normalized counts/expiry or typed errors; it cannot log in, inspect browser stores, switch accounts, grant cards, or redeem resets. `/resets status` and `/limits` consume the same sub-core inventory contract for Grok/z.ai. No local HTTP server is started.
+
+`/resets` defaults to read-only **status** for the active subscription. `/resets use` routes to a verified native redemption handler, or explains why native redemption is unavailable. `/resets manage` offers confirmed opening of z.ai/Grok subscription management; headless mode prints the verified URL and instructions. Browser sign-in is not bound to Pi: verify the account before changing it. The dashboard remains read-only; switch explicitly with `s` or `/subs`, then close it and run `/resets`.
+
+See [subscription reset capabilities and provider evidence](docs/project/subscription-resets.md). z.ai/Grok quota renewals and monetary/promotional credits are **not** treated as banked resets. Grok inventory is now live-verified using Pi OAuth and gRPC-Web. z.ai inventory uses the verified ZCode PERSONAL `/reset/status` contract with explicitly provisioned app tokens; without them it reports sign-in required. Native redemption remains disabled for both.
+
+### Codex reset credits
+
+Use `/resets status` or `/codex-reset status` to inspect the active OpenAI Codex subscription account without spending anything. It lists every available banked reset with both relative and absolute expiry times. Use `/codex-reset` or `/codex-reset use` to review that same list and then explicitly confirm spending one credit.
 
 The extracted workflow intentionally improves on the source interaction:
 
 - the command name describes the action instead of hiding it in a settings tab
-- every spend requires a confirmation that shows the before/after credit count
+- every spend requires a confirmation that shows the subscription label, exact provider, account identity, and before/after credit count
 - print/JSON invocations are status-only and never spend a credit; RPC requires its confirmation response just like the TUI
-- ambiguous transport failures retain and retry the same idempotent request ID for the life of the loaded extension
+- ambiguous transport failures retain the same idempotent request ID and account identity per provider, including after a rejected retry, reload, or reopening the saved session
+- account switching or credential replacement cannot redirect a confirmed reset or unresolved retry; restore the original account to retry
+- both command names share the same lock and pending state; an unresolved reset through another alias of the same account blocks a new spend
+- project multi-pass `allowedSubs` restrictions are checked before authentication and again before requests; malformed scope fails closed
 - the result reports how many windows were reset and refreshes the remaining count
 
-The command requires the active model provider to be `openai-codex`; it reuses Pi's model-registry authentication and does not persist credentials.
+The command supports `openai-codex` and numbered multi-pass providers such as `openai-codex-2`. It reuses Pi's model-registry authentication for the active model, verifies the account identity from the resolved Codex token, and never rotates subscriptions or falls back to the base account. Use `/subs` or `/limits` to switch first, then `/codex-reset status` to inspect that subscription.
+
+Only request IDs and subscription/account identities are saved, never credentials. Spending requires a saved session with at least one completed assistant turn: the recovery entry must be readable from the session file before any POST. Recovery scans the session's entire append-only history, not just its active branch. This is session-scoped recovery, not a cross-session/global spending lock; do not start a separate reset while an earlier one is unresolved. An older unresolved entry without an account identity blocks spending rather than guessing its account; reconcile it against the original account's server-side state before starting a new reset.
 
 ## Toolbox bundle
 
