@@ -7,6 +7,10 @@ type: implementation_evidence
 
 # Decision151 Pi implementation — task5480
 
+**Current continuation:** Pi bootstrap/profile/startup/viewer composition and synthetic cross-process
+proof are implemented below. Public launch remains gated on native AK verification and approved
+installation/pins. The initial milestone evidence/gates are historical, not the current Pi source state.
+
 ## Execution boundary
 
 Authorized source worktree: `decision151-main.5gPphB/pi-extensions`, branch `main`, starting `db59f632e`. Canonical AK identity remains the original pi-extensions repo. No AK calls, registration, live activation, enrollment, credential/config reads or provider calls are authorized here. Synthetic data only.
@@ -93,7 +97,7 @@ Final scratch: `$TMPDIR/task5480-pack-proof-0XJtW0/`, containing `evidence.json`
 
 Versions were not released/bumped; downstream must pin the exact reviewed artifact, not assume all packages of these versions include this work. Linux x64/Node26 was exercised; other Node versions, architectures and distribution libc environments remain unverified.
 
-## Remaining implementation and rollout gates
+## Initial milestone gates (superseded by continuation below)
 
 1. **AK owner:** deliver integration-ready native producer, complete baseline/startup/effect/recovery schemas and fixtures, fixed executable/descriptor binding and startup trace evidence. Keep the adapter default-denied until actual compatibility is verified.
 2. **Pi implementation:** finish the fixed host bootstrap with adoption-before-import, owner-provisioned immutable profile/credential loading, durable startup composition, shared transport invocation, cross-process observation/stop wiring and installed viewer entrypoint. These are missing Pi-owned implementation paths, not merely unavailable live proof.
@@ -129,3 +133,133 @@ state, NOT a new authority/registry/config file. Missing, mixed-instance, incomp
 Public functions have no locator/home/namespace injection argument. Internal filesystem tests use synthetic
 locators; no operator configuration was read to generate fixtures. This contract is implemented in source;
 installed activation remains a separate gate.
+
+
+### Pi host bootstrap handoff for the evolving AK producer
+
+Pi emits executable regular `host-v1` / `view-v1` files and an explicit ESM package marker alongside
+its runtime/native closure (npm bins `pi-task-session-host` / `pi-task-session-view`). Operational owner
+must deploy that complete closure with the pinned SDK dependencies to the fixed
+`~/.local/libexec/pi-task-sessions/{host-v1,view-v1}` targets. Do not use a symlink rejected by AK policy
+or copy an entry file without its sibling runtime/dependencies. No installation was performed.
+Host accepts NO argv. Viewer accepts ONLY attempt ID. Host first adopts inherited FD0/FD1,
+then detaches them to private CLOEXEC descriptors and substitutes `/dev/null` stdio BEFORE SDK import.
+The latter is necessary because Node's ESM process facade can materialize stdin/stdout.
+
+**Pi-owned private ingress contract, now adopted in actual AK source and source-schema fixtures:** first fd0 frame:
+`{schema:"pi.task-session.host-bootstrap.v1",attempt,incarnation,startupDeadline,actor,leaseSeconds,
+baselineDigest,akBinaryDigest,policyDigest,databaseIdentity,hostBuildDigest}`.
+No namespace, credential, exec or descriptor override. Startup deadline is absolute milliseconds,
+future and at most 120 seconds out; lease is 1..86400 seconds. All five digest fields are lowercase
+SHA256. Baseline/actor/lease come from the native producer; Pi does not compute native claimability.
+After loading the reserved immutable intent, Pi emits the producer PREPARED shape with raw/effective
+resource/profile envelope digests, then consumes ADMISSION_RESULT, durably publishes T1, validates
+one-shot CLOSED, and durably publishes dispatch before first provider/tool effect.
+
+Account-bound namespace layout additions: pre-existing private `profiles/`, `credentials/`, `attempts/`.
+Profiles and credentials are canonical-JSON content addressed (`<sha256>.json`, mode0600), immutable
+by digest, and read-only at runtime. A profile has exactly `{schema:"pi.task-session.profile.v1",
+provider,model,reasoning,account,modelDigest,credentialDigest,agentDir,runSeconds,
+producer:{executable,entrypointDigest,akBinaryDigest,policyDigest,databaseIdentity,hostBuildDigest}}`.
+`modelDigest` hashes exact JSON.stringify of the pinned native built-in model object (costs may be floats);
+other content-addresses use the strict canonical integer-only protocol JSON. Credentials have exactly
+`{type:"oauth",access,refresh,expires}`. No live config, environment credential or refresh fallback.
+Caller selects an already provisioned profile digest; it cannot supply a new executable/credential path.
+This is runtime configuration under the existing namespace, not task/decision authority.
+
+Per attempt/incarnation: immutable `intent.json`, `baseline.json`, `view.json`, `host-entered.json`, `t1.json`, `dispatch.json`,
+`host-terminal.json`, `host-closure.json`;
+mutable bounded `observation.json` and `viewer-ready.json`; immutable idempotent `stop.json`.
+The viewer readiness marker binds nonce/incarnation, live PID/start ticks and a renewable timestamp;
+it is not represented as proof of Ghostty placement. Inspect/watch consume copied reports; stop requests
+only deny/abort future dispatch, never release native claims or retire effects. Startup failure retains
+independent occupancy and the native OFD; production host does not exit automatically before verified CLOSED.
+The shipped build manifest fingerprints emitted runtime files and native addon; seed and profile must match it.
+
+`encodeTaskSessionStartup` now validates and emits the actual producer startup schema; strict native
+plan decoding also consumes its complete baseline/family schema. Invocation uses the native task repo,
+which need not equal the caller checkout. The adapter remains default-denied: AK reports
+`implementation-in-progress-native-verification-blocked`. Its v4 adapter scope stop is reconciled,
+but native compilation/tests never started because workstation heavy-job custody preflight blocked.
+This is NOT an integration-ready producer. Do not flip readiness from source or fixture presence.
+
+SDK integrity preflight uses builtins only, before credential reads/SDK import: exact 0.84.4 versions,
+522 JavaScript files across pi-ai/coding-agent/agent-core/tui, and actual nested dependency resolution.
+Packed tests detect transitive serializer-source tampering. SDK provider error/abort remains an explicit
+guard outcome, not a successful host finish; `promptReturned` does not assert useful task completion.
+
+
+## Continuation landing and final evidence
+
+Source commits on parent main:
+- `6b90412bc` — account-bound DB-free identity/classify-installed contract for lane5481.
+- `26384bed89e1af081a5e931278dbc23db40f86e9` — sealed bootstrap/profile/startup/viewer composition.
+
+Both continuation feature commits passed normal pre-commit hooks; no bypass. Original canonical
+feature checkout and its uncommitted AK5133 transport/package fixes were not modified or absorbed.
+Reconcile those separately before the eventual installed reality gate; these commits do not certify them.
+
+Frozen **actual AK source** snapshot (not native acceptance):
+- Protocol SHA256 `a111fac365993fa6af6c3db4f08ac42f2f354ef55c0d9a99137ad910d780e2be`.
+- Fixtures SHA256 `ddbfdcc349f4a1f080711e84146c0e278bea06cd5e993c5a4c2a0738217ec8c3`.
+- Python supervisor SHA256 `4da019dcb506e1d1aac16f31d40182035bb5e421ced55e9e006949c7ddec20c6`.
+- JSON copies are formatting-normalized, parsed-deep-equal copies; digests identify producer bytes.
+  Four message fixtures and four definition fixtures decode; negative mutations remain rejected.
+  Source status is `implementation-in-progress-native-verification-blocked`; integrationReady is false.
+
+### Observed checks (Linux x64, Node26.8.1, npm12.0.2, SDK0.84.4)
+
+- `npm run task-session:test`: **76/76 passed**.
+- Little-helpers `SKIP_PI_SMOKE=1 npm run check`, isolated HOME and test concurrency 4:
+  **413/413 tests passed**, structure/file-budget/lint/typecheck and release checks passed.
+  Installed Pi smoke was explicitly skipped, not a green installed/reality gate. Publish dry-run
+  encountered the expected already-published-version guard; no publish occurred.
+- Orchestrator lint and typecheck passed. Its full recursively discovered safe test set, isolated HOME
+  and loop telemetry, excluding only `actual Pi extension loading shares the canonical preflight owner brand`:
+  **472 executed / 471 passed / 1 failed**. The failure is
+  `does not warn for an existing non-temp receipt path under the packet campaign root`:
+  this worktree itself lies under managed `/tmp/`, so the classifier warns about the fixture path.
+  That assertion was not changed or hidden. Full orchestrator check/release remains unproven/not green.
+- Both lifecycle-packed tarballs install with scripts disabled into isolated scratch. Public exports,
+  CLI, exact SDK closure (including a tampered transitive-source negative), native addon and actual
+  compressed native Codex serialization pass. **12/12 startup/profile process tests pass against packed runtime**.
+- C formatting and staged whitespace passed; normal hooks passed both source packages (174/199 files).
+
+The synthetic startup suite exercises the shared production composition with generated profile/credentials,
+real compiled socketpair/flock supervisor, separate host/viewer processes, actual SDK provider serializer and
+write-tool round trip, stop-after-send, surviving-host OFD retention after supervisor loss, wrong binding,
+malformed/expired bootstrap, profile mismatch, invalid effect accounting and post-CLOSED write failure.
+A real Pi TUI runs in a synthetic PTY. A separate case runs the exact AK Python supervisor source with a
+**scripted synthetic native worker**, including a canonical native repo different from checkout. These
+prove the stated process/SDK mechanisms, **not Rust/DB claimability, real provider delivery, Ghostty placement,
+installed activation or complete G1/G2**. Synthetic family tables are schema-complete fixture data, not native
+baseline/effect-equivalence proof. No claim, occupancy or effect retirement follows successful tool execution.
+
+Final pack receipt: `$TMPDIR/task5480-pack-proof-Codpfy/` (`evidence.json`, `command-*.log`, tarballs).
+Versions remain unchanged/unreleased; these are exact review artifacts, not mutable version-only pins.
+
+| Artifact | SHA256 | Bytes / entries |
+| --- | --- | --- |
+| `tryinget-pi-little-helpers-0.9.0.tgz` | `691d399769aba3ee0313d42860d0f71c9dd6c628913aacece9350618953adc85` | 282728 / 132 |
+| `tryinget-pi-society-orchestrator-0.11.5.tgz` | `32356f3d3cfa67f9d2aca59cf9b2b7e09418d8af72dbcbd4b6694083963beddd` | 365746 / 117 |
+
+Logs under `$TMPDIR`: `task5480-continuation-final-{tests,check,pack}.log`,
+`task5480-orch-final-{lint,typecheck,complete-safe-tests}.log`,
+`task5480-continuation-{c-format,source-commit}.log`. Scratch is not durable release storage.
+Earlier intermediate failures (formatting, an unnecessary missing tsx loader, stale producer fixtures,
+and incomplete top-level-only orchestrator discovery) were corrected before these final reported runs.
+
+### Genuine remaining gates
+
+1. AK owner/controller: lawful heavy-job route, native compile/tests/fault and no-maintenance/effect audit,
+   frozen verified producer, policy/build identities, and actual native-worker/Pi cross-owner traces.
+2. Further fault proof: broader channel/readback/duplicate-CLOSED/physical replacement/fsync/ENOSPC and
+   power-loss matrix. Current named tests do not establish every fault/placement gate in the ADR.
+3. Operational/release owners: complete canonical account namespace/domain inventory; immutable profiles,
+   credentials, policy and exact artifact pins; complete fixed-target/runtime/dependency installation.
+   This work did not provision, enroll, install/reload Pi, activate a pin or read live auth/config.
+4. Live installation/reality and restricted Ghostty ACK/placement/G2; separately authorized provider canary
+   and representative use; platform/libc/other Node support and the remaining broad release checks.
+5. Independent occupancy/effect custody and three-part retirement remain explicit owner work. Inspect/watch/
+   stop cannot recover claims or infer effects resolved. No AK CLI/DB, native recovery or other worker signaling
+   was performed here. Task5480/Decision151 is **not complete or accepted**.
