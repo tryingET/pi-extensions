@@ -1,0 +1,23 @@
+pi-typescript-tool — third-party attribution
+
+The TypeScript contract-gate mechanism is derived from cv/pic v0.2.37
+(https://github.com/cv/pic), Copyright Carlos Villela, Apache License 2.0:
+  src/typescript/compiler.ts
+  src/typescript/capability-contract.d.ts
+  src/typescript/tool.ts
+
+Port source: pi-extensions commit a0411c361453c082822d9cdb05f177a9948c9f1a.
+Modified files here: src/typescript-gate.ts, src/capability-contract.d.ts,
+extensions/typescript-tool.ts; the spike runner and fs helpers were extracted
+and modified in src/runner.ts and src/capabilities.ts.
+
+Changes: filesystem-only capabilities; no saved-function registry, scope storage,
+browser execution or Pi dispatcher; normalized expressions and library-only
+checking; initial synchronous timeout and cooperative async deadline; canonical
+path checks and finite I/O; bounded serialization and error handling.
+
+Original Apache-licensed portions retain their Apache-2.0 license; see
+external/LICENSE-Apache-2.0.txt. The generated package LICENSE (including its rider)
+is preserved for package-original material and does not replace the upstream
+Apache license or purport to restrict independently licensed upstream portions.
+No upstream endorsement is implied.

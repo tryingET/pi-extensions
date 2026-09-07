@@ -1,0 +1,45 @@
+{
+  "lane": "ts",
+  "engineering_core": {
+    "tool": "engineering-core",
+    "lane": "pi-ts",
+    "repository": "https://github.com/tryingET/core_engineering-core.git",
+    "ref": "8f59f4178f0c40f73d64c417e7a591de42a0f0d2",
+    "command": "uv tool run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core show pi-ts --prefer-repo",
+    "catalog_command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core catalog --pretty",
+    "list_disciplines_command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core list-disciplines",
+    "list_templates_command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core list-templates",
+    "disciplines": [
+      "validation",
+      "testing",
+      "security-privacy",
+      "documentation",
+      "dependency-governance",
+      "specification-and-dsls",
+      "engineering-reasoning"
+    ],
+    "loop_validation": {
+      "version": "repo-loop-validation-v1",
+      "contract_doc": "docs/engineering.local.md#repo-loop-validation",
+      "scope_input": {
+        "environment": "LOOP_PATHS",
+        "format": "newline-separated repo-relative paths",
+        "default": "unstaged, staged, and untracked working-tree paths"
+      },
+      "commands": {
+        "loop-doctor": "cd ../.. && just loop-doctor",
+        "loop-verify-fast": "cd ../.. && just loop-verify-fast",
+        "loop-impact-plan": "cd ../.. && just loop-impact-plan",
+        "loop-impact-run": "cd ../.. && just loop-impact-run",
+        "loop-impact-wide": "cd ../.. && just loop-impact-wide",
+        "loop-landing-check": "cd ../.. && just loop-landing-check"
+      }
+    },
+    "release_pin": {
+      "kind": "git-commit",
+      "ref": "8f59f4178f0c40f73d64c417e7a591de42a0f0d2",
+      "resolved_commit": "8f59f4178f0c40f73d64c417e7a591de42a0f0d2",
+      "source": "git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2"
+    }
+  }
+}
