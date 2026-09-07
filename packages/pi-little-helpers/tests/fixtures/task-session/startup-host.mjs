@@ -21,7 +21,13 @@ const result = await runHost(
       sends++;
       writeFileSync(
         join(root, "send.json"),
-        JSON.stringify({ sends, model: body.model, transport: "sse" }),
+        JSON.stringify({
+          sends,
+          model: body.model,
+          transport: "sse",
+          account: new Headers(init.headers).get("chatgpt-account-id"),
+          url: String(_url),
+        }),
       );
       if (config.topologyDrift) {
         const changed = join(root, "replacement-common-git");

@@ -42,6 +42,9 @@ inspection/classification and account-bound identity surface. **Launch is blocke
 Independent sealed SDK/Codex/state/native components are tested synthetically; this is not
 installed or enrolled launch proof. The emitted host/viewer and full synthetic startup tests do not establish native AK effects. See the repo
 [implementation evidence](../../docs/project/2026-09-07-visible-task-session-pi-implementation.md).
+Requested aliases require a private, content-addressed owner model source bound by the selected profile;
+no ambient registry, inferred Astra mapping or endpoint/auth fallback is used. Requested and resolved
+identities remain separate in observations and receipts.
 Build with `npm run task-session:build`; focused isolated tests: `npm run task-session:test`.
 Linux x64 N-API support is built at package build time, never on runtime fallback.
 

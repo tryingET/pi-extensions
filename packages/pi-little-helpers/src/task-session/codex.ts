@@ -12,10 +12,17 @@ import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { AUTH_MARGIN_MS, assertCredentialMetadata } from "./auth-metadata.js";
 import type { DispatchGuard } from "./dispatch.js";
 import { bytesDigest, refuse } from "./json.js";
+import {
+  type ModelResolution,
+  NATIVE_CODEX_PROVIDER,
+  nativeModelBoundary,
+  profileResolution,
+} from "./model-source.js";
 
 export { AUTH_MARGIN_MS } from "./auth-metadata.js";
 export interface CodexProfile {
   model: Model<Api>;
+  resolution?: ModelResolution;
   reasoning: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   account: string;
   runDeadline: number;
@@ -32,7 +39,7 @@ export function readonlyCredentials(
   return Object.freeze({
     async read(providerId: string) {
       guard.assert();
-      if (providerId !== profile.model.provider) guard.deny("credential_provider_mismatch");
+      if (providerId !== NATIVE_CODEX_PROVIDER) guard.deny("credential_provider_mismatch");
       if (
         snapshot.type !== "oauth" ||
         snapshot.expires <= Math.max(Date.now(), profile.runDeadline) + AUTH_MARGIN_MS
@@ -41,7 +48,7 @@ export function readonlyCredentials(
       return structuredClone(snapshot);
     },
     async list() {
-      return [{ providerId: profile.model.provider, type: "oauth" as const }];
+      return [{ providerId: NATIVE_CODEX_PROVIDER, type: "oauth" as const }];
     },
     async modify() {
       return guard.deny("credential_mutation_forbidden");
@@ -153,14 +160,8 @@ export async function codexRuntime(
 ): Promise<ModelRuntime> {
   const profile = structuredClone(profileInput),
     credential = structuredClone(credentialInput);
-  if (
-    profile.model.provider !== "openai-codex" ||
-    profile.model.api !== "openai-codex-responses" ||
-    profile.model.baseUrl !== "https://chatgpt.com/backend-api" ||
-    profile.model.headers ||
-    profile.model.samplingParams
-  )
-    refuse("codex_profile_unsupported");
+  nativeModelBoundary(profile.model);
+  profileResolution(profile);
   assertCredentialMetadata(credential, profile);
   const runtime = await ModelRuntime.create({
     credentials: readonlyCredentials(credential, profile, guard),
@@ -198,7 +199,27 @@ export async function codexRuntime(
         guard.deny("auth_override_forbidden");
       if (credential.expires <= Math.max(Date.now(), profile.runDeadline) + AUTH_MARGIN_MS)
         guard.deny("auth_refresh_required");
-      return nativeAuth(model as Model<Api>, options);
+      // Resolved provider labels select no plugin. Authentication always uses the pinned native OAuth owner.
+      return nativeAuth({ ...profile.model, provider: NATIVE_CODEX_PROVIDER }, options);
+    },
+  });
+  // SDK prompt preflight asks about the resolved label. This reports the validated copied
+  // credential's presence, NOT provider availability or admission readiness; no alias discovery.
+  Object.defineProperty(runtime, "hasConfiguredAuth", {
+    value: (provider: string) => provider === profile.model.provider,
+  });
+  Object.defineProperty(runtime, "isUsingOAuth", {
+    value: (provider: string) => provider === profile.model.provider,
+  });
+  Object.defineProperty(runtime, "isSubscriptionProvider", {
+    value: (provider: string) =>
+      provider === profile.model.provider && oauth.isSubscription === true,
+  });
+  Object.defineProperty(runtime, "checkAuth", {
+    value: async (provider: string) => {
+      guard.assert();
+      if (provider !== profile.model.provider) guard.deny("auth_override_forbidden");
+      return runtime.getAuth(profile.model);
     },
   });
   Object.defineProperty(runtime, "getModel", {

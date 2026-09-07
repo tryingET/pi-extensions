@@ -4,6 +4,7 @@ import { assertCredentialMetadata } from "./auth-metadata.js";
 import type { CodexProfile } from "./codex.js";
 import { assertSdkIdentity } from "./identity.js";
 import { bytesDigest, digest, integer, parseJson, record, refuse, text } from "./json.js";
+import { loadOwnerModel, modelResolution, profileResolution } from "./model-source.js";
 import { canonicalPath, type Locator, privatePath, privateRead } from "./state.js";
 export function hash(value: unknown): string {
   if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) refuse("invalid_digest");
@@ -16,6 +17,7 @@ export interface ProfilePin {
   reasoning: CodexProfile["reasoning"];
   account: string;
   modelDigest: string;
+  modelSourceDigest?: string;
   credentialDigest: string;
   agentDir: string;
   runSeconds: number;
@@ -31,7 +33,8 @@ export interface ProfilePin {
 export function loadProfile(locator: Locator, reference: string): ProfilePin {
   hash(reference);
   privatePath(join(locator.root, "profiles"), true);
-  const p = record(parseJson(privateRead(join(locator.root, "profiles", `${reference}.json`))), [
+  const raw = parseJson(privateRead(join(locator.root, "profiles", `${reference}.json`)));
+  const p = record(raw, [
     "schema",
     "provider",
     "model",
@@ -42,14 +45,19 @@ export function loadProfile(locator: Locator, reference: string): ProfilePin {
     "agentDir",
     "runSeconds",
     "producer",
+    ...((raw as { schema?: unknown })?.schema === "pi.task-session.profile.v2"
+      ? ["modelSourceDigest"]
+      : []),
   ]);
   if (
     digest(p) !== reference ||
-    p.schema !== "pi.task-session.profile.v1" ||
-    p.provider !== "openai-codex" ||
+    !["pi.task-session.profile.v1", "pi.task-session.profile.v2"].includes(p.schema) ||
+    (p.schema === "pi.task-session.profile.v1" && p.provider !== "openai-codex") ||
     !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(p.reasoning)
   )
     refuse("profile_pin_mismatch");
+  text(p.provider, 128);
+  if (p.schema === "pi.task-session.profile.v2") hash(p.modelSourceDigest);
   text(p.model, 128);
   text(p.account, 128);
   hash(p.modelDigest);
@@ -92,13 +100,18 @@ export async function loadHostProfile(locator: Locator, reference: string) {
   assertCredentialMetadata(c as OAuthCredential, { account: p.account, runDeadline });
   // Pure built-in catalog only; no ModelRuntime/default config/auth store construction here.
   const { getModel, clampThinkingLevel } = await import("@earendil-works/pi-ai/compat");
-  const model = getModel("openai-codex", p.model as "gpt-5.4");
+  const requested = { provider: p.provider, model: p.model, account: p.account };
+  const owned = p.modelSourceDigest
+    ? loadOwnerModel(locator, p.modelSourceDigest, requested)
+    : undefined;
+  const model = owned ? owned.model : getModel("openai-codex", p.model as "gpt-5.4");
   if (!model || bytesDigest(JSON.stringify(model)) !== p.modelDigest) refuse("model_pin_mismatch");
   // Same pinned pure normalization used by createAgentSession; refuse, never downgrade.
   if (clampThinkingLevel(model, p.reasoning) !== p.reasoning)
     refuse("reasoning_profile_unsupported");
   const profile: CodexProfile = {
     model,
+    resolution: owned?.resolution ?? modelResolution(model, requested, null),
     reasoning: p.reasoning,
     account: p.account,
     runDeadline,
@@ -107,6 +120,7 @@ export async function loadHostProfile(locator: Locator, reference: string) {
 }
 
 /** Read-only admission preflight: credentials never escape to the launch controller. */
-export async function preflightProfile(locator: Locator, reference: string): Promise<ProfilePin> {
-  return (await loadHostProfile(locator, reference)).pin;
+export async function preflightProfile(locator: Locator, reference: string) {
+  const loaded = await loadHostProfile(locator, reference);
+  return { ...loaded.pin, resolution: profileResolution(loaded.profile) };
 }

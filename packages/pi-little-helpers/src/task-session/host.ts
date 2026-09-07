@@ -14,6 +14,7 @@ import { type CodexProfile, codexRuntime, type SendPort } from "./codex.js";
 import { DispatchGuard, guardedExecution, toolIdentity } from "./dispatch.js";
 import { assertSdkIdentity } from "./identity.js";
 import { bytesDigest, digest, text } from "./json.js";
+import { modelIdentity } from "./model-source.js";
 import { literalLoader, type Resources } from "./resources.js";
 export interface HostInput {
   incarnation: string;
@@ -182,8 +183,7 @@ export async function sealedHost(
       identity: Object.freeze({
         session: session.sessionId,
         cwd: frozen.cwd,
-        model: frozen.profile.model.id,
-        provider: frozen.profile.model.provider,
+        ...modelIdentity(frozen.profile),
         reasoning: frozen.profile.reasoning,
       }),
       // Owner-channel driver only. Not exported from package public core/tool/bin.
@@ -224,7 +224,7 @@ export async function sealedHost(
         identity: {
           session: session?.sessionId,
           cwd: frozen.cwd,
-          model: frozen.profile.model.id,
+          ...modelIdentity(frozen.profile),
           reasoning: frozen.profile.reasoning,
         },
         ...guard.status,

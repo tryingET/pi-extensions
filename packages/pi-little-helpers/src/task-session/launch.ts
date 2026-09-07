@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { writeObservation } from "./bridge.js";
 import type { TaskSessionRequest } from "./core.js";
 import { bytesDigest, digest, parseJson, record, refuse, text } from "./json.js";
+import { resolutionIdentity } from "./model-source.js";
 import { interpretTaskSessionPlan } from "./producer-adapter.js";
 import { preflightProfile } from "./profile.js";
 import { launchRestrictedTaskSessionWindow } from "./restricted-transport.js";
@@ -86,7 +87,8 @@ export async function launchReserved(
   if (!domain) refuse("canonical_domain_missing");
   const parent = join(locator.root, "attempts");
   privatePath(parent, true);
-  await preflightProfile(locator, request.profile); // Recheck after the asynchronous native baseline.
+  const checked = await preflightProfile(locator, request.profile); // Recheck after the asynchronous native baseline.
+  if (digest(checked.resolution) !== digest(pin.resolution)) refuse("model_resolution_drift");
   const attempt = reserve(locator, request.requestId, digest(request), domain);
   const dir = join(parent, attempt.attempt, attempt.incarnation);
   // Exclusive directory creation is launch-effect ownership; never retry a partially started incarnation.
@@ -100,11 +102,12 @@ export async function launchReserved(
   mkdirSync(dir, { mode: 0o700 });
   const nonce = randomBytes(32).toString("hex");
   const intent = {
-    schema: "pi.task-session.intent.v1",
+    schema: "pi.task-session.intent.v2",
     request,
     attempt: attempt.attempt,
     incarnation: attempt.incarnation,
     resources,
+    modelResolution: pin.resolution,
     viewNonce: nonce,
   };
   durableWrite(join(dir, "intent.json"), intent, true);
@@ -123,7 +126,7 @@ export async function launchReserved(
     identity: {
       attempt: attempt.attempt,
       cwd: request.cwd,
-      model: request.model,
+      ...resolutionIdentity(pin.resolution),
       reasoning: request.reasoning,
     },
     phase: "RESERVED",
@@ -161,7 +164,11 @@ export async function launchReserved(
     return { schema: "pi.task-session.launch.v1", status: "supervisor_started", attempt };
   } catch (error) {
     writeObservation(dir, attempt, 1, {
-      identity: { attempt: attempt.attempt, cwd: request.cwd },
+      identity: {
+        attempt: attempt.attempt,
+        cwd: request.cwd,
+        ...resolutionIdentity(pin.resolution),
+      },
       phase: "UNRESOLVED",
       denial: "launch_failed_custody_retained",
       events: [],

@@ -18,7 +18,7 @@ Use the installed `pi-task-session capability` or Pi `task_session` tool first. 
 - `pi-task-session watch request-id`: read-only state observations until interrupted.
 - `pi-task-session classify`: whole-request DB-free lane classification. Only positively classified `outside` can preserve legacy behavior. Unknown is not outside.
 
-Request schema: `pi.task-session.request.v1`; exact fields `requestId, akInstance, taskId, cwd, provider, model, reasoning, account, profile, objective, context, placement` plus `schema`. Use exact `openai-codex` identity, absolute existing canonical cwd/context paths, literal objective, explicit reasoning/account/profile, and `placement:"window"`. No arbitrary executables, credentials, runtime/FD/environment/state-root overrides, batches, resume, fork, alternate account or fallback.
+Request schema: `pi.task-session.request.v1`; exact fields `requestId, akInstance, taskId, cwd, provider, model, reasoning, account, profile, objective, context, placement` plus `schema`. Use the exact requested provider/model/account labels bound by the selected owner-provisioned profile, absolute existing canonical cwd/context paths, literal objective, explicit reasoning/account/profile, and `placement:"window"`. No arbitrary executables, credentials, runtime/FD/environment/state-root overrides, batches, resume, fork, alternate account or fallback.
 
 No installation/enrollment is implied by reading this skill. Never mint custody from a clean checkout, absent PID, empty registry or old candidate permit. Withdrawal and missing CLOSED retain exclusion. Host future-dispatch closure, started-effect disposition, and owner-native AK claim resolution are three independent retirement gates. No automatic claim recovery or relaunch.
 
@@ -26,3 +26,9 @@ Lane consumers use `pi-task-session identity` and `pi-task-session classify-inst
 `taskSessionInstalledIdentity` / `classifyInstalledTaskSessionRequest` emitted core exports. The latter
 accepts whole-request taskIds/cwd without a guessed AK instance. Missing canonical binding remains unknown.
 `pi-task-session stop request-id` publishes a bound stop request; it does not resolve a claim or effects.
+
+A `pi.task-session.profile.v2` may reference a private content-addressed nonexecutable model-source record.
+That record binds requested labels to an explicit resolved model/provider while retaining the same OAuth
+account and pinned native Codex SSE/API/endpoint. Builtin v1 profiles remain supported. No alias discovery,
+model object, endpoint/header/module override or model-source publication is accepted through the tool.
+Unsupported alias fit (including WS/refresh requirements) refuses; do not invent Astra mappings or downgrade.

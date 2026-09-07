@@ -6,6 +6,7 @@ import type { SendPort } from "./codex.js";
 import { taskSessionRequest } from "./core.js";
 import { assertSdkIdentity } from "./identity.js";
 import { digest, id, integer, parseJson, record, refuse } from "./json.js";
+import { modelIdentity } from "./model-source.js";
 import { interpretTaskSessionPlan } from "./producer-adapter.js";
 import { hash, loadHostProfile, loadProfile } from "./profile.js";
 import type { PrivateChannel } from "./socket-channel.js";
@@ -85,9 +86,13 @@ export async function runHost(
       },
       true,
     );
+    let startupIdentity: Record<string, string> = {
+      attempt: attempt.attempt,
+      cwd: attempt.domain.checkout,
+    };
     publish = () =>
       writeObservation(dir, attempt, 1, {
-        identity: { attempt: attempt.attempt, cwd: attempt.domain.checkout },
+        identity: startupIdentity,
         phase: failure ? "DENIED" : "BOOTSTRAP",
         denial: failure,
         events: [],
@@ -98,10 +103,11 @@ export async function runHost(
       "attempt",
       "incarnation",
       "resources",
+      "modelResolution",
       "viewNonce",
     ]);
     if (
-      intent.schema !== "pi.task-session.intent.v1" ||
+      intent.schema !== "pi.task-session.intent.v2" ||
       intent.attempt !== attempt.attempt ||
       intent.incarnation !== attempt.incarnation
     )
@@ -114,6 +120,14 @@ export async function runHost(
       request.taskId !== attempt.domain.taskId
     )
       refuse("reservation_binding_mismatch");
+    startupIdentity = {
+      ...startupIdentity,
+      provider: request.provider,
+      model: request.model,
+      account: request.account,
+      reasoning: request.reasoning,
+      resolutionStatus: "unverified",
+    };
     const assertCustody = () => {
       const snapshot = readSnapshot(locator);
       if (snapshot.withdrawn || !snapshot.attempts.some((a) => digest(a) === digest(attempt)))
@@ -149,8 +163,17 @@ export async function runHost(
     if (installedHostBuild() !== seed.hostBuildDigest) refuse("host_build_mismatch");
     assertSdkIdentity();
     const loaded = await loadHostProfile(locator, request.profile);
+    if (digest(loaded.profile.resolution) !== digest(intent.modelResolution))
+      refuse("model_resolution_drift");
     for (const k of ["provider", "model", "reasoning", "account"] as const)
       if (request[k] !== loaded.pin[k]) refuse("requested_profile_mismatch");
+    startupIdentity = {
+      attempt: attempt.attempt,
+      cwd: request.cwd,
+      ...modelIdentity(loaded.profile),
+      reasoning: loaded.profile.reasoning,
+      resolutionStatus: "profile_verified",
+    };
     // Only after custody adoption, bounded parser, immutable reservation/profile and viewer checks.
     const { sealedHost } = await import("./host.js");
     host = await sealedHost(
@@ -212,6 +235,7 @@ export async function runHost(
         attempt: attempt.attempt,
         incarnation: attempt.incarnation,
         preparedDigest: digest(prepared),
+        modelResolution: loaded.profile.resolution,
         guard: host?.inspect(),
       };
       durableWrite(join(dir, "host-terminal.json"), receipt, true);
@@ -263,6 +287,7 @@ export async function runHost(
           incarnation: attempt.incarnation,
           preparedDigest: digest(prepared),
           envelopeDigest: host?.envelopeDigest,
+          modelResolution: loaded.profile.resolution,
         },
         true,
       );

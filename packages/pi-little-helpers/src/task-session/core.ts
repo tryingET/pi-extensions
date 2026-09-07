@@ -43,7 +43,6 @@ export function taskSessionRequest(input: unknown): TaskSessionRequest {
   canonicalPath(r.cwd);
   for (const k of ["provider", "model", "account", "profile"]) text(r[k], 128);
   if (
-    r.provider !== "openai-codex" ||
     r.placement !== "window" ||
     !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(r.reasoning)
   )

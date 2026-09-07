@@ -1,4 +1,9 @@
-import { ProcessTerminal, TuiMainScreen, truncateToWidth } from "@earendil-works/pi-tui";
+import {
+  ProcessTerminal,
+  TuiMainScreen,
+  truncateToWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 export interface ViewObservation {
   identity: Record<string, string>;
   phase: string;
@@ -25,7 +30,9 @@ export function restrictedViewComponent(
     render(width: number) {
       const o = structuredClone(inspect());
       return [
-        JSON.stringify(o.identity),
+        ...Object.entries(o.identity).flatMap(([key, value]) =>
+          wrapTextWithAnsi(safe(`${key}: ${value}`), Math.max(1, width)),
+        ),
         `${o.phase}: ${o.denial ?? ""}`,
         notice,
         ...o.events.slice(-20).map((e) => (e.type === "text" ? String(e.text) : JSON.stringify(e))),
