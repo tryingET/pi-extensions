@@ -40,6 +40,13 @@ pub struct Card {
     pub agent_active: bool,
     #[serde(default, rename = "processId")]
     pub pid: i64,
+    /// Set for tabs running an agent other than Pi, which publish no telemetry of their own.
+    #[serde(default)]
+    pub agent_label: String,
+    /// `Some(false)` marks a tab hidden behind another tab of its Ghostty window; the controller
+    /// placed it through its host process, so activation presents the tab before focusing.
+    #[serde(default)]
+    pub surface_visible: Option<bool>,
 }
 
 impl Card {
@@ -49,6 +56,10 @@ impl Card {
         } else {
             &self.card_id
         }
+    }
+
+    pub fn hidden_tab(&self) -> bool {
+        self.surface_visible == Some(false)
     }
 
     pub fn active(&self) -> bool {
@@ -184,6 +195,8 @@ fn empty_card() -> Card {
         updated_at: 0,
         agent_active: false,
         pid: 0,
+        agent_label: String::new(),
+        surface_visible: None,
     }
 }
 

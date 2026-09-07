@@ -1,6 +1,6 @@
 use crate::card_view::CardView;
 use crate::protocol::{Card, ViewMessage, demo_view, emit, emit_error, emit_ready};
-use crate::runtime::{duplicate_labels, install_css, now_ms, start_input_reader};
+use crate::runtime::{apply_theme, duplicate_labels, install_css, now_ms, start_input_reader};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use relm4::gtk;
 use relm4::gtk::glib;
@@ -11,7 +11,10 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 const COMPACT_HEIGHT: i32 = 84;
-const EXPANDED_HEIGHT: i32 = 252;
+/// The ribbon sits on the same rhythm as tiled windows, so it reads as one of them rather than as
+/// a bar bolted to the top edge. Matches `gaps` in the compositor's layout.
+const OUTER_MARGIN: i32 = 16;
+const EXPANDED_HEIGHT: i32 = 276;
 const ORDER_REFRESH_MS: i64 = 15_000;
 
 pub struct AppInit {
@@ -38,6 +41,7 @@ pub struct App {
 #[derive(Debug)]
 pub enum AppMsg {
     View(ViewMessage),
+    Theme(String),
     Tick,
     Hover(String, bool),
     Focus(String, bool),
@@ -69,36 +73,27 @@ impl Component for App {
 
             #[name = "body"]
             gtk::Box {
+                add_css_class: "band",
                 set_orientation: gtk::Orientation::Horizontal,
-                set_spacing: 8,
-                set_margin_top: 4,
-                set_margin_bottom: 6,
-                set_margin_start: 10,
-                set_margin_end: 10,
+                set_spacing: 0,
 
                 #[name = "brand"]
                 gtk::Box {
                     add_css_class: "brand",
                     set_orientation: gtk::Orientation::Vertical,
-                    set_width_request: 146,
-                    set_vexpand: true,
+                    set_width_request: 132,
+                    set_valign: gtk::Align::Center,
 
                     gtk::Label {
                         add_css_class: "brand-eyebrow",
-                        set_label: "π TELEMETRY RIBBON",
+                        set_label: "π ACTIVITY",
                         set_halign: gtk::Align::Start,
                     },
                     gtk::Label {
                         add_css_class: "brand-title",
-                        set_label: "Activity",
+                        set_label: "Sessions",
                         set_halign: gtk::Align::Start,
                     },
-                    gtk::Label {
-                        add_css_class: "brand-subtitle",
-                        set_label: "Calm order · live detail",
-                        set_halign: gtk::Align::Start,
-                    },
-                    gtk::Box { set_vexpand: true },
                     #[name = "meta"]
                     gtk::Label {
                         add_css_class: "meta",
@@ -118,7 +113,9 @@ impl Component for App {
                         set_orientation: gtk::Orientation::Horizontal,
                         set_spacing: 8,
                         set_halign: gtk::Align::Start,
-                        set_valign: gtk::Align::Start,
+                        set_valign: gtk::Align::Center,
+                        set_margin_top: 8,
+                        set_margin_bottom: 8,
                     }
                 }
             }
@@ -141,8 +138,9 @@ impl Component for App {
         root.set_anchor(Edge::Top, true);
         root.set_anchor(Edge::Left, true);
         root.set_anchor(Edge::Right, true);
-        root.set_margin(Edge::Left, 8);
-        root.set_margin(Edge::Right, 8);
+        root.set_margin(Edge::Top, OUTER_MARGIN);
+        root.set_margin(Edge::Left, OUTER_MARGIN);
+        root.set_margin(Edge::Right, OUTER_MARGIN);
         root.set_exclusive_zone(COMPACT_HEIGHT);
         root.set_keyboard_mode(KeyboardMode::None);
         if init.click_through {
@@ -202,6 +200,7 @@ impl Component for App {
     ) {
         match message {
             AppMsg::View(view) => self.apply_view(widgets, root, &sender, view),
+            AppMsg::Theme(definitions) => apply_theme(&definitions),
             AppMsg::Tick => {
                 if now_ms() >= self.next_order_refresh_at {
                     self.regroup();

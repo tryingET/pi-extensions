@@ -6,6 +6,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { detectTabInventorySupport } from "../native/tab-inventory.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -83,6 +84,10 @@ export async function assessActivityStripCompatibility(options = {}) {
     env,
     execFileAsyncImpl: options.execFileAsyncImpl,
   });
+  const tabInventory = await detectTabInventorySupport({
+    execFileAsync: options.execFileAsyncImpl ?? execFileAsync,
+    env,
+  });
   const blockers = [];
   const warnings = [];
 
@@ -117,6 +122,12 @@ export async function assessActivityStripCompatibility(options = {}) {
     );
   }
 
+  if (windowManager === "niri" && !tabInventory.available) {
+    warnings.push(
+      `Hidden Ghostty tabs that were never shown cannot be placed: ${tabInventory.detail}. Tabs shown while the strip runs are still remembered.`,
+    );
+  }
+
   return {
     ok: blockers.length === 0,
     backend,
@@ -126,6 +137,7 @@ export async function assessActivityStripCompatibility(options = {}) {
     alignmentMode: "layer-shell",
     primaryDisplayOnly: true,
     clickThroughDefault: env.PI_ACTIVITY_STRIP_CLICK_THROUGH === "1",
+    tabInventory,
     blockers,
     warnings,
   };
@@ -143,6 +155,7 @@ export function formatCompatibilityReport(report) {
     `Alignment mode: ${report.alignmentMode}`,
     `Primary-display only: ${report.primaryDisplayOnly ? "yes" : "no"}`,
     `Click-through mode: ${report.clickThroughDefault ? "enabled by environment" : "disabled (interactive default)"}`,
+    `Hidden-tab inventory: ${report.tabInventory?.available ? "available" : "unavailable"} (${report.tabInventory?.detail ?? "unknown"})`,
   ];
 
   if (typeof report.displayCount === "number") {

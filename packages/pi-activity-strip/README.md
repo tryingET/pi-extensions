@@ -12,21 +12,25 @@ system4d:
 
 # @tryinget/pi-activity-strip
 
-A screen-top activity ribbon for live Pi sessions running in Ghostty.
+A screen-top activity ribbon for the coding agents running in your Ghostty tabs. Pi sessions publish their own telemetry; other terminal agents such as Claude Code are discovered from the process table.
 
 The runtime is Electron-free. A Node controller retains the tested telemetry, identity, ordering, and exact-focus logic; a small Rust/Relm4/GTK4 panel owns rendering and the Wayland layer-shell surface.
 
 ## What it does
 
 - auto-starts with interactive Pi TUI sessions
-- shows one card per admitted Ghostty terminal on the focused Niri workspace
+- shows one card per admitted Ghostty terminal on the focused Niri workspace, including tabs hidden behind another tab of their Ghostty window
+- covers Pi sessions and other terminal agents (Claude Code, Codex, Gemini and more) found in Ghostty tabs
+- restores tiled windows left at the wrong height when its reserved band appears or disappears
+- draws itself in Ghostty's own theme and follows the desktop between light and dark
+- sits on the same gap rhythm and corner radius as tiled windows, rather than as a bar on the screen edge
 - aggregates independent publishers beneath stable terminal cards
 - displays repo, phase, tool, detail, elapsed time, and freshness
-- marks the exact currently focused terminal card
+- marks the exact currently focused terminal card and prefixes hidden-tab cards with `⧉`
 - keeps monitoring-success cards beside the Activity tile, then active and settled cards
 - expands rich details on hover or keyboard focus
 - supports Left/Right navigation and Shift+Left/Right manual movement
-- focuses the exact matching Ghostty window on click or Enter
+- focuses the exact matching Ghostty window on click or Enter, presenting a hidden tab first
 - hides completely on workspaces without tracked cards
 - releases its 84px exclusive zone automatically when hidden or crashed
 
@@ -43,7 +47,7 @@ Pi publisher streams
 
 Layer-shell replaces the old floating Electron window and dynamic Niri-config strut helper. The package no longer edits `~/.config/niri/config.kdl`, resets tiled heights, or requires Electron.
 
-The compact surface is 84px tall. One engaged card expands the surface to 252px while the exclusive zone remains 84px, so detail overlays content without repeatedly resizing tiled windows.
+The compact surface is 84px tall and sits inset by a 16px margin on the top, left and right, matching the compositor's window gaps, with the same 12px corner radius as tiled windows. It therefore reserves 100px in total. One engaged card expands the surface to 276px while the reservation is unchanged, so detail overlays content without repeatedly resizing tiled windows.
 
 ## Supported host
 
@@ -91,6 +95,7 @@ node ./bin/pi-activity-strip.mjs focus-session <full-pi-session-id>
 node ./bin/pi-activity-strip.mjs status
 node ./bin/pi-activity-strip.mjs doctor
 node ./bin/pi-activity-strip.mjs snapshot
+node ./bin/pi-activity-strip.mjs claude-hooks
 node ./bin/pi-activity-strip.mjs stop
 ```
 
@@ -114,6 +119,13 @@ The shortcut toggles exclusive keyboard mode. On entry, the first card is select
 - **Hide/reclaim:** zero cards unmaps the layer surface. Niri then removes its exclusive zone as part of normal Wayland surface lifecycle.
 - **Crash behavior:** panel lifetime is bound to the Node controller through Linux parent-death signaling and stdin EOF. Unexpected panel exits are restarted with bounded backoff; a dead surface cannot retain an exclusive zone.
 - **Exact focus:** card activation returns to Node, which performs existing fail-closed terminal identity resolution and Niri focus.
+- **Hidden tabs:** a Ghostty window title only names its active tab. A bound surface whose title is not visible is placed through its Ghostty host process: one host window is exact containment; several host windows use the window remembered for that tab. Memory comes from titles seen while the strip runs and from a read-only AT-SPI inventory of tab labels, and is persisted per Niri instance under `~/.pi/agent/state/pi-activity-strip/surface-bindings.json`. A tab whose window has never been observed stays unplaced rather than guessed; `status` reports that count. Activating a hidden-tab card calls the host process's `present-surface` action on the session bus, then focuses the window, and reports success only after the title proves the tab is visible.
+- **Agent tabs:** a tab is admitted as an agent when the process owning its terminal is a recognized agent CLI, never on a window title alone, so plain terminal programs are not cards. Claude Code tabs are identified exactly through the per-session scratchpad the process holds open, which yields the session id and the title Claude Code put on the terminal; that title places the tab in its window and is remembered so the tab stays placed once hidden.
+- **Codex telemetry:** Codex keeps a thread index naming every session's rollout file, working directory and title. A process binds to its thread by an open rollout descriptor, or, before any task has run, by being the only session created in that directory after the process started; anything ambiguous binds nothing. The rollout tail then reports the running tool and its command, turn count, approval and sandbox policy, prompt and reply. Reading the index needs the runtime's built-in SQLite, and a host without it degrades to a process-only card.
+- **Claude Code telemetry:** cards read live state from the tail of the session transcript, giving the topic, current tool and its target, last prompt, latest reply, turn count and activity clock with no configuration. That format is internal to Claude Code and can change between releases, so a transcript that no longer parses degrades to a process-only card rather than inventing activity. Optional hooks add the one state a transcript cannot express, that a session is blocked waiting for you; run `claude-hooks` for the settings fragment. Only low-frequency events are hooked, so nothing runs per tool call. OpenTelemetry is deliberately not used: it reports aggregate usage and cost, not which tool a session is running now.
+- **Appearance:** the ribbon reads the same theme files Ghostty reads. It resolves the `theme` setting for the desktop's current colour scheme, including the `light:…,dark:…` form, and takes colours set directly in the config over the theme file, exactly as Ghostty layers them. State colours reuse the terminal's own meanings, so green is settled, yellow is working, red failed, and the cursor colour marks a session waiting for you. The panel derives every shade from eight named colours, so a theme change is a handful of values and one stylesheet reload rather than a restart. A theme that cannot be read falls back to a neutral palette.
+- **Height repair:** showing or hiding the ribbon changes the output working area, and a window whose height is not automatic keeps the old value. After each change the strip compares window heights before and after, and resets to automatic only those windows still sitting at a height the moving windows just vacated. A height nobody vacated is never touched, each window is reset at most once per height, and a pass is bounded.
+- **Two identity keys:** a Ghostty surface id is a per-process handle that can drift away from the value a long-lived Pi process captured at startup, while the 32-hex session token in the same title never does. Memory therefore stores both, and lookups prefer the exact surface. A session token that two windows claim is ambiguous and binds nothing; two terminals resuming one logical session in the same window are both placed there.
 - **Ordering:** monitoring, active, and settled groups refresh on a calm 15-second clock. Manual moves survive until regroup or restart.
 - **Accessibility:** cards expose native GTK labels, selected/expanded state, activation descriptions, and GTK accessible announcements.
 
@@ -123,6 +135,13 @@ The shortcut toggles exclusive keyboard mode. On entry, the first card is select
 - `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` installs an empty Wayland input region and disables keyboard entry.
 - `PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN=/absolute/path` selects another receipted panel artifact.
 - `PI_ACTIVITY_STRIP_SOCKET_DIR` and `PI_ACTIVITY_STRIP_SOCKET_PATH` isolate broker fixtures and nested-compositor tests.
+- `PI_ACTIVITY_STRIP_TAB_INVENTORY=0` disables the read-only AT-SPI tab inventory; hidden tabs are then placed only from titles seen while the strip runs.
+- `PI_ACTIVITY_STRIP_AGENT_TABS=0` disables discovery of non-Pi agent tabs.
+- `PI_ACTIVITY_STRIP_AGENT_KINDS_DISABLED=claude,codex` excludes named agent kinds from discovery.
+- `CODEX_HOME` selects a non-default Codex home when reading its thread index (default `~/.codex`).
+- `PI_ACTIVITY_STRIP_PYTHON` selects the interpreter for the tab inventory (default `python3`).
+- `PI_ACTIVITY_STRIP_HEIGHT_REPAIR=0` disables restoring windows stranded at the previous working-area height.
+- `PI_ACTIVITY_STRIP_COLOR_SCHEME=light|dark` pins the ribbon to one scheme instead of following the desktop.
 
 Unverified native binaries are rejected unless `PI_ACTIVITY_STRIP_ALLOW_UNVERIFIED_PANEL=1` is explicitly set for development fixtures.
 
@@ -159,12 +178,22 @@ Implemented:
 - workspace-local Niri projection
 - hide/reclaim and restore
 - pointer and keyboard card interaction
-- exact Ghostty activation
+- exact Ghostty activation, including hidden tabs via `present-surface`
+- hidden Ghostty tab placement through host process containment and learned window memory
+- non-Pi agent tab discovery with an exact Claude Code adapter
+- live Claude Code telemetry from its transcript, with optional hooks for blocked-on-you states
+- live Codex telemetry from its thread index and rollout files
+- Ghostty theme following, light and dark
+- repair of windows stranded at the previous working-area height
 - bounded panel restart and parent-death cleanup
 - click-through input region
 
 Not implemented:
 
+- placement of a tab whose window has never been observed, on a host without the AT-SPI inventory (Ghostty exposes no surface listing of its own)
+- distinguishing two terminals that resume one logical session when only the drifted session token is available; both are placed in the one window that claims that token
+- live phase and tool detail for agents other than Claude Code and Codex, which have no adapter yet; their cards show the agent, directory, elapsed time and pid
+- placement of an agent other than Claude Code whose tab is hidden inside a multi-window Ghostty process, since only Claude Code exposes a per-tab title identity
 - one panel per output
 - historical timeline
 - persisted manual ordering

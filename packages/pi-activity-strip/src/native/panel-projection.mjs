@@ -10,12 +10,16 @@ import { projectSessionCards, sessionRecordKey } from "../common/session-cards.m
 /** @typedef {Record<string, unknown>} SessionRecord */
 /** @typedef {{generatedAt: number; sessions: SessionRecord[]}} Snapshot */
 /** @typedef {{workspace: Record<string, unknown> | null; sessions: SessionRecord[]; focusedSessionId: string | null; focusedCardId?: string | null}} WorkspaceView */
+/** @typedef {{placement: string; surfaceVisible: boolean; windowId: number | null}} CardPlacement */
 /** @typedef {{isNiriSession: () => boolean; publish: (view: Record<string, unknown> & {type: string; sessions: SessionRecord[]}) => void}} NativePanelProjectionOptions */
 
 /** @param {NativePanelProjectionOptions} options */
 export function createNativePanelProjection({ isNiriSession, publish }) {
   /** @type {Snapshot} */
   let snapshot = { generatedAt: Date.now(), sessions: [] };
+  /** Agent tabs discovered from the process table; they publish no telemetry of their own. */
+  /** @type {SessionRecord[]} */
+  let agentSessions = [];
   /** @type {string | null} */
   let focusedSessionId = null;
   /** @type {string | null} */
@@ -26,13 +30,23 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
   let workspaceCardIds = new Set();
   /** @type {Set<string>} */
   let workspaceRecordKeys = new Set();
+  /** @type {Map<string, CardPlacement>} */
+  let workspacePlacements = new Map();
   let revision = 0;
 
+  function allSessions() {
+    return agentSessions.length > 0 ? [...snapshot.sessions, ...agentSessions] : snapshot.sessions;
+  }
+
   function getDisplaySessions() {
-    const sessions = isNiriSession()
-      ? snapshot.sessions.filter((session) => workspaceRecordKeys.has(sessionRecordKey(session)))
-      : snapshot.sessions;
-    return projectSessionCards(sessions, isNiriSession() ? workspaceCardIds : null);
+    if (!isNiriSession()) return projectSessionCards(allSessions(), null);
+    const sessions = allSessions().filter((session) =>
+      workspaceRecordKeys.has(sessionRecordKey(session)),
+    );
+    return projectSessionCards(sessions, workspaceCardIds).map((card) => {
+      const placement = workspacePlacements.get(card.cardId);
+      return placement ? { ...card, ...placement } : card;
+    });
   }
 
   function currentView() {
@@ -64,7 +78,13 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
 
   return {
     getDisplaySessions,
-    getRawSessions: () => snapshot.sessions,
+    getRawSessions: allSessions,
+    /** Broker-published records only, for comparisons against a broker snapshot. */
+    getBrokerSessions: () => snapshot.sessions,
+    /** @param {SessionRecord[]} records */
+    setAgentSessions(records) {
+      agentSessions = Array.isArray(records) ? records : [];
+    },
     /** @param {string} targetId */
     resolveTarget: (targetId) => resolveSnapshotSession(getDisplaySessions(), targetId),
     /** @param {WorkspaceView} view */
@@ -77,6 +97,16 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
             ? session.publisherRecordKeys.map(String)
             : [sessionRecordKey(session)],
         ),
+      );
+      workspacePlacements = new Map(
+        view.sessions.map((session) => [
+          String(session.cardId ?? ""),
+          {
+            placement: String(session.placement ?? "title"),
+            surfaceVisible: session.surfaceVisible !== false,
+            windowId: Number.isInteger(session.windowId) ? Number(session.windowId) : null,
+          },
+        ]),
       );
       focusedSessionId = view.focusedSessionId;
       focusedCardId = view.focusedCardId ?? null;

@@ -34,7 +34,7 @@ const runtimeLockPath = path.join(ACTIVITY_STRIP_SOCKET_DIR, "runtime.lock");
 
 function usage() {
   console.log(
-    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Focus the visible strip already resident on the focused Niri workspace\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  fix-top           Confirm compositor-owned layer-shell placement\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the native runtime in the foreground\n`,
+    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|claude-hooks|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Focus the visible strip already resident on the focused Niri workspace\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  claude-hooks      Print the Claude Code settings fragment for live agent telemetry\n  fix-top           Confirm compositor-owned layer-shell placement\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the native runtime in the foreground\n`,
   );
 }
 
@@ -205,6 +205,27 @@ async function main() {
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
+      }
+      return;
+    }
+    case "claude-hooks": {
+      const { claudeHookSettings } = await import("../src/common/claude-hook-config.mjs");
+      const hookPath = path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "pi-activity-strip-claude-hook.mjs",
+      );
+      const settings = claudeHookSettings(`${process.execPath} ${hookPath}`);
+      if (jsonOutput) {
+        console.log(JSON.stringify(settings, null, 2));
+      } else {
+        console.log(
+          "Merge this into ~/.claude/settings.json so Claude Code sessions report live state:\n",
+        );
+        console.log(JSON.stringify(settings, null, 2));
+        console.log(
+          "\nOnly low-frequency events are hooked, so nothing runs per tool call. Tool and thinking",
+        );
+        console.log("state already come from the transcript without any configuration.");
       }
       return;
     }

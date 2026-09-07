@@ -1,0 +1,3 @@
+# Python bytecode from the offline AT-SPI test fixture
+__pycache__/
+*.pyc

@@ -4,12 +4,14 @@ import {
   focusNiriSession,
   readNiriWindows,
   resolveExactGhosttyWindow,
-  resolveFocusedNiriWorkspace,
   resolveFocusedSnapshotSessionId,
-  resolveFocusedWorkspaceView,
   resolvePiSessionIdentity,
   resolveSnapshotSession,
 } from "../src/common/niri-focus.mjs";
+import {
+  resolveFocusedNiriWorkspace,
+  resolveFocusedWorkspaceView,
+} from "../src/common/workspace-view.mjs";
 
 const sessionId = "019fa4d0-7142-7fb4-8d30-f98e951f0513";
 const ghostty = (id, title) => ({
@@ -405,4 +407,252 @@ test("focused-workspace resolution is exact and supports empty focused workspace
   assert.equal(resolveFocusedNiriWorkspace([focused])?.id, 76);
   assert.equal(resolveFocusedNiriWorkspace([]), null);
   assert.equal(resolveFocusedNiriWorkspace([focused, { ...focused, id: 77, idx: 4 }]), null);
+});
+
+test("focused workspace view places hidden Ghostty tabs through their host process and memory", () => {
+  const token = sessionId.replaceAll("-", "");
+  const hiddenSessionId = "019fa4d1-7142-7fb4-8d30-f98e951f0513";
+  const orphanSessionId = "019fa4d2-7142-7fb4-8d30-f98e951f0513";
+  const soloSessionId = "019fa4d3-7142-7fb4-8d30-f98e951f0513";
+  const bound = (id, surface, processId) => ({
+    sessionId: id,
+    processId,
+    state: "idle",
+    terminalKind: "ghostty-surface",
+    terminalKey: `ghostty:main:${surface}`,
+    terminalFamily: "main",
+    terminalSurfaceId: surface,
+  });
+  const main = (id, title, pid, extra = {}) => ({
+    id,
+    title,
+    pid,
+    app_id: "com.mitchellh.ghostty",
+    workspace_id: 76,
+    ...extra,
+  });
+  const windows = [
+    main(44, `π - dspx · gs:main:16 · ${token}`, 4000, { is_focused: true }),
+    main(45, "~/programming", 4000),
+    main(46, "~/other", 4001),
+    main(47, "elsewhere", 4000, { workspace_id: 102 }),
+  ];
+  const sessions = [
+    bound(sessionId, "16", 501),
+    bound(hiddenSessionId, "17", 502),
+    bound(orphanSessionId, "18", 503),
+    bound(soloSessionId, "19", 504),
+  ];
+  const hostByProcess = new Map([
+    [501, 4000],
+    [502, 4000],
+    [503, 4000],
+    [504, 4001],
+  ]);
+  const options = {
+    resolveHostPid: (session) => hostByProcess.get(session.processId) ?? 0,
+    lookupBinding: (key) => (key === "ghostty:main:17" ? { windowId: 44, windowPid: 4000 } : null),
+  };
+  const view = resolveFocusedWorkspaceView(
+    windows,
+    [{ id: 76, idx: 2, name: null, is_focused: true }],
+    sessions,
+    options,
+  );
+  const byId = new Map(view.sessions.map((session) => [session.sessionId, session]));
+  assert.deepEqual(
+    [...byId.keys()].sort(),
+    [sessionId, hiddenSessionId, soloSessionId].sort(),
+    "the unremembered tab of a multi-window host stays unplaced",
+  );
+  assert.equal(byId.get(sessionId).placement, "title");
+  assert.equal(byId.get(sessionId).surfaceVisible, true);
+  assert.equal(byId.get(sessionId).windowId, 44);
+  assert.equal(byId.get(hiddenSessionId).placement, "binding");
+  assert.equal(byId.get(hiddenSessionId).surfaceVisible, false);
+  assert.equal(byId.get(hiddenSessionId).windowId, 44, "two tabs may share one window");
+  assert.equal(byId.get(soloSessionId).placement, "host");
+  assert.equal(byId.get(soloSessionId).windowId, 46);
+  assert.equal(view.focusedCardId, "terminal:ghostty:main:16");
+  assert.equal(view.focusedSessionId, sessionId);
+
+  const hiddenFocus = resolveFocusedWorkspaceView(
+    [{ ...windows[0], title: "~/dspx" }, ...windows.slice(1)],
+    [{ id: 76, idx: 2, name: null, is_focused: true }],
+    sessions,
+    options,
+  );
+  assert.equal(
+    hiddenFocus.focusedCardId,
+    null,
+    "a hidden tab in the focused window is never current",
+  );
+  assert.equal(hiddenFocus.sessions.length, 2);
+
+  const otherWorkspace = resolveFocusedWorkspaceView(
+    windows,
+    [{ id: 102, idx: 3, name: null, is_focused: true }],
+    sessions,
+    { ...options, lookupBinding: () => ({ windowId: 47, windowPid: 4000 }) },
+  );
+  assert.deepEqual(
+    otherWorkspace.sessions.map((session) => [session.sessionId, session.placement]),
+    [
+      [hiddenSessionId, "binding"],
+      [orphanSessionId, "binding"],
+    ],
+    "remembered windows follow their workspace",
+  );
+});
+
+test("focusNiriSession presents a hidden tab and confirms it through the window title", async () => {
+  const token = sessionId.replaceAll("-", "");
+  const session = {
+    sessionId,
+    processId: 501,
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:main:16",
+    terminalFamily: "main",
+    terminalSurfaceId: "16",
+  };
+  const main = (id, title) => ({ id, title, pid: 4000, app_id: "com.mitchellh.ghostty" });
+  const calls = [];
+  let presentedTitle = false;
+  const exec = async (file, args) => {
+    calls.push([file, ...args]);
+    if (args.at(-1) === "windows") {
+      return {
+        stdout: JSON.stringify([
+          main(44, presentedTitle ? `π - dspx · gs:main:16 · ${token}` : "~/dspx"),
+        ]),
+      };
+    }
+    return { stdout: "" };
+  };
+  const presentCalls = [];
+  const presentSurface = async (target) => {
+    presentCalls.push(target);
+    presentedTitle = true;
+    return { ok: true, busName: ":1.10" };
+  };
+  const env = { NIRI_SOCKET: "socket" };
+  const options = { resolveHostPid: () => 4000, presentSurface, sleep: async () => {} };
+
+  assert.deepEqual(await focusNiriSession(session, exec, env, options), {
+    ok: true,
+    windowId: 44,
+    presented: true,
+    verified: true,
+  });
+  assert.equal(presentCalls.length, 1);
+  assert.equal(presentCalls[0].hostPid, 4000);
+  assert.equal(presentCalls[0].surfaceId, "16");
+  assert.equal(presentCalls[0].terminalFamily, "main");
+  assert.deepEqual(calls[1], ["niri", "msg", "action", "focus-window", "--id", "44"]);
+
+  presentedTitle = false;
+  const unconfirmed = await focusNiriSession(session, exec, env, {
+    ...options,
+    presentSurface: async () => ({ ok: true, busName: ":1.10" }),
+  });
+  assert.equal(unconfirmed.ok, false);
+  assert.equal(unconfirmed.presented, false);
+  assert.match(unconfirmed.error, /did not become visible/);
+
+  const rejected = await focusNiriSession(session, exec, env, {
+    ...options,
+    presentSurface: async () => ({
+      ok: false,
+      error: "the Ghostty process is not on the session bus",
+    }),
+  });
+  assert.equal(rejected.ok, false);
+  assert.match(
+    rejected.error,
+    /could not present the hidden tab \(the Ghostty process is not on the session bus\)/,
+  );
+  assert.deepEqual(calls.at(-1), ["niri", "msg", "action", "focus-window", "--id", "44"]);
+
+  const unplaced = await focusNiriSession(session, exec, env, {
+    ...options,
+    resolveHostPid: () => 0,
+  });
+  assert.equal(unplaced.ok, false);
+  assert.match(unplaced.error, /did not resolve to exactly one Ghostty window/);
+  assert.equal(presentCalls.length, 1, "an unplaced surface is never presented");
+});
+
+test("an agent tab whose visibility cannot be read is presented without a false failure", async () => {
+  // Agents that write no recognizable terminal title leave the compositor nothing to confirm.
+  // Presenting must then report what actually happened rather than claiming a failure.
+  const agent = {
+    sessionId: "agent:gemini:7",
+    processId: 501,
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:main:16",
+    terminalFamily: "main",
+    terminalSurfaceId: "16",
+    titleSuffix: "",
+  };
+  const window = (id, title) => ({ id, title, pid: 4000, app_id: "com.mitchellh.ghostty" });
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push([file, ...args]);
+    return {
+      stdout: args.at(-1) === "windows" ? JSON.stringify([window(44, "a plain title")]) : "",
+    };
+  };
+  let presented = 0;
+  const result = await focusNiriSession(
+    agent,
+    exec,
+    { NIRI_SOCKET: "socket" },
+    {
+      resolveHostPid: () => 4000,
+      presentSurface: async () => {
+        presented += 1;
+        return { ok: true, busName: ":1.10" };
+      },
+      sleep: async () => {},
+    },
+  );
+  assert.deepEqual(result, { ok: true, windowId: 44, presented: true, verified: false });
+  assert.equal(presented, 1);
+  assert.deepEqual(calls.at(-1), ["niri", "msg", "action", "focus-window", "--id", "44"]);
+  assert.equal(
+    calls.filter((call) => call.at(-1) === "windows").length,
+    1,
+    "an unverifiable tab is never re-read in a confirmation loop",
+  );
+});
+
+test("visibility is only claimed hidden on evidence", async () => {
+  const { resolveSurfaceVisibility } = await import("../src/common/workspace-view.mjs");
+  const token = sessionId.replaceAll("-", "");
+  const piSession = {
+    sessionId,
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:main:16",
+    terminalFamily: "main",
+    terminalSurfaceId: "16",
+  };
+  const agent = { ...piSession, sessionId: "agent:gemini:7", titleSuffix: "" };
+  const titled = { title: `π - dspx · gs:main:17 · ${token}` };
+
+  assert.equal(resolveSurfaceVisibility({ title: "x" }, piSession, "title"), "visible");
+  assert.equal(
+    resolveSurfaceVisibility({ title: "a plain title" }, piSession, "host"),
+    "hidden",
+    "a session that writes its identity into the title and did not match is behind another tab",
+  );
+  assert.equal(
+    resolveSurfaceVisibility(titled, agent, "host"),
+    "hidden",
+    "a window showing another surface proves the tab is behind it",
+  );
+  assert.equal(
+    resolveSurfaceVisibility({ title: "a plain title" }, agent, "host"),
+    "unknown",
+    "an agent with no readable title is never assumed hidden",
+  );
 });

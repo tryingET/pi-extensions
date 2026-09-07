@@ -6,19 +6,34 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { presentGhosttySurface } from "./ghostty-present.mjs";
 import { projectSessionCards, sessionCardId } from "./session-cards.mjs";
+import { parseTerminalTitleBinding } from "./surface-bindings.mjs";
 import {
   appIdForGhosttyFamily,
   canonicalGhosttyTerminalKey,
   normalizeGhosttySurfaceId,
   terminalTitleSegment,
 } from "./terminal-identity.mjs";
+import { resolveHiddenSurfaceWindow } from "./window-placement.mjs";
 
 const GHOSTTY_APP_IDS = new Set(["com.mitchellh.ghostty", "com.tryinget.ghosttysidequest"]);
 const PI_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SESSION_PRESENCE_SOURCE = "@tryinget/pi-little-helpers/session-presence";
 const SESSION_TITLE_TOKEN_HEX_LENGTH = 32;
 const LEGACY_SESSION_TITLE_TOKEN_HEX_LENGTH = 8;
+const PRESENT_VERIFY_ATTEMPTS = 4;
+const PRESENT_VERIFY_DELAY_MS = 120;
+
+/** @typedef {import("./window-placement.mjs").PlacementOptions} PlacementOptions */
+/** @typedef {import("./window-placement.mjs").WindowPlacement} WindowPlacement */
+/**
+ * @typedef {PlacementOptions & {
+ *   env?: NodeJS.ProcessEnv;
+ *   readFileSync?: typeof fs.readFileSync;
+ *   existsSync?: typeof fs.existsSync;
+ * }} ResolveOptions
+ */
 
 /**
  * Read one bounded Niri JSON list. Polling callers treat command, timeout,
@@ -167,6 +182,75 @@ export function resolveExactGhosttyWindow(windows, sessionId, session = {}) {
 }
 
 /**
+ * Place a session on its window. A visible title is exact proof; a bound surface whose tab is
+ * hidden behind another tab is placed through its Ghostty host process and remembered window.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {string} sessionId
+ * @param {Record<string, unknown>} [session]
+ * @param {PlacementOptions} [options]
+ * @returns {WindowPlacement | null}
+ */
+export function resolveSessionWindow(windows, sessionId, session = {}, options = {}) {
+  const exact = resolveExactGhosttyWindow(windows, sessionId, session);
+  if (exact) return { window: exact, placement: "title" };
+  return resolveHiddenSurfaceWindow(windows, session, {
+    ...options,
+    sessionToken: shortSessionId(sessionId),
+  });
+}
+
+/**
+ * A tab occupied by a coding agent other than Pi carries no Pi identity, so it is placed by the
+ * exact title the agent put on its own terminal, and otherwise by host containment and window
+ * memory. A title claimed by more than one window is ambiguous and places nothing.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Record<string, unknown>} session
+ * @param {PlacementOptions} [options]
+ * @returns {WindowPlacement | null}
+ */
+export function resolveAgentSessionWindow(windows, session, options = {}) {
+  const titleSuffix = String(session.titleSuffix ?? "").trim();
+  if (titleSuffix) {
+    const expectedAppId = appIdForGhosttyFamily(String(session.terminalFamily ?? ""));
+    const matches = windows.filter(
+      (window) =>
+        Number.isInteger(window?.id) &&
+        String(window?.app_id ?? "") === expectedAppId &&
+        String(window?.title ?? "").endsWith(titleSuffix),
+    );
+    if (matches.length === 1) return { window: matches[0], placement: "title" };
+    if (matches.length > 1) return null;
+  }
+  return resolveHiddenSurfaceWindow(windows, session, options);
+}
+
+/**
+ * Whether a session could ever be placed by a title. Activation can only confirm that a presented
+ * tab became visible for these; for anything else the compositor offers no readable proof.
+ * @param {Record<string, unknown>} session
+ * @param {ResolveOptions} [options]
+ */
+export function canVerifyTabVisibility(session, options = {}) {
+  if (resolvePiSessionIdentity(session, options)) return true;
+  return String(session?.titleSuffix ?? "").trim().length > 0;
+}
+
+/**
+ * Place any tracked session: a Pi session by its exact Pi identity, an agent tab by its own title.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Record<string, unknown>} session
+ * @param {ResolveOptions} [options]
+ * @returns {WindowPlacement | null}
+ */
+export function placeSessionWindow(windows, session, options = {}) {
+  const piSessionId = resolvePiSessionIdentity(session, options);
+  if (piSessionId) return resolveSessionWindow(windows, piSessionId, session, options);
+  return canonicalGhosttyTerminalKey(session)
+    ? resolveAgentSessionWindow(windows, session, options)
+    : null;
+}
+
+/**
  * Resolve the one snapshot session whose exact Ghostty window currently owns
  * compositor focus. Missing, ambiguous, non-Ghostty, and stale identities all
  * fail closed so the renderer never highlights a guessed session.
@@ -187,136 +271,121 @@ export function resolveFocusedSnapshotSessionId(windows, sessions, options = {})
 }
 
 /**
- * Project the global broker snapshot onto one exact Niri workspace. Membership
- * requires an exact Ghostty window. Multiple publisher streams bound to the same terminal are
- * aggregated into one stable card; ambiguity between distinct windows still fails closed.
- * @param {Array<Record<string, unknown>>} windows
- * @param {Record<string, unknown>} workspace
- * @param {Array<Record<string, unknown>>} sessions
- * @param {{env?: NodeJS.ProcessEnv; readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
- */
-export function resolveWorkspaceView(windows, workspace, sessions, options = {}) {
-  if (!Number.isInteger(workspace?.id)) return null;
-  /** @type {Array<{cardId: string; session: Record<string, unknown>; window: Record<string, unknown>}>} */
-  const candidates = [];
-  for (const session of sessions) {
-    const sessionIdentity = resolvePiSessionIdentity(session, options);
-    if (!sessionIdentity) continue;
-    const window = resolveExactGhosttyWindow(windows, sessionIdentity, session);
-    if (!window || window.workspace_id !== workspace.id) continue;
-    const cardId = sessionCardId(session);
-    if (!cardId) continue;
-    candidates.push({ cardId, session: { ...session, cardId }, window });
-  }
-
-  const cardIdsByWindow = new Map();
-  for (const candidate of candidates) {
-    const ids = cardIdsByWindow.get(candidate.window.id) ?? new Set();
-    ids.add(candidate.cardId);
-    cardIdsByWindow.set(candidate.window.id, ids);
-  }
-  const allowedCardByWindow = new Map();
-  for (const [windowId, ids] of cardIdsByWindow) {
-    const terminalIds = [...ids].filter((cardId) => cardId.startsWith("terminal:"));
-    if (terminalIds.length === 1) allowedCardByWindow.set(windowId, terminalIds[0]);
-    else if (ids.size === 1) allowedCardByWindow.set(windowId, [...ids][0]);
-  }
-
-  /** @type {Map<string, Array<{session: Record<string, unknown>; window: Record<string, unknown>}>>} */
-  const groups = new Map();
-  for (const candidate of candidates) {
-    if (allowedCardByWindow.get(candidate.window.id) !== candidate.cardId) continue;
-    const group = groups.get(candidate.cardId) ?? [];
-    group.push(candidate);
-    groups.set(candidate.cardId, group);
-  }
-
-  const projectedSessions = [];
-  for (const [cardId, group] of groups) {
-    const windowIds = new Set(group.map((candidate) => candidate.window.id));
-    if (windowIds.size !== 1) continue;
-    const [card] = projectSessionCards(group.map((candidate) => candidate.session));
-    if (!card) continue;
-    const window = group[0]?.window;
-    projectedSessions.push({ ...card, cardId, windowId: window?.id });
-  }
-  const focusedCard = projectedSessions.find((session) =>
-    windows.some((window) => window?.id === session.windowId && window?.is_focused === true),
-  );
-  return {
-    workspace,
-    sessions: projectedSessions,
-    focusedSessionId: focusedCard ? String(focusedCard.sessionId ?? "") || null : null,
-    focusedCardId: focusedCard ? String(focusedCard.cardId ?? "") || null : null,
-  };
-}
-
-/**
- * Project the global broker snapshot onto the one focused Niri workspace.
- * @param {Array<Record<string, unknown>>} windows
- * @param {Array<Record<string, unknown>>} workspaces
- * @param {Array<Record<string, unknown>>} sessions
- * @param {{env?: NodeJS.ProcessEnv; readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
- */
-export function resolveFocusedWorkspaceView(windows, workspaces, sessions, options = {}) {
-  const workspace = resolveFocusedNiriWorkspace(workspaces);
-  return workspace ? resolveWorkspaceView(windows, workspace, sessions, options) : null;
-}
-
-/** @param {Array<Record<string, unknown>>} workspaces */
-export function resolveFocusedNiriWorkspace(workspaces) {
-  const matches = workspaces.filter(
-    (workspace) =>
-      workspace?.is_focused === true &&
-      Number.isInteger(workspace?.id) &&
-      (typeof workspace?.name === "string" || Number.isInteger(workspace?.idx)),
-  );
-  return matches.length === 1 ? matches[0] : null;
-}
-
-/**
+ * Focus the exact terminal behind a card. A visible tab needs only compositor focus. A hidden tab
+ * is first presented inside its proven Ghostty host process, then its window is focused, and the
+ * result counts as success only once the window title proves the tab became visible.
  * @param {string | Record<string, unknown>} session
  * @param {(file: string, args: string[], options: object) => Promise<{stdout?: string}>} execFileAsync
  * @param {NodeJS.ProcessEnv} [env]
- * @param {{readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
+ * @param {PlacementOptions & {
+ *   readFileSync?: typeof fs.readFileSync;
+ *   existsSync?: typeof fs.existsSync;
+ *   presentSurface?: typeof presentGhosttySurface;
+ *   sleep?: (milliseconds: number) => Promise<void>;
+ * }} [options]
+ * @returns {Promise<{ok: boolean; error?: string; windowId?: number; presented?: boolean; verified?: boolean}>}
  */
 export async function focusNiriSession(session, execFileAsync, env = process.env, options = {}) {
   if (!env.NIRI_SOCKET) return { ok: false, error: "Niri is not available; focus did nothing." };
-  const sessionId = resolvePiSessionIdentity(session, {
-    env,
-    readFileSync: options.readFileSync,
-    existsSync: options.existsSync,
-  });
-  if (!sessionId) {
+  const record =
+    session && typeof session === "object" ? session : { sessionId: String(session ?? "") };
+  const placementOptions = { ...options, env };
+  if (!resolvePiSessionIdentity(record, placementOptions) && !canonicalGhosttyTerminalKey(record)) {
     return {
       ok: false,
       error: "Exact Pi identity is unavailable; reload that Pi tab and try again.",
     };
   }
+  const readWindows = async () => {
+    const result = await execFileAsync("niri", ["msg", "-j", "windows"], { env });
+    const windows = JSON.parse(String(result.stdout ?? "[]"));
+    if (!Array.isArray(windows)) throw new Error("Unexpected Niri window data");
+    return windows;
+  };
   let windows;
   try {
-    const result = await execFileAsync("niri", ["msg", "-j", "windows"], { env });
-    windows = JSON.parse(String(result.stdout ?? "[]"));
-  } catch {
-    return { ok: false, error: "Could not inspect Niri windows; focus did nothing." };
-  }
-  if (!Array.isArray(windows)) {
-    return { ok: false, error: "Unexpected Niri window data; focus did nothing." };
-  }
-  const record = session && typeof session === "object" ? session : {};
-  const target = resolveExactGhosttyWindow(windows, sessionId, record);
-  if (!target) {
+    windows = await readWindows();
+  } catch (error) {
     return {
       ok: false,
-      error: "Pi identity did not resolve to exactly one Ghostty window; focus did nothing.",
+      error:
+        error instanceof Error && error.message === "Unexpected Niri window data"
+          ? "Unexpected Niri window data; focus did nothing."
+          : "Could not inspect Niri windows; focus did nothing.",
     };
   }
-  try {
-    await execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(target.id)], {
-      env,
-    });
-    return { ok: true, windowId: target.id };
-  } catch {
-    return { ok: false, error: "Niri rejected the exact focus request; focus did nothing." };
+  const placed = placeSessionWindow(windows, record, placementOptions);
+  if (!placed) {
+    return {
+      ok: false,
+      error: "That session did not resolve to exactly one Ghostty window; focus did nothing.",
+    };
   }
+  const target = placed.window;
+  const targetId = Number(target.id);
+  const focusWindow = () =>
+    execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(targetId)], { env });
+  if (placed.placement === "title") {
+    try {
+      await focusWindow();
+      return { ok: true, windowId: targetId };
+    } catch {
+      return { ok: false, error: "Niri rejected the exact focus request; focus did nothing." };
+    }
+  }
+
+  const presented = await (options.presentSurface ?? presentGhosttySurface)({
+    execFileAsync,
+    env,
+    hostPid: Number(target.pid),
+    terminalFamily: record.terminalFamily,
+    surfaceId: record.terminalSurfaceId,
+  });
+  try {
+    await focusWindow();
+  } catch {
+    return {
+      ok: false,
+      windowId: targetId,
+      presented: false,
+      error: presented.ok
+        ? "Presented the hidden tab, but Niri rejected the window focus request."
+        : "Niri rejected the exact focus request; focus did nothing.",
+    };
+  }
+  if (!presented.ok) {
+    return {
+      ok: false,
+      windowId: targetId,
+      presented: false,
+      error: `Focused the Ghostty window, but could not present the hidden tab (${presented.error}); select it manually.`,
+    };
+  }
+  if (!canVerifyTabVisibility(record, placementOptions)) {
+    // Nothing this session writes is readable from the compositor, so the presented tab cannot be
+    // confirmed. The action succeeded; the outcome is reported without claiming proof.
+    return { ok: true, windowId: targetId, presented: true, verified: false };
+  }
+  const sleep =
+    options.sleep ??
+    ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  for (let attempt = 0; attempt < PRESENT_VERIFY_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await sleep(PRESENT_VERIFY_DELAY_MS);
+    try {
+      const current = await readWindows();
+      const confirmed = placeSessionWindow(current, record, placementOptions);
+      if (confirmed?.placement === "title" && Number(confirmed.window.id) === targetId) {
+        return { ok: true, windowId: targetId, presented: true, verified: true };
+      }
+    } catch {
+      break;
+    }
+  }
+  return {
+    ok: false,
+    windowId: targetId,
+    presented: false,
+    error:
+      "Focused the Ghostty window, but the hidden tab did not become visible; select it manually.",
+  };
 }

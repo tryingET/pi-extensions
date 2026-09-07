@@ -26,6 +26,45 @@ export function formatBrokerRuntimeStatus(result) {
   if (typeof runtime.windowVisible === "boolean") {
     lines.push(`surface visible: ${runtime.windowVisible ? "yes" : "no"}`);
   }
+  if (typeof runtime.rendererCardCount === "number") {
+    const hidden =
+      typeof runtime.rendererHiddenTabCardCount === "number"
+        ? ` (${runtime.rendererHiddenTabCardCount} hidden tabs)`
+        : "";
+    lines.push(`cards on focused workspace: ${runtime.rendererCardCount}${hidden}`);
+  }
+  if (typeof runtime.surfaceBindingCount === "number") {
+    lines.push(`remembered tab windows: ${runtime.surfaceBindingCount}`);
+  }
+  if (typeof runtime.agentTabCount === "number") {
+    lines.push(`agent tabs discovered: ${runtime.agentTabCount}`);
+  }
+  if (runtime.themeName) {
+    lines.push(`theme: ${runtime.themeName} (${runtime.themeScheme ?? "unknown"})`);
+  }
+  if (runtime.agentScanError) {
+    lines.push(`agent discovery error: ${runtime.agentScanError}`);
+  }
+  if (typeof runtime.heightRepairState === "string") {
+    const repaired = Number(runtime.heightRepairCount ?? 0);
+    lines.push(
+      `window height repair: ${runtime.heightRepairState}${repaired > 0 ? ` (${repaired} restored to automatic)` : ""}`,
+    );
+  }
+  if (typeof runtime.tabInventoryState === "string") {
+    const detail =
+      runtime.tabInventoryState === "ready"
+        ? ` (${runtime.tabInventoryFrameCount ?? 0} Ghostty windows, ${runtime.tabInventoryTabCount ?? 0} tabs)`
+        : runtime.tabInventoryDetail
+          ? ` (${runtime.tabInventoryDetail})`
+          : "";
+    lines.push(`tab inventory: ${runtime.tabInventoryState}${detail}`);
+  }
+  if (typeof runtime.unplacedSurfaceCount === "number" && runtime.unplacedSurfaceCount > 0) {
+    lines.push(
+      `unplaced hidden tabs: ${runtime.unplacedSurfaceCount} (placed once the tab inventory or a visible title reveals their window)`,
+    );
+  }
   if (runtime.error) {
     lines.push(`error: ${runtime.error}`);
   }

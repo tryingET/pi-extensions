@@ -49,3 +49,25 @@ test("summarizeBrokerRuntimeStatus returns operator headlines", () => {
     level: "error",
   });
 });
+
+test("formatBrokerRuntimeStatus reports hidden-tab placement counters", () => {
+  const text = formatBrokerRuntimeStatus({
+    ok: true,
+    runtimeStatus: {
+      state: "ready",
+      rendererCardCount: 5,
+      rendererHiddenTabCardCount: 3,
+      surfaceBindingCount: 12,
+      unplacedSurfaceCount: 2,
+    },
+  });
+  assert.match(text, /cards on focused workspace: 5 \(3 hidden tabs\)/);
+  assert.match(text, /remembered tab windows: 12/);
+  assert.match(text, /unplaced hidden tabs: 2/);
+  const quiet = formatBrokerRuntimeStatus({
+    ok: true,
+    runtimeStatus: { state: "ready", rendererCardCount: 0, unplacedSurfaceCount: 0 },
+  });
+  assert.match(quiet, /cards on focused workspace: 0$/m);
+  assert.doesNotMatch(quiet, /unplaced hidden tabs/);
+});

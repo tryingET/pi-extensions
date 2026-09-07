@@ -87,3 +87,40 @@ test("event-stream spawn failure leaves the polling fallback operational", () =>
   assert.equal(reconciliations, 1);
   watcher.stop();
 });
+
+test("window open, change, close, and focus events are forwarded alongside workspace focus", () => {
+  const stdout = new EventEmitter();
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.kill = () => {};
+  const changed = [];
+  const closed = [];
+  const focused = [];
+  const watcher = createNiriWorkspaceEventWatcher({
+    spawn: () => child,
+    env: { NIRI_SOCKET: "socket" },
+    onFocusedWorkspace: () => {},
+    onFallback: () => {},
+    onWindowChanged: (window) => changed.push(window.id),
+    onWindowClosed: (id) => closed.push(id),
+    onWindowFocusChanged: (id) => focused.push(id),
+    fallbackMs: 1500,
+    setIntervalFn: () => ({ unref() {} }),
+    clearIntervalFn: () => {},
+  });
+  stdout.emit(
+    "data",
+    `${[
+      '{"WindowOpenedOrChanged":{"window":{"id":44,"title":"π","workspace_id":2}}}',
+      '{"WindowOpenedOrChanged":{"window":null}}',
+      '{"WindowClosed":{"id":45}}',
+      '{"WindowClosed":{"id":"45"}}',
+      '{"WindowFocusChanged":{"id":44}}',
+      '{"WindowFocusChanged":{"id":null}}',
+    ].join("\n")}\n`,
+  );
+  assert.deepEqual(changed, [44]);
+  assert.deepEqual(closed, [45]);
+  assert.deepEqual(focused, [44, null]);
+  watcher.stop();
+});

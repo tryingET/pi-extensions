@@ -6,12 +6,17 @@
 
 /**
  * Trigger focused-workspace reconciliation immediately from Niri's event
- * stream while retaining the slower poll as a fail-closed fallback.
+ * stream while retaining the slower poll as a fail-closed fallback. Window
+ * open/change/close and focus events are forwarded so title changes that reveal
+ * a Ghostty tab, or windows moving between workspaces, are seen between polls.
  * @param {{
  *   spawn: typeof import("node:child_process").spawn;
  *   env: NodeJS.ProcessEnv;
  *   onFocusedWorkspace: (workspaceId: number) => void;
  *   onFallback: () => void;
+ *   onWindowChanged?: (window: Record<string, unknown>) => void;
+ *   onWindowClosed?: (windowId: number) => void;
+ *   onWindowFocusChanged?: (windowId: number | null) => void;
  *   fallbackMs: number;
  *   setIntervalFn?: typeof setInterval;
  *   clearIntervalFn?: typeof clearInterval;
@@ -51,6 +56,16 @@ export function createNiriWorkspaceEventWatcher(options) {
           ) {
             lastFocusedWorkspaceId = activation.id;
             options.onFocusedWorkspace(activation.id);
+          }
+          const changedWindow = event?.WindowOpenedOrChanged?.window;
+          if (changedWindow && typeof changedWindow === "object") {
+            options.onWindowChanged?.(changedWindow);
+          }
+          const closedId = event?.WindowClosed?.id;
+          if (Number.isInteger(closedId)) options.onWindowClosed?.(closedId);
+          if (event && typeof event === "object" && "WindowFocusChanged" in event) {
+            const focusedId = event.WindowFocusChanged?.id;
+            options.onWindowFocusChanged?.(Number.isInteger(focusedId) ? focusedId : null);
           }
         } catch {
           // A malformed event is ignored; the fallback poll remains authoritative.

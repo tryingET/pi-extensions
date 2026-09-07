@@ -5,17 +5,44 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Colour definitions used until the controller reports what Ghostty is showing.
+const FALLBACK_DEFINITIONS: &str = concat!(
+    "@define-color pi_background #1e2326;\n",
+    "@define-color pi_foreground #d3c6aa;\n",
+    "@define-color pi_accent #7fbbb3;\n",
+    "@define-color pi_thinking #7fbbb3;\n",
+    "@define-color pi_tool #dbbc7f;\n",
+    "@define-color pi_waiting #e69875;\n",
+    "@define-color pi_success #a7c080;\n",
+    "@define-color pi_error #e67e80;\n",
+);
+
+thread_local! {
+    static THEME_PROVIDER: gtk::CssProvider = gtk::CssProvider::new();
+}
+
+/// The stylesheet derives every shade from a handful of named colours, so following the terminal's
+/// theme is a matter of redefining those names and reloading one provider.
 #[allow(deprecated)]
 pub fn install_css() {
-    let provider = gtk::CssProvider::new();
-    provider.load_from_data(include_str!("style.css"));
-    if let Some(display) = gtk::gdk::Display::default() {
-        gtk::style_context_add_provider_for_display(
-            &display,
-            &provider,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
-    }
+    apply_theme(FALLBACK_DEFINITIONS);
+    THEME_PROVIDER.with(|provider| {
+        if let Some(display) = gtk::gdk::Display::default() {
+            gtk::style_context_add_provider_for_display(
+                &display,
+                provider,
+                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        }
+    });
+}
+
+/// Replace the active colour definitions. Definitions must sit in the same provider as the rules
+/// that reference them, so both are loaded together.
+#[allow(deprecated)]
+pub fn apply_theme(definitions: &str) {
+    let css = format!("{definitions}\n{}", include_str!("style.css"));
+    THEME_PROVIDER.with(|provider| provider.load_from_data(&css));
 }
 
 pub fn start_input_reader(sender: relm4::Sender<AppMsg>) {
@@ -53,6 +80,20 @@ fn consume_line(sender: &relm4::Sender<AppMsg>, line: &str) {
                 let _ = sender.send(AppMsg::InputError(format!("invalid view message: {error}")));
             }
         },
+        Some("theme") => {
+            let definitions = value
+                .get("definitions")
+                .and_then(|item| item.as_str())
+                .unwrap_or_default()
+                .to_owned();
+            if definitions.is_empty() {
+                let _ = sender.send(AppMsg::InputError(
+                    "theme message carried no colours".into(),
+                ));
+            } else {
+                let _ = sender.send(AppMsg::Theme(definitions));
+            }
+        }
         Some("focus-strip") => {
             let _ = sender.send(AppMsg::FocusStrip);
         }

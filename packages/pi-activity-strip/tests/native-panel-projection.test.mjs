@@ -72,3 +72,41 @@ test("native projection keeps generic desktops globally visible", () => {
   assert.equal(published.at(-1).visible, true);
   assert.equal(published.at(-1).sessions.length, 1);
 });
+
+test("native projection carries workspace placement onto display cards", () => {
+  const published = [];
+  const raw = session({
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:main:16",
+    terminalFamily: "main",
+    terminalSurfaceId: "16",
+  });
+  const projection = createNativePanelProjection({
+    isNiriSession: () => true,
+    publish: (view) => published.push(view),
+  });
+  projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
+  projection.publishWorkspaceView({
+    workspace: { id: 7, is_focused: true },
+    sessions: [
+      {
+        ...raw,
+        cardId: "terminal:ghostty:main:16",
+        publisherRecordKeys: [sessionRecordKey(raw)],
+        placement: "binding",
+        surfaceVisible: false,
+        windowId: 44,
+      },
+    ],
+    focusedSessionId: null,
+    focusedCardId: null,
+  });
+  const card = published.at(-1).sessions[0];
+  assert.equal(card.placement, "binding");
+  assert.equal(card.surfaceVisible, false);
+  assert.equal(card.windowId, 44);
+  assert.equal(projection.resolveTarget("terminal:ghostty:main:16")?.surfaceVisible, false);
+
+  projection.updateSnapshot({ generatedAt: 101, sessions: [{ ...raw, state: "thinking" }] });
+  assert.equal(published.at(-1).sessions[0].surfaceVisible, false, "placement survives updates");
+});
