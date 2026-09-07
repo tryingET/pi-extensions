@@ -230,3 +230,45 @@ for (const field of ["policy_generation", "reason"])
     });
     assert.deepEqual(failures, [], JSON.stringify({ field, failures }));
   });
+
+for (const field of ["sha256", "commit"])
+  test(`DEP-R2 hash/commit terminal LF cannot bypass full-match: ${field}`, () => {
+    for (const suffix of ["\n", "\r", "\r\n", "\u2028", "\u2029", " ", "é"]) {
+      const d = descriptor();
+      d.bindings.worker[field] += suffix;
+      assert.throws(() => interpretTaskSessionDescriptor(d));
+    }
+  });
+test("DEP-R2 Unicode schema lengths count code points, as owner Python does", () => {
+  const values = [`/${"😀".repeat(4095)}`, `/${"😀".repeat(4096)}`],
+    pattern = "/[^\\x00-\\x1f]+";
+  const expected = JSON.parse(
+    execFileSync(
+      "/usr/bin/python3",
+      [
+        "-I",
+        "-B",
+        "-c",
+        'import json,re,sys\np=json.load(sys.stdin);print(json.dumps([len(v)<=4096 and re.fullmatch(p["pattern"],v) is not None for v in p["values"]]))',
+      ],
+      {
+        input: JSON.stringify({ values, pattern }),
+        env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
+        timeout: 10000,
+        maxBuffer: 65536,
+      },
+    ),
+  );
+  assert.deepEqual(expected, [true, false]);
+  values.forEach((path, i) => {
+    const d = descriptor();
+    d.bindings.worker.path = path;
+    let accepted = true;
+    try {
+      interpretTaskSessionDescriptor(d);
+    } catch {
+      accepted = false;
+    }
+    assert.equal(accepted, expected[i]);
+  });
+});

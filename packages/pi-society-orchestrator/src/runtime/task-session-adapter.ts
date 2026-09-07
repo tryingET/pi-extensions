@@ -33,6 +33,11 @@ interface Rule {
   if?: Rule;
   then?: Rule;
 }
+// Owner Python codec uses re.fullmatch, not JSON Schema substring matching. JS `$` also
+// permits a final line terminator; require the actual end of input, with backtracking intact.
+function fullMatch(pattern: string, value: string): boolean {
+  return new RegExp(`^(?:${pattern})(?![\\s\\S])`, "u").test(value);
+}
 // Bounded schema interpretation, not native claimability or a second authority snapshot algorithm.
 function validate(
   s: Rule,
@@ -64,9 +69,9 @@ function validate(
       [...v].some(
         (c) => c.length === 1 && c.charCodeAt(0) >= 0xd800 && c.charCodeAt(0) <= 0xdfff,
       ) ||
-      v.length < (s.minLength ?? 0) ||
-      v.length > (s.maxLength ?? 65536) ||
-      (s.pattern && !new RegExp(s.pattern).test(v)))
+      [...v].length < (s.minLength ?? 0) ||
+      [...v].length > (s.maxLength ?? 65536) ||
+      (s.pattern && !fullMatch(s.pattern, v)))
   )
     return false;
   if (
@@ -185,8 +190,8 @@ export function interpretTaskSessionBindings(data: unknown): ProducerBindings {
     b.worker.manifest_sha256,
   ];
   if (
-    hashes.some((h) => !/^[a-f0-9]{64}$/.test(h)) ||
-    [b.ordinary_binary.commit, b.worker.commit].some((h) => !/^[a-f0-9]{40}$/.test(h))
+    hashes.some((h) => !fullMatch("[a-f0-9]{64}", h)) ||
+    [b.ordinary_binary.commit, b.worker.commit].some((h) => !fullMatch("[a-f0-9]{40}", h))
   )
     throw new Error("ak_binding_shape_invalid");
   return structuredClone(b);
@@ -237,7 +242,7 @@ export function interpretTaskSessionOwnerPlan(data: unknown, expected: ProducerB
   const { database_identity, ...bindings } = owner as Record<string, unknown>;
   if (
     typeof database_identity !== "string" ||
-    !/^[a-f0-9]{64}$/.test(database_identity) ||
+    !fullMatch("[a-f0-9]{64}", database_identity) ||
     !isDeepStrictEqual(interpretTaskSessionBindings(bindings), expected)
   )
     throw new Error("ak_plan_binding_mismatch");
