@@ -1,0 +1,64 @@
+name: Import recovered ripwire increment
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: ['.ripwire-stack/recovered/*.json']
+permissions:
+  contents: write
+concurrency:
+  group: ripwire-stack-import
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify full digest and exact restricted commit
+        shell: python
+        run: |
+          import importlib.util, json, os, pathlib, re, subprocess, tempfile
+          spec = importlib.util.spec_from_file_location('transport', '.ripwire-stack/recover_transport.py')
+          transport = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(transport)
+          def git(*args):
+              return subprocess.check_output(['git',*args],text=True).strip()
+          changed = git('diff-tree','--no-commit-id','--name-only','-r',os.environ['GITHUB_SHA']).splitlines()
+          receipts = []
+          for name in changed:
+              if not re.fullmatch(r'\.ripwire-stack/recovered/0[5-9]-[a-z0-9-]+\.json',name): continue
+              p = pathlib.Path(name)
+              assert p.stat().st_size < 100000
+              data = json.loads(p.read_text())
+              branch, parent, head = data['branch'], data['parent'], data['head']
+              assert re.fullmatch(r'stack/ripwire/0[5-9]-[a-z0-9-]+',branch)
+              assert re.fullmatch(r'[0-9a-f]{40}',parent) and re.fullmatch(r'[0-9a-f]{40}',head)
+              blob = transport.recover(data,pathlib.Path('.ripwire-stack/inbox'))
+              git('fetch','origin',parent)
+              with tempfile.TemporaryDirectory() as temp:
+                  archive = pathlib.Path(temp)/'candidate.bundle'
+                  archive.write_bytes(blob)
+                  git('bundle','verify',str(archive))
+                  assert git('bundle','list-heads',str(archive)).splitlines() == [head+' refs/heads/'+branch]
+                  git('fetch',str(archive),'refs/heads/'+branch)
+                  assert git('rev-parse',head+'^') == parent
+                  paths = git('diff','--name-only',parent,head).splitlines()
+                  assert paths and all(x.startswith('packages/pi-context-packer/') or x == 'policy/file-budget-exceptions.json' for x in paths)
+                  current = git('ls-remote','--heads','origin','refs/heads/'+branch)
+                  if current: assert current.split()[0] == head, 'Ref exists at another head; refusing overwrite'
+                  else: git('push','origin',head+':refs/heads/'+branch)
+                  receipts.append({'head':head,'parent':parent,'branch':branch,'tree':git('rev-parse',head+'^{tree}'),'imported':True})
+          assert receipts
+          pathlib.Path(os.environ['RUNNER_TEMP'],'import-receipt.json').write_text(json.dumps(receipts,indent=2))
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ripwire-recovered-import-${{ github.sha }}
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/import-receipt.json
+            .ripwire-stack/inbox/*
+            .ripwire-stack/recovered/*
+          retention-days: 14
