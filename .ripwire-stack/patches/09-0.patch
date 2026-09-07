@@ -1,0 +1,220 @@
+diff --git a/packages/pi-context-packer/README.md b/packages/pi-context-packer/README.md
+index 3b8070b..d52856d 100644
+--- a/packages/pi-context-packer/README.md
++++ b/packages/pi-context-packer/README.md
+@@ -13,6 +13,11 @@ system4d:
+ 
+ # @tryinget/pi-context-packer
+ 
++Ripwire is the only code provider. Automatic selection is not approved; use explicit
++`providers.ripwire: "required"` after operator provisioning. Set
++`PI_CONTEXT_PACKER_RIPWIRE_DISABLED=1` to block all ripwire invocation.
++See [rollout and evidence](docs/project/ripwire-rollout.md).
++
+ Read-only context-window packet planning for Pi coding sessions. Code retrieval is
+ currently unavailable; use Pi's ordinary read/search tools. Instructions, Markdown
+ docs, Git posture and compact session metadata remain available. No code-backend
+@@ -31,7 +36,7 @@ after explicit operator provisioning; no installation or activation occurs at runt
+ 
+ ```text
+ PI_CONTEXT_PACKER_RIPWIRE_BIN=/absolute/trusted/ripwire
+-PI_CONTEXT_PACKER_RIPWIRE_SHA256=<approved digest>   # needed for operator-built binaries
++PI_CONTEXT_PACKER_RIPWIRE_SHA256=<approved digest> # needed for operator-built binaries
+ ```
+ 
+ Then call `context_pack` with `providers: { ripwire: "required" }` and a natural-language
+@@ -42,13 +47,13 @@ security boundary.
+ 
+ Focus a discovered definition through the same tool:
+ 
+-```json
++```jsonc
+ {
+   "objective": "Inspect the eligibility predicate",
+-  "providers": {"ripwire": "required"},
++  "providers": { "ripwire": "required" },
+   "code": {
+     "mode": "expand",
+-    "selection": {"path": "src/example.ts", "name": "eligibility", "line": 201, "contentSha256": "<hash from discovery>"}
++    "selection": { "path": "src/example.ts", "name": "eligibility", "line": 201, "contentSha256": "<hash from discovery>" }
+   }
+ }
+ ```
+diff --git a/packages/pi-context-packer/scripts/dogfood-policy.mjs b/packages/pi-context-packer/scripts/dogfood-policy.mjs
+new file mode 100644
+index 0000000..5948524
+--- /dev/null
++++ b/packages/pi-context-packer/scripts/dogfood-policy.mjs
+@@ -0,0 +1,101 @@
++#!/usr/bin/env node
++/** Exercise actual rollout rejection; simulated approval is unit coverage, not pilot evidence. */
++import assert from "node:assert/strict";
++import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { contextPacketToolResult } from "../src/context-pack.js";
++import { buildContextPlan } from "../src/context-plan.js";
++import { RIPWIRE_AUTO_APPROVAL } from "../src/ripwire-policy.js";
++
++export async function policyScenario() {
++  const root = await mkdtemp(join(tmpdir(), "rw09-"));
++  const prior = process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED;
++  try {
++    delete process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED;
++    const file = join(root, "index.ts");
++    const source = "export function eligibilityCheck() { return true; }\n";
++    await writeFile(file, source);
++    const input = {
++      objective: "Find eligibilityCheck implementation",
++      providers: {
++        agents: "off",
++        docs: "off",
++        git: "off",
++        session: "off",
++        ripwire: "auto",
++      },
++    };
++    let calls = 0;
++    const env = { cwd: root, ripwire: { onExecution: () => calls++ } };
++    assert.equal(RIPWIRE_AUTO_APPROVAL.enabled, false);
++    assert.equal(
++      buildContextPlan(input, env).providerPlans.find((row) => row.provider === "ripwire").posture,
++      "optional",
++    );
++    // Arbitrary model fields never promote the committed approval record.
++    const auto = await contextPacketToolResult(
++      {
++        ...input,
++        automaticApproval: { enabled: true, pairedTaskPilot: "passed" },
++      },
++      env,
++    );
++    assert.equal(Object.keys(auto.details.providerRuns).length, 0);
++    assert.equal(calls, 0);
++    const explicit = {
++      ...input,
++      providers: { ...input.providers, ripwire: "required" },
++    };
++    const code = await contextPacketToolResult(explicit, env);
++    assert.equal(code.details.ok, true);
++    assert.ok(calls >= 2);
++    const before = calls;
++    process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED = "1";
++    const killed = await contextPacketToolResult(explicit, env);
++    assert.equal(killed.details.ok, false);
++    assert.match(killed.content[0].text, /operator_disabled/);
++    assert.equal(calls, before);
++    process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED = "0";
++    const disabled = await contextPacketToolResult(
++      {
++        ...input,
++        providers: { ...input.providers, ripwire: "off" },
++      },
++      env,
++    );
++    assert.equal(Object.keys(disabled.details.providerRuns).length, 0);
++    assert.equal(calls, before);
++    assert.equal(await readFile(file, "utf8"), source);
++    return {
++      gate: "RW-09",
++      assertions: 11,
++      targetUnchanged: true,
++      adoptionEligible: false,
++      modelTaskPilot: "BLOCKED_NOT_RUN",
++      automaticInvocations: 0,
++      explicitInvocations: before,
++    };
++  } finally {
++    if (prior === undefined) delete process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED;
++    else process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED = prior;
++    await rm(root, { recursive: true, force: true });
++  }
++}
+diff --git a/packages/pi-context-packer/src/packet-budget-limits.js b/packages/pi-context-packer/src/packet-budget-limits.js
+new file mode 100644
+index 0000000..fbfe1f7
+--- /dev/null
++++ b/packages/pi-context-packer/src/packet-budget-limits.js
+@@ -0,0 +1,44 @@
++/**
++summary: "Share pure packet headroom limits between planning and final rendering."
++read_when:
++  - "Changing output byte ceilings, reserves or host headroom."
++*/
++import { compactSessionContextUsage } from "./session-context.js";
++
++export const nonnegative = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
++const byteLength = (text) => Buffer.byteLength(text, "utf8");
++
++export function outputLimits(budget, env = {}) {
++  const maxBytes = Math.max(0, Math.min(1_000_000, Math.floor(budget.maxBytes ?? 0)));
++  const maxTokens = Math.max(0, Math.floor(budget.maxTokens - budget.reserveTokens));
++  const usage = compactSessionContextUsage(env.contextUsage);
++  const hostUsed = usage.usedTokens;
++  const hostMax = usage.maxTokens;
++  const hostRemaining =
++    nonnegative(hostUsed) && nonnegative(hostMax) ? Math.max(0, hostMax - hostUsed - budget.reserveTokens) : undefined;
++  const supplied = nonnegative(env.availableInputTokens) ? Math.floor(env.availableInputTokens) : undefined;
++  const countTokens =
++    typeof env.countTokens === "function"
++      ? (text) => {
++          const count = env.countTokens(text);
++          if (!Number.isSafeInteger(count) || count < 0) throw Error("Invalid token counter result");
++          return count;
++        }
++      : (text) => Math.ceil(byteLength(text) / 2);
++  return {
++    maxBytes,
++    tokens: Math.min(maxTokens, hostRemaining ?? maxTokens, supplied ?? maxTokens),
++    countTokens,
++    tokenAccounting: env.countTokens ? "host_tokenizer" : "estimated_utf8_bytes_div_2",
++    headroomSource: hostRemaining === undefined && supplied === undefined ? "configured_budget_only" : "host_headroom",
++  };
++}
+diff --git a/packages/pi-context-packer/src/ripwire-policy-smoke.ts b/packages/pi-context-packer/src/ripwire-policy-smoke.ts
+new file mode 100644
+index 0000000..e6a22f1
+--- /dev/null
++++ b/packages/pi-context-packer/src/ripwire-policy-smoke.ts
+@@ -0,0 +1,51 @@
++/**
++summary: "Verify inactive rollout and the kill switch through an installed registered tool."
++read_when:
++  - "Changing live code-provider activation controls."
++*/
++import assert from "node:assert/strict";
++import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
++import type { SmokeTool } from "./runtime-smoke.ts";
++
++export async function runRipwirePolicySmoke(tool: SmokeTool, context: ExtensionContext) {
++  const providers = { agents: "off", docs: "off", git: "off", session: "off", ripwire: "auto" };
++  const input = { objective: "Find providerIsExecutable implementation", providers };
++  const prior = process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED;
++  try {
++    delete process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED;
++    const automatic = await tool.execute("policy-auto", input, undefined, undefined, context);
++    assert.equal(Object.keys(automatic.details?.providerRuns as object).length, 0);
++    process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED = "true";
++    const required = await tool.execute(
++      "policy-killed",
++      { ...input, providers: { ...providers, ripwire: "required" } },
++      undefined,
++      undefined,
++      context,
++    );
++    assert.equal(required.details?.ok, false);
++    assert.ok(required.content.some((item) => item.type === "text" && item.text.includes("operator_disabled")));
++    const off = await tool.execute(
++      "policy-off",
++      { ...input, providers: { ...providers, ripwire: "off" } },
++      undefined,
++      undefined,
++      context,
++    );
++    assert.equal(Object.keys(off.details?.providerRuns as object).length, 0);
++    console.log("ripwire registered rollout gate PASS (automatic activation remains blocked)");
++  } finally {
++    if (prior === undefined) delete process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED;
++    else process.env.PI_CONTEXT_PACKER_RIPWIRE_DISABLED = prior;
++  }
++}
