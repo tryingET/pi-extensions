@@ -460,3 +460,18 @@ The operator asked for the focus ring to go and for inactive windows to be dimme
 
 **Evidence:** the same inactive Ghostty window sampled at identical coordinates rendered at `srgb(30,35,38)` before the rule, which is exactly the Everforest Dark Hard background at full strength, and at `srgb(35,40,42)` after it, lighter because it is now composited over the backdrop. The ribbon sampled `srgb(30,35,39)` throughout: layer-shell surfaces are not windows, so no window rule can reach it, which is what keeps it at full strength without an exception being written for it.
 
+## Opaque ribbon over a petrol ground on 2026-09-07
+
+The operator asked for the ribbon to be more opaque, for inactive windows to carry more transparency, and for a Siemens-petrol desktop colour.
+
+**Change:** the ribbon's surface is now fully opaque rather than 97%. In the compositor, inactive windows moved from `opacity 0.85` to `0.72`, and both the workspace background and the overview backdrop are set to a deepened Siemens petrol, `#00646e`. The full brand petrol `#009999` reads as neon in an 8px seam, so the tone was deepened while staying recognisably petrol.
+
+**Evidence, all sampled from one capture:**
+
+- inactive window `srgb(22,53,58)`, which is exactly 0.72 of the Everforest background over petrol
+- active window `srgb(30,35,38)`, the Everforest background at full strength
+- ribbon `srgb(30,35,38)`, matching the active window and confirming it no longer blends
+- gap seam `srgb(0,100,110)`, exactly the configured petrol
+
+The two dials are independent: window opacity controls how much ground shows through, and the ground colour controls what shows.
+

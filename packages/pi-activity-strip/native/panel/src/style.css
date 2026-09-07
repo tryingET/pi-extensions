@@ -14,7 +14,8 @@ window {
 
 /* One surface on the same rhythm and radius as tiled windows, so it reads as a peer of them. */
 .band {
-  background: alpha(@pi_background, 0.97);
+  /* Solid: the ribbon is the one surface that never dims, so it reads as the fixed ground. */
+  background: @pi_background;
   border: 1px solid alpha(@pi_foreground, 0.16);
   border-radius: 12px;
   padding: 0 14px 0 16px;
