@@ -1,7 +1,7 @@
 ---
 summary: "Repo-local commit workflow with explicit-path staging, provenance notes, and timeout-aware gates."
 description: Create commit groups with explicit-path staging and TS lane quality gates
-model: zai/glm-5.2
+model: zai/glm-5.3-flash
 read_when:
   - "Creating commits in the pi-extensions monorepo."
   - "Attaching commit provenance notes or interpreting validation gate outcomes."
