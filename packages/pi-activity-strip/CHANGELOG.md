@@ -17,6 +17,20 @@ All notable changes to this project should be documented here.
 
 ### Features
 
+- Draw the ribbon in Ghostty's own theme and follow the desktop between light and dark. The `theme` setting is resolved per colour scheme from the same files Ghostty reads, state colours reuse the terminal's meanings, and a change reloads one stylesheet rather than restarting the panel. `PI_ACTIVITY_STRIP_COLOR_SCHEME` pins one scheme.
+- Inset the surface by the compositor's own window gap on three sides and round it to the same radius as tiled windows, so the ribbon reads as a peer of them instead of a bar fused to the screen edge. The reservation grows from 84px to 100px accordingly.
+- Replace the two floating panels with a single bar: one continuous surface with a hairline edge, a quiet identity block, and flat cards whose left edge carries their state.
+- Report live Codex state on its cards: the running tool and its command, turn count, approval and sandbox policy, prompt and reply. Sessions are bound to processes through Codex's own thread index by an open rollout descriptor, or by being the only session created in that directory after the process started.
+- Retire hook records left behind by sessions that ended without firing their end hook, once no live tab claims them and they have stopped being recent.
+- Report live Claude Code state on its cards: topic, current tool and target, last prompt, latest reply, turn count and activity clock, read from the tail of the session transcript with no configuration. Optional hooks add the blocked-waiting-for-you state a transcript cannot express; `claude-hooks` prints the settings fragment and only low-frequency events are hooked, so nothing runs per tool call.
+- Show cards for terminal agents other than Pi, discovered from the process table. Claude Code tabs are identified exactly through the per-session scratchpad the process holds open and the title it recorded, so they place in their window like Pi tabs; `PI_ACTIVITY_STRIP_AGENT_TABS=0` disables discovery.
+- Restore tiled windows left at the previous working-area height when the ribbon's reserved band appears or disappears. Only windows still sitting at a height other windows just vacated are reset to automatic, so a deliberately chosen height is never touched; `PI_ACTIVITY_STRIP_HEIGHT_REPAIR=0` disables it.
+- Show Pi sessions running in hidden Ghostty tabs on the workspace of their window. A surface is placed through its proven Ghostty host process when that process owns one window, or through the window remembered for that tab; multi-window hosts without that memory stay unplaced instead of guessed.
+- Learn tab-to-window memory from a bounded read-only AT-SPI inventory of Ghostty tab labels, so tabs that were never shown while the strip ran are also placed. `doctor` reports whether that capability exists, and `PI_ACTIVITY_STRIP_TAB_INVENTORY=0` disables it.
+- Remember both the Ghostty surface id and the 32-hex session token from each title, because a long-lived Pi process keeps the surface id it captured at startup while Ghostty can hand the same tab a new one; lookups still prefer the exact surface.
+- Activate hidden-tab cards by presenting the surface through the host process's `org.gtk.Actions` `present-surface` action before focusing its window, and report success only after the window title proves the tab became visible.
+- Mark hidden-tab cards with a `⧉` prefix, a `hidden tab` pid note, and matching tooltip/accessible text; `status` reports hidden-tab card, remembered-window, and unplaced-tab counts.
+- Reconcile immediately on Niri window open/change/close and focus events so tab switches teach window memory between polls.
 - Add calm 15-second active-first ordering with live keyed card updates and manual keyboard movement.
 - Add rich hover/focus detail, accessible card navigation, exact fail-closed Ghostty focus, and a compositor-bindable `focus-strip` command.
 - Follow the focused Niri workspace with a native Rust/Relm4/GTK4 layer-shell panel.

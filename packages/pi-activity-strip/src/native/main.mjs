@@ -13,15 +13,16 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createActivityStripBroker } from "../broker/server.mjs";
 import { createLatestOnlyRunner } from "../common/alignment-controller.mjs";
+import { pruneClaudeEventRecords } from "../common/claude-events.mjs";
 import { ACTIVITY_STRIP_WORKSPACE_SYNC_MS } from "../common/constants.mjs";
-import {
-  focusNiriSession,
-  readNiriWindows,
-  readNiriWorkspaces,
-  resolveFocusedWorkspaceView,
-} from "../common/niri-focus.mjs";
+import { focusNiriSession, readNiriWindows, readNiriWorkspaces } from "../common/niri-focus.mjs";
 import { haveSameRecordMembership } from "../common/session-cards.mjs";
+import { resolveFocusedWorkspaceView } from "../common/workspace-view.mjs";
+import { discoverAgentTabs } from "./agent-discovery.mjs";
+import { createHeightRepair } from "./height-repair.mjs";
 import { createNativePanelProjection } from "./panel-projection.mjs";
+import { createPlacementRuntime } from "./placement.mjs";
+import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
 import { createNiriWorkspaceEventWatcher } from "./workspace-events.mjs";
 
 /** @typedef {import("../common/contracts.ts").ActivityStripRuntimeStatus} ActivityStripRuntimeStatus */
@@ -66,6 +67,15 @@ const runtimeStatus = {
   lastMovedCardId: null,
   rendererCardCount: 0,
   rendererCardIds: [],
+  rendererHiddenTabCardCount: 0,
+  agentTabCount: 0,
+  surfaceBindingCount: 0,
+  unplacedSurfaceCount: 0,
+  tabInventoryState: process.env.PI_ACTIVITY_STRIP_TAB_INVENTORY === "0" ? "disabled" : "pending",
+  tabInventoryDetail: null,
+  tabInventoryFrameCount: 0,
+  tabInventoryTabCount: 0,
+  tabInventoryProbedAt: null,
   warnings: [],
   error: null,
 };
@@ -73,6 +83,15 @@ const runtimeStatus = {
 function isNiriSession() {
   return Boolean(process.env.NIRI_SOCKET);
 }
+
+// Hidden Ghostty tabs are placed by their own runtime: host-process containment plus the window
+// memory learned from visible titles and the bounded AT-SPI tab inventory.
+const placement = createPlacementRuntime({
+  env: process.env,
+  runtimeStatus,
+  execFileAsync,
+  onBindingsLearned: () => reconcileRunner.request(),
+});
 
 function panelBinaryPath() {
   const override = process.env.PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN?.trim();
@@ -150,19 +169,24 @@ const projection = createNativePanelProjection({
   publish(view) {
     runtimeStatus.rendererCardCount = view.sessions.length;
     runtimeStatus.rendererCardIds = view.sessions.map((session) => String(session.cardId ?? ""));
+    runtimeStatus.rendererHiddenTabCardCount = view.sessions.filter(
+      (session) => session.surfaceVisible === false,
+    ).length;
     writePanel(view);
   },
 });
 
-/** @param {string} targetId @returns {Promise<{ok: boolean; error?: string; windowId?: number}>} */
+/** @param {string} targetId @returns {Promise<{ok: boolean; error?: string; windowId?: number; presented?: boolean; verified?: boolean}>} */
 async function focusSession(targetId) {
   const session = projection.resolveTarget(targetId);
   if (!session) {
     return { ok: false, error: "Session is no longer present or is ambiguous; focus did nothing." };
   }
-  const rawResult = await focusNiriSession(session, execFileAsync, process.env);
+  const rawResult = await focusNiriSession(session, execFileAsync, process.env, placement.options);
   const result = {
     ok: rawResult.ok === true,
+    presented: rawResult.presented === true,
+    verified: rawResult.verified === true,
     ...(typeof rawResult.error === "string" ? { error: rawResult.error } : {}),
     ...(Number.isInteger(rawResult.windowId) ? { windowId: Number(rawResult.windowId) } : {}),
   };
@@ -212,6 +236,7 @@ function consumePanelEvents(child, chunk) {
             }
           }, 30_000);
           child._stableTimer.unref?.();
+          theme.republish();
           if (pendingView) {
             const view = pendingView;
             pendingView = null;
@@ -220,7 +245,12 @@ function consumePanelEvents(child, chunk) {
             projection.send();
           }
         } else if (event.type === "visibility-applied") {
-          runtimeStatus.windowVisible = event.visible === true;
+          const visible = event.visible === true;
+          const changed = runtimeStatus.windowVisible !== visible;
+          runtimeStatus.windowVisible = visible;
+          // Showing or hiding the surface is the only moment the exclusive zone changes, so it is
+          // the only moment a tiled window can be left at the previous working area's height.
+          if (changed) void heightRepair.repairAfterZoneChange();
         } else if (event.type === "expanded") {
           runtimeStatus.panelExpanded = event.expanded === true;
         } else if (event.type === "activate") {
@@ -232,7 +262,11 @@ function consumePanelEvents(child, chunk) {
               cardId,
               ok: result.ok === true,
               message: result.ok
-                ? "Focused Ghostty window."
+                ? result.presented
+                  ? result.verified
+                    ? "Presented the hidden tab and focused its Ghostty window."
+                    : "Focused its Ghostty window and asked Ghostty to show the tab."
+                  : "Focused Ghostty window."
                 : result.error || "Focus failed; nothing moved.",
             }),
           );
@@ -310,6 +344,49 @@ const getNiriWindows = () =>
 const getNiriWorkspaces = () =>
   readNiriWorkspaces(execFileAsync, process.env, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
 
+// Agent tabs are read from the process table, not the broker, so they are refreshed on a calm
+// clock of their own rather than on every workspace event.
+const AGENT_SCAN_INTERVAL_MS = 3000;
+let agentScanAt = 0;
+
+function refreshAgentTabs() {
+  if (process.env.PI_ACTIVITY_STRIP_AGENT_TABS === "0") return;
+  if (Date.now() - agentScanAt < AGENT_SCAN_INTERVAL_MS) return;
+  agentScanAt = Date.now();
+  try {
+    const records = discoverAgentTabs({ env: process.env });
+    runtimeStatus.agentTabCount = records.length;
+    runtimeStatus.agentScanError = null;
+    projection.setAgentSessions(records);
+    // A session that dies without firing its end hook leaves a record behind; retire the ones no
+    // live tab claims so they cannot accumulate.
+    pruneClaudeEventRecords(
+      records
+        .filter((record) => record.agentKind === "claude" && record.agentSessionKey)
+        .map((record) => String(record.agentSessionKey)),
+    );
+  } catch (error) {
+    // Recorded on its own field: replacing the shared warning list would erase a panel error, and
+    // a transient scan failure must not leave a permanent warning behind.
+    runtimeStatus.agentScanError = error instanceof Error ? error.message : String(error);
+  }
+}
+
+// The ribbon reads Ghostty's own theme, so it follows the terminal into light and dark.
+const theme = createThemeRuntime({
+  execFileAsync,
+  env: process.env,
+  runtimeStatus,
+  publish: (definitions) => writePanel({ protocol: 1, type: "theme", definitions }),
+});
+
+const heightRepair = createHeightRepair({
+  execFileAsync,
+  env: process.env,
+  runtimeStatus,
+  readWindows: getNiriWindows,
+});
+
 const reconcileRunner = createLatestOnlyRunner(async ({ isCurrent }) => {
   if (!isNiriSession()) {
     projection.send();
@@ -317,18 +394,25 @@ const reconcileRunner = createLatestOnlyRunner(async ({ isCurrent }) => {
   }
   const [windows, workspaces] = await Promise.all([getNiriWindows(), getNiriWorkspaces()]);
   if (!isCurrent()) return;
-  const view = resolveFocusedWorkspaceView(windows, workspaces, projection.getRawSessions(), {
-    env: process.env,
-  });
+  placement.observeWindowList(windows);
+  heightRepair.observe(windows);
+  refreshAgentTabs();
+  runtimeStatus.surfaceBindingCount = placement.bindingCount;
+  const sessions = projection.getRawSessions();
+  runtimeStatus.unplacedSurfaceCount = placement.countUnplaced(windows, sessions);
+  const view = resolveFocusedWorkspaceView(windows, workspaces, sessions, placement.options);
+  if (view) placement.learnFromPlacements(view.sessions, windows);
   projection.publishWorkspaceView(
     view ?? { workspace: null, sessions: [], focusedSessionId: null, focusedCardId: null },
   );
+  void placement.scheduleInventory(windows);
 });
 
 async function shutdown(exitCode = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
   watcher?.stop();
+  placement.persist();
   writePanel({
     protocol: 1,
     type: "view",
@@ -356,8 +440,10 @@ async function main() {
     }),
   });
   broker.on("snapshot", (snapshot) => {
+    // Compare like with like: the raw set also holds discovered agent tabs, which the broker
+    // never publishes, so comparing it to a broker snapshot would always differ and reconcile.
     const membershipChanged = !haveSameRecordMembership(
-      projection.getRawSessions(),
+      projection.getBrokerSessions(),
       snapshot.sessions,
     );
     projection.updateSnapshot(snapshot);
@@ -373,9 +459,20 @@ async function main() {
       env: process.env,
       onFocusedWorkspace: () => reconcileRunner.request(),
       onFallback: () => reconcileRunner.request(),
+      onWindowChanged: (window) => {
+        if (placement.observeWindowEvent(window)) reconcileRunner.request();
+      },
+      onWindowClosed: (windowId) => {
+        if (placement.forgetWindow(windowId)) reconcileRunner.request();
+      },
+      onWindowFocusChanged: () => reconcileRunner.request(),
       fallbackMs: ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
     });
   }
+
+  void theme.refresh({ force: true });
+  const themeTimer = setInterval(() => void theme.refresh(), THEME_POLL_INTERVAL_MS);
+  themeTimer.unref?.();
 
   process.once("SIGINT", () => void shutdown(0));
   process.once("SIGTERM", () => void shutdown(0));

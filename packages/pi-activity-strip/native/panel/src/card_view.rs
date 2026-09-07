@@ -18,6 +18,7 @@ pub struct CardView {
     reply: gtk::Label,
     path: gtk::Label,
     pid: gtk::Label,
+    agent: gtk::Label,
     activation: gtk::Label,
     inspector: gtk::Grid,
 }
@@ -62,9 +63,10 @@ impl CardView {
         let reply = inspector_row(&inspector, 2, "reply");
         let path = inspector_row(&inspector, 3, "path");
         let pid = inspector_row(&inspector, 4, "pid");
+        let agent = inspector_row(&inspector, 5, "agent");
         let activation = label("activation", gtk::Align::Start);
         activation.set_visible(false);
-        inspector.attach(&activation, 0, 5, 2, 1);
+        inspector.attach(&activation, 0, 6, 2, 1);
 
         content.append(&header);
         content.append(&footer);
@@ -137,12 +139,14 @@ impl CardView {
             reply,
             path,
             pid,
+            agent,
             activation,
             inspector,
         }
     }
 
     pub fn update(&self, card: &Card, focused: bool, duplicate_label: bool, now_ms: i64) {
+        let hidden_tab = card.hidden_tab();
         self.repo.set_text(&display_repo(card, duplicate_label));
         self.phase.set_text(text_or(&card.phase, "Idle"));
         let real_event_at = if card.last_event_at > 0 {
@@ -174,11 +178,9 @@ impl CardView {
             .set_text(text_or(&card.last_prompt_preview, "—"));
         self.reply.set_text(text_or(&card.assistant_preview, "—"));
         self.path.set_text(text_or(&card.cwd, "—"));
-        if card.pid > 0 {
-            self.pid.set_text(&card.pid.to_string());
-        } else {
-            self.pid.set_text("—");
-        }
+        self.pid.set_text(&pid_row(card, hidden_tab));
+        self.agent
+            .set_text(text_or(&card.agent_label, "Pi session"));
 
         for class in [
             "state-idle",
@@ -189,8 +191,12 @@ impl CardView {
             "state-error",
             "current",
             "stalled",
+            "hidden-tab",
         ] {
             self.root.remove_css_class(class);
+        }
+        if hidden_tab {
+            self.root.add_css_class("hidden-tab");
         }
         self.root.add_css_class(&format!(
             "state-{}",
@@ -212,17 +218,24 @@ impl CardView {
             "no pid".to_owned()
         };
         self.root.set_tooltip_text(Some(&format!(
-            "Focus {} ({})",
+            "{} {} ({}{})",
+            if hidden_tab { "Present" } else { "Focus" },
             text_or(&card.repo_label, "Pi session"),
-            pid_note
+            pid_note,
+            if hidden_tab { ", hidden tab" } else { "" }
         )));
         let accessible_label = format!(
-            "{}, {}, press Enter to focus its Ghostty window",
+            "{}, {}, {}",
             text_or(&card.repo_label, "Pi session"),
             if stalled {
                 "stalled"
             } else {
                 text_or(&card.phase, "idle")
+            },
+            if hidden_tab {
+                "hidden tab, press Enter to present it in its Ghostty window"
+            } else {
+                "press Enter to focus its Ghostty window"
             }
         );
         self.root
@@ -235,7 +248,7 @@ impl CardView {
         self.root
             .update_state(&[gtk::accessible::State::Expanded(Some(expanded))]);
         self.root
-            .set_height_request(if expanded { 228 } else { 60 });
+            .set_height_request(if expanded { 252 } else { 60 });
         self.inspector.set_visible(expanded);
         if expanded {
             self.root.add_css_class("open");
@@ -281,14 +294,29 @@ fn inspector_row(grid: &gtk::Grid, row: i32, key: &str) -> gtk::Label {
 }
 
 fn display_repo(card: &Card, duplicate: bool) -> String {
+    let marker = if card.hidden_tab() { "⧉ " } else { "" };
     if duplicate && card.pid > 0 {
         format!(
-            "{} · {:04}",
+            "{}{} · {:04}",
+            marker,
             text_or(&card.repo_label, "Pi session"),
             card.pid % 10_000
         )
     } else {
-        text_or(&card.repo_label, "Pi session").to_owned()
+        format!("{}{}", marker, text_or(&card.repo_label, "Pi session"))
+    }
+}
+
+fn pid_row(card: &Card, hidden_tab: bool) -> String {
+    let pid = if card.pid > 0 {
+        card.pid.to_string()
+    } else {
+        "—".to_owned()
+    };
+    if hidden_tab {
+        format!("{pid} · hidden tab")
+    } else {
+        pid
     }
 }
 
@@ -314,4 +342,43 @@ fn text_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
 fn duration(now_ms: i64, anchor_ms: i64) -> String {
     let seconds = now_ms.saturating_sub(anchor_ms.max(1)) / 1000;
     format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn card(json: serde_json::Value) -> Card {
+        serde_json::from_value(json).expect("card")
+    }
+
+    #[test]
+    fn hidden_tabs_carry_a_marker_and_pid_note() {
+        let agent = card(serde_json::json!({ "agentLabel": "Claude Code" }));
+        assert_eq!(agent.agent_label, "Claude Code");
+        assert_eq!(text_or(&agent.agent_label, "Pi session"), "Claude Code");
+        assert_eq!(
+            text_or(&card(serde_json::json!({})).agent_label, "Pi session"),
+            "Pi session"
+        );
+
+        let hidden = card(serde_json::json!({
+            "repoLabel": "dspx", "processId": 12345, "surfaceVisible": false
+        }));
+        assert!(hidden.hidden_tab());
+        assert_eq!(display_repo(&hidden, false), "⧉ dspx");
+        assert_eq!(display_repo(&hidden, true), "⧉ dspx · 2345");
+        assert_eq!(pid_row(&hidden, true), "12345 · hidden tab");
+
+        let visible = card(serde_json::json!({ "repoLabel": "dspx", "surfaceVisible": true }));
+        assert!(!visible.hidden_tab());
+        assert_eq!(display_repo(&visible, false), "dspx");
+        assert_eq!(pid_row(&visible, false), "—");
+
+        let legacy = card(serde_json::json!({ "repoLabel": "dspx" }));
+        assert!(
+            !legacy.hidden_tab(),
+            "controllers without placement never mark tabs hidden"
+        );
+    }
 }

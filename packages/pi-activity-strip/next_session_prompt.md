@@ -22,12 +22,20 @@ system4d:
 - the package is installed into Pi at:
   - `/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip`
 
+## Hidden-tab placement (2026-09-06)
+
+- cards now exist for Pi sessions in Ghostty tabs hidden behind another tab, placed by host-process containment plus learned window memory
+- memory stores both the Ghostty surface id and the session token, because surface ids drift while a Pi process keeps the one it captured at startup
+- a read-only AT-SPI inventory (`src/native/ghostty-tab-inventory.py`) enumerates tab labels; `doctor` reports whether the host supports it
+- live result: unplaced surfaces fell from 38 to 1; 33 cards appeared on one workspace and 6 on another
+
 ## Next likely slices
 
 1. verify several real interactive Ghostty Pi tabs after `/reload`
 2. extend nested-Niri fault and accessibility coverage without regressing the dogfooded native path
 3. decide whether to add one layer surface per output or retain the current single-output scope
 4. explore a future optional `pi-server` adapter without making it a prerequisite for the local workflow
+5. decide whether a workspace holding only non-Pi Ghostty tabs should show an empty ribbon shell; the current contract hides the surface whenever a workspace has zero cards
 
 ## Quick start
 

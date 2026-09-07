@@ -4,6 +4,11 @@ read_when:
   - "Changing Activity Strip visibility, Niri struts, workspace reconciliation, or shutdown behavior."
   - "Reviewing whether adaptive hide-and-reclaim is safe to implement or accept."
 status: "superseded-by-native-layer-shell"
+system4d:
+  container: "Historical design packet for one superseded Activity Strip decision."
+  compass: "Preserve why the Electron config-strut path was rejected, so it is not revisited."
+  engine: "Evidence gathering -> option analysis -> rejection -> native layer-shell replacement."
+  fog: "Its findings describe a removed implementation and must not be read as current behavior."
 ---
 
 # Adaptive Activity Strip and Niri space — design packet

@@ -19,6 +19,9 @@ export interface SessionSnapshot {
   publisherCount?: number;
   publisherIds?: string[];
   publisherRecordKeys?: string[];
+  windowId?: number | null;
+  placement?: "title" | "host" | "binding";
+  surfaceVisible?: boolean;
   cwd: string;
   repoLabel: string;
   sessionName: string;
@@ -57,6 +60,24 @@ export interface ActivityStripRuntimeStatus {
   alignmentMode?: "layer-shell";
   rendererCardCount?: number;
   rendererCardIds?: string[];
+  rendererHiddenTabCardCount?: number;
+  surfaceBindingCount?: number;
+  unplacedSurfaceCount?: number;
+  agentTabCount?: number;
+  themeScheme?: "dark" | "light" | "unknown";
+  themeName?: string | null;
+  themeSource?: string | null;
+  themeFingerprint?: string;
+  themeError?: string;
+  agentScanError?: string | null;
+  heightRepairState?: "enabled" | "disabled";
+  heightRepairCount?: number;
+  lastHeightRepairAt?: number;
+  tabInventoryState?: "pending" | "ready" | "failed" | "unavailable" | "disabled";
+  tabInventoryDetail?: string | null;
+  tabInventoryFrameCount?: number;
+  tabInventoryTabCount?: number;
+  tabInventoryProbedAt?: number | null;
   rendererVisibilityTransitionCount?: number;
   controllerPid?: number;
   panelPid?: number | null;
@@ -98,7 +119,13 @@ export interface ActivityStripBrokerOptions {
     remove(sessionId: string, publisherId?: string): boolean;
   };
   getRuntimeStatus?: () => ActivityStripRuntimeStatus | undefined;
-  focusSession?: (targetId: string) => Promise<{ ok: boolean; error?: string; windowId?: number }>;
+  focusSession?: (targetId: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    windowId?: number;
+    presented?: boolean;
+    verified?: boolean;
+  }>;
   focusStrip?: () => Promise<{ ok: boolean; error?: string }>;
 }
 
@@ -196,6 +223,7 @@ export interface ActivityStripCompatibilityReport {
   alignmentMode: "layer-shell";
   primaryDisplayOnly: boolean;
   clickThroughDefault: boolean;
+  tabInventory?: { available: boolean; detail: string };
   blockers: string[];
   warnings: string[];
 }

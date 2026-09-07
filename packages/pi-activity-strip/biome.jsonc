@@ -17,7 +17,9 @@
       // ontology/ contains generated domain artifacts/snapshots.
       "!ontology/**/*",
       "!**/*.min.js",
-      "!**/*.generated.*"
+      "!**/*.generated.*",
+      // GTK stylesheet: uses GTK's own colour references and functions, not web CSS.
+      "!native/panel/src/style.css"
     ]
   },
   "formatter": {
