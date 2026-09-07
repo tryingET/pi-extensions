@@ -66,6 +66,24 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
       assert.ok(body.content.some((x) => x.type === "text" && x.text.includes("mode === 'wired'")));
       console.log("ripwire registered expansion PASS");
     }
+    if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 6) {
+      const cache = await mkdtemp(join(tmpdir(), "ripwire-registered-cache-"));
+      const prior = process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT;
+      try {
+        process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT = cache;
+        await tool.execute("cache-cold", args, undefined, undefined, context);
+        const warm = await tool.execute("cache-warm", args, undefined, undefined, context);
+        assert.equal(
+          (warm.details?.providerRuns as Record<string, { cache?: string }>)?.ripwire?.cache,
+          "hit",
+        );
+        console.log("ripwire registered cache PASS");
+      } finally {
+        if (prior === undefined) delete process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT;
+        else process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT = prior;
+        await rm(cache, { recursive: true, force: true });
+      }
+    }
     const off = await tool.execute(
       "ripwire-registered-off",
       { ...args, providers: { ...args.providers, ripwire: "off" } },

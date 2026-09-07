@@ -76,3 +76,9 @@ separate from registration so the extension remains under its file budget.
 Hash-bound source expansion uses the pinned binary and the same approved corpus.
 The packed dogfood scenario verifies definitions below line 120, duplicate names,
 wrong-line refusal and stale content. The installed Pi closure also expands a real symbol.
+
+## RW-06 — private cache
+
+Cache-disabled, cold and warm paths are compared on real output. The gate then changes
+uncommitted source, adds/renames/deletes files, changes exclusions and corrupts entries.
+Installed Pi verification proves the registered handler reports a real cache hit.

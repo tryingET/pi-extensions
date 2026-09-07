@@ -59,6 +59,7 @@ const asToolResult = async (result: Promise<unknown>): Promise<ContextPackerTool
 
 const contextEnv = (ctx: ExtensionContext | undefined, signal?: AbortSignal) => ({
   cwd: ctx?.cwd,
+  ripwire: { cacheRoot: process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT },
   systemPrompt: ctx?.getSystemPrompt?.(),
   contextUsage: ctx?.getContextUsage?.(),
   modelLabel: ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,

@@ -7,9 +7,10 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { boundContextText, defineReadOnlyContextProvider } from "./provider-api.js";
+import { cachedRipwireText } from "./ripwire-cache.js";
 import { copyApprovedCorpus } from "./ripwire-corpus.js";
 import { discoveryArguments, prepareRipwire } from "./ripwire-exec.js";
-import { expandSelected } from "./ripwire-expansion.js";
+import { expansionArguments, parseExpansion } from "./ripwire-expansion.js";
 import { parseRipwireCandidates } from "./ripwire-output.js";
 
 const PUBLIC_ERRORS = new Set([
@@ -31,6 +32,8 @@ const PUBLIC_ERRORS = new Set([
   "invalid_code_selection",
   "stale_selection",
   "ambiguous_selection",
+  "invalid_cache_root",
+  "cache_not_private",
 ]);
 export async function collectRipwire(input, options = {}) {
   options.signal?.throwIfAborted();
@@ -40,15 +43,31 @@ export async function collectRipwire(input, options = {}) {
     const corpusRoot = join(scratch, "corpus");
     await mkdir(corpusRoot, { mode: 0o700 });
     const corpus = await copyApprovedCorpus(input.root, corpusRoot, options);
-    const parsed =
-      input.code?.mode === "expand"
-        ? await expandSelected(runtime, corpusRoot, corpus, input.code.selection)
-        : corpus.files.size
-          ? parseRipwireCandidates(
-              await runtime.run(discoveryArguments(corpusRoot, input.objective, input.limit ?? 20)),
-              corpus,
-            )
-          : { records: [], total: 0, capped: false, weak: false, route: "empty_corpus" };
+    const selection = input.code?.mode === "expand" ? input.code.selection : null;
+    if (selection && corpus.files.get(selection.path)?.sha256 !== selection.contentSha256)
+      throw new Error("stale_selection");
+    const args = selection
+      ? expansionArguments(corpusRoot, selection)
+      : discoveryArguments(corpusRoot, input.objective, input.limit ?? 20);
+    const cached = corpus.files.size
+      ? await cachedRipwireText({
+          cacheRoot: options.cacheRoot,
+          sourceRoot: corpus.root,
+          identity: {
+            binary: runtime.binarySha256,
+            snapshot: corpus.snapshotId,
+            args: args.slice(1),
+          },
+          compute: () => runtime.run(args),
+          parse: (text) =>
+            selection ? parseExpansion(text, selection) : parseRipwireCandidates(text, corpus),
+          signal: options.signal,
+        })
+      : {
+          value: { records: [], total: 0, capped: false, weak: false, route: "empty_corpus" },
+          cache: "disabled",
+        };
+    const parsed = cached.value;
     const omissions = [];
     const omitted = (reason, detail) => omissions.push({ provider: "ripwire", reason, detail });
     if (!parsed.records.length)
@@ -136,7 +155,7 @@ export async function collectRipwire(input, options = {}) {
         sourceProvenance: runtime.sourceProvenance,
         binarySha256: runtime.binarySha256,
         precision: "heuristic",
-        cache: "disabled",
+        cache: cached.cache,
         noSourceWrites: true,
       },
     };

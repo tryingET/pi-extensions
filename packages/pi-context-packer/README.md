@@ -59,3 +59,14 @@ Copy the repo-relative path, literal symbol, line and source SHA-256 from the di
 packet. The adapter rechecks source content and requires exactly one matching body;
 a stale hash, mismatched line or ambiguous definition refuses instead of guessing.
 Body and ancillary-context omissions are explicit. Redacted output is not editable source.
+
+### Optional private cache
+
+`PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT` is an operator setting, not a model argument.
+Use an absolute, user-owned mode-0700 directory outside source repositories with no
+symlink ancestors. Leave it unset to disable caching. Entries are mode 0600 and may
+contain source-derived text. Each request revalidates binary and corpus bytes before
+reuse; uncommitted changes and scope policy affect identity. Corrupt entries cause a
+fresh run. Post-write pruning targets 32 entries/32 MiB; concurrent in-flight writes
+can temporarily exceed the aggregate target. Source acquisition is individually stable,
+not an atomic filesystem snapshot.

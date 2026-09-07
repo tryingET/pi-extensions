@@ -96,6 +96,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
     "RW-01": migrationScenario,
     "RW-02": (await import("./dogfood-budget.mjs")).budgetScenario,
     "RW-03": (await import("./dogfood-adapter.mjs")).adapterScenario,
+    "RW-06": (await import("./dogfood-cache.mjs")).cacheScenario,
     "RW-05": (await import("./dogfood-expansion.mjs")).expansionScenario,
     "RW-04": (await import("./dogfood-discovery.mjs")).discoveryScenario,
   };
