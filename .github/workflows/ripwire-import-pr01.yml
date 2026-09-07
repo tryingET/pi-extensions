@@ -1,0 +1,42 @@
+name: Import verified ripwire PR01
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-import-pr01.yml]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: transfer
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: f50a6eee974c0b319ef621ef10dc2a48e3bd7f63
+          fetch-depth: 0
+          path: target
+      - name: Verify bundle and push only the requested feature ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode transfer/.ripwire-stack/rebuilt-pr01.bundle.b64 | gzip -d > "$RUNNER_TEMP/pr01.bundle"
+          echo '38a2cb3a4b51c81f82601e1c26d322eed719b90916077979640fe20c34c0f7fa  '"$RUNNER_TEMP/pr01.bundle" | sha256sum -c -
+          cd target
+          git bundle verify "$RUNNER_TEMP/pr01.bundle"
+          git fetch "$RUNNER_TEMP/pr01.bundle" refs/heads/stack/ripwire/01-remove-sci:refs/heads/stack/ripwire/01-remove-sci
+          EXPECTED=f5c44ddedc2658f179eed2f6ff93ed4b3f7b03a4
+          REF=refs/heads/stack/ripwire/01-remove-sci
+          test "$(git rev-parse "$REF")" = "$EXPECTED"
+          test "$(git rev-parse "$REF^")" = f50a6eee974c0b319ef621ef10dc2a48e3bd7f63
+          REMOTE="$(git ls-remote --heads origin "$REF" | cut -f1)"
+          if [ -n "$REMOTE" ] && [ "$REMOTE" != "$EXPECTED" ]; then
+            echo 'Ref already exists with different content; refusing overwrite' >&2
+            exit 1
+          fi
+          git push origin "$REF:$REF"
+          test "$(git ls-remote --heads origin "$REF" | cut -f1)" = "$EXPECTED"
+          printf 'Imported %s at %s. No default or integration branch modified.\n' "$REF" "$EXPECTED"
