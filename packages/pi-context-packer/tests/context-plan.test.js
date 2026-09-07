@@ -72,20 +72,17 @@ test("context_plan selects code and docs providers from objective and seeds", as
   assert.equal(byProvider.agents.posture, "selected");
   assert.match(byProvider.agents.authority, /Repo-bounded AGENTS\/CLAUDE instruction projection/);
   assert.match(byProvider.agents.authority, /above-repo Pi-loaded instruction files are outside/);
-  assert.equal(byProvider.sci.posture, "selected");
   assert.equal(byProvider.docs.posture, "selected");
   assert.equal(byProvider.fcos.posture, "optional");
   assert.deepEqual(byProvider.agents.proposedQueries[0].seeds, []);
-  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
-    { kind: "symbol", value: "buildContextPlan" },
-  ]);
+  assert.deepEqual(plan.unavailableCodeSeeds, [{ kind: "symbol", value: "buildContextPlan" }]);
   assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
     { kind: "path", value: "docs/project/architecture.md" },
   ]);
   assert.deepEqual(byProvider.fcos.proposedQueries[0].seeds, []);
 });
 
-test("context_plan routes Markdown-only path seeds to docs without selecting SCI", async () => {
+test("context_plan routes Markdown-only path seeds to docs without selecting a code backend", async () => {
   const repo = await mkdtemp(join(tmpdir(), "pi-context-plan-docs-only-"));
   const plan = buildContextPlan(
     {
@@ -100,11 +97,10 @@ test("context_plan routes Markdown-only path seeds to docs without selecting SCI
   assert.equal(plan.ok, true);
   const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
   assert.equal(byProvider.docs.posture, "selected");
-  assert.equal(byProvider.sci.posture, "optional");
   assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
     { kind: "path", value: "README.md" },
   ]);
-  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, []);
+  assert.deepEqual(plan.unavailableCodeSeeds, []);
 });
 
 test("context_plan reports file-budget retrieval risks by file type", async () => {
@@ -195,75 +191,12 @@ test("context_plan normalizes invalid core seed kinds before projection", () => 
   assert.equal(JSON.stringify(plan).includes(sentinel), false);
 });
 
-test("context_plan separates selected intent from current context_pack execution capability", () => {
-  const blockedPlan = buildContextPlan({
-    objective: "Implement code with AK task and Prompt Vault procedure context",
-    providers: { sci: "required", ak: "required", prompt_vault: "required", fcos: "off" },
-  });
-  const blockedByProvider = Object.fromEntries(
-    blockedPlan.providerPlans.map((entry) => [entry.provider, entry]),
-  );
-
-  assert.equal(blockedByProvider.agents.adapterStatus, "wired");
-  assert.equal(blockedByProvider.agents.executionStatus, "executable_now");
-  assert.equal(blockedByProvider.session.adapterStatus, "guarded");
-  assert.equal(blockedByProvider.session.executionStatus, "runtime_eligibility_required");
-  assert.equal(
-    blockedByProvider.session.executionCondition,
-    "caller_required_or_high_context_pressure",
-  );
-  assert.equal(blockedByProvider.sci.adapterStatus, "guarded");
-  assert.equal(blockedByProvider.sci.executionStatus, "blocked_by_safety_gate");
-  assert.equal(blockedByProvider.ak.adapterStatus, "planned_unwired");
-  assert.equal(blockedByProvider.ak.executionStatus, "owner_routed");
-  assert.equal(blockedByProvider.prompt_vault.executionStatus, "owner_routed");
-  assert.ok(blockedPlan.executionSummary.executableNow.includes("agents"));
-  assert.deepEqual(blockedPlan.executionSummary.runtimeEligibilityRequired, ["session"]);
-  assert.ok(blockedPlan.executionSummary.blockedBySafetyGate.includes("sci"));
-  assert.deepEqual(blockedPlan.executionSummary.ownerRouted, ["prompt_vault", "ak"]);
-  assert.equal(blockedPlan.executionSummary.recommendedNextStep, "multiple_actions_required");
-  assert.deepEqual(blockedPlan.executionSummary.nextActions, [
-    { action: "context_pack", providers: ["agents", "git"] },
-    { action: "check_runtime_eligibility_or_skip", providers: ["session"] },
-    { action: "resolve_safety_gate_or_skip", providers: ["sci"] },
-    { action: "owner_surface_followup", providers: ["prompt_vault", "ak"] },
-  ]);
-
-  const guardedPlan = buildContextPlan(
-    {
-      objective: "Implement code context",
-      providers: { sci: "required", git: "off", docs: "required", session: "required" },
-    },
-    { sciReadOnlySafe: true },
-  );
-  const sci = guardedPlan.providerPlans.find((entry) => entry.provider === "sci");
-  assert.equal(sci.executionStatus, "runtime_preflight_required");
-  assert.ok(guardedPlan.executionSummary.runtimePreflightRequired.includes("sci"));
-  assert.ok(guardedPlan.executionSummary.executableNow.includes("session"));
-  assert.deepEqual(guardedPlan.executionSummary.runtimeEligibilityRequired, []);
-  assert.deepEqual(guardedPlan.executionSummary.nextActions, [
-    { action: "context_pack", providers: ["agents", "docs", "session"] },
-    { action: "context_pack_with_runtime_preflight", providers: ["sci"] },
-  ]);
-  assert.match(
-    formatContextPlan(blockedPlan),
-    /context_pack runtime eligibility required: session/,
-  );
-  assert.match(formatContextPlan(blockedPlan), /context_pack blocked by safety gate: sci/);
-  assert.match(formatContextPlan(blockedPlan), /resolve_safety_gate_or_skip: sci/);
-  assert.match(
-    formatContextPlan(blockedPlan),
-    /owner-routed \/ not wired in context_pack: prompt_vault, ak/,
-  );
-});
-
 test("context_plan reports session eligibility from caller mode and live context pressure", () => {
   const baseInput = {
     objective: "Inspect current session context",
     providers: {
       agents: "off",
       git: "off",
-      sci: "off",
       docs: "off",
       prompt_vault: "off",
       ak: "off",
@@ -310,63 +243,12 @@ test("context_plan excludes optional provider capabilities from execution action
   assert.ok(optional.every((entry) => !actionProviders.includes(entry.provider)));
 });
 
-test("context_plan requires literal true for the SCI read-only safety capability", () => {
-  for (const sciReadOnlySafe of ["false", "true", 1, {}, []]) {
-    const plan = buildContextPlan(
-      {
-        objective: "Inspect code with SCI",
-        providers: {
-          agents: "off",
-          git: "off",
-          sci: "required",
-          docs: "off",
-          session: "off",
-          prompt_vault: "off",
-          ak: "off",
-          fcos: "off",
-        },
-      },
-      { sciReadOnlySafe },
-    );
-
-    assert.deepEqual(plan.executionSummary.runtimePreflightRequired, []);
-    assert.deepEqual(plan.executionSummary.blockedBySafetyGate, ["sci"]);
-    assert.equal(plan.executionSummary.recommendedNextStep, "resolve_safety_gate_or_skip");
-  }
-});
-
-test("context_plan preserves both safety and owner actions when no provider is packable", () => {
-  const plan = buildContextPlan({
-    objective: "Use SCI and AK context",
-    providers: {
-      agents: "off",
-      git: "off",
-      sci: "required",
-      docs: "off",
-      session: "off",
-      prompt_vault: "off",
-      ak: "required",
-      fcos: "off",
-    },
-  });
-
-  assert.deepEqual(plan.executionSummary.executableNow, []);
-  assert.deepEqual(plan.executionSummary.blockedBySafetyGate, ["sci"]);
-  assert.deepEqual(plan.executionSummary.ownerRouted, ["ak"]);
-  assert.equal(plan.executionSummary.recommendedNextStep, "multiple_actions_required");
-  assert.deepEqual(plan.executionSummary.nextActions, [
-    { action: "resolve_safety_gate_or_skip", providers: ["sci"] },
-    { action: "owner_surface_followup", providers: ["ak"] },
-  ]);
-});
-
 test("context_plan recommends owner surfaces instead of a fake packet when only unwired providers are selected", () => {
   const plan = buildContextPlan({
     objective: "Retrieve AK task orientation",
     providers: {
       agents: "off",
       git: "off",
-      sci: "off",
       docs: "off",
       session: "off",
       prompt_vault: "off",
@@ -384,13 +266,12 @@ test("context_plan recommends owner surfaces instead of a fake packet when only 
 test("context_plan honors provider required and off modes without creating mutation authority", () => {
   const plan = buildContextPlan({
     objective: "Coordinate FCOS context window work",
-    providers: { fcos: "required", ak: "off", sci: "off" },
+    providers: { fcos: "required", ak: "off" },
   });
 
   const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
   assert.equal(byProvider.fcos.posture, "selected");
   assert.equal(byProvider.ak.posture, "skipped");
-  assert.equal(byProvider.sci.posture, "skipped");
   assert.ok(plan.nonAuthorizations.every((item) => !item.includes("authorizes mutation")));
   assert.ok(plan.nonAuthorizations.some((item) => item.includes("does not close FCOS")));
 });
@@ -424,7 +305,7 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
   assert.equal(plan.omittedSeeds.length, 13);
   assert.ok(
     plan.omittedSeeds.some(
-      (seed) => seed.provider === "sci" && seed.reason.includes("generated/vendor"),
+      (seed) => seed.provider === "code" && seed.reason.includes("generated/vendor"),
     ),
   );
   assert.ok(
@@ -452,7 +333,7 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
   assert.deepEqual(byProvider.agents.proposedQueries[0].seeds, []);
   assert.deepEqual(byProvider.git.proposedQueries[0].seeds, []);
   assert.deepEqual(byProvider.session.proposedQueries[0].seeds, []);
-  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
+  assert.deepEqual(plan.unavailableCodeSeeds, [
     { kind: "path", value: "packages/pi-context-packer/src/context-plan.js" },
     { kind: "symbol", value: "targetSymbol" },
   ]);
@@ -482,7 +363,7 @@ test("context_plan rejects raw path and symbol seed controls before trimming", (
   assert.equal(plan.ok, true);
   assert.equal(plan.omittedSeeds.length, 5);
   assert.equal(plan.omittedSeeds.filter((seed) => seed.provider === "docs").length, 3);
-  assert.equal(plan.omittedSeeds.filter((seed) => seed.provider === "sci").length, 2);
+  assert.equal(plan.omittedSeeds.filter((seed) => seed.provider === "code").length, 2);
   assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("control characters")));
   assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("leading or trailing")));
 
@@ -490,9 +371,7 @@ test("context_plan rejects raw path and symbol seed controls before trimming", (
   assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
     { kind: "path", value: "docs/project/safe.md" },
   ]);
-  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
-    { kind: "symbol", value: "safeSymbol" },
-  ]);
+  assert.deepEqual(plan.unavailableCodeSeeds, [{ kind: "symbol", value: "safeSymbol" }]);
 
   const routedSeeds = JSON.stringify(plan.providerPlans.flatMap((entry) => entry.proposedQueries));
   assert.doesNotMatch(routedSeeds, /spaced\.md|newline\.md|c1\.md|targetSymbol/);
@@ -585,10 +464,9 @@ test("context_plan normalizes trusted absolute path seeds to repo-relative queri
     { cwd: packageCwd },
   );
 
-  const sciPlan = plan.providerPlans.find((providerPlan) => providerPlan.provider === "sci");
   assert.equal(plan.ok, true);
   assert.equal(plan.omittedSeeds, undefined);
-  assert.deepEqual(sciPlan.proposedQueries[0].seeds, [
+  assert.deepEqual(plan.unavailableCodeSeeds, [
     { kind: "path", value: "packages/pkg/src/index.ts" },
   ]);
   assert.equal(
@@ -796,14 +674,14 @@ test("context_plan normalizes budget and exposes a stable schema", () => {
     budget: {
       maxTokens: 100_000,
       reserveTokens: 20_000,
-      perProviderMaxTokens: { sci: 22_000 },
+      perProviderMaxTokens: { docs: 22_000 },
     },
   });
 
   assert.equal(plan.budget.maxTokens, 100_000);
   assert.equal(plan.budget.reserveTokens, 20_000);
-  assert.equal(plan.budget.perProviderMaxTokens.sci, 22_000);
-  assert.equal(plan.budget.perProviderMaxTokens.docs, 12_000);
+  assert.equal(plan.budget.perProviderMaxTokens.docs, 22_000);
+  assert.equal(plan.budget.perProviderMaxTokens.git, 12_000);
   assert.equal(CONTEXT_PLAN_PARAMETERS.required[0], "objective");
   assert.ok(plan.risks.some((risk) => risk.kind === "budget"));
 });
@@ -849,11 +727,11 @@ test("context_plan routes authority-sensitive work to owning surfaces without ex
 });
 
 test("formatContextPlan gives a compact operator-readable summary", () => {
-  const plan = buildContextPlan({ objective: "Use SCI for code context and docs for policy" });
+  const plan = buildContextPlan({ objective: "Use docs for policy" });
   const text = formatContextPlan(plan);
 
   assert.match(text, /selected providers:/);
-  assert.match(text, /sci/);
+  assert.match(text, /docs/);
   assert.match(text, /docs/);
   assert.match(text, /owner-surface routing:/);
   assert.match(text, /non-authorizations:/);

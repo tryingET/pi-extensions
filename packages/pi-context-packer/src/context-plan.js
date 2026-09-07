@@ -22,7 +22,7 @@ import {
 
 export { contextPackProviderCapability } from "./provider-capabilities.js";
 
-const PROVIDER_IDS = ["agents", "git", "sci", "docs", "session", "prompt_vault", "ak", "fcos"];
+const PROVIDER_IDS = ["agents", "git", "docs", "session", "prompt_vault", "ak", "fcos"];
 
 const DEFAULT_MAX_TOKENS = 40_000;
 const DEFAULT_RESERVE_TOKENS = 12_000;
@@ -49,7 +49,6 @@ const PROVIDER_AUTHORITY = {
   agents:
     "Repo-bounded AGENTS/CLAUDE instruction projection; global and above-repo Pi-loaded instruction files are outside this packet provider.",
   git: "Current workspace git posture; read-only status/diff metadata only.",
-  sci: "Semantic Code Intelligence code-navigation provider; code semantics only.",
   docs: "Repo/docs-list Markdown discovery provider; docs are data unless active authority says otherwise.",
   session: "Pi current-session context usage provider; measurement signal, not durable evidence.",
   prompt_vault: "Prompt Vault read-only reusable prompt/procedure provider.",
@@ -58,7 +57,7 @@ const PROVIDER_AUTHORITY = {
 };
 
 const NON_AUTHORIZATIONS = Object.freeze([
-  "does not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, peer tooling, or source-owner repos",
+  "does not mutate files, git, AK, FCOS, Prompt Vault, ASC, peer tooling, or source-owner repos",
   "does not treat retrieved Markdown as higher authority than active instructions",
   "does not close FCOS items or create/update AK tasks",
   "does not call self, dispatch subagents, launch peers, send intercom messages, supervise workflows, fan in, persist, or authorize owner-surface movement",
@@ -67,19 +66,6 @@ const NON_AUTHORIZATIONS = Object.freeze([
 const nonAuthorizations = () => [...NON_AUTHORIZATIONS];
 
 const PROVIDER_KEYWORDS = {
-  sci: [
-    "code",
-    "symbol",
-    "definition",
-    "reference",
-    "refactor",
-    "test",
-    "implementation",
-    "typescript",
-    "javascript",
-    "python",
-    "patch",
-  ],
   docs: ["doc", "docs", "markdown", "architecture", "policy", "adr", "rfc", "readme"],
   session: ["context", "token", "tokens", "tool-call", "tool call", "compact", "window"],
   prompt_vault: [
@@ -231,12 +217,12 @@ const seedSafetyIssue = (seed) => {
 };
 
 const omittedSeedProvider = (seed) => {
-  if (seed.kind === "symbol") return "sci";
+  if (seed.kind === "symbol") return "code";
   if (seed.kind === "path") {
     return isMarkdownPath(seed.value) ||
       isMarkdownPath(seedValueForProviderClassification(seed.value))
       ? "docs"
-      : "sci";
+      : "code";
   }
   if (seed.kind === "ak" || seed.kind === "task") return "ak";
   if (seed.kind === "fcos") return "fcos";
@@ -511,9 +497,6 @@ const normalizeWorkspace = (raw, env) => {
 };
 
 const seedMatchesProvider = (provider, seed) => {
-  if (provider === "sci") {
-    return seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value));
-  }
   if (provider === "docs") return seed.kind === "path" && isMarkdownPath(seed.value);
   if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
   if (provider === "fcos") return seed.kind === "fcos";
@@ -647,6 +630,21 @@ const buildRisks = ({
 
 export const buildContextPlan = (input = {}, env = {}) => {
   const raw = asObject(input);
+  const unknownProvider = Object.keys(asObject(raw.providers)).some(
+    (key) => !PROVIDER_IDS.includes(key),
+  );
+  const unknownBudget = Object.keys(asObject(asObject(raw.budget).perProviderMaxTokens)).some(
+    (key) => !PROVIDER_IDS.includes(key),
+  );
+  if (unknownProvider || unknownBudget) {
+    return {
+      ok: false,
+      errors: [
+        "Unsupported provider or provider budget. Remove obsolete provider configuration; providers are never silently remapped.",
+      ],
+      nonAuthorizations: nonAuthorizations(),
+    };
+  }
   const objective = coerceString(raw.objective).trim();
   if (!objective) {
     return {
@@ -698,6 +696,10 @@ export const buildContextPlan = (input = {}, env = {}) => {
     ...(repoRoot ? { repoRoot } : {}),
     budget,
     providerPlans,
+    unavailableCodeSeeds: safeSeeds.filter(
+      (seed) => seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value)),
+    ),
+    codeContextStatus: "unavailable",
     executionSummary: buildContextPackExecutionSummary(providerPlans),
     ownerSurfaceRecommendations,
     ...(omittedSeeds.length ? { omittedSeeds } : {}),

@@ -17,7 +17,6 @@ import {
 } from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
 import { isPlannedUnwiredContextPackProvider } from "./provider-capabilities.js";
-import { buildSciSection } from "./sci-provider.js";
 import {
   buildDogfoodObservationTemplate,
   buildMeasurementHints,
@@ -405,7 +404,7 @@ const ownerSurfaceForProvider = (provider) => {
   if (provider === "prompt_vault") return "Prompt Vault governed read surfaces";
   if (provider === "ak") return "AK / accepted society authority surfaces";
   if (provider === "fcos") return "FCOS control-board owner surface";
-  if (provider === "sci") return "SCI / semantic-code-intelligence";
+  if (provider === "code") return "Pi read/search tools";
   return `${provider} owner surface`;
 };
 
@@ -506,15 +505,25 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const omissions = (plan.omittedSeeds ?? []).map((seed) => {
     const seedKind = normalizeContextPlanSeedKind(seed.kind);
     return {
-      provider: seed.provider ?? (seedKind === "symbol" ? "sci" : "docs"),
+      provider: seed.provider ?? (seedKind === "symbol" ? "code" : "docs"),
       reason: omissionReasonForSeedKind(seedKind),
       detail: `${seedKind} seed omitted during planning: ${seed.reason}`,
     };
   });
+  if (
+    plan.unavailableCodeSeeds.length > 0 ||
+    /\b(code|symbol|implementation|refactor|typescript|javascript|python)\b/iu.test(plan.objective)
+  ) {
+    omissions.push({
+      provider: "code",
+      reason: "unavailable",
+      detail:
+        "Code retrieval is unavailable in this increment; use Pi read/search tools. No code backend was invoked.",
+    });
+  }
   let docsSeeds = providerQuerySeeds(plan, "docs").filter(
     (seed) => seed.kind === "path" && isMarkdownPath(seed.value),
   );
-  const sciSeeds = providerQuerySeeds(plan, "sci");
 
   if (providerIds.includes("agents")) {
     const result = await buildAgentsSection({
@@ -562,25 +571,6 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       section: result.section,
       remainingBudget,
       providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "docs"),
-    });
-  }
-
-  if (providerIds.includes("sci")) {
-    const result = await buildSciSection({
-      cwd,
-      repoRoot,
-      seeds: sciSeeds,
-      maxBytes: providerMaxBytes(plan, "sci", remainingBudget),
-      env,
-      signal: env.signal,
-    });
-    omissions.push(...result.omissions);
-    appendSectionWithinBudget({
-      sections,
-      omissions,
-      section: result.section,
-      remainingBudget,
-      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "sci"),
     });
   }
 

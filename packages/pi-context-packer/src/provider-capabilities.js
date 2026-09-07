@@ -1,7 +1,7 @@
 /**
 summary: "Classifies context providers as executable, preflight-gated, eligibility-gated, safety-blocked, or owner-routed."
 read_when:
-  - "Changing provider wiring posture, SCI safety gating, session eligibility, or recommended next actions."
+  - "Changing provider wiring posture, session eligibility, or recommended next actions."
 */
 import { hasHighSessionContextPressure } from "./session-context.js";
 
@@ -14,7 +14,6 @@ const PROVIDER_CAPABILITIES = Object.freeze({
     executionStatus: "runtime_eligibility_required",
     executionCondition: "caller_required_or_high_context_pressure",
   }),
-  sci: Object.freeze({ adapterStatus: "guarded", executionStatus: "runtime_preflight_required" }),
   prompt_vault: Object.freeze({
     adapterStatus: "planned_unwired",
     executionStatus: "owner_routed",
@@ -26,9 +25,6 @@ const PROVIDER_CAPABILITIES = Object.freeze({
 export const contextPackProviderCapability = (provider, env = {}, planContext = {}) => {
   const capability = PROVIDER_CAPABILITIES[provider];
   if (!capability) return { adapterStatus: "unknown", executionStatus: "owner_routed" };
-  if (provider === "sci" && env.sciReadOnlySafe !== true) {
-    return { adapterStatus: "guarded", executionStatus: "blocked_by_safety_gate" };
-  }
   if (
     provider === "session" &&
     (planContext.reason === "provider required by caller" ||

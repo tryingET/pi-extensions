@@ -29,7 +29,7 @@ import {
 export const CONTEXT_PACKER_REGISTERED_TOOL_CONTRACT = Object.freeze({
   package: "@tryinget/pi-context-packer",
   registeredToolContract: "context-packer-registered-tools-v1",
-  runtimeBuild: "provider-capabilities-docs-buffer-v2",
+  runtimeBuild: "code-migration-v1",
   requiresCompactContextPlanDetails: true,
 });
 
@@ -66,14 +66,11 @@ const textResult = (text: string, details: RuntimeDetails = {}): ContextPackerTo
 const asToolResult = async (result: Promise<unknown>): Promise<ContextPackerToolResult> =>
   (await result) as ContextPackerToolResult;
 
-const truthyEnv = (value: string | undefined) => /^(1|true|yes)$/iu.test(value ?? "");
-
 const contextEnv = (ctx: ExtensionContext | undefined, signal?: AbortSignal) => ({
   cwd: ctx?.cwd,
   systemPrompt: ctx?.getSystemPrompt?.(),
   contextUsage: ctx?.getContextUsage?.(),
   modelLabel: ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
-  sciReadOnlySafe: truthyEnv(process.env.PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE),
   signal,
 });
 
@@ -104,13 +101,13 @@ const contextPlanTool: ContextPackerToolDefinition = {
   name: "context_plan",
   label: "Context Plan",
   description:
-    "Plan a read-only context packet across source-owned providers such as SCI, docs, repo-bounded AGENTS/CLAUDE instruction projection, git, session context, Prompt Vault, AK, and FCOS without retrieving or mutating source data.",
+    "Plan a read-only context packet across source-owned providers such as docs, repo-bounded AGENTS/CLAUDE instruction projection, git, session context, Prompt Vault, AK, and FCOS without retrieving or mutating source data.",
   promptSnippet:
     "Use context_plan before broad context gathering when you need to reduce raw read/search tool calls and preserve source-owner authority boundaries.",
   promptGuidelines: [
     "Use context_plan for cross-source planning before collecting large code/docs/task context.",
     "Treat the result as a read-only plan and provider-boundary membrane, not as task/evidence authority.",
-    "Use SCI for code context and separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
+    "Use Pi read/search for code context and separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
     "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
   ],
   parameters: CONTEXT_PLAN_PARAMETERS,
@@ -129,11 +126,11 @@ const contextPackTool: ContextPackerToolDefinition = {
   name: "context_pack",
   label: "Context Pack",
   description:
-    "Assemble a bounded read-only context packet from wired providers such as repo-bounded AGENTS/CLAUDE instruction files, Markdown/docs-list, git status, session metadata, and SCI seeded code context, while recording omissions and owner-surface routes for unavailable or authority-sensitive providers.",
+    "Assemble a bounded read-only context packet from wired providers such as repo-bounded AGENTS/CLAUDE instruction files, Markdown/docs-list, git status, session metadata, and explicit code-retrieval omissions, while recording omissions and owner-surface routes for unavailable or authority-sensitive providers.",
   promptSnippet:
     "Use context_pack after context_plan when a small read-only packet from repo-bounded AGENTS/CLAUDE/docs/git plus explicit provider omissions can reduce raw read/search tool calls.",
   promptGuidelines: [
-    "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, or peer tooling.",
+    "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, ASC, or peer tooling.",
     "Treat packet content as a projection with provenance and omissions, not source-owner authority.",
     "Expect early MVP omissions for providers that are planned but not wired yet.",
     "Treat owner-surface routing as advice only; context_pack does not call self, spawn subagents, message peers, launch worktrees, or move authority.",
@@ -273,7 +270,7 @@ export async function runContextPackerRegisteredToolSmoke(
       objective: "Installed runtime smoke for context-packer tools",
       cwd: workspace,
       repoRoot: workspace,
-      providers: { agents: "required", docs: "required", git: "off", sci: "off", session: "off" },
+      providers: { agents: "required", docs: "required", git: "off", session: "off" },
     };
 
     const registeredPlanResult = await contextPackerToolDefinition("context_plan").execute(

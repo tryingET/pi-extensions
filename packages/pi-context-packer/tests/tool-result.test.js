@@ -35,7 +35,7 @@ test("compactContextPlanDetails omits raw objectives, paths, queries, and seeds"
         { kind: "prompt", value: `prompt-${sentinel}` },
         { kind: "free_text", value: `free-${sentinel}` },
       ],
-      providers: { docs: "required", sci: "required", prompt_vault: "required" },
+      providers: { docs: "required", prompt_vault: "required" },
     },
     { cwd: root },
   );
@@ -56,7 +56,6 @@ test("compactContextPlanDetails omits raw objectives, paths, queries, and seeds"
   assert.equal(byProvider.docs.posture, "selected");
   assert.equal(byProvider.docs.adapterStatus, "wired");
   assert.equal(byProvider.docs.executionStatus, "executable_now");
-  assert.equal(byProvider.sci.executionStatus, "blocked_by_safety_gate");
   assert.equal(byProvider.prompt_vault.adapterStatus, "planned_unwired");
   assert.equal(byProvider.prompt_vault.executionStatus, "owner_routed");
   assert.ok(details.executionSummary.executableNow.includes("docs"));
@@ -64,14 +63,12 @@ test("compactContextPlanDetails omits raw objectives, paths, queries, and seeds"
   assert.equal(details.executionSummary.recommendedNextStep, "multiple_actions_required");
   assert.deepEqual(details.executionSummary.nextActions, [
     { action: "context_pack", providers: ["agents", "docs"] },
-    { action: "resolve_safety_gate_or_skip", providers: ["sci"] },
     { action: "owner_surface_followup", providers: ["prompt_vault"] },
   ]);
   assert.equal(byProvider.docs.queryCount, 1);
   assert.equal(byProvider.docs.proposedQueries[0].queryOmitted, true);
   assert.equal(byProvider.docs.proposedQueries[0].rawSeedsOmitted, true);
   assert.equal(byProvider.docs.proposedQueries[0].seedKindCounts.path, 1);
-  assert.equal(byProvider.sci.proposedQueries[0].seedKindCounts.symbol, 1);
   assert.equal(byProvider.prompt_vault.proposedQueries[0].seedKindCounts.prompt, 1);
   assert.equal(Array.isArray(details.risks), true);
   assert.equal(Array.isArray(details.ownerSurfaceRecommendations), true);
@@ -133,7 +130,7 @@ test("compactContextPlanDetails normalizes labels and resists returned-array mut
     {
       objective: "Read docs",
       seeds: [{ kind: sentinel, value: "x".repeat(1001) }],
-      providers: { agents: "off", docs: "off", sci: "off", git: "off", session: "off" },
+      providers: { agents: "off", docs: "off", git: "off", session: "off" },
     },
     { cwd: process.cwd() },
   );
@@ -144,7 +141,7 @@ test("compactContextPlanDetails normalizes labels and resists returned-array mut
     {
       objective: "Read prompt context",
       seeds: [{ kind: "prompt", value: "p".repeat(1001) }],
-      providers: { agents: "off", docs: "off", sci: "off", git: "off", session: "off" },
+      providers: { agents: "off", docs: "off", git: "off", session: "off" },
     },
     { cwd: process.cwd() },
   );
@@ -158,7 +155,6 @@ test("compactContextPacketDetails resists returned projection mutation", async (
       providers: {
         agents: "off",
         docs: "off",
-        sci: "off",
         git: "off",
         session: "off",
         ak: "required",
@@ -212,7 +208,7 @@ test("compactContextPacketDetails omits raw omission details and suggestion reas
       cwd: root,
       repoRoot: root,
       seeds: [{ kind: "path", value: omittedPath }],
-      providers: { agents: "off", docs: "required", sci: "off", git: "off", session: "off" },
+      providers: { agents: "off", docs: "required", git: "off", session: "off" },
       budget: { maxTokens: 20, reserveTokens: 19 },
     },
     { cwd: root },
@@ -260,7 +256,7 @@ test("contextPacketToolResult returns markdown content and compact details", asy
       cwd: root,
       repoRoot: root,
       seeds: [{ kind: "path", value: "docs/note.md" }],
-      providers: { git: "off", sci: "off" },
+      providers: { git: "off" },
     },
     { cwd: root },
   );
