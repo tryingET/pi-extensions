@@ -572,3 +572,12 @@ while retaining SDK clamp equality. Fully repinned negative fixtures must prove 
 unchanged occupancy; exhaustive support-map coverage is planned. No actual Astra/config/provider access,
 live activation or producer fence removal is authorized. Operator reports native R1/R5 resolved and R6
 (DB schema40 compatibility) in repair; this worker has not verified those owner results.
+
+
+Reproduction confirmed before source changes: both new fully repinned cases in
+`tests/task-session-owner-reasoning.test.mjs` reach the synthetic plan port (`unexpected_plan`, plan=1,
+viewer=supervisor=fetch=0); namespace bytes and empty attempt directory remain unchanged. Expected rejection
+`owner_model_reasoning_capabilities_invalid` is absent. The fixture independently updates the valid native
+model descriptor's capabilities and recomputes modelSourceDigest, modelDigest and profile digest. SDK
+supported levels are respectively [] and [off], while clamp(off)=off for both. Red receipt:
+`$TMPDIR/task5480-i04-membership-red.log` (0/2 pass, deliberate regression commit; source fix pending).
