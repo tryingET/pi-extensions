@@ -1,0 +1,26 @@
+name: Recover interrupted ripwire transfer
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export surviving transfer files
+        run: |
+          mkdir "$RUNNER_TEMP/recovery"
+          git rev-parse HEAD > "$RUNNER_TEMP/recovery/source-head.txt"
+          find .ripwire-stack -maxdepth 1 -type f -printf '%f %s bytes\n' > "$RUNNER_TEMP/recovery/inventory.txt"
+          tar -czf "$RUNNER_TEMP/recovery/surviving-transfer.tgz" .ripwire-stack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ripwire-interrupted-transfer-recovery
+          path: ${{ runner.temp }}/recovery/
+          retention-days: 7
