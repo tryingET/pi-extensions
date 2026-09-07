@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -124,42 +125,84 @@ test("materializes only package-owned KES diary and candidate learning artifacts
   }
 });
 
-test("does not warn for an existing non-temp receipt path under the packet campaign root", () => {
-  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-stable-"));
-  const stableRoot = fs.mkdtempSync(path.join(process.cwd(), "tmp-autoresearch-kes-stable-"));
-  const autoresearchDir = path.join(stableRoot, ".autoresearch");
-  fs.mkdirSync(autoresearchDir, { recursive: true });
-  const packetPath = path.join(autoresearchDir, "learning.json");
-  const receiptPath = path.join(stableRoot, "autoresearch.jsonl");
-  fs.writeFileSync(receiptPath, "{}\n", "utf8");
-  fs.writeFileSync(
-    packetPath,
-    `${JSON.stringify(createLearningPacket({ closeout: { ...createLearningPacket().closeout, receiptPath } }))}\n`,
-    "utf8",
-  );
+// Model canonical path placement independently of the checkout/TMPDIR. Bytes, file
+// descriptors, hashes and regular-file checks still use real owned scratch files.
+for (const { name, campaignRoot, warns } of [
+  { name: "configured-temp", campaignRoot: "/fixture-temp/campaign", warns: true },
+  { name: "literal /tmp", campaignRoot: "/tmp/campaign", warns: true },
+  { name: "non-temp", campaignRoot: "/fixture-stable/campaign", warns: false },
+]) {
+  test(`snapshots an existing ${name} campaign receipt with exact placement warnings`, (t) => {
+    const packageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "pi-orch-autoresearch-kes-placement-"),
+    );
+    const backingRoot = path.join(packageRoot, "campaign");
+    const packetPath = path.join(campaignRoot, ".autoresearch", "learning.json");
+    const receiptPath = path.join(campaignRoot, "autoresearch.jsonl");
+    const receiptBytes = "{}\n";
+    const packetBytes = `${JSON.stringify(createLearningPacket({ closeout: { ...createLearningPacket().closeout, receiptPath } }))}\n`;
+    const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+    const toBacking = (input) =>
+      typeof input === "string" &&
+      (input === campaignRoot || input.startsWith(`${campaignRoot}${path.sep}`))
+        ? backingRoot + input.slice(campaignRoot.length)
+        : input;
 
-  try {
-    const loaded = loadAutoresearchLearningPacketWithSource(packetPath);
-    const result = buildAutoresearchLearningKesAdapterResult({
-      packageRoot,
-      packet: loaded.packet,
-      packetSource: loaded.source,
-      action: "plan",
-    });
+    try {
+      fs.mkdirSync(path.join(backingRoot, ".autoresearch"), { recursive: true });
+      fs.writeFileSync(toBacking(receiptPath), receiptBytes, "utf8");
+      fs.writeFileSync(toBacking(packetPath), packetBytes, "utf8");
+      const realpathSync = fs.realpathSync;
+      const canonicalBackingRoot = realpathSync(backingRoot);
+      // Synchronous, test-local FS mapping; no writes to the virtual absolute paths.
+      for (const method of ["openSync", "existsSync", "statSync"]) {
+        const original = fs[method];
+        t.mock.method(fs, method, (input, ...args) => original(toBacking(input), ...args));
+      }
+      t.mock.method(fs, "realpathSync", (input, ...args) => {
+        const resolved = realpathSync(toBacking(input), ...args);
+        return resolved === canonicalBackingRoot ||
+          resolved.startsWith(`${canonicalBackingRoot}${path.sep}`)
+          ? campaignRoot + resolved.slice(canonicalBackingRoot.length)
+          : resolved;
+      });
+      t.mock.method(os, "tmpdir", () => "/fixture-temp");
 
-    assert.deepEqual(result.sourceEvidenceWarnings, []);
-    assert.equal(result.source.receiptPath, receiptPath);
-    assert.match(result.sourceEvidenceSnapshot.packetSha256, /^[a-f0-9]{64}$/);
-    assert.equal(result.sourceEvidenceSnapshot.packetHashKind, "raw_file");
-    assert.match(result.sourceEvidenceSnapshot.receiptSha256, /^[a-f0-9]{64}$/);
-    assert.equal(result.sourceEvidenceSnapshot.receiptExists, true);
-    assert.equal(result.sourceEvidenceSnapshot.receiptLineCount, 1);
-    assert.deepEqual(result.sourceEvidenceSnapshot.receiptTailPreview, ["{}"]);
-  } finally {
-    fs.rmSync(packageRoot, { recursive: true, force: true });
-    fs.rmSync(stableRoot, { recursive: true, force: true });
-  }
-});
+      const loaded = loadAutoresearchLearningPacketWithSource(packetPath);
+      const result = buildAutoresearchLearningKesAdapterResult({
+        packageRoot,
+        packet: loaded.packet,
+        packetSource: loaded.source,
+        action: "plan",
+      });
+
+      assert.deepEqual(
+        result.sourceEvidenceWarnings,
+        warns
+          ? [
+              `closeout receiptPath is under a temp directory and may disappear before review: ${receiptPath}`,
+            ]
+          : [],
+      );
+      assert.equal(result.source.receiptPath, receiptPath);
+      assert.match(result.sourceEvidenceSnapshot.packetSha256, /^[a-f0-9]{64}$/);
+      assert.equal(result.sourceEvidenceSnapshot.packetSha256, sha256(packetBytes));
+      assert.equal(result.sourceEvidenceSnapshot.packetHashKind, "raw_file");
+      assert.equal(result.sourceEvidenceSnapshot.packetPath, packetPath);
+      assert.equal(loaded.source.campaignRoot, campaignRoot);
+      assert.match(result.sourceEvidenceSnapshot.receiptSha256, /^[a-f0-9]{64}$/);
+      assert.equal(result.sourceEvidenceSnapshot.receiptSha256, sha256(receiptBytes));
+      assert.equal(result.sourceEvidenceSnapshot.receiptPath, receiptPath);
+      assert.equal(result.sourceEvidenceSnapshot.receiptExists, true);
+      assert.equal(result.sourceEvidenceSnapshot.receiptBytes, Buffer.byteLength(receiptBytes));
+      assert.equal(result.sourceEvidenceSnapshot.receiptLineCount, 1);
+      assert.deepEqual(result.sourceEvidenceSnapshot.receiptTailPreview, ["{}"]);
+    } finally {
+      t.mock.restoreAll();
+      fs.rmSync(packageRoot, { recursive: true, force: true });
+    }
+  });
+}
 
 test("refuses to snapshot receipt paths outside the packet campaign root", () => {
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-autoresearch-kes-outside-"));
