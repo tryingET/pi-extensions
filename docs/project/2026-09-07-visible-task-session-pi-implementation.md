@@ -423,3 +423,139 @@ profiles/envelopes/receipts/UI. Do not infer actual Astra mappings or read live 
 Codex API/endpoint/OAuth and exact reasoning constraints remain mandatory; unsupported metadata must
 refuse before effects. Producer readiness remains unconditionally fenced. Disposition stays open until
 source, synthetic native serialization and packed regressions pass; live alias availability is not proof here.
+
+
+### I04 implemented — exact owner model-source contract, independent review pending
+
+I04 was recorded open before changes in `4f1019a4`. Source fix:
+`026b607874818cb382334a9df36a63fc4c453e18` (normal hook passed). Implementation and the named synthetic/
+packed regressions now pass; independent review and operational approval remain pending. No real Astra
+mapping, account configuration or availability was inspected or inferred. I01/I02/I03 guards remain.
+
+#### Profiles and source schema (all listed fields required; no extras)
+
+Existing `pi.task-session.profile.v1` remains the pinned SDK builtin-catalog case. New
+`pi.task-session.profile.v2` has the same fields **plus `modelSourceDigest`**:
+`{schema,provider,model,reasoning,account,modelDigest,modelSourceDigest,credentialDigest,agentDir,runSeconds,producer}`.
+The existing producer tuple is unchanged:
+`{executable,entrypointDigest,akBinaryDigest,policyDigest,databaseIdentity,hostBuildDigest}`.
+
+Both profiles and model sources are existing-only, private mode0600 regular single-link files, addressed
+by SHA256 of the bounded strict canonical JSON. Profiles remain under `profiles/<digest>.json`; v2 model
+sources live under **`model-sources/<modelSourceDigest>.json`** beneath the existing OS-account namespace.
+The directory must already exist privately. No public tool/CLI operation provisions these artifacts.
+Approval is an owner publication/pinning gate, not something inferred from file presence or test success.
+
+Model source schema (the labels below are **synthetic examples, not real Astra mappings**):
+
+```json
+{
+  "schema": "pi.task-session.model-source.v1",
+  "implementation": "pinned-native-codex-sse-v1",
+  "requested": {"provider":"synthetic-astra-provider","model":"synthetic-astra-label","account":"synthetic-account"},
+  "resolved": {"provider":"synthetic-wire-provider","model":"synthetic-nonbuiltin-codex-wire","account":"synthetic-account"},
+  "api": "openai-codex-responses",
+  "baseUrl": "https://chatgpt.com/backend-api",
+  "transport": "sse",
+  "auth": {"kind":"oauth","provider":"openai-codex","refresh":false},
+  "metadata": {
+    "name":"Synthetic owner model",
+    "reasoning":true,
+    "input":["text","image"],
+    "contextWindow":131072,
+    "maxTokens":8192,
+    "costMicroUsdPerMillion":{"input":1250000,"output":9000000,"cacheRead":125000,"cacheWrite":0},
+    "thinkingLevelMap":{"off":"none","minimal":"minimal","low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":null}
+  }
+}
+```
+
+- `requested` and `resolved` contain exactly provider/model/account strings (1..128 characters).
+  Requested values must equal profile/request labels. **Account strings must remain identical** across
+  requested, resolved, profile and credential JWT account metadata. This seam does not translate account
+  aliases or permit an account/billing switch.
+- API/baseUrl/transport/implementation/auth tuple is fixed as shown. WS, refresh, alternative auth owner,
+  endpoint/API or implementation needs an explicit native-fit gate; no silent fallback or downgrade.
+- Metadata accepts only the fields shown. Text input is required; image is optional, unique, with no other
+  input kind. Context/maxTokens are positive safe integers; maxTokens cannot exceed contextWindow.
+- Every cost member is an explicitly supplied nonnegative safe integer <=10^12, in **micro-USD per million
+  tokens**. SDK rates are those values divided by 10^6; no invented/default price. This binds declared
+  pricing metadata, not independently observed service billing.
+- Every thinking-map member is required and is either null (unsupported) or its own native effort string;
+  off may map to `none`. Cross-level remapping is refused. Pinned SDK `clampThinkingLevel` must still leave
+  the requested level unchanged before reservation and in child validation.
+- No metadata header, sampling parameter, module, function, factory or registry override is accepted.
+  Additional/malformed/duplicate keys and unsupported values refuse, not partially load.
+
+`modelDigest` pins SHA256 of JSON.stringify of the exact materialized SDK descriptor. `model-source.ts`
+constructs fields in this order: id/name/api/provider/baseUrl/reasoning/input/cost/contextWindow/maxTokens/
+thinkingLevelMap; cost order is input/output/cacheRead/cacheWrite, thinking-map order is off/minimal/low/
+medium/high/xhigh/max. Reordering source JSON keys does not change materialization. No ambient model
+registry or network discovery participates. Missing source bytes do not fall back to the builtin catalog.
+
+#### Identity, native dispatch and receipts
+
+The public request schema remains `pi.task-session.request.v1`: provider/model/account are the **original
+operator labels**, matching a provisioned profile; it accepts no inline model object, source path, endpoint,
+header or executable override. `modelSourceDigest` is read from the private v2 profile, not public arguments.
+
+Internal resolution is exactly:
+`{schema:"pi.task-session.model-resolution.v1",implementation:"pinned-native-codex-sse-v1",sourceDigest,
+requested:{provider,model,account},resolved:{provider,model,account},modelDigest}`.
+Builtin v1 uses sourceDigest:null and identical requested/resolved identities.
+
+The SDK session and native serializer use the explicit resolved model/provider. Provider strings do NOT
+select factories/plugins: streaming always invokes the pinned native Codex implementation. Its private
+ModelRuntime binds auth metadata for the resolved label to the selected copied credential through the
+native `openai-codex` OAuth owner. hasConfiguredAuth reports credential presence only, not readiness;
+checkAuth/getAuth remain guarded and unknown labels cannot trigger ambient auth discovery. Separate-account
+fixtures verify no credential mixing. Actual fetch still enforces exact Bearer token/account header,
+`https://chatgpt.com/backend-api/codex/responses`, SSE, zero retry and redirect refusal. Body.model must equal
+resolved.model. The original objective and requested reasoning remain immutable.
+
+New `pi.task-session.intent.v2` adds `modelResolution`; the child compares it to freshly loaded resolution
+before PREPARED. Raw/effective envelope and profile/request digests transitively bind it without changing AK
+wire schemas. Dispatch and host-terminal receipts carry the resolution explicitly; terminal guard identity
+also retains both label sets. No auto-migration of older intents: incompatible startup refuses with custody
+retained. Flat observation identity contains original provider/model/account, resolvedProvider/resolvedModel/
+resolvedAccount, modelSourceDigest, modelResolutionDigest, nativeImplementation and authProvider. The view
+wraps identity field-by-field at ordinary terminal widths rather than truncating a single JSON header.
+If child validation fails, known requested labels remain visible with resolutionStatus:unverified; failed
+validation is not branded as a verified resolved identity.
+
+#### Executed verification and receipt
+
+- Focused task-session suite: **124/124 passed**.
+- Little-helpers declared check with explicit `SKIP_PI_SMOKE=1`, isolated HOME/concurrency 4:
+  **461/461 passed**, structure/file-budget/lint/typecheck/release checks passed within that gate.
+- Orchestrator safe recursive suite: **474/474 passed**, excluding its single live Pi-loader case.
+- Real lifecycle tarballs install only into owned scratch with scripts disabled. Public exports/CLI,
+  SDK identity, native loading/locking, compressed native Codex serialization and **60/60 packed startup/
+  review tests pass**. This includes the authorized synthetic PTY, not real Ghostty.
+- I04 tests cover a genuinely nonbuiltin synthetic model/provider alias, exact wire model/account/objective/
+  reasoning, copied identity at 80-column view width, two isolated account credentials, JSON-order stability,
+  pre-effect rejection of invalid metadata/source/reasoning, and a separate host's pre-dispatch resolution
+  drift refusal. A complete alias startup executes the actual SDK write tool and second native serializer
+  round with fake SSE responses. Intent/dispatch/terminal identities agree; independent occupancy remains.
+- Initial fixture failures (expected error token and a missing import) and the genuine SDK alias-auth
+  preflight mismatch were fixed before final runs, not hidden by bypassing the SDK or using another model.
+
+Final receipt: `$TMPDIR/task5480-pack-proof-UiGJKJ/` (`evidence.json`, `command-*.log`, tarballs).
+Versions remain unchanged/unreleased; old hashes do not identify this implementation.
+
+| Artifact | SHA256 | Bytes / entries |
+| --- | --- | --- |
+| `tryinget-pi-little-helpers-0.9.0.tgz` | `7ac4a7aaadc74a7b351a831f782bdf8f582499d0e066e684b688fc5809966a49` | 286419 / 135 |
+| `tryinget-pi-society-orchestrator-0.11.5.tgz` | `32356f3d3cfa67f9d2aca59cf9b2b7e09418d8af72dbcbd4b6694083963beddd` | 365746 / 117 |
+
+Logs: `$TMPDIR/task5480-i04-{focused-final,check-final,orch-final,pack-final}.log`,
+`task5480-i04-{owner-tests,startup-alias,source-commit}.log`. Normal hooks and whitespace checks passed.
+
+Remaining gates: independent I04 review; actual owner model/account metadata publication and native-fit
+approval (including whether real Astra needs unsupported WS/refresh/headers/endpoints); exact installation/
+profile/policy/artifact pins; AK owner's R1/R2/installer repairs and actual-native/Pi interop evidence;
+installed/reality/Ghostty/provider canaries and rollout approval. Parent reports native AK test progress,
+but this worker did not execute/verify it or change producer readiness. The unconditional producer fence
+remains. No live config/auth, real Ghostty/provider calls, live installation/activation, namespace enrollment,
+AK/DB mutation, other-worker signaling or original feature-checkout/AK5133 dirty-code changes occurred.
+Task5480/Decision151 is not complete or accepted.

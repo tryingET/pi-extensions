@@ -67,3 +67,19 @@ Twelve I03 tests pass, including all six supported constructor levels and the ze
 safe broader suites pass 438 little-helpers / 474 orchestrator tests. Synthetic PTY and live Pi loading were
 explicitly excluded; no terminal/install or refreshed packing proof. Prior artifacts are historical.
 I01/I02 are independently resolved per operator; this I03 correction awaits independent re-review.
+
+
+## I04: owner model source, not builtin-label substitution
+
+Opened evidence8459 before code (`4f1019a4`); implementation is
+`026b607874818cb382334a9df36a63fc4c453e18` with normal hooks. A v2 profile references a private content-
+addressed nonexecutable model source. Requested labels remain distinct from explicit resolved identities;
+streaming/auth still use pinned native Codex SSE/OAuth with the same account and endpoint. No actual Astra
+mapping was read or invented. Unknown/incompatible records refuse before effects, and child resolution
+must match durable intent. UI labels now wrap individually so both identities survive normal-width views.
+
+Observed: 124 focused tests, 461 little-helpers declared tests with live smoke gated, 474 safe orchestrator
+tests, 60 packed startup/review tests including synthetic PTY and nonbuiltin alias/write-tool/second-round
+proof. Isolated scratch tarball installs are not live Pi activation. Full schemas, pins, hashes and limits
+are in the implementation evidence. I04 awaits independent review; producer fence and live/owner gates
+remain. No original feature-checkout/AK5133 changes or live configuration/AK/DB/provider/rollout actions.
