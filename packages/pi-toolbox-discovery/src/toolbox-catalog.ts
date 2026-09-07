@@ -336,6 +336,39 @@ export const CATALOG: ToolboxBundle[] = [
     ],
   },
   {
+    id: "subscription-resets",
+    title: "Subscription reset inventory",
+    description:
+      "Read banked reset counts and expiry for Codex, Grok and z.ai/ZCode; explicit sign-in and unavailable states, never redemption.",
+    ownerPackage: "packages/pi-little-helpers",
+    ownerSemantics:
+      "pi-little-helpers owns the read-only query and project/account filtering; sub-core owns Grok and ZCode provider adapters. Toolbox only activates the already-registered query tool, never login, credential extraction, card grants or redemption.",
+    keywords: [
+      "subscription",
+      "resets",
+      "banked",
+      "quota",
+      "expiry",
+      "codex",
+      "grok",
+      "xai",
+      "zai",
+      "zcode",
+      "subscription_resets",
+    ],
+    profiles: [
+      {
+        id: "read",
+        description:
+          "Read-only reset inventory for one exact allowed subscription; does not log in, scan browser stores, grant cards, or redeem resets.",
+        tools: ["subscription_resets"],
+        risk: "read",
+        defaultTtlTurns: 4,
+        requiresExplicitUserIntent: false,
+      },
+    ],
+  },
+  {
     id: "peer-spawn",
     title: "Visible peer-spawn tools",
     description:
