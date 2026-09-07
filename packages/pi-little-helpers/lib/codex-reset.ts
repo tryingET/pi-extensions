@@ -32,6 +32,13 @@ export interface CodexResetResult {
   windowsReset?: number;
 }
 
+/** Subscription identity, never credentials. Rechecked on every request, including retries. */
+export interface CodexResetTarget {
+  provider: string;
+  accountId: string;
+  assertAllowed?: () => void;
+}
+
 export type CodexResetFetch = (
   input: string | URL | globalThis.Request,
   init?: RequestInit,
@@ -131,10 +138,16 @@ function extractAccountId(token: string): string | undefined {
   }
 }
 
-async function buildCodexHeaders(ctx: ExtensionContext): Promise<Headers> {
+export async function buildCodexHeaders(
+  ctx: ExtensionContext,
+  allowSubscriptionAliases = false,
+): Promise<Headers> {
   const model = ctx.model;
   if (!model) throw new Error("Select an OpenAI Codex subscription model first.");
-  if (model.provider !== "openai-codex") {
+  if (
+    model.provider !== "openai-codex" &&
+    !(allowSubscriptionAliases && /^openai-codex-\d+$/.test(model.provider))
+  ) {
     throw new Error("Codex reset credits require an OpenAI Codex subscription model.");
   }
 
@@ -155,6 +168,35 @@ async function buildCodexHeaders(ctx: ExtensionContext): Promise<Headers> {
   headers.set("oai-language", "en");
   headers.set("originator", "pi");
   return headers;
+}
+
+async function resetHeaders(
+  ctx: ExtensionContext,
+  target?: CodexResetTarget,
+): Promise<{ headers: Headers; identity: CodexResetTarget }> {
+  target?.assertAllowed?.();
+  const provider = ctx.model?.provider;
+  if (target && provider !== target.provider) {
+    throw new CodexResetApiError("Active subscription changed; no reset request was sent.", false);
+  }
+  const headers = await buildCodexHeaders(ctx, true);
+  target?.assertAllowed?.();
+  if (!provider || ctx.model?.provider !== provider) {
+    throw new CodexResetApiError("Active subscription changed; no reset request was sent.", false);
+  }
+  const token = extractBearerToken(headers);
+  const accountId = token ? extractAccountId(token) : undefined;
+  if (!accountId || (target && accountId !== target.accountId)) {
+    throw new CodexResetApiError(
+      "Codex account identity is missing or changed; no reset request was sent. Restore the original subscription before retrying.",
+      false,
+    );
+  }
+  return { headers, identity: { provider, accountId } };
+}
+
+export async function resolveCodexResetTarget(ctx: ExtensionContext): Promise<CodexResetTarget> {
+  return (await resetHeaders(ctx)).identity;
 }
 
 async function readJson(
@@ -190,8 +232,9 @@ async function readJson(
 export async function fetchCodexResetCredits(
   ctx: ExtensionContext,
   fetchImpl: CodexResetFetch = globalThis.fetch,
+  target?: CodexResetTarget,
 ): Promise<CodexResetCredits> {
-  const headers = await buildCodexHeaders(ctx);
+  const { headers } = await resetHeaders(ctx, target);
   const response = await fetchImpl(codexResetCreditsUrl(), {
     method: "GET",
     headers,
@@ -212,8 +255,9 @@ export async function consumeCodexResetCredit(
   ctx: ExtensionContext,
   requestId: string,
   fetchImpl: CodexResetFetch = globalThis.fetch,
+  target?: CodexResetTarget,
 ): Promise<CodexResetResult> {
-  const headers = await buildCodexHeaders(ctx);
+  const { headers } = await resetHeaders(ctx, target);
   headers.set("content-type", "application/json");
   const response = await fetchImpl(codexResetConsumeUrl(), {
     method: "POST",

@@ -4,7 +4,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCodexResetExtension } from "../extensions/codex-reset.ts";
+import { createCodexResetExtension as createExtension } from "../extensions/codex-reset.ts";
+
+const createCodexResetExtension = (overrides) =>
+  createExtension({
+    resolveTarget: async (ctx) => ({ provider: ctx.model.provider, accountId: "acct_test" }),
+    loadAccountConfig: () => ({ labels: new Map() }),
+    requirePersisted: () => {},
+    ...overrides,
+  });
+
 import {
   CodexResetApiError,
   codexResetConsumeUrl,
@@ -64,6 +73,8 @@ function createCommandContext({ confirms = [] } = {}) {
     statuses,
     confirmationCalls,
     ctx: {
+      model: { provider: "openai-codex" },
+      cwd: "/virtual-project",
       hasUI: true,
       ui: {
         notify(message, type = "info") {
@@ -273,7 +284,7 @@ test("an unresolved request survives extension reload in the current session", a
   const reloadedExtension = registerExtension(createCodexResetExtension(dependencies));
   await reloadedExtension.handlers.get("session_start")(
     {},
-    { sessionManager: { getBranch: () => firstExtension.entries } },
+    { sessionManager: { getEntries: () => firstExtension.entries } },
   );
   const second = createCommandContext({ confirms: [true] });
   await reloadedExtension.commands.get("codex-reset").handler("use", second.ctx);
@@ -375,8 +386,12 @@ test("status never offers or consumes a reset", async () => {
   assert.equal(harness.confirmationCalls.length, 0);
   assert.equal(
     harness.notifications.at(-1).message,
-    ["Codex banked resets: 3", "1. expiry unknown", "2. expiry unknown", "3. expiry unknown"].join(
-      "\n",
-    ),
+    [
+      "Subscription: openai-codex (openai-codex) · account acct_test",
+      "Codex banked resets: 3",
+      "1. expiry unknown",
+      "2. expiry unknown",
+      "3. expiry unknown",
+    ].join("\n"),
   );
 });
