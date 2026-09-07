@@ -99,3 +99,23 @@ Proof: 256 declarations / 1792 membership cases / 448 native fake-fetch serializ
 implementation evidence. No activation, actual Astra lookup or native AK action. Concurrent task5513 root
 harness files were not staged or changed by this worker. Independent review, actual-native/R6/model-owner/
 installed/canary gates remain; no Decision151 acceptance claim.
+
+
+## Public separately pinned worker continuation
+
+Source `39a1cdad0da75646ede1a9ebd583fc976416f973` replaces unconditional fences with owner-published
+configuration/closure/ABI checks and exact fixed describe/plan/supervise routes. Owner policy is opaque;
+consumer never opens it. DB-free inspection/history survives worker withdrawal; no ordinary fallback.
+I03/I04 preflight and native positive custody/T1/T2/CLOSED remain required.
+
+Observed 181 focused, 621 declared little-helpers, 474 safe orchestrator and 117 packed tests. Final
+34/34 public packed tests (17 per schema40/43) use AK5479's actual default release from source1e4280067,
+not the historical fixture as worker. Synthetic PTY/provider and resource/registration seams are
+unshipped; actual gate/native/host-entry/SDK/tool paths run. Source and evidence details:
+[public implementation](../docs/project/2026-09-07-visible-task-session-public-implementation.md).
+
+Failed first pack probe retained a synchronous capability assertion and attempted OS-home locator
+lookup before relocation. It is disclosed, not relabeled zero reads; no mutation/provider send.
+Corrected final proof relocates OS home. Earlier stale schema, incomplete fixture policy, directory
+mode, lock-phase assertion and stop argv mistakes were fixed before final proof. Real deployment,
+publication/G2/provider and independent acceptance remain pending; cdeef ordinary pin unchanged.

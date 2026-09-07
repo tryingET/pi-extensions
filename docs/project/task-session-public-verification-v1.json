@@ -1,0 +1,97 @@
+{
+  "schema": "pi.task-session.public-source-proof.v1",
+  "authority": false,
+  "task": 5480,
+  "decision": 151,
+  "piSourceCommit": "39a1cdad0da75646ede1a9ebd583fc976416f973",
+  "profileDiscoveryCommit": "4ed4eca3bd1596f748ef6ad9ee601c2f429092f8",
+  "akSourceCommit": "1e42800678344dddbf9848a9bf92d02d74ea83a9",
+  "akStageEvidenceCommit": "890795c6e",
+  "ordinaryPinPreserved": "cdeef5bfedcb1b19ee18921008f876ecd05eb8ca",
+  "worker": {
+    "path": "/home/tryinget/.local/state/pi-quests/tmp/task5479-stage-output-RasjUO81/libexec/agent-kernel/1e42800678344dddbf9848a9bf92d02d74ea83a9/ak-bin",
+    "sha256": "d5ce60e7555d8ea140014e8e2027e29511c1dc94285d039fc46f021448405221",
+    "bytes": 22019192,
+    "manifestSha256": "181337d21967a2c91ef3b192800f4a09956d1e65d4a6ad9e40d520bfbd1b4c6c",
+    "abi": "ak.task-session.worker.v2",
+    "testSupport": false,
+    "stagedBy": "AK5479 owner, not this Pi worker"
+  },
+  "packet": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-release-packet-kZi4f7/packet.json",
+  "pack": "/home/tryinget/.local/state/pi-quests/tmp/task5480-pack-proof-wY2IJh/evidence.json",
+  "tests": {
+    "focused": 181,
+    "littleHelpersDeclared": 621,
+    "orchestratorSafe": 474,
+    "packedStartupReview": 117,
+    "packedPublicNative": {
+      "schema40": 17,
+      "schema43": 17,
+      "total": 34,
+      "cliAndPiProjection": true,
+      "actualDefaultReleaseWorker": true,
+      "syntheticPty": true,
+      "syntheticProvider": true
+    }
+  },
+  "tarballs": [
+    {
+      "name": "tryinget-pi-little-helpers-0.9.0.tgz",
+      "sha256": "f7137c0202027484bc803eb22a4820794bc286842899e5a77d3c636cd8af5d6b"
+    },
+    {
+      "name": "tryinget-pi-society-orchestrator-0.11.5.tgz",
+      "sha256": "408309a7cd1fb8c347203b8e89d15a58815015f760f4530e9c6d7a44f6e5660a"
+    }
+  ],
+  "buildManifestSha256": "570142be179a27609b75aa386de73586fe04826f9bf7aa4ba9f175d50e8bd23c",
+  "logs": [
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-focused-final.log",
+      "sha256": "b96e5b36358e1dc9372087455268cebc81fc8c4da07ab4bf665becbd1deba939"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-check-final.log",
+      "sha256": "25d7f709840fc7d84983cd3d401f02ab1806a4f92dc82bb0864c708f0f74ecb9"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-orch-final.log",
+      "sha256": "cc9ec6c7e9f8cd5289cf74487dd8cbbb1bbae64f6a5b9a12aba522c6da6b01b8"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-orch-lint.log",
+      "sha256": "eba5a8321ad304a5c481e3086ba79a874f040f1b0c87104c3e32505a5ae81233"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-orch-typecheck.log",
+      "sha256": "a98e3dce5ab9f9236ae6f1a24dce1dbbbf62396539ed02d687f7d27df8914a82"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-pack-final.log",
+      "sha256": "efd93d7540544fce382e3955adee00ce4a8e8940c9a4d600a0b80b347d8202fc"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-packed-release-native-final.log",
+      "sha256": "49cc5b751807c0ca5f24e2d102c49e0729b01b1883e66830f52a79cc18de385e"
+    },
+    {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-source-commit.log",
+      "sha256": "c7171f251841c7b884ef115e6591a8edb7ae49f675e67cdc23ddcbfd95a761a4"
+    }
+  ],
+  "excluded": [
+    "live Pi smoke",
+    "actual Pi extension loading shares the canonical preflight owner brand",
+    "full root pre-push (reported missing unrelated links)",
+    "live provider/Ghostty/namespace publication and activation"
+  ],
+  "scopeException": {
+    "probe": "first failed updated pack capability assertion",
+    "detail": "Old synchronous assertion invoked new async capability before OS-home relocation, attempting OS-account locator lookup. Exact reads were not retroactively audited. Corrected proof relocates OS home before awaiting capability.",
+    "mutation": false,
+    "providerSend": false
+  },
+  "liveActivation": false,
+  "taskAcceptance": false,
+  "independentReviewPending": true
+}
