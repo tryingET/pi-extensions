@@ -83,3 +83,19 @@ tests, 60 packed startup/review tests including synthetic PTY and nonbuiltin ali
 proof. Isolated scratch tarball installs are not live Pi activation. Full schemas, pins, hashes and limits
 are in the implementation evidence. I04 awaits independent review; producer fence and live/owner gates
 remain. No original feature-checkout/AK5133 changes or live configuration/AK/DB/provider/rollout actions.
+
+
+## I04 explicit membership correction
+
+Independent dispatch1788782292134 identified SDK off fallback accepting empty/contradictory owner maps.
+Opened `bff40526`, committed fully repinned red regressions `904a1de8`, fixed source in
+`bbf557e445b9a662af314cf790d9c0082b98fc29` with normal hooks. Owner declarations now require nonempty,
+consistent capabilities and explicit requested membership; SDK clamp equality remains independent and
+unchanged. Red reached synthetic plan; green has zero plan/viewer/supervisor/fetch and unchanged occupancy.
+
+Proof: 256 declarations / 1792 membership cases / 448 native fake-fetch serializations, 42 remap negatives,
+14 actual SDK-host positive cases. Totals: 147 focused, 587 scoped declared package tests (live smoke gated),
+474 safe orchestrator, 83 packed startup/review tests including synthetic PTY. Receipt/hashes/limits in the
+implementation evidence. No activation, actual Astra lookup or native AK action. Concurrent task5513 root
+harness files were not staged or changed by this worker. Independent review, actual-native/R6/model-owner/
+installed/canary gates remain; no Decision151 acceptance claim.

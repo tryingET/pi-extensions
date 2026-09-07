@@ -581,3 +581,67 @@ viewer=supervisor=fetch=0); namespace bytes and empty attempt directory remain u
 model descriptor's capabilities and recomputes modelSourceDigest, modelDigest and profile digest. SDK
 supported levels are respectively [] and [off], while clamp(off)=off for both. Red receipt:
 `$TMPDIR/task5480-i04-membership-red.log` (0/2 pass, deliberate regression commit; source fix pending).
+
+
+### I04 membership correction — source/packed proof, independent acceptance pending
+
+Open finding commit `bff40526`; deliberate red regression commit `904a1de8`. Source fix:
+**`bbf557e445b9a662af314cf790d9c0082b98fc29`**. All three used normal hooks. This supersedes the preceding
+open/repro status, not the operational gates or historical receipts.
+
+Decision/implementation: owner capability declarations are explicit, not SDK defaults. In
+`model-source.ts`, reasoning:true requires at least one supported non-off level (off is optional).
+reasoning:false requires exactly off -> none and six null non-off entries. Thus empty maps, true/off-only,
+false/off-null and false/advertised-reasoning combinations refuse `owner_model_reasoning_capabilities_invalid`.
+Every non-null mapping must still be identity (off -> none); no remapping. In `profile.ts`, an owner model's
+requested level must be an explicit non-null member or refuse `reasoning_profile_unsupported`, **then** the
+existing pinned SDK clamp equality must also pass. Builtin-v1 handling and I03 clamp checks are unchanged.
+The same loader is used before plan, after asynchronous baseline, and by the child. Producer fence remains
+unconditional. No namespace/profile migration, fallback or downgrade was introduced.
+
+Executed verification:
+
+- Red: both fully repinned primary cases reached unexpected_plan before this source change. Green: both
+  reject at the owner declaration gate; plan/viewer/supervisor/fetch all 0, exact namespace bytes and empty
+  attempt directory unchanged. Child profile loading also rejects. The fixture recomputes source, native
+  descriptor and profile hashes independently of the rejecting loader, so stale pins cannot mask this bug.
+- **23 new tests**, including all **256** boolean/support-mask declarations and **1792** requested-level
+  decisions: 127 valid declarations, 129 invalid; 448 members accepted, 441 absent members refused and
+  903 requests against invalid declarations refused. All accepted members pass SDK clamp equality.
+- All **448** accepted table cases run the actual pinned native Codex serializer through guarded synthetic
+  fetch. Every effort is exact; off omits native reasoning rather than selecting another effort. These are
+  fake SSE responses, not service-delivery/billing evidence. All 42 cross-effort remaps reject as well.
+- **14** valid cases additionally traverse actual profile preflight, child loading and sealed SDK host
+  construction/dispatch: all seven levels with full support, six reasoning-only singleton maps (off denied),
+  and nonreasoning off-only. Five extra fully repinned inconsistent/missing-level cases reject with zero
+  effect ports and unchanged occupancy. No live provider/config was read.
+- Complete focused task-session suite **147/147 passed**; declared little-helpers check **587/587 passed**
+  with isolated HOME, concurrency4 and explicit SKIP_PI_SMOKE=1. Package lint/typecheck/structure/release
+  gates passed in that bounded run. The increased package total also includes the operator's preexisting
+  approved limits/reset tests, not extra source work by this worker.
+- Safe recursive orchestrator suite **474/474 passed**, excluding its live Pi-loader case.
+- Refreshed scratch lifecycle packing/install (scripts disabled), public exports/native/SDK checks and
+  **83/83 packed startup/review tests passed**, including the exhaustive table and authorized synthetic PTY.
+
+Receipt: `$TMPDIR/task5480-pack-proof-S6vnqv/` (evidence.json, command-*.log and tarballs).
+
+| Artifact | SHA256 | Bytes / entries |
+| --- | --- | --- |
+| `tryinget-pi-little-helpers-0.9.0.tgz` | `e538a0640879838713dfe5a24a0a55ebcf9a090ca1cbbcc868592b526b34c813` | 323592 / 151 |
+| `tryinget-pi-society-orchestrator-0.11.5.tgz` | `32356f3d3cfa67f9d2aca59cf9b2b7e09418d8af72dbcbd4b6694083963beddd` | 365746 / 117 |
+
+Logs: `$TMPDIR/task5480-i04-membership-{red,green,all-focused,check,orch,pack,lint,typecheck}.log`,
+plus `{open,repro-commit,source-commit}.log` with the same prefix. Test development corrected an API export
+name and a singleton bit index before final runs; no production gate was bypassed to make them pass.
+
+Scope limits: root full pre-push was not claimed/run (operator reports missing local links); scoped
+little-helpers typecheck verified its four-package/three-link closure without dependency preparation.
+Operator-approved limits/reset/new pi-typescript-tool files and concurrent task5513 harness edits were
+preserved. Only the four named repair files were staged for the source commit. No branch operations,
+AK/DB/native harness invocation, real Ghostty/Pi installation, live configuration/provider canary or producer
+activation occurred. R1/R5 resolution and R6 schema40 repair remain operator-reported owner work here.
+
+Next: independently review this correction; task5513 may test its authorized frozen native cases using
+valid metadata. Actual owner model-source publication/native fit, R6/actual-native interoperability,
+installation/artifact pins, live canaries and rollout acceptance remain separate gates. No real Astra
+mapping or availability is asserted. Task5480/Decision151 remains incomplete and unaccepted.
