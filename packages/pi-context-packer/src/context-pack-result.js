@@ -11,6 +11,7 @@ import {
 import { markdownFence, markdownInlineLabel } from "./context-intake-safety.js";
 import { formatContextPlan } from "./context-plan.js";
 import { DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE } from "./dogfood-followup-classes.js";
+import { fitRenderedPacket } from "./packet-budget.js";
 
 export const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
 
@@ -31,7 +32,7 @@ const formatPacketItem = (item) => {
   return [heading, ...meta, "", markdownFence(item.id, item.content)].join("\n");
 };
 
-export const formatContextPacket = (result) => {
+const formatUnboundedPacket = (result, diagnostics = false) => {
   if (!result.ok) return formatContextPlan(result.plan);
   const { packet } = result;
   const sectionSummaries = packet.sections.map(
@@ -67,7 +68,7 @@ export const formatContextPacket = (result) => {
     `# Context packet: ${markdownInlineLabel(packet.objective, "objective")}`,
     "",
     `Selected provider content: ${packet.totals.candidatesSelected} item(s), ${packet.totals.estimatedTokens} estimated tokens, ${packet.totals.bytes} bytes`,
-    "Budget accounting: packet totals count selected provider content only; rendered scaffolding is reported separately in tool details.",
+    "Budget accounting: final rendered output is bounded; provider-content totals exclude scaffolding.",
     `Estimated tool calls avoided: ${packet.measurementReceipt.estimatedToolCallsAvoided}`,
     "",
     "## Packet utility",
@@ -80,20 +81,24 @@ export const formatContextPacket = (result) => {
         ].join("\n")
       : "- none",
     "",
-    "## Dogfood follow-up",
-    dogfoodFollowup
+    ...(diagnostics
       ? [
-          `- status: ${dogfoodFollowup.status}`,
-          `- expected low-level calls avoided: ${dogfoodFollowup.expectedLowLevelCallsAvoided}`,
-          "- activity type: optionally fill activityType as implementation, review, validation, planning, or other",
-          "- runtime context: optionally fill runtimeContext as source_local, installed_artifact, live_pi_reloaded, or unknown",
-          "- actual low-level read/search/status calls: fill externally after work if useful",
-          "- validation commands run: fill validationCommandsRun separately from context probes if recording dogfood",
-          `- omission follow-ups: ${DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE}`,
-          `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,
-        ].join("\n")
-      : "- none",
-    "",
+          "## Dogfood follow-up",
+          dogfoodFollowup
+            ? [
+                `- status: ${dogfoodFollowup.status}`,
+                `- expected low-level calls avoided: ${dogfoodFollowup.expectedLowLevelCallsAvoided}`,
+                "- activity type: optionally fill activityType as implementation, review, validation, planning, or other",
+                "- runtime context: optionally fill runtimeContext as source_local, installed_artifact, live_pi_reloaded, or unknown",
+                "- actual low-level read/search/status calls: fill externally after work if useful",
+                "- validation commands run: fill validationCommandsRun separately from context probes if recording dogfood",
+                `- omission follow-ups: ${DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE}`,
+                `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,
+              ].join("\n")
+            : "- none",
+          "",
+        ]
+      : []),
     "## Section summary",
     sectionSummaries.length ? sectionSummaries.join("\n") : "- none",
     "",
@@ -105,9 +110,9 @@ export const formatContextPacket = (result) => {
     "## Owner-surface routing",
     ownerRouting.length ? ownerRouting.join("\n") : "- none",
     "",
-    "## Dogfood observation template",
-    dogfoodObservationTemplate ?? "- none",
-    "",
+    ...(diagnostics
+      ? ["## Dogfood observation template", dogfoodObservationTemplate ?? "- none", ""]
+      : []),
     "## Non-authorizations",
     ...packet.nonAuthorizations.map((item) => `- ${item}`),
   ].join("\n");
@@ -206,7 +211,17 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
   };
 };
 
-export const toolResultFromContextPacketResult = (result) => {
-  const text = formatContextPacket(result);
-  return textResult(text, compactContextPacketDetails(result, text));
+export const formatContextPacket = (result, env = {}) =>
+  fitRenderedPacket(result, env, formatUnboundedPacket).text;
+
+export const toolResultFromContextPacketResult = (result, env = {}) => {
+  const fitted = fitRenderedPacket(result, env, formatUnboundedPacket);
+  return {
+    ...textResult(fitted.text, {
+      ...compactContextPacketDetails(fitted.result, fitted.text),
+      ok: fitted.ok,
+      outputBudget: fitted.accounting,
+    }),
+    ...(fitted.ok ? {} : { isError: true }),
+  };
 };

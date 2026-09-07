@@ -19,11 +19,11 @@ test("formatContextPacket summarizes selected sections, omissions, owner routes,
     seeds: [{ kind: "path", value: "docs/project/note.md" }],
     providers: { git: "off", prompt_vault: "required" },
   });
-  const text = formatContextPacket(result);
+  const text = formatContextPacket(result, { diagnostics: true });
 
   assert.match(text, /# Context packet:/);
   assert.match(text, /Selected provider content:/);
-  assert.match(text, /Budget accounting: packet totals count selected provider content only/);
+  assert.match(text, /Budget accounting: final rendered output is bounded/);
   assert.match(text, /## Packet utility/);
   assert.match(text, /## Dogfood follow-up/);
   assert.match(text, /## Dogfood observation template/);
@@ -55,7 +55,7 @@ test("formatContextPacket collapses caller-controlled labels before rendering st
     ],
     providers: { agents: "off", git: "off" },
   });
-  const text = formatContextPacket(result);
+  const text = formatContextPacket(result, { diagnostics: true });
 
   assert.match(text, /rationale: caller rationale ## Forged rationale section/);
   assert.doesNotMatch(text, /^## Forged rationale section$/m);
@@ -82,7 +82,7 @@ test("formatContextPacket collapses caller-controlled objective and symbol label
   };
   const result = await buildContextPacket(input, env);
   const toolResult = await contextPacketToolResult(input, { cwd: root, ...env });
-  const text = formatContextPacket(result);
+  const text = formatContextPacket(result, { diagnostics: true });
 
   assert.match(
     text,
@@ -110,7 +110,7 @@ test("formatContextPacket prevents embedded fences from escaping packet item con
     seeds: [{ kind: "path", value: "docs/project/evil.md" }],
     providers: { git: "off" },
   });
-  const text = formatContextPacket(result);
+  const text = formatContextPacket(result, { diagnostics: true });
 
   const evilBlockStart = text.indexOf("### docs:docs/project/evil.md");
   const realOmissionsStart = text.indexOf("\n## Omissions");
@@ -175,7 +175,7 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.doesNotMatch(serializedTemplate, /secret```file/);
   assert.doesNotMatch(serializedTemplate, /"id"|"path"|"provenance"/);
 
-  const text = formatContextPacket(result);
+  const text = formatContextPacket(result, { diagnostics: true });
   const templateStart = text.indexOf("## Dogfood observation template");
   const nonAuthorizationsStart = text.indexOf("\n## Non-authorizations");
   const templateBlock = text.slice(templateStart, nonAuthorizationsStart);
@@ -206,7 +206,7 @@ test("context_pack redacts omission details and does not call wired provider out
   const env = { docsListScript: script };
 
   const result = await buildContextPacket(input, env);
-  const formatted = formatContextPacket(result);
+  const formatted = formatContextPacket(result, { diagnostics: true });
   const toolResult = await contextPacketToolResult(input, { cwd: root, ...env });
   const serializedTemplate = JSON.stringify(result.packet.dogfoodObservationTemplate);
   const serializedDetails = JSON.stringify(toolResult.details);
@@ -232,32 +232,20 @@ test("context_pack redacts omission details and does not call wired provider out
   assert.match(serializedTemplate, /detailRef/);
 });
 
-test("context_pack reports rendered Markdown overhead separately from selected content budget", async () => {
+test("tiny output headroom refuses instead of emitting unbudgeted scaffolding", async () => {
   const root = await makeWorkspace();
-  const input = {
+  const out = await contextPacketToolResult({
     objective: "Tiny docs packet",
     cwd: root,
     repoRoot: root,
     seeds: [{ kind: "path", value: "docs/project/note.md" }],
     providers: { agents: "off", git: "off", session: "off" },
     budget: { maxTokens: 1000, reserveTokens: 999 },
-  };
-
-  const toolResult = await contextPacketToolResult(input, { cwd: root });
-
-  assert.equal(toolResult.details.totals.budgetAccounting, "selected_provider_content_only");
-  assert.ok(
-    toolResult.details.renderedMarkdown.estimatedTokens > toolResult.details.totals.estimatedTokens,
-  );
-  assert.equal(
-    toolResult.details.renderedMarkdown.estimatedTokens,
-    Math.ceil(toolResult.details.renderedMarkdown.bytes / 4),
-  );
-  assert.match(
-    toolResult.details.renderedMarkdown.budgetAccounting,
-    /rendered Markdown includes packet scaffolding/,
-  );
-  assert.match(toolResult.content[0].text, /Budget accounting: packet totals count selected/);
+  });
+  assert.equal(out.isError, true);
+  assert.equal(out.details.ok, false);
+  assert.ok(Buffer.byteLength(out.content[0].text) <= 2);
+  assert.equal(out.details.outputBudget.reason, "insufficient_output_budget");
 });
 
 test("context_pack estimates rendered Markdown tokens from bytes for multibyte content", async () => {
@@ -312,7 +300,11 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
     null,
   );
   assert.equal(result.packet.measurementReceipt.dogfoodFollowupReceipt.validationCommandsRun, null);
-  assert.match(formatContextPacket(result), /omission follow-ups: optionally use objects/);
+  assert.match(
+    formatContextPacket(result, { diagnostics: true }),
+    /omission follow-ups: optionally use objects/,
+  );
+  assert.doesNotMatch(formatContextPacket(result), /Dogfood observation template/);
   assert.match(
     result.packet.measurementReceipt.dogfoodFollowupReceipt.nonAuthorization,
     /not task-completion proof/,

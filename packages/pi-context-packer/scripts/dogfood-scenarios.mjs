@@ -92,6 +92,10 @@ export async function migrationScenario() {
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  assert.equal(process.argv[2], "RW-01", "Scenario not implemented at this candidate");
-  console.log(JSON.stringify(await migrationScenario()));
+  const scenarios = {
+    "RW-01": migrationScenario,
+    "RW-02": (await import("./dogfood-budget.mjs")).budgetScenario,
+  };
+  assert.ok(scenarios[process.argv[2]], "Scenario not implemented at this candidate");
+  console.log(JSON.stringify(await scenarios[process.argv[2]]()));
 }

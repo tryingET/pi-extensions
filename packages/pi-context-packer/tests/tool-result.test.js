@@ -209,7 +209,7 @@ test("compactContextPacketDetails omits raw omission details and suggestion reas
       repoRoot: root,
       seeds: [{ kind: "path", value: omittedPath }],
       providers: { agents: "off", docs: "required", git: "off", session: "off" },
-      budget: { maxTokens: 20, reserveTokens: 19 },
+      budget: { maxTokens: 10000, reserveTokens: 1000, perProviderMaxTokens: { docs: 1 } },
     },
     { cwd: root },
   );

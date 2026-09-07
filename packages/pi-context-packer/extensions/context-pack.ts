@@ -335,6 +335,19 @@ export async function runContextPackerRegisteredToolSmoke(
       "registered context_pack wrapper did not include seeded Markdown packet content",
     );
 
+    const budgetRefusal = await contextPackerToolDefinition("context_pack").execute(
+      "release-smoke-budget-refusal",
+      { ...baseParams, budget: { maxBytes: 1, maxTokens: 10, reserveTokens: 9 } },
+      undefined,
+      undefined,
+      runtimeContext,
+    );
+    assertSmoke(
+      Buffer.byteLength(resultText(budgetRefusal)) <= 1,
+      "rendered packet escaped byte cap",
+    );
+    assertSmoke(budgetRefusal.details?.ok === false, "tiny-budget refusal was not reported");
+
     const evaluationResult = await contextPackerToolDefinition("context_dogfood_evaluate").execute(
       "release-smoke-context-dogfood-evaluate",
       {

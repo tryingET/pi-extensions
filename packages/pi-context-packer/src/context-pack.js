@@ -669,5 +669,5 @@ export { formatContextPacket };
 
 export const contextPacketToolResult = async (input = {}, env = {}) => {
   const result = await buildContextPacket(input, env);
-  return toolResultFromContextPacketResult(result);
+  return toolResultFromContextPacketResult(result, env);
 };

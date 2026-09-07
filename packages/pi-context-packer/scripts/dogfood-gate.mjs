@@ -27,10 +27,10 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 if (
   flags.size !== 3 ||
-  flags.get("--gate") !== "RW-01" ||
+  !["RW-01", "RW-02"].includes(flags.get("--gate")) ||
   !/^[a-f0-9]{40}$/u.test(flags.get("--candidate-sha"))
 )
-  throw new Error("Expected --gate RW-01 --candidate-sha SHA --output-dir EXTERNAL_DIR");
+  throw new Error("Expected --gate RW-01|RW-02 --candidate-sha SHA --output-dir EXTERNAL_DIR");
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const head = git("rev-parse", "HEAD");
 if (head !== flags.get("--candidate-sha") || git("status", "--porcelain"))
