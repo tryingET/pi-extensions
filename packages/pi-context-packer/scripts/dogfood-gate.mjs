@@ -27,7 +27,9 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 if (
   flags.size !== 3 ||
-  !["RW-01", "RW-02", "RW-03", "RW-04", "RW-05", "RW-06", "RW-07"].includes(flags.get("--gate")) ||
+  !["RW-01", "RW-02", "RW-03", "RW-04", "RW-05", "RW-06", "RW-07", "RW-08"].includes(
+    flags.get("--gate"),
+  ) ||
   !/^[a-f0-9]{40}$/u.test(flags.get("--candidate-sha"))
 )
   throw new Error("Expected --gate RW-01|RW-02 --candidate-sha SHA --output-dir EXTERNAL_DIR");

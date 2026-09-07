@@ -54,7 +54,8 @@
     "loop-impact-run": "npm run check",
     "loop-impact-wide": "npm run check",
     "loop-landing-check": "npm run check",
-    "dogfood:gate": "node scripts/dogfood-gate.mjs"
+    "dogfood:gate": "node scripts/dogfood-gate.mjs",
+    "evaluate:ripwire": "node scripts/run-ripwire-study.mjs"
   },
   "files": [
     "extensions/context-pack.ts",
