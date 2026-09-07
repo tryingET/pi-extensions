@@ -559,3 +559,16 @@ but this worker did not execute/verify it or change producer readiness. The unco
 remains. No live config/auth, real Ghostty/provider calls, live installation/activation, namespace enrollment,
 AK/DB mutation, other-worker signaling or original feature-checkout/AK5133 dirty-code changes occurred.
 Task5480/Decision151 is not complete or accepted.
+
+
+### I04 reopened — explicit owner reasoning membership (dispatch1788782292134)
+
+Independent review reports a remaining bounded blocker against `026b6078`: a correctly repinned v2
+source with reasoning:true and seven null effort entries admits requested off via the pinned SDK's empty-
+set clamp fallback. reasoning:false also synthesizes off regardless of an explicit null off declaration.
+This is not a provider/account escape or an I03 builtin regression. Status: **OPEN, reproduction pending**.
+Repair scope is explicit owner membership/non-null checks and nonempty/consistent capability declarations,
+while retaining SDK clamp equality. Fully repinned negative fixtures must prove zero effect ports and
+unchanged occupancy; exhaustive support-map coverage is planned. No actual Astra/config/provider access,
+live activation or producer fence removal is authorized. Operator reports native R1/R5 resolved and R6
+(DB schema40 compatibility) in repair; this worker has not verified those owner results.
