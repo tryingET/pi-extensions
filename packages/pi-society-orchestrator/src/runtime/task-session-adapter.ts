@@ -3,12 +3,14 @@ import schema from "./task-session-protocol-v1.json" with { type: "json" };
 export const taskSessionAdapterIdentity = Object.freeze({
   interface: "pi.ak-task-session-adapter.v1",
   protocol: "ak.task-session.v1",
-  producerSchemaDigest: "249caa943fc46e7335166f6162abab6caeb617a7710440ef8e0b1711c730d41c",
-  producerFixtureDigest: "b4601779c1c5ea41d6cf893e7d7c96e9311a1b63c614b8865eb2891154e850ab",
+  producerSchemaDigest: "a111fac365993fa6af6c3db4f08ac42f2f354ef55c0d9a99137ad910d780e2be",
+  producerFixtureDigest: "ddbfdcc349f4a1f080711e84146c0e278bea06cd5e993c5a4c2a0738217ec8c3",
   status: schema["x-status"],
   integrationReady: false,
 });
 interface Rule {
+  maxItems?: number;
+  items?: Rule;
   $ref?: string;
   oneOf?: Rule[];
   const?: unknown;
@@ -21,7 +23,7 @@ interface Rule {
   pattern?: string;
   properties?: Record<string, Rule>;
   required?: string[];
-  additionalProperties?: boolean;
+  additionalProperties?: boolean | Rule;
   allOf?: Rule[];
   if?: Rule;
   then?: Rule;
@@ -36,6 +38,7 @@ function validate(s: Rule, v: unknown): boolean {
   if (s.oneOf) return s.oneOf.filter((x) => validate(x, v)).length === 1;
   if ("const" in s && v !== s.const) return false;
   if (s.enum && !s.enum.includes(v)) return false;
+  if (s.type === "boolean" && typeof v !== "boolean") return false;
   if (s.type === "null" && v !== null) return false;
   if (
     s.type === "integer" &&
@@ -48,10 +51,19 @@ function validate(s: Rule, v: unknown): boolean {
   if (
     s.type === "string" &&
     (typeof v !== "string" ||
-      !v.isWellFormed() ||
+      [...v].some(
+        (c) => c.length === 1 && c.charCodeAt(0) >= 0xd800 && c.charCodeAt(0) <= 0xdfff,
+      ) ||
       v.length < (s.minLength ?? 0) ||
       v.length > (s.maxLength ?? 65536) ||
       (s.pattern && !new RegExp(s.pattern).test(v)))
+  )
+    return false;
+  if (
+    s.type === "array" &&
+    (!Array.isArray(v) ||
+      v.length > (s.maxItems ?? 4096) ||
+      (!!s.items && !v.every((item) => validate(s.items as Rule, item))))
   )
     return false;
   if (s.type === "object" || s.properties) {
@@ -61,6 +73,14 @@ function validate(s: Rule, v: unknown): boolean {
     if (
       s.additionalProperties === false &&
       Object.keys(object).some((k) => !Object.hasOwn(s.properties ?? {}, k))
+    )
+      return false;
+    if (
+      typeof s.additionalProperties === "object" &&
+      Object.entries(object).some(
+        ([k, value]) =>
+          !Object.hasOwn(s.properties ?? {}, k) && !validate(s.additionalProperties as Rule, value),
+      )
     )
       return false;
     if (
@@ -89,5 +109,55 @@ export function interpretTaskSessionMessage(data: unknown) {
   };
 }
 export function requireTaskSessionProducer(): never {
-  throw new Error("ak_producer_blocked_draft_not_integration_ready");
+  throw new Error("ak_producer_verification_pending");
+}
+
+/** Actual producer startup_request shape. Encoding is data-only, not activation authority. */
+export function encodeTaskSessionStartup(input: {
+  request: { requestId: string; taskId: number; cwd: string; profile: string };
+  attempt: { attempt: string; incarnation: string; semanticDigest: string };
+  repo: string;
+  reservationDigest: string;
+  intentDigest: string;
+  baselineDigest: string;
+  leaseSeconds: number;
+  startupDeadline: number;
+}) {
+  const r = input.request,
+    a = input.attempt;
+  const result = {
+    schema: "ak.task-session.startup.v1",
+    request: r.requestId,
+    attempt: a.attempt,
+    incarnation: a.incarnation,
+    actor: `pi-task-${a.incarnation}`,
+    semantic_digest: a.semanticDigest,
+    reservation: input.reservationDigest,
+    profile_digest: r.profile,
+    raw_envelope_digest: input.intentDigest,
+    baseline_digest: input.baselineDigest,
+    task_id: r.taskId,
+    repo: input.repo,
+    lease_seconds: input.leaseSeconds,
+    startup_deadline_ms: input.startupDeadline,
+  };
+  if (!validate(schema.$defs.startup_request, result)) throw new Error("ak_startup_shape_invalid");
+  return result;
+}
+
+export function interpretTaskSessionPlan(data: unknown) {
+  if (!validate(schema.$defs.plan_result, data)) throw new Error("ak_plan_shape_invalid");
+  return structuredClone(data);
+}
+
+export function interpretTaskSessionDefinition(
+  name: "startup_request" | "recovery_request" | "host_closure" | "effect_disposition",
+  data: unknown,
+) {
+  if (
+    !["startup_request", "recovery_request", "host_closure", "effect_disposition"].includes(name) ||
+    !validate(schema.$defs[name], data)
+  )
+    throw new Error("ak_definition_shape_invalid");
+  return structuredClone(data);
 }

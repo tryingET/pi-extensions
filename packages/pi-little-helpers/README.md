@@ -38,10 +38,9 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 
 The additive emitted `pi-task-session` CLI, `task_session` Pi tool and
 [`task-session` skill](skills/task-session/SKILL.md) expose one read-only discovery/plan/
-inspection/classification surface. **Launch is blocked:** the AK producer is a blocked draft,
-not an implemented startup interval. Do not fall back to ordinary claim/spawn recipes.
+inspection/classification and account-bound identity surface. **Launch is blocked:** native AK verification and rollout remain gated. Do not fall back to ordinary claim/spawn recipes.
 Independent sealed SDK/Codex/state/native components are tested synthetically; this is not
-installed, enrolled or end-to-end launch proof. See the repo
+installed or enrolled launch proof. The emitted host/viewer and full synthetic startup tests do not establish native AK effects. See the repo
 [implementation evidence](../../docs/project/2026-09-07-visible-task-session-pi-implementation.md).
 Build with `npm run task-session:build`; focused isolated tests: `npm run task-session:test`.
 Linux x64 N-API support is built at package build time, never on runtime fallback.

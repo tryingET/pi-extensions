@@ -121,6 +121,8 @@ static napi_value close_mutex(napi_env e, napi_callback_info info) {
   return undef(e);
 }
 static int custody = 0;
+static int custody_fd = 1;
+static int detached = 0;
 static napi_value adopt(napi_env e, napi_callback_info info) {
   (void)info;
   struct stat a, b;
@@ -137,12 +139,33 @@ static napi_value adopt(napi_env e, napi_callback_info info) {
   custody = 1;
   return undef(e);
 }
+/* SDK imports may materialize process.stdin/stdout. Move custody off stdio
+ * first, replace both with inert /dev/null, and return only the private channel
+ * to the driver. */
+static napi_value detach_channel(napi_env e, napi_callback_info info) {
+  (void)info;
+  if (custody != 1 || detached)
+    return fail(e, "invalid_detach_phase");
+  int channel = fcntl(0, F_DUPFD_CLOEXEC, 3),
+      lock = fcntl(1, F_DUPFD_CLOEXEC, 3);
+  int nullfd = open("/dev/null", O_RDWR | O_CLOEXEC);
+  if (channel < 0 || lock < 0 || nullfd < 0)
+    return fail(e, "custody_detach_failed");
+  custody_fd = lock;
+  detached = 1;
+  if (dup3(nullfd, 0, O_CLOEXEC) < 0 || dup3(nullfd, 1, O_CLOEXEC) < 0)
+    return fail(e, "custody_detach_failed");
+  close(nullfd);
+  napi_value v;
+  napi_create_int32(e, channel, &v);
+  return v;
+}
 static napi_value close_custody(napi_env e, napi_callback_info info) {
   (void)info;
   if (custody != 1)
     return fail(e, "invalid_custody_phase");
   /* No LOCK_UN operation exists for the inherited AK descriptor. */
-  if (close(1))
+  if (close(custody_fd))
     return fail(e, "custody_close_failed");
   custody = 2;
   return undef(e);
@@ -154,6 +177,7 @@ static napi_value init(napi_env e, napi_value exports) {
       {"tryLock", 0, try_lock, 0, 0, 0, napi_default, 0},
       {"unlockMutex", 0, unlock, 0, 0, 0, napi_default, 0},
       {"closeMutex", 0, close_mutex, 0, 0, 0, napi_default, 0},
+      {"detachChannel", 0, detach_channel, 0, 0, 0, napi_default, 0},
       {"adoptCustody", 0, adopt, 0, 0, 0, napi_default, 0},
       {"closeCustody", 0, close_custody, 0, 0, 0, napi_default, 0}};
   napi_define_properties(e, exports, sizeof(p) / sizeof(p[0]), p);

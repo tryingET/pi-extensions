@@ -23,11 +23,16 @@ export interface HostInput {
   resources: Resources;
 }
 /** Private production host composition. Only copied observations/control leave this closure. */
-export async function sealedHost(input: HostInput, credential: OAuthCredential, port: SendPort) {
+export async function sealedHost(
+  input: HostInput,
+  credential: OAuthCredential,
+  port: SendPort,
+  assertExternal: () => void = () => {},
+) {
   const frozen = structuredClone(input);
   text(frozen.objective);
   const profileDigest = bytesDigest(JSON.stringify(frozen.profile));
-  const guard = new DispatchGuard(frozen.incarnation, profileDigest);
+  const guard = new DispatchGuard(frozen.incarnation, profileDigest, assertExternal);
   assertSdkIdentity();
   let session: AgentSession | undefined;
   let system = "";
@@ -197,8 +202,15 @@ export async function sealedHost(input: HostInput, credential: OAuthCredential, 
         promptStarted = true;
         try {
           await originalPrompt(frozen.objective, { expandPromptTemplates: false });
+          const last = session?.messages.at(-1);
+          if (
+            last?.role === "assistant" &&
+            (last.stopReason === "error" || last.stopReason === "aborted")
+          )
+            guard.stop(last.stopReason === "error" ? "provider_error" : "provider_aborted");
         } finally {
           guard.stop("host_finished");
+          session?.dispose();
         }
       },
       async stop() {

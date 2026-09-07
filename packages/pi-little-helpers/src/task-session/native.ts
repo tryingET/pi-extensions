@@ -8,6 +8,7 @@ interface Native {
   unlockMutex(handle: object): void;
   closeMutex(handle: object): void;
   adoptCustody(): void;
+  detachChannel(): number;
   closeCustody(): void;
 }
 let loaded: Native | undefined;

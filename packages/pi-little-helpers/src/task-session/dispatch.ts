@@ -7,7 +7,11 @@ export class DispatchGuard {
   #started = false;
   #incarnation: string;
   #profile: string;
-  constructor(incarnation: string, profile: string) {
+  constructor(
+    incarnation: string,
+    profile: string,
+    private readonly external: () => void = () => {},
+  ) {
     this.#incarnation = incarnation;
     this.#profile = profile;
   }
@@ -50,6 +54,11 @@ export class DispatchGuard {
       this.deny(this.#denial ?? "dispatch_not_admitted");
     if (incarnation !== this.#incarnation || profile !== this.#profile)
       this.deny("dispatch_identity_drift");
+    try {
+      this.external();
+    } catch {
+      this.deny("external_custody_or_stop");
+    }
     if (Date.now() >= this.#deadline) this.deny("dispatch_deadline");
   }
   get status() {

@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ak.task-session.protocol.v1",
-  "title": "Decision151 AK producer private protocol — blocked draft",
-  "x-status": "blocked-draft-not-integration-ready",
-  "$comment": "Early implementation selection only: no producer source or consumer concurrence yet. Scope reconciliation required for ak-db existing-only writable open. Startup request, baseline/effect and recovery schemas remain incomplete. Do not activate or infer capability. CLOSED must never be persisted or accepted on a new channel.",
+  "title": "Decision151 AK producer private protocol v1",
+  "x-status": "implementation-in-progress-native-verification-blocked",
+  "$comment": "Source contract; not installed/runtime proof. Rust execution and cross-owner integration must pass before consumer activation. CLOSED is channel-local and never persisted.",
   "x-transport": {
     "public_command": ["ak", "task-session", "supervise"],
-    "public_input": "One bounded startup request on stdin; no fd, exec, binary, environment or namespace overrides",
+    "public_input": "supervise: one startup_request JSON; recover: one recovery_request JSON. plan: {task_id} JSON under ordinary gate, query-only. No fd/exec/path/profile-environment overrides.",
     "host_command": ["/home/tryinget/.local/libexec/pi-task-sessions/host-v1"],
     "host_fd_0": "Private AF_UNIX SOCK_STREAM socketpair endpoint; bidirectional length-framed protocol",
     "host_fd_1": "Same open file description of permanent canonical AK flock file; opened unlocked by supervisor, deliberately inherited through stdio mapping",
@@ -18,38 +18,109 @@
     "sequence": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"],
     "sidecar": "Private immutable t1.json in the already reserved attempt/incarnation directory under the provisioned namespace; host fsyncs file and directory without namespace mutex; supervisor independently compares durable bytes to T1_PUBLISHED before explicit unlock",
     "closed": "Private one-shot channel/phase/incarnation-bound message after explicit T2 unlock, not an on-disk receipt, not replayable after restart; dispatch also requires valid local outcome, deadline and post-unlock persistence",
-    "failure": "No automatic retry/unclaim; no EOF/timeout/finally unlock; surviving host retains OFD and denies dispatch on supervisor failure; all-holder death is not effect or claim retirement"
+    "failure": "No automatic retry/unclaim; no EOF/timeout/finally unlock; surviving host retains OFD and denies dispatch on supervisor failure; all-holder death is not effect or claim retirement",
+    "bootstrap": "Supervisor sends pi.task-session.host-bootstrap.v1 seed on FD0 before PREPARED; fields exactly match $defs/host_bootstrap.",
+    "worker": "Fixed approved AK binary -d policy.database.path task-session owner-private; fd0 private duplex socket, fd1 inherited canonical OFD. Ordinary gate refuses owner-private. One worker_request frame and one admission body result, no retry.",
+    "policy_gate": "No activation without later controller-published policy.task_session protocol_sha256, host_sha256, host_build_digest, supervisor_sha256. host_sha256 pins fixed executable bytes; host_build_digest binds Pi-owned immutable package closure checked by host. Current runtime policy is unchanged.",
+    "database_identity": "SHA256 canonical JSON {path:canonical database path,device:st_dev,inode:st_ino}; checked after T0 and worker result. Policy digest is SHA256 exact policy bytes. Protocol digest is SHA256 exact schema file bytes.",
+    "baseline": "ak.task-session.baseline.v1: evaluated_at outside baseline_digest. Baseline binds typed task, raw complete relevant task/scope/companion/deferral/repo/dependency/decision membership rows, evidence attached or historical task_ref rows, effective_deferral and lease_expired. Integer SQL fields stored as strings in raw rows; row vectors sorted deterministically.",
+    "recovery": "Existing private host-closure.json and effect-disposition.json must validate before T0. Preserved ak-admission.json binds exact claim. Immutable ak-recovery-started.json prevents replay; ak-recovery-result.json published+fsynced under new interval. Native failure is unresolved, never retried.",
+    "effect_accounting": "Only exact task version v+1 and native status/claim tuple, task-row evidence attachment restoration with unchanged provenance, elapsed active deferral expiry fields, one native task transition receipt plus per-expired-deferral receipts, and claim event. Unexpected raw family or prior receipt drift fails the transaction and is conservatively unresolved once native mutation was entered.",
+    "opener": "Backend READ_WRITE without CREATE. Task-session preflight refuses rollback journal and missing/invalid/pending engine migration marker before opening. Core skips journal-mode mutation, migration, evidence/issue reconciliation and repair. Native byte-level WAL/open fault proof remains pending; do not activate from source assertions.",
+    "bulk_recovery": "Supervisor and native worker require future policy.task_session.bulk_recovery_suspended=true. Ordinary gate refuses release-expired while set. Named owner reinstates only after host/effect/claim retirement. This does not inventory or intercept unknown external/direct callers."
   },
   "type": "object",
   "additionalProperties": false,
   "required": ["protocol", "kind", "binding", "body"],
   "properties": {
-    "protocol": { "const": "ak.task-session.v1" },
-    "kind": { "enum": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"] },
-    "binding": { "$ref": "#/$defs/binding" },
-    "body": { "type": "object" }
+    "protocol": {
+      "const": "ak.task-session.v1"
+    },
+    "kind": {
+      "enum": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"]
+    },
+    "binding": {
+      "$ref": "#/$defs/binding"
+    },
+    "body": {
+      "type": "object"
+    }
   },
   "allOf": [
     {
-      "if": { "properties": { "kind": { "const": "PREPARED" } } },
-      "then": { "properties": { "body": { "$ref": "#/$defs/prepared" } } }
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "PREPARED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "$ref": "#/$defs/prepared"
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "kind": { "const": "ADMISSION_RESULT" } } },
-      "then": { "properties": { "body": { "$ref": "#/$defs/admission" } } }
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ADMISSION_RESULT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "$ref": "#/$defs/admission"
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "kind": { "const": "T1_PUBLISHED" } } },
-      "then": { "properties": { "body": { "$ref": "#/$defs/t1" } } }
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "T1_PUBLISHED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "$ref": "#/$defs/t1"
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "kind": { "const": "CLOSED" } } },
-      "then": { "properties": { "body": { "$ref": "#/$defs/closed" } } }
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "CLOSED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "$ref": "#/$defs/closed"
+          }
+        }
+      }
     }
   ],
   "$defs": {
-    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
     "binding": {
       "type": "object",
       "additionalProperties": false,
@@ -68,18 +139,42 @@
         "effective_envelope_digest"
       ],
       "properties": {
-        "request": { "$ref": "#/$defs/id" },
-        "semantic_digest": { "$ref": "#/$defs/digest" },
-        "attempt": { "$ref": "#/$defs/id" },
-        "incarnation": { "$ref": "#/$defs/id" },
-        "reservation": { "$ref": "#/$defs/digest" },
-        "ak_binary_digest": { "$ref": "#/$defs/digest" },
-        "policy_digest": { "$ref": "#/$defs/digest" },
-        "database_identity": { "$ref": "#/$defs/digest" },
-        "host_build_digest": { "$ref": "#/$defs/digest" },
-        "profile_digest": { "$ref": "#/$defs/digest" },
-        "raw_envelope_digest": { "$ref": "#/$defs/digest" },
-        "effective_envelope_digest": { "$ref": "#/$defs/digest" }
+        "request": {
+          "$ref": "#/$defs/id"
+        },
+        "semantic_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "attempt": {
+          "$ref": "#/$defs/id"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/id"
+        },
+        "reservation": {
+          "$ref": "#/$defs/digest"
+        },
+        "ak_binary_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "policy_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "database_identity": {
+          "$ref": "#/$defs/digest"
+        },
+        "host_build_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "profile_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "raw_envelope_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "effective_envelope_digest": {
+          "$ref": "#/$defs/digest"
+        }
       }
     },
     "prepared": {
@@ -95,13 +190,35 @@
         "baseline_digest"
       ],
       "properties": {
-        "no_dispatch": { "const": true },
-        "startup_deadline_ms": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
-        "task_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
-        "repo": { "type": "string", "minLength": 1, "maxLength": 4096 },
-        "actor": { "$ref": "#/$defs/id" },
-        "lease_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
-        "baseline_digest": { "$ref": "#/$defs/digest" }
+        "no_dispatch": {
+          "const": true
+        },
+        "startup_deadline_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "task_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "actor": {
+          "$ref": "#/$defs/id"
+        },
+        "lease_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "baseline_digest": {
+          "$ref": "#/$defs/digest"
+        }
       }
     },
     "claim": {
@@ -109,35 +226,185 @@
       "additionalProperties": false,
       "required": ["task_id", "repo", "version", "claimed_by", "claimed_at", "lease_expires_at"],
       "properties": {
-        "task_id": { "type": "integer", "minimum": 1 },
-        "repo": { "type": "string", "minLength": 1, "maxLength": 4096 },
-        "version": { "type": "integer", "minimum": 1 },
-        "claimed_by": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "claimed_at": { "type": "string", "maxLength": 64 },
-        "lease_expires_at": { "type": "string", "maxLength": 64 }
+        "task_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "claimed_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "claimed_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "lease_expires_at": {
+          "type": "string",
+          "maxLength": 64
+        }
       }
     },
     "admission": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outcome", "baseline_digest", "readback_digest", "claim", "effects", "reason"],
+      "required": [
+        "outcome",
+        "baseline_digest",
+        "readback_digest",
+        "claim",
+        "effects",
+        "reason",
+        "accounting"
+      ],
       "properties": {
-        "outcome": { "enum": ["ADMITTED", "DENIED", "UNRESOLVED"] },
-        "baseline_digest": { "$ref": "#/$defs/digest" },
-        "readback_digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
-        "claim": { "oneOf": [{ "$ref": "#/$defs/claim" }, { "type": "null" }] },
-        "effects": { "enum": ["not_attempted", "committed_verified", "indeterminate"] },
-        "reason": { "$ref": "#/$defs/id" }
-      }
+        "outcome": {
+          "enum": ["ADMITTED", "DENIED", "UNRESOLVED"]
+        },
+        "baseline_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "readback_digest": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claim": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effects": {
+          "enum": ["not_attempted", "committed_verified", "indeterminate"]
+        },
+        "reason": {
+          "$ref": "#/$defs/id"
+        },
+        "accounting": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/accounting"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "ADMITTED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "const": "committed_verified"
+              },
+              "claim": {
+                "$ref": "#/$defs/claim"
+              },
+              "readback_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "accounting": {
+                "$ref": "#/$defs/accounting"
+              },
+              "reason": {
+                "const": "native_claim_verified"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "DENIED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "const": "not_attempted"
+              },
+              "claim": {
+                "type": "null"
+              },
+              "readback_digest": {
+                "type": "null"
+              },
+              "accounting": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "UNRESOLVED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "const": "indeterminate"
+              },
+              "claim": {
+                "type": "null"
+              },
+              "readback_digest": {
+                "type": "null"
+              },
+              "accounting": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
     },
     "t1": {
       "type": "object",
       "additionalProperties": false,
       "required": ["outcome", "admission_digest", "no_dispatch"],
       "properties": {
-        "outcome": { "enum": ["ADMITTED", "DENIED"] },
-        "admission_digest": { "$ref": "#/$defs/digest" },
-        "no_dispatch": { "const": true }
+        "outcome": {
+          "enum": ["ADMITTED", "DENIED"]
+        },
+        "admission_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "no_dispatch": {
+          "const": true
+        }
       }
     },
     "closed": {
@@ -145,8 +412,815 @@
       "additionalProperties": false,
       "required": ["outcome", "t1_digest"],
       "properties": {
-        "outcome": { "enum": ["ADMITTED", "DENIED"] },
-        "t1_digest": { "$ref": "#/$defs/digest" }
+        "outcome": {
+          "enum": ["ADMITTED", "DENIED"]
+        },
+        "t1_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "startup_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "attempt",
+        "incarnation",
+        "actor",
+        "semantic_digest",
+        "reservation",
+        "profile_digest",
+        "raw_envelope_digest",
+        "baseline_digest",
+        "schema",
+        "task_id",
+        "repo",
+        "lease_seconds",
+        "startup_deadline_ms"
+      ],
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/id"
+        },
+        "attempt": {
+          "$ref": "#/$defs/id"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/id"
+        },
+        "actor": {
+          "$ref": "#/$defs/id"
+        },
+        "semantic_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "reservation": {
+          "$ref": "#/$defs/digest"
+        },
+        "profile_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "raw_envelope_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "baseline_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "schema": {
+          "const": "ak.task-session.startup.v1"
+        },
+        "task_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "lease_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "startup_deadline_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "host_bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt",
+        "incarnation",
+        "actor",
+        "baselineDigest",
+        "akBinaryDigest",
+        "policyDigest",
+        "databaseIdentity",
+        "hostBuildDigest",
+        "schema",
+        "startupDeadline",
+        "leaseSeconds"
+      ],
+      "properties": {
+        "attempt": {
+          "$ref": "#/$defs/id"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/id"
+        },
+        "actor": {
+          "$ref": "#/$defs/id"
+        },
+        "baselineDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "akBinaryDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "policyDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "databaseIdentity": {
+          "$ref": "#/$defs/digest"
+        },
+        "hostBuildDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "schema": {
+          "const": "pi.task-session.host-bootstrap.v1"
+        },
+        "startupDeadline": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "leaseSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        }
+      }
+    },
+    "recovery_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "attempt", "incarnation", "claim"],
+      "properties": {
+        "schema": {
+          "const": "ak.task-session.recovery.v1"
+        },
+        "attempt": {
+          "$ref": "#/$defs/id"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/id"
+        },
+        "claim": {
+          "$ref": "#/$defs/claim"
+        }
+      }
+    },
+    "host_closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "attempt",
+        "incarnation",
+        "future_dispatch_closed",
+        "owner_receipt_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "pi.task-session.host-closure.v1"
+        },
+        "attempt": {
+          "$ref": "#/$defs/id"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/id"
+        },
+        "future_dispatch_closed": {
+          "const": true
+        },
+        "owner_receipt_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "effect_disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "attempt",
+        "incarnation",
+        "started_effects_disposed",
+        "owner_receipt_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "pi.task-session.effect-disposition.v1"
+        },
+        "attempt": {
+          "$ref": "#/$defs/id"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/id"
+        },
+        "started_effects_disposed": {
+          "const": true
+        },
+        "owner_receipt_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_version_before",
+        "task_version_after",
+        "restored_evidence_attachments_preserved",
+        "expired_deferrals",
+        "governance_receipt_ids",
+        "event_ids"
+      ],
+      "properties": {
+        "task_version_before": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "task_version_after": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "restored_evidence_attachments_preserved": {
+          "const": true
+        },
+        "expired_deferrals": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "governance_receipt_ids": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "event_ids": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        }
+      }
+    },
+    "recovery_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "baseline_digest",
+        "readback_digest",
+        "claim",
+        "effects",
+        "reason",
+        "accounting"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": ["RECOVERED", "DENIED", "UNRESOLVED"]
+        },
+        "baseline_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "readback_digest": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claim": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effects": {
+          "enum": ["not_attempted", "committed_verified", "indeterminate"]
+        },
+        "reason": {
+          "$ref": "#/$defs/id"
+        },
+        "accounting": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/accounting"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "RECOVERED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "const": "committed_verified"
+              },
+              "claim": {
+                "$ref": "#/$defs/claim"
+              },
+              "readback_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "accounting": {
+                "$ref": "#/$defs/accounting"
+              },
+              "reason": {
+                "const": "native_unclaim_verified"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "DENIED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "const": "not_attempted"
+              },
+              "claim": {
+                "type": "null"
+              },
+              "readback_digest": {
+                "type": "null"
+              },
+              "accounting": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "UNRESOLVED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "const": "indeterminate"
+              },
+              "claim": {
+                "type": "null"
+              },
+              "readback_digest": {
+                "type": "null"
+              },
+              "accounting": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "admission_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startup_deadline_ms",
+        "task_id",
+        "repo",
+        "actor",
+        "lease_seconds",
+        "baseline_digest"
+      ],
+      "properties": {
+        "startup_deadline_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "task_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "actor": {
+          "$ref": "#/$defs/id"
+        },
+        "lease_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "baseline_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "native_recovery_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "host_closure_digest", "effect_disposition_digest"],
+      "properties": {
+        "claim": {
+          "$ref": "#/$defs/claim"
+        },
+        "host_closure_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "effect_disposition_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "worker_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "binding", "admission", "recovery"],
+      "properties": {
+        "protocol": {
+          "const": "ak.task-session.worker.v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "admission": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/admission_request"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recovery": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/native_recovery_request"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "task_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_paths", "required_paths", "forbidden_paths"],
+      "properties": {
+        "allowed_paths": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "maxLength": 65536
+          }
+        },
+        "required_paths": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "maxLength": 65536
+          }
+        },
+        "forbidden_paths": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "maxLength": 65536
+          }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "repo",
+        "title",
+        "description",
+        "status",
+        "priority",
+        "claimed_by",
+        "claimed_at",
+        "lease_expires_at",
+        "depends_on",
+        "evidence",
+        "result",
+        "created_at",
+        "completed_at",
+        "scope",
+        "entity_version"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "description": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": ["pending", "claimed", "running", "done", "failed", "blocked"]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "claimed_by": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claimed_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lease_expires_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "depends_on": {
+          "oneOf": [
+            {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {},
+        "result": {},
+        "created_at": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "completed_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/task_scope"
+        },
+        "entity_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "raw_row": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "maxLength": 65536
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task", "families", "effective_deferral", "lease_expired"],
+      "properties": {
+        "task": {
+          "$ref": "#/$defs/task"
+        },
+        "families": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tasks",
+            "task_done_contracts",
+            "task_guardrails",
+            "task_reconciliation_packets",
+            "task_deferrals",
+            "fcos_task_metadata",
+            "repos",
+            "dependencies",
+            "decision_task_links",
+            "decisions",
+            "evidence",
+            "schema",
+            "migrations"
+          ],
+          "properties": {
+            "tasks": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "task_done_contracts": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "task_guardrails": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "task_reconciliation_packets": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "task_deferrals": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "fcos_task_metadata": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "repos": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "dependencies": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "decision_task_links": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "decisions": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "evidence": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "schema": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            },
+            "migrations": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/raw_row"
+              }
+            }
+          }
+        },
+        "effective_deferral": {
+          "type": "boolean"
+        },
+        "lease_expired": {
+          "type": "boolean"
+        }
+      }
+    },
+    "plan_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "evaluated_at", "baseline_digest", "baseline"],
+      "properties": {
+        "protocol": {
+          "const": "ak.task-session.baseline.v1"
+        },
+        "evaluated_at": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "baseline_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "baseline": {
+          "$ref": "#/$defs/baseline"
+        }
       }
     }
   }

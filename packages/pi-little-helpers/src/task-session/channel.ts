@@ -43,6 +43,10 @@ export class AdmissionChannel {
   #admission: WireMessage | undefined;
   #t1: WireMessage | undefined;
   #denied = false;
+  #closedVerified = false;
+  get closedVerified() {
+    return this.#closedVerified;
+  }
   constructor(
     private readonly prepared: WireMessage,
     private readonly interpret: (value: unknown) => WireMessage,
@@ -66,6 +70,12 @@ export class AdmissionChannel {
       b.effects === "committed_verified" &&
       b.readback_digest &&
       b.claim &&
+      b.accounting &&
+      b.accounting.task_version_after === b.claim.version &&
+      b.accounting.task_version_before + 1 === b.accounting.task_version_after &&
+      b.accounting.restored_evidence_attachments_preserved === true &&
+      b.accounting.governance_receipt_ids.length >= 1 &&
+      b.accounting.event_ids.length >= 1 &&
       b.claim.task_id === p.task_id &&
       b.claim.repo === p.repo &&
       b.claim.claimed_by === p.actor &&
@@ -107,6 +117,7 @@ export class AdmissionChannel {
     )
       return this.fail("closed_binding_or_phase");
     this.#phase = "consumed";
+    this.#closedVerified = true;
     if (
       this.#denied ||
       m.body.outcome !== "ADMITTED" ||

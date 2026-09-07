@@ -1,5 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
@@ -32,6 +39,9 @@ run(process.execPath, [
   "src/task-session/host.ts",
   "src/task-session/channel.ts",
   "src/task-session/ui.ts",
+  "src/task-session/host-entry.ts",
+  "src/task-session/viewer-entry.ts",
+  "src/task-session/launch.ts",
 ]);
 run(process.execPath, [
   "node_modules/typescript/bin/tsc",
@@ -98,3 +108,36 @@ run("/usr/bin/cc", [
   "dist/task-session/custody-linux-x64.node",
   "src/task-session/native.c",
 ]);
+
+copyFileSync(
+  "../pi-society-orchestrator/dist/task-session/task-session-adapter.js",
+  "dist/task-session/producer-adapter.js",
+);
+copyFileSync(
+  "../pi-society-orchestrator/dist/task-session/task-session-protocol-v1.json",
+  "dist/task-session/task-session-protocol-v1.json",
+);
+
+for (const [source, target] of [
+  ["host-entry.js", "host-v1"],
+  ["viewer-entry.js", "view-v1"],
+]) {
+  copyFileSync(`dist/task-session/${source}`, `dist/task-session/${target}`);
+  chmodSync(`dist/task-session/${target}`, 0o755);
+}
+writeFileSync("dist/task-session/package.json", JSON.stringify({ type: "module" }));
+const { bytesDigest, canonical } = await import("../dist/task-session/json.js");
+const files = Object.fromEntries(
+  readdirSync("dist/task-session")
+    .filter(
+      (f) =>
+        (/\.(js|json|node)$/.test(f) || f === "host-v1" || f === "view-v1") &&
+        f !== "build-identity.json",
+    )
+    .sort()
+    .map((f) => [f, bytesDigest(readFileSync(`dist/task-session/${f}`))]),
+);
+writeFileSync(
+  "dist/task-session/build-identity.json",
+  canonical({ schema: "pi.task-session.build.v1", files }),
+);

@@ -49,12 +49,17 @@ export function restrictedViewComponent(
   };
 }
 /** Copied observations and stop only. No submit/editor/provider/session/descriptor capability. */
-export function taskSessionView(inspect: () => ViewObservation, stop: () => Promise<void>) {
+export function taskSessionView(
+  inspect: () => ViewObservation,
+  stop: () => Promise<void>,
+  onQuit: () => void = () => {},
+) {
   const tui = new TuiMainScreen(new ProcessTerminal());
   let timer: ReturnType<typeof setInterval> | undefined;
   const quit = () => {
     if (timer) clearInterval(timer);
     tui.stop();
+    onQuit();
   };
   const component = restrictedViewComponent(inspect, stop, quit, () => tui.requestRender());
   tui.addChild(component);

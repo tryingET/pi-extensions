@@ -1,0 +1,99 @@
+import { join } from "node:path";
+import type { OAuthCredential } from "@earendil-works/pi-ai";
+import type { CodexProfile } from "./codex.js";
+import { bytesDigest, digest, integer, parseJson, record, refuse, text } from "./json.js";
+import { canonicalPath, type Locator, privatePath, privateRead } from "./state.js";
+export function hash(value: unknown): string {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) refuse("invalid_digest");
+  return value;
+}
+export interface ProfilePin {
+  schema: string;
+  provider: string;
+  model: string;
+  reasoning: CodexProfile["reasoning"];
+  account: string;
+  modelDigest: string;
+  credentialDigest: string;
+  agentDir: string;
+  runSeconds: number;
+  producer: {
+    executable: string;
+    entrypointDigest: string;
+    akBinaryDigest: string;
+    policyDigest: string;
+    databaseIdentity: string;
+    hostBuildDigest: string;
+  };
+}
+export function loadProfile(locator: Locator, reference: string): ProfilePin {
+  hash(reference);
+  privatePath(join(locator.root, "profiles"), true);
+  const p = record(parseJson(privateRead(join(locator.root, "profiles", `${reference}.json`))), [
+    "schema",
+    "provider",
+    "model",
+    "reasoning",
+    "account",
+    "modelDigest",
+    "credentialDigest",
+    "agentDir",
+    "runSeconds",
+    "producer",
+  ]);
+  if (
+    digest(p) !== reference ||
+    p.schema !== "pi.task-session.profile.v1" ||
+    p.provider !== "openai-codex" ||
+    !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(p.reasoning)
+  )
+    refuse("profile_pin_mismatch");
+  text(p.model, 128);
+  text(p.account, 128);
+  hash(p.modelDigest);
+  hash(p.credentialDigest);
+  canonicalPath(p.agentDir);
+  integer(p.runSeconds);
+  if (p.runSeconds > 86400) refuse("run_deadline_invalid");
+  const producer = record(p.producer, [
+    "executable",
+    "entrypointDigest",
+    "akBinaryDigest",
+    "policyDigest",
+    "databaseIdentity",
+    "hostBuildDigest",
+  ]);
+  canonicalPath(producer.executable);
+  for (const key of [
+    "entrypointDigest",
+    "akBinaryDigest",
+    "policyDigest",
+    "databaseIdentity",
+    "hostBuildDigest",
+  ])
+    hash(producer[key]);
+  return structuredClone(p) as ProfilePin;
+}
+export async function loadHostProfile(locator: Locator, reference: string) {
+  const p = loadProfile(locator, reference);
+  privatePath(join(locator.root, "credentials"), true);
+  const c = record(
+    parseJson(privateRead(join(locator.root, "credentials", `${p.credentialDigest}.json`))),
+    ["type", "access", "refresh", "expires"],
+  );
+  if (c.type !== "oauth" || digest(c) !== p.credentialDigest) refuse("credential_pin_mismatch");
+  text(c.access);
+  text(c.refresh);
+  integer(c.expires);
+  // Pure built-in catalog only; no ModelRuntime/default config/auth store construction here.
+  const { getModel } = await import("@earendil-works/pi-ai/compat");
+  const model = getModel("openai-codex", p.model as "gpt-5.4");
+  if (!model || bytesDigest(JSON.stringify(model)) !== p.modelDigest) refuse("model_pin_mismatch");
+  const profile: CodexProfile = {
+    model,
+    reasoning: p.reasoning,
+    account: p.account,
+    runDeadline: Date.now() + p.runSeconds * 1000,
+  };
+  return { pin: p, profile, credential: structuredClone(c) as OAuthCredential };
+}

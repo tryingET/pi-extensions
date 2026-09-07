@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,6 +77,9 @@ import {zstdDecompressSync} from 'node:zlib';
 assert.equal(taskSessionCapability().admissionAvailable,false);
 assert.equal(taskSessionAdapterIdentity.integrationReady,false);
 assertSdkIdentity();
+const shared='node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js';
+const original=readFileSync(shared);try{writeFileSync(shared,Buffer.concat([original,Buffer.from('\\n// synthetic tamper\\n')]));assert.throws(assertSdkIdentity,/sdk_identity_unsupported/);}finally{writeFileSync(shared,original);}
+assertSdkIdentity();
 writeFileSync('synthetic.lock','',{mode:0o600});const n=native(),h=n.openMutex(process.cwd()+'/synthetic.lock');
 assert.equal(n.tryLock(h),true);n.unlockMutex(h);n.closeMutex(h);
 const cwd=process.cwd()+'/synthetic-checkout';mkdirSync(cwd);mkdirSync(cwd+'/.git');mkdirSync(cwd+'/agent');
@@ -92,6 +95,34 @@ console.log(JSON.stringify({publicCore:true,adapter:true,sdkIdentity:true,native
 `;
 writeFileSync(join(scratch, "proof.mjs"), proof);
 const verified = JSON.parse(run(process.execPath, ["proof.mjs"]));
+// Run the same real startup/bridge process suite against the extracted artifact, not source dist.
+mkdirSync(join(scratch, "tests/fixtures/task-session"), { recursive: true });
+writeFileSync(
+  join(scratch, "tests/task-session-startup.test.mjs"),
+  readFileSync(join(root, "tests/task-session-startup.test.mjs"), "utf8").replaceAll(
+    "../dist/task-session/",
+    "../node_modules/@tryinget/pi-little-helpers/dist/task-session/",
+  ),
+);
+for (const file of [
+  "startup-host.mjs",
+  "startup-real-tui.mjs",
+  "pty-viewer.py",
+  "startup-viewer.mjs",
+  "startup-supervisor.c",
+  "ak-supervisor.py",
+  "ak-supervisor.sha256",
+  "run-owner-supervisor.py",
+  "synthetic-native-worker.py",
+]) {
+  const data = readFileSync(join(root, "tests/fixtures/task-session", file), "utf8").replaceAll(
+    "../../../dist/task-session/",
+    "../../../node_modules/@tryinget/pi-little-helpers/dist/task-session/",
+  );
+  writeFileSync(join(scratch, "tests/fixtures/task-session", file), data);
+}
+run(process.execPath, ["--test", "tests/task-session-startup.test.mjs"]);
+verified.packedStartupProcessSuite = true;
 const help = run(process.execPath, [
   "node_modules/@tryinget/pi-little-helpers/dist/task-session/bin.js",
   "--help",

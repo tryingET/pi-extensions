@@ -1,5 +1,5 @@
 {
-  "status": "draft-shape-fixtures-not-runtime-evidence",
+  "status": "static-protocol-fixtures-not-native-or-runtime-evidence",
   "valid": [
     {
       "protocol": "ak.task-session.v1",
@@ -27,26 +27,179 @@
         "lease_seconds": 3600,
         "baseline_digest": "4444444444444444444444444444444444444444444444444444444444444444"
       }
+    },
+    {
+      "protocol": "ak.task-session.v1",
+      "kind": "ADMISSION_RESULT",
+      "binding": {
+        "request": "synthetic-request",
+        "semantic_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "attempt": "synthetic-attempt",
+        "incarnation": "synthetic-incarnation",
+        "reservation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ak_binary_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "database_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "host_build_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "profile_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "raw_envelope_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "effective_envelope_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "body": {
+        "outcome": "ADMITTED",
+        "baseline_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "readback_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "claim": {
+          "task_id": 1,
+          "repo": "/synthetic/repo",
+          "version": 2,
+          "claimed_by": "synthetic-child",
+          "claimed_at": "2026-09-07T01:00:00+00:00",
+          "lease_expires_at": "2026-09-07T02:00:00+00:00"
+        },
+        "effects": "committed_verified",
+        "reason": "native_claim_verified",
+        "accounting": {
+          "task_version_before": 1,
+          "task_version_after": 2,
+          "restored_evidence_attachments_preserved": true,
+          "expired_deferrals": [],
+          "governance_receipt_ids": ["1"],
+          "event_ids": ["1"]
+        }
+      }
+    },
+    {
+      "protocol": "ak.task-session.v1",
+      "kind": "T1_PUBLISHED",
+      "binding": {
+        "request": "synthetic-request",
+        "semantic_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "attempt": "synthetic-attempt",
+        "incarnation": "synthetic-incarnation",
+        "reservation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ak_binary_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "database_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "host_build_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "profile_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "raw_envelope_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "effective_envelope_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "body": {
+        "outcome": "ADMITTED",
+        "admission_digest": "3dcfbcb46c83716d5ea624cd959717f6f725b11d02c822be2b3c42b09b89958e",
+        "no_dispatch": true
+      }
+    },
+    {
+      "protocol": "ak.task-session.v1",
+      "kind": "CLOSED",
+      "binding": {
+        "request": "synthetic-request",
+        "semantic_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "attempt": "synthetic-attempt",
+        "incarnation": "synthetic-incarnation",
+        "reservation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ak_binary_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "database_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "host_build_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "profile_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "raw_envelope_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "effective_envelope_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "body": {
+        "outcome": "ADMITTED",
+        "t1_digest": "c5b0fa9689912dd8458dc9670cfb96149c0fef0511a7fe294eabfa8730cb5245"
+      }
     }
   ],
   "invalid_mutations_of_valid_0": [
-    { "path": ["protocol"], "value": "ak.task-session.v2" },
-    { "path": ["kind"], "value": "EXEC" },
-    { "path": ["body", "no_dispatch"], "value": false },
-    { "path": ["body", "lease_seconds"], "value": 0 },
-    { "path": ["body", "lease_seconds"], "value": 86401 },
-    { "path": ["body", "fd"], "value": 9 },
-    { "path": ["body", "exec"], "value": "/bin/sh" },
-    { "path": ["binding", "incarnation"], "value": "../old" },
-    { "path": ["binding", "policy_digest"], "value": "unknown" }
+    {
+      "path": ["protocol"],
+      "value": "ak.task-session.v2"
+    },
+    {
+      "path": ["kind"],
+      "value": "EXEC"
+    },
+    {
+      "path": ["body", "no_dispatch"],
+      "value": false
+    },
+    {
+      "path": ["body", "lease_seconds"],
+      "value": 0
+    },
+    {
+      "path": ["body", "lease_seconds"],
+      "value": 86401
+    },
+    {
+      "path": ["body", "fd"],
+      "value": 9
+    },
+    {
+      "path": ["body", "exec"],
+      "value": "/bin/sh"
+    },
+    {
+      "path": ["binding", "incarnation"],
+      "value": "../old"
+    },
+    {
+      "path": ["binding", "policy_digest"],
+      "value": "unknown"
+    }
   ],
   "wire_rejections_not_tested": [
-    "duplicate object keys before JSON materialization",
-    "malformed UTF-8 or BOM",
-    "frame length exceeding 1048576",
-    "nesting exceeding 16",
-    "CLOSED on a new channel",
-    "duplicate CLOSED on the same channel",
-    "T1 sidecar present but CLOSED absent"
-  ]
+    "CLOSED replay on an independent real Pi channel",
+    "duplicate CLOSED in a real Pi channel"
+  ],
+  "definition_fixtures": {
+    "startup_request": {
+      "request": "synthetic-request",
+      "attempt": "synthetic-attempt",
+      "incarnation": "synthetic-incarnation",
+      "semantic_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reservation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "profile_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "raw_envelope_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "actor": "synthetic-child",
+      "task_id": 1,
+      "repo": "/synthetic/repo",
+      "lease_seconds": 3600,
+      "baseline_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "startup_deadline_ms": 1788750000000,
+      "schema": "ak.task-session.startup.v1"
+    },
+    "recovery_request": {
+      "schema": "ak.task-session.recovery.v1",
+      "attempt": "synthetic-attempt",
+      "incarnation": "synthetic-incarnation",
+      "claim": {
+        "task_id": 1,
+        "repo": "/synthetic/repo",
+        "version": 2,
+        "claimed_by": "synthetic-child",
+        "claimed_at": "2026-09-07T01:00:00+00:00",
+        "lease_expires_at": "2026-09-07T02:00:00+00:00"
+      }
+    },
+    "host_closure": {
+      "schema": "pi.task-session.host-closure.v1",
+      "attempt": "synthetic-attempt",
+      "incarnation": "synthetic-incarnation",
+      "owner_receipt_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "future_dispatch_closed": true
+    },
+    "effect_disposition": {
+      "schema": "pi.task-session.effect-disposition.v1",
+      "attempt": "synthetic-attempt",
+      "incarnation": "synthetic-incarnation",
+      "owner_receipt_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "started_effects_disposed": true
+    }
+  }
 }

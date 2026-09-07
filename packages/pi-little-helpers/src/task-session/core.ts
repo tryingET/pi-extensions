@@ -1,3 +1,4 @@
+import { readObservation, requestStop } from "./bridge.js";
 import { classifyTaskSessionRequest, producer } from "./classify.js";
 import { digest, id, integer, record, refuse, text } from "./json.js";
 import { accountLocator, canonicalPath, readSnapshot } from "./state.js";
@@ -36,6 +37,7 @@ export function taskSessionRequest(input: unknown): TaskSessionRequest {
   ]);
   if (r.schema !== "pi.task-session.request.v1") refuse("request_version_unsupported");
   id(r.requestId);
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(r.requestId)) refuse("protocol_request_id_invalid");
   id(r.akInstance);
   integer(r.taskId);
   canonicalPath(r.cwd);
@@ -56,12 +58,18 @@ export function taskSessionCapability() {
   return {
     schema: "pi.task-session.capability.v1",
     producer,
-    operations: ["plan", "launch", "inspect", "watch", "classify"],
-    admissionAvailable: false,
-    blockers: [
-      "ak_producer_blocked_draft_not_integration_ready",
-      "installed_profile_and_custody_unverified",
+    operations: [
+      "identity",
+      "plan",
+      "launch",
+      "inspect",
+      "watch",
+      "stop",
+      "classify",
+      "classify-installed",
     ],
+    admissionAvailable: false,
+    blockers: ["ak_producer_verification_pending", "installed_profile_and_custody_unverified"],
     profile:
       "native Codex SSE; zero retries; no OAuth refresh; literal resources; no secondary input",
     recovery:
@@ -86,11 +94,25 @@ export function planTaskSession(input: unknown) {
     launchable: false,
   };
 }
-export async function launchTaskSession(input: unknown): Promise<never> {
-  planTaskSession(input);
-  // Deliberately no reservation/spawn until the owner implements and freezes the startup request.
-  // An early shape fixture is not permission to select ordinary show/claim/show or an invented supervisor.
-  return refuse("ak_producer_blocked_draft_not_integration_ready");
+export async function launchTaskSession(input: unknown): Promise<unknown> {
+  const request = taskSessionRequest(input);
+  const adapter = await import("./producer-adapter.js");
+  adapter.requireTaskSessionProducer();
+  const { launchReserved, productionViewer, invokeSupervisor, readNativeBaseline } = await import(
+    "./launch.js"
+  );
+  const { loadProfile } = await import("./profile.js");
+  const locator = accountLocator(),
+    pin = loadProfile(locator, request.profile);
+  return launchReserved(request, locator, {
+    plan: (request) =>
+      readNativeBaseline(pin.producer.executable, pin.producer.entrypointDigest, request),
+    openViewer: productionViewer,
+    supervise: async (input) => {
+      const payload = adapter.encodeTaskSessionStartup(input);
+      await invokeSupervisor(pin.producer.executable, pin.producer.entrypointDigest, payload);
+    },
+  });
 }
 export function inspectTaskSession(requestId?: string) {
   if (requestId !== undefined) id(requestId);
@@ -101,6 +123,15 @@ export function inspectTaskSession(requestId?: string) {
     generation: s.generation,
     withdrawn: s.withdrawn,
     attempts: s.attempts.filter((a) => requestId === undefined || a.requestId === requestId),
+    observations: s.attempts
+      .filter((a) => requestId === undefined || a.requestId === requestId)
+      .map((a) => {
+        try {
+          return { attempt: a.attempt, observation: readObservation(accountLocator(), a.attempt) };
+        } catch {
+          return { attempt: a.attempt, observation: null };
+        }
+      }),
     snapshotDigest: digest(s),
   };
 }
@@ -130,3 +161,19 @@ export {
   classifyInstalledTaskSessionRequest,
   taskSessionInstalledIdentity,
 } from "./installed-identity.js";
+
+export function stopTaskSession(requestId: string) {
+  id(requestId);
+  const locator = accountLocator(),
+    attempt = readSnapshot(locator).attempts.find((a) => a.requestId === requestId);
+  if (!attempt) refuse("request_unknown");
+  requestStop(locator, attempt.attempt);
+  return {
+    schema: "pi.task-session.stop-requested.v1",
+    requestId,
+    attempt: attempt.attempt,
+    incarnation: attempt.incarnation,
+    claimReleased: false,
+    effectsRetired: false,
+  };
+}

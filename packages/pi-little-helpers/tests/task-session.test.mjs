@@ -337,8 +337,14 @@ test("literal resources ordered and executable factories absent", () => {
 const draft = JSON.parse(
   readFileSync(new URL("./fixtures/task-session/ak-draft.json", import.meta.url)),
 );
-test("actual AK draft fixture shape accepted but integration remains unavailable", () => {
-  assert.equal(interpretTaskSessionMessage(draft.valid[0]).kind, "PREPARED");
+test("actual AK source fixtures decode without asserting native integration readiness", async () => {
+  for (const message of draft.valid)
+    assert.deepEqual(interpretTaskSessionMessage(message), message);
+  const { interpretTaskSessionDefinition } = await import(
+    "../dist/task-session/producer-adapter.js"
+  );
+  for (const [name, value] of Object.entries(draft.definition_fixtures))
+    assert.deepEqual(interpretTaskSessionDefinition(name, value), value);
   assert.equal(taskSessionAdapterIdentity.integrationReady, false);
 });
 for (const mutation of draft.invalid_mutations_of_valid_0)
@@ -355,7 +361,7 @@ test("framing split at every byte and oversize/truncation rejection", () => {
   const messages = [];
   for (const byte of frame) messages.push(...decoder.push(Buffer.from([byte])));
   decoder.end();
-  assert.deepEqual(messages, draft.valid);
+  assert.deepEqual(messages, [draft.valid[0]]);
   assert.throws(() => new FrameDecoder().push(Buffer.from([255, 255, 255, 255])));
   const truncated = new FrameDecoder();
   truncated.push(frame.subarray(0, 9));
@@ -382,7 +388,15 @@ test("channel immutable T1 then bound one-shot CLOSED; restart cannot replay", (
         lease_expires_at: new Date(Date.now() + 60000).toISOString(),
       },
       effects: "committed_verified",
-      reason: "verified",
+      reason: "native_claim_verified",
+      accounting: {
+        task_version_before: 1,
+        task_version_after: 2,
+        restored_evidence_attachments_preserved: true,
+        expired_deferrals: [],
+        governance_receipt_ids: ["1"],
+        event_ids: ["1"],
+      },
     },
   };
   const t1 = c.admission(admission);
@@ -553,4 +567,34 @@ test("host persistence failure after CLOSED sends nothing", async () => {
   );
   assert.equal(sends, 0);
   assert.equal(h.inspect().denial, "post_close_persistence_failed");
+});
+
+test("SDK provider failure is not labeled a normal host finish", async () => {
+  const root = scratch(),
+    agent = join(root, "agent");
+  mkdirSync(agent);
+  mkdirSync(join(root, ".git"));
+  let sends = 0;
+  const h = await sealedHost(
+    {
+      incarnation: "synthetic",
+      cwd: root,
+      objective: "synthetic failure",
+      profile: profile(),
+      resources: captureResources(root, agent),
+    },
+    credential(),
+    {
+      send: async () => {
+        sends++;
+        return new Response('data: {"type":"error","message":"synthetic provider failure"}\n\n', {
+          headers: { "content-type": "text/event-stream" },
+        });
+      },
+    },
+  );
+  h.admit(Date.now() + 30000);
+  await h.dispatchAfterClosed(() => {});
+  assert.equal(sends, 1);
+  assert.equal(h.inspect().denial, "provider_error");
 });

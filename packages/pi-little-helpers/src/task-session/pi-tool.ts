@@ -4,7 +4,9 @@ import {
   inspectTaskSession,
   launchTaskSession,
   planTaskSession,
+  stopTaskSession,
   taskSessionCapability,
+  taskSessionInstalledIdentity,
 } from "./core.js";
 import { parseJson } from "./json.js";
 /** Thin projection only. Never touches the controller editor, ambient auth or Pi execution handles. */
@@ -16,7 +18,9 @@ export default function taskSessionTool(pi: ExtensionAPI) {
       "Discover, plan, launch or DB-free inspect an exact fresh ordinary visible task session. Launch currently refuses: AK producer integration is blocked. No fork/resume, automatic recovery or legacy fallback.",
     parameters: Type.Object(
       {
-        operation: Type.String({ enum: ["capability", "plan", "launch", "inspect"] }),
+        operation: Type.String({
+          enum: ["capability", "identity", "plan", "launch", "inspect", "stop"],
+        }),
         request: Type.Optional(Type.String({ maxLength: 65536 })),
         requestId: Type.Optional(Type.String({ maxLength: 128 })),
       },
@@ -27,6 +31,10 @@ export default function taskSessionTool(pi: ExtensionAPI) {
       try {
         if (params.operation === "capability" && !params.request && !params.requestId)
           result = taskSessionCapability();
+        else if (params.operation === "identity" && !params.request && !params.requestId)
+          result = taskSessionInstalledIdentity();
+        else if (params.operation === "stop" && !params.request && params.requestId)
+          result = stopTaskSession(params.requestId);
         else if (params.operation === "inspect" && !params.request)
           result = inspectTaskSession(params.requestId);
         else if (params.operation === "plan" && params.request && !params.requestId)

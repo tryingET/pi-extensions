@@ -5,6 +5,7 @@ import {
   inspectTaskSession,
   launchTaskSession,
   planTaskSession,
+  stopTaskSession,
   taskSessionCapability,
   taskSessionInstalledIdentity,
   watchTaskSession,
@@ -12,7 +13,7 @@ import {
 import { parseJson, refuse } from "./json.js";
 
 const help =
-  "pi-task-session: capability | identity | classify-installed | classify | plan | launch | inspect [request-id] | watch request-id\nclassify/plan/launch read one strict JSON object on stdin. No runtime/FD/account/namespace overrides.\nLaunch is blocked pending the AK producer implementation and independent integration. Inspection is DB-free.\n";
+  "pi-task-session: capability | identity | classify-installed | classify | plan | launch | inspect [request-id] | watch request-id | stop request-id\nclassify/plan/launch read one strict JSON object on stdin. No runtime/FD/account/namespace overrides.\nLaunch is blocked pending native AK verification and approved installation/pins. Inspection is DB-free.\n";
 async function input() {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -36,6 +37,7 @@ try {
   else if (op === "plan" && !args.length) output(planTaskSession(await input()));
   else if (op === "launch" && !args.length) output(await launchTaskSession(await input()));
   else if (op === "inspect" && args.length <= 1) output(inspectTaskSession(args[0]));
+  else if (op === "stop" && args.length === 1) output(stopTaskSession(args[0]));
   else if (op === "watch" && args.length === 1) {
     const controller = new AbortController();
     process.once("SIGINT", () => controller.abort());
