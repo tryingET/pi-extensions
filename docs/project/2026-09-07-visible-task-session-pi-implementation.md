@@ -412,3 +412,14 @@ this proof. Next step is independent re-review of the new I03 repro/fix, not wea
 
 Logs under `$TMPDIR`: `task5480-reasoning-{red,build,focused,lint,typecheck,structure,broader,orchestrator}.log`,
 `task5480-reasoning-{open,source-commit}.log`. The red log is retained as the pre-fix counterexample.
+
+
+### D151-I04 OPEN — approved owner model/provider resolution (before fixes)
+
+Evidence8459 identifies a remaining accepted-requirement gap: builtin-only openai-codex selection
+cannot express an exact operator alias resolved through approved owner metadata. Implement a private,
+content-addressed nonexecutable model source with explicit requested/resolved identities, bound into
+profiles/envelopes/receipts/UI. Do not infer actual Astra mappings or read live configuration. Native
+Codex API/endpoint/OAuth and exact reasoning constraints remain mandatory; unsupported metadata must
+refuse before effects. Producer readiness remains unconditionally fenced. Disposition stays open until
+source, synthetic native serialization and packed regressions pass; live alias availability is not proof here.
