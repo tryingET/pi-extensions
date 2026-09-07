@@ -15,7 +15,7 @@ export async function setup(packet, scenario = "complete") {
     false,
     "public path requires default worker, never test-support",
   );
-  assert.equal(manifest.task_session.abi, "ak.task-session.worker.v2");
+  assert.equal(manifest.task_session.abi, "ak.task-session.worker.v3");
   const alias = scenario.includes("alias") || scenario.startsWith("owner-");
   const old = json(packet.seedPins),
     worker = join(packet.workerRoot, "ak-bin");
@@ -106,7 +106,7 @@ m.configure(*[Path(p) for p in sys.argv[2:]],test_support=False)`,
     path: worker,
     sha256: sha(readFileSync(worker)),
     commit: manifest.commit,
-    abi: "ak.task-session.worker.v2",
+    abi: "ak.task-session.worker.v3",
     manifest_path: join(packet.workerRoot, "pin-manifest.json"),
     manifest_sha256: sha(readFileSync(join(packet.workerRoot, "pin-manifest.json"))),
   };
@@ -117,7 +117,7 @@ m.configure(*[Path(p) for p in sys.argv[2:]],test_support=False)`,
     protocol_sha256: "docs/project/contracts/task-session-protocol-v1.json",
     deployment_schema_sha256: "docs/project/contracts/task-session-deployment-v1.json",
   };
-  const hashes = Object.fromEntries(
+  const _hashes = Object.fromEntries(
     Object.entries(closure).map(([key, path]) => [key, sha(readFileSync(join(owner, path)))]),
   );
   const { installedHostBuild } = await import(
@@ -128,18 +128,19 @@ m.configure(*[Path(p) for p in sys.argv[2:]],test_support=False)`,
   mkdirSync(join(owner, "policy"), { mode: 0o700 });
   const policyPath = join(owner, "policy/ak-runtime-access.json");
   writeFileSync(policyPath, JSON.stringify(policy), { mode: 0o600 });
-  const bindings = {
-    policy_path: policyPath,
-    policy_sha256: sha(readFileSync(policyPath)),
-    policy_generation: policy.task_session.generation,
-    ordinary_binary: policy.approved_binary,
-    worker: workerPin,
-    gate_path: join(owner, closure.gate_sha256),
-    ...hashes,
-    host_sha256: policy.task_session.host_sha256,
-    host_build_digest: policy.task_session.host_build_digest,
-    database_selector_digest: sha(policy.database.path),
-  };
+  // Configuration meaning is owner-produced, even in this isolated fixture. Never duplicate
+  // the recovery-invariant algorithm on the Pi side.
+  const descriptor = JSON.parse(
+    execFileSync(join(owner, closure.gate_sha256), ["--", "task-session", "describe"], {
+      cwd: f.root,
+      env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
+      timeout: 15000,
+      maxBuffer: 65536,
+    }),
+  );
+  assert.equal(descriptor.state, "enabled", JSON.stringify(descriptor));
+  assert.equal(descriptor.worker_test_support, false);
+  const bindings = descriptor.bindings;
   f.state.durableWrite(
     join(ns, "producer.json"),
     {

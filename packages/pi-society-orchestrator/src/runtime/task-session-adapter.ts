@@ -6,12 +6,12 @@ import schema from "./task-session-protocol-v1.json" with { type: "json" };
 export const taskSessionAdapterIdentity = Object.freeze({
   interface: "pi.ak-task-session-adapter.v1",
   protocol: "ak.task-session.v1",
-  producerSchemaDigest: "c10e1fb35e04371345791aeb2eb7b5e88656e584f53473f41db6151029e095a2",
+  producerSchemaDigest: "9a7221c1c9d13fd57f1b7e37d9c16046ef6f87f9e7495836364bb8866bb9e64b",
   producerFixtureDigest: "ddbfdcc349f4a1f080711e84146c0e278bea06cd5e993c5a4c2a0738217ec8c3",
   status: schema["x-status"],
   configurationRequired: true,
   descriptor: "ak.task-session.descriptor.v1",
-  deploymentSchemaDigest: "0c9eb6ddc3fe7774d418cc8b1284c2503f734f1fee05a034401a2624cf433e09",
+  deploymentSchemaDigest: "a9bac2b23ec3f83d6c5f6c206f1021484ccadaa645bc3fea21350c608f3cd4df",
 });
 interface Rule {
   maxItems?: number;
@@ -143,6 +143,7 @@ export interface ProducerBindings {
   host_sha256: string;
   host_build_digest: string;
   database_selector_digest: string;
+  recovery_invariant_digest: string;
 }
 export interface ProducerDescriptor {
   schema: string;
@@ -185,6 +186,7 @@ export function interpretTaskSessionBindings(data: unknown): ProducerBindings {
     b.host_sha256,
     b.host_build_digest,
     b.database_selector_digest,
+    b.recovery_invariant_digest,
     b.ordinary_binary.sha256,
     b.worker.sha256,
     b.worker.manifest_sha256,

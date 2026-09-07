@@ -204,6 +204,9 @@ export async function requireInstalledProducer(
   return state;
 }
 export function assertProducerProfile(b: ProducerBindings, p: ProfilePin) {
+  // The full policy SHA binds the owner's recovery invariant too. Keep it opaque: no Pi
+  // policy-diff algorithm or parallel profile field that could disagree with owner meaning.
+  interpretTaskSessionBindings(b);
   if (
     p.producer.executable !== b.gate_path ||
     p.producer.entrypointDigest !== b.gate_sha256 ||

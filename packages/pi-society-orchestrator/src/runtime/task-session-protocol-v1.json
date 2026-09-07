@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ak.task-session.protocol.v1",
   "title": "Decision151 AK producer private protocol v1",
-  "x-status": "separate-worker-source-under-review",
-  "$comment": "Controller reports R1-R6 resolved and historical task5513 42-case interoperability complete, evidence8487. Operator selected separately pinned worker, evidence8488; ordinary approved_binary remains cdeef. New binding/native proofs and inert staging do not authorize publication, global ordinary upgrade or activation. No live catalog imported.",
+  "x-status": "dep-r1-repair-under-review",
+  "$comment": "DEP-R1 evidence8505 repair; operator custody UNKNOWN/DO NOT ENROLL evidence8504. Historical separate-worker ABI2 stage is not approved for publication. Ordinary cdeef/live policy unchanged. Worker ABI3 freezes original operational-policy and physical-lock recovery invariants; source/native/replacement-stage proofs do not authorize activation.",
   "x-transport": {
     "public_command": [
       "ak",
@@ -31,11 +31,11 @@
     "closed": "Private one-shot channel/phase/incarnation-bound message after explicit T2 unlock, not an on-disk receipt, not replayable after restart; dispatch also requires valid local outcome, deadline and post-unlock persistence",
     "failure": "No automatic retry/unclaim; no EOF/timeout/finally unlock; surviving host retains OFD and denies dispatch on supervisor failure; all-holder death is not effect or claim retirement",
     "bootstrap": "Supervisor sends pi.task-session.host-bootstrap.v1 seed on FD0 before PREPARED; fields exactly match $defs/host_bootstrap.",
-    "worker": "Separately pinned task_session.worker binary -d policy.database.path task-session owner-private; ABI v2 adds the fixed owner-generated private policy locator. FD0 duplex and FD1 same canonical OFD unchanged. Both pins, full policy, manifest/ABI and closure independently checked before DB open. Ordinary gate rejects private entrypoints. No public policy/FD/binary overrides or fallback.",
+    "worker": "Separately pinned task_session.worker binary -d policy.database.path task-session owner-private; ABI v3 retains the fixed owner-generated private policy locator. FD0 duplex and FD1 same canonical OFD unchanged. Both pins, full policy, manifest/ABI and closure independently checked before DB open. Ordinary gate rejects private entrypoints. No public policy/FD/binary overrides or fallback. ABI3 additionally requires the original held lock identity and a historical recovery guard; neither is caller-selected public input.",
     "policy_gate": "Separate worker configuration and DB-free owner descriptor are defined by task-session-deployment-v1.json. Complete policy SHA binds both ordinary approved_binary and task_session.worker, generation, manifest/ABI and closure. No activation from descriptor, staging or source-review status. Current runtime policy is unchanged.",
     "database_identity": "SHA256 canonical JSON {path:canonical database path,device:st_dev,inode:st_ino}; checked after T0 and worker result. Policy digest is SHA256 exact policy bytes. Protocol digest is SHA256 exact schema file bytes.",
     "baseline": "ak.task-session.baseline.v1: evaluated_at outside baseline_digest. Baseline binds typed task, raw complete relevant task/scope/companion/deferral/repo/dependency/decision membership rows, evidence attached or historical task_ref rows, effective_deferral and lease_expired. Integer SQL fields stored as strings in raw rows; row vectors sorted deterministically. Schema profile is selected from the complete validated stored migration ledger (versions and names) and exact independent frozen catalog: only 40 and 43. Ordinary authority families are identical for both; no dynamic skip of missing families, no begin/composition/impact activation.",
-    "recovery": "Existing private host-closure.json and effect-disposition.json must validate before T0. Preserved ak-admission.json binds exact claim. Immutable ak-recovery-started.json prevents replay; ak-recovery-result.json published+fsynced under new interval. Native failure is unresolved, never retried. ak-owner-binding.json freezes original deployment bindings. Only policy SHA/generation may advance for compatible exact recovery; unchanged worker, ordinary pin, closure and database generation required. ak-recovery-binding.json preserves old/current binding evidence without rewriting admission history. Withdrawal never releases a claim automatically.",
+    "recovery": "Existing private host-closure.json and effect-disposition.json must validate before T0. Preserved ak-admission.json binds exact claim. Immutable ak-recovery-started.json prevents replay; ak-recovery-result.json published+fsynced under new interval. Native failure is unresolved, never retried. ak-owner-binding.json freezes original deployment bindings. Only policy SHA/generation may advance for compatible exact recovery; unchanged worker, ordinary pin, closure and database generation required. ak-recovery-binding.json preserves old/current binding evidence without rewriting admission history. Withdrawal never releases a claim automatically. DEP-R1: ak-admission-lock.json captures actual T0 held OFD identity and original policy invariant. Changed policy is permitted only in recovery-only with advanced generation; unchanged-policy enabled recovery remains permitted. Every other parsed policy field remains invariant. Historical lock path/device/inode must match before once-marker and natively before DB open.",
     "effect_accounting": "Only exact task version v+1 and native status/claim tuple, task-row evidence attachment restoration with unchanged provenance, elapsed active deferral expiry fields, one native task transition receipt plus per-expired-deferral receipts, and claim event. Unexpected raw family or prior receipt drift fails the transaction and is conservatively unresolved once native mutation was entered. Trigger SQL must match parsed shipped migration definitions independently of the caller baseline; unknown or same-name replaced triggers refuse before mutation. All catalog table/index/view/trigger definitions (excluding physical rootpage addresses) must equal the version-selected committed catalog generated from NEW native schema40 or schema43 storage; caller baseline cannot bless FK cascades or other unsupported schema additions/definition drift.",
     "opener": "Writable admission and query-only plan both require existing regular main, valid native header, existing namespace gate/use records and exact native generation identity. Retain native ReadOnlyExisting namespace binding across native open/close to prohibit quiescent rebind; close without checkpoint. Refuse missing WAL/FEC, empty/corrupt WAL, corrupt/truncated/uncommitted tails, bad FEC, missing/empty/corrupt/stale namespace use and nonempty gate. Valid empty FEC/gate are native byte-neutral states. Pure pinned-engine validators bound sidecars to 64 MiB. Whole-family names/bytes are tested for these refusal and valid-empty cases on NEW synthetic DBs; no repair/provisioning is performed by task-session.",
     "bulk_recovery": "Supervisor and native worker require future policy.task_session.bulk_recovery_suspended=true. Ordinary gate refuses release-expired while set. Named owner reinstates only after host/effect/claim retirement. This does not inventory or intercept unknown external/direct callers."
@@ -941,11 +941,13 @@
         "binding",
         "admission",
         "recovery",
-        "owner_policy_path"
+        "owner_policy_path",
+        "lock_identity",
+        "recovery_guard"
       ],
       "properties": {
         "protocol": {
-          "const": "ak.task-session.worker.v2"
+          "const": "ak.task-session.worker.v3"
         },
         "binding": {
           "$ref": "#/$defs/binding"
@@ -974,6 +976,42 @@
           "type": "string",
           "pattern": "/[^\\x00-\\x1f]+",
           "maxLength": 4096
+        },
+        "lock_identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "device",
+            "inode"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "/[^\\x00-\\x1f]+",
+              "maxLength": 4096
+            },
+            "device": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "inode": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "recovery_guard": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/recovery_guard"
+            }
+          ]
         }
       }
     },
@@ -1320,6 +1358,29 @@
           "$ref": "#/$defs/baseline"
         }
       }
+    },
+    "recovery_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "original_policy_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "original_generation": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}(?![\\s\\S])"
+        },
+        "recovery_invariant_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        }
+      },
+      "required": [
+        "original_policy_digest",
+        "original_generation",
+        "recovery_invariant_digest"
+      ]
     }
   }
 }

@@ -19,7 +19,7 @@
     },
     "reason": {
       "type": "string",
-      "pattern": "[a-z_]{1,80}"
+      "pattern": "^[a-z_]{1,80}(?![\\s\\S])"
     },
     "operations": {
       "type": "array",
@@ -117,7 +117,7 @@
           "pattern": "[a-f0-9]{40}"
         },
         "abi": {
-          "const": "ak.task-session.worker.v2"
+          "const": "ak.task-session.worker.v3"
         },
         "manifest_path": {
           "type": "string",
@@ -147,7 +147,7 @@
         },
         "generation": {
           "type": "string",
-          "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}(?![\\s\\S])"
         },
         "state": {
           "enum": [
@@ -221,7 +221,7 @@
         },
         "policy_generation": {
           "type": "string",
-          "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}(?![\\s\\S])"
         },
         "ordinary_binary": {
           "$ref": "#/$defs/pin"
@@ -265,6 +265,10 @@
         "database_selector_digest": {
           "type": "string",
           "pattern": "[a-f0-9]{64}"
+        },
+        "recovery_invariant_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
         }
       },
       "required": [
@@ -281,7 +285,8 @@
         "supervisor_sha256",
         "host_sha256",
         "host_build_digest",
-        "database_selector_digest"
+        "database_selector_digest",
+        "recovery_invariant_digest"
       ],
       "additionalProperties": false
     },
@@ -299,7 +304,7 @@
         },
         "policy_generation": {
           "type": "string",
-          "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}(?![\\s\\S])"
         },
         "ordinary_binary": {
           "$ref": "#/$defs/pin"
@@ -347,6 +352,10 @@
         "database_identity": {
           "type": "string",
           "pattern": "[a-f0-9]{64}"
+        },
+        "recovery_invariant_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
         }
       },
       "required": [
@@ -364,7 +373,8 @@
         "host_sha256",
         "host_build_digest",
         "database_selector_digest",
-        "database_identity"
+        "database_identity",
+        "recovery_invariant_digest"
       ],
       "additionalProperties": false
     },
@@ -401,6 +411,78 @@
           "$ref": "#/$defs/plan_owner"
         }
       }
+    },
+    "admission_lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "ak.task-session.admission-lock.v1"
+        },
+        "attempt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "incarnation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "owner_binding_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "policy_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "recovery_invariant_digest": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "database_identity": {
+          "type": "string",
+          "pattern": "[a-f0-9]{64}"
+        },
+        "lock_identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "device",
+            "inode"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "/[^\\x00-\\x1f]+",
+              "maxLength": 4096
+            },
+            "device": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "inode": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "attempt",
+        "incarnation",
+        "owner_binding_digest",
+        "policy_digest",
+        "recovery_invariant_digest",
+        "database_identity",
+        "lock_identity"
+      ]
     }
-  }
+  },
+  "$comment": "Recovery invariant is canonical SHA256 of the entire parsed owner policy after removing ONLY task_session.state and task_session.generation. No other fields/metadata are excluded. Descriptor computes no physical DB/lock identity. Admission captures the held lock path/device/inode in an immutable AK receipt; recovery compares historical identity and policy before its once-marker and again natively. Changed policy requires recovery-only and different generation; unchanged-policy enabled recovery remains legal."
 }

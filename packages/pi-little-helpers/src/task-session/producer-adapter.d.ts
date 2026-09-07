@@ -31,6 +31,7 @@ export interface ProducerBindings {
   host_sha256: string;
   host_build_digest: string;
   database_selector_digest: string;
+  recovery_invariant_digest: string;
 }
 export interface ProducerDescriptor {
   schema: string;

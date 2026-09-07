@@ -1,4 +1,4 @@
-// Freeze the owner-provided default debug export for NEW synthetic proof, never a release/activation.
+// Freeze an owner-provided ABI3 stage/debug export for NEW isolated proof; never publish/activate.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -26,6 +26,12 @@ if (expectedManifest) {
   assert.equal(manifest.dirty, false);
   assert.equal(manifest.cargo_locked, true);
   assert.equal(manifest.activation, "not_published");
+  assert.equal(
+    manifest.task_session.abi,
+    "ak.task-session.worker.v3",
+    "historical ABI2 stage cannot become replacement proof",
+  );
+  assert.equal(manifest.task_session.test_support, false);
   for (const [name, entry] of Object.entries(manifest.files)) {
     assert(!name.startsWith("/") && !name.split("/").includes(".."));
     const data = readFileSync(join(exportRoot, name));
@@ -50,7 +56,7 @@ if (expectedManifest) {
   );
   assert.deepEqual(abi, {
     schema: "ak.task-session.worker-abi.v1",
-    abi: "ak.task-session.worker.v2",
+    abi: "ak.task-session.worker.v3",
     protocol: "ak.task-session.v1",
     supported_schemas: [40, 43],
     test_support: false,
@@ -64,8 +70,15 @@ if (expectedManifest) {
     execFileSync("git", ["-C", repo, "show", `${commit}:${helper}`], { maxBuffer: 1000000 }),
     { mode: 0o600 },
   );
+  const fixturesName = "docs/project/contracts/task-session-deployment-v1.fixtures.json",
+    fixtures = execFileSync("git", ["-C", repo, "show", `${commit}:${fixturesName}`], {
+      maxBuffer: 1000000,
+    });
+  mkdirSync(dirname(join(sourceRoot, fixturesName)), { recursive: true });
+  writeFileSync(join(sourceRoot, fixturesName), fixtures, { mode: 0o600 });
   const packet = {
     schema: "pi.task-session.public-proof-packet.v1",
+    ownerFixtureSha256: sha(fixtures),
     sourceCommit: commit,
     sourceRoot,
     workerRoot: resolve(exportRoot),
@@ -120,7 +133,7 @@ const abi = JSON.parse(
 );
 assert.deepEqual(abi, {
   schema: "ak.task-session.worker-abi.v1",
-  abi: "ak.task-session.worker.v2",
+  abi: "ak.task-session.worker.v3",
   protocol: "ak.task-session.v1",
   supported_schemas: [40, 43],
   test_support: false,
@@ -132,7 +145,7 @@ const manifest = {
   synthetic_fixture_not_release: true,
   task_session: {
     schema: "ak.task-session.worker-abi.v1",
-    abi: "ak.task-session.worker.v2",
+    abi: "ak.task-session.worker.v3",
     protocol: "ak.task-session.v1",
     supported_schemas: [40, 43],
     test_support: false,

@@ -21,5 +21,20 @@ def receive(channel,deadline):
     value=original_receive(channel,deadline);observe(value);return value
 m.send,m.receive=send,receive
 request=m.parse(sys.stdin.buffer.read(m.MAX_FRAME+1))
-result=m.Supervisor(pathlib.Path(c['owner'])/'policy/ak-runtime-access.json',pathlib.Path(c['host']),pathlib.Path(c['ns']),pathlib.Path(c['owner'])/'docs/project/contracts/task-session-protocol-v1.json').startup(request)
-(root/'public-supervisor-result.json').write_text(m.canonical(result).decode())
+mode=sys.argv[2] if len(sys.argv)==3 else 'supervise'
+assert mode in ('supervise','recover')
+# Observation only: count actual native process starts, never replace worker verdicts.
+original_popen=m.subprocess.Popen
+def popen(argv,*args,**kwargs):
+    if argv[0]==c['bindings']['worker']['path']:
+        with (root/'public-native-starts.jsonl').open('a') as out:out.write(json.dumps({'mode':mode,'argv':argv})+'\n')
+    return original_popen(argv,*args,**kwargs)
+m.subprocess.Popen=popen
+try:
+    supervisor=m.Supervisor(pathlib.Path(c['owner'])/'policy/ak-runtime-access.json',pathlib.Path(c['host']),pathlib.Path(c['ns']),pathlib.Path(c['owner'])/'docs/project/contracts/task-session-protocol-v1.json')
+    result=supervisor.startup(request) if mode=='supervise' else supervisor.recover(request)
+    (root/('public-supervisor-result.json' if mode=='supervise' else 'public-recovery-result.json')).write_text(m.canonical(result).decode())
+    if mode=='recover':print(m.canonical({'ok':True,'result':result}).decode())
+except Exception as error:
+    if mode!='recover':raise
+    print(json.dumps({'ok':False,'reason':str(error)}));sys.exit(78)

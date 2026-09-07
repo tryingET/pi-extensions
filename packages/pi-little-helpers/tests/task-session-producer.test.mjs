@@ -33,7 +33,7 @@ function descriptor() {
         path: "/owned/example/worker/ak-bin",
         sha256: "2".repeat(64),
         commit: "2".repeat(40),
-        abi: "ak.task-session.worker.v2",
+        abi: "ak.task-session.worker.v3",
         manifest_path: "/owned/example/worker/pin-manifest.json",
         manifest_sha256: "3".repeat(64),
       },
@@ -46,6 +46,7 @@ function descriptor() {
       host_sha256: "4".repeat(64),
       host_build_digest: "4".repeat(64),
       database_selector_digest: "6".repeat(64),
+      recovery_invariant_digest: "7".repeat(64),
     },
   };
 }
@@ -128,6 +129,7 @@ for (const field of [
   "host_sha256",
   "host_build_digest",
   "database_selector_digest",
+  "recovery_invariant_digest",
 ])
   test(`owner expected binding mismatch: ${field}`, () => {
     const d = descriptor(),
@@ -271,4 +273,22 @@ test("DEP-R2 Unicode schema lengths count code points, as owner Python does", ()
     }
     assert.equal(accepted, expected[i]);
   });
+});
+
+test("DEP-R1 old ABI2 and missing/invalid invariant publication refuse", () => {
+  for (const change of [
+    (d) => {
+      d.bindings.worker.abi = "ak.task-session.worker.v2";
+    },
+    (d) => {
+      delete d.bindings.recovery_invariant_digest;
+    },
+    (d) => {
+      d.bindings.recovery_invariant_digest += "\n";
+    },
+  ]) {
+    const d = descriptor();
+    change(d);
+    assert.throws(() => interpretTaskSessionDescriptor(d));
+  }
 });
