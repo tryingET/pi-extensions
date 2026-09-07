@@ -263,3 +263,20 @@ and incomplete top-level-only orchestrator discovery) were corrected before thes
 5. Independent occupancy/effect custody and three-part retirement remain explicit owner work. Inspect/watch/
    stop cannot recover claims or infer effects resolved. No AK CLI/DB, native recovery or other worker signaling
    was performed here. Task5480/Decision151 is **not complete or accepted**.
+
+
+## Review findings — evidence8436 against 943cdd85 (open before fixes)
+
+- **D151-I01 HIGH — OPEN:** physical inode validation does not establish current Git metadata topology.
+  Re-resolve checkout gitdir/commondir during inventory, reservation and host custody validation;
+  drift must deny/return unknown without clearing or reinterpreting retained occupancy.
+- **D151-I02 HIGH — OPEN:** SDK identity omits package resolution metadata and non-.js executable entries.
+  Pin reviewed package manifests, consumed export entrypoints and executable closure; reject export
+  redirection and executable additions, retaining the existing source-tamper check.
+- **D151-I03 MEDIUM — OPEN:** model/credential compatibility is checked after reservation/viewer effects.
+  Introduce read-only SDK/model/account/lifetime preflight before reservation or effect ports, and retain
+  child checks against later drift. Negative tests must observe unchanged inventory and no effect calls.
+
+These are implementation defects, not unavailable-live-evidence excuses. Dispositions remain open
+until source fixes and named regression/packaging checks are observed. No producer fence removal,
+live credentials/config/provider/AK/DB access, enrollment or activation is authorized by this review.
