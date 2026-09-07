@@ -1,0 +1,257 @@
+diff --git a/packages/pi-context-packer/README.md b/packages/pi-context-packer/README.md
+index 2db796b8..e8d5d6e7 100644
+--- a/packages/pi-context-packer/README.md
++++ b/packages/pi-context-packer/README.md
+@@ -11,6 +11,11 @@ system4d:
+ 
+ # @tryinget/pi-context-packer
+ 
++Ripwire is the only code provider. Automatic selection is not approved; use explicit
++`providers.ripwire: "required"` after operator provisioning. Set
++`PI_CONTEXT_PACKER_RIPWIRE_DISABLED=1` to block all ripwire invocation.
++See [rollout and evidence](docs/project/ripwire-rollout.md).
++
+ Read-only context planning and packet assembly for Pi. Instructions, Markdown/docs-list,
+ Git posture, and session metadata remain available. Prompt Vault, AK, and FCOS remain
+ owner-routed. Ripwire is available for explicit, read-only code discovery:
+diff --git a/packages/pi-context-packer/extensions/context-pack.ts b/packages/pi-context-packer/extensions/context-pack.ts
+index b4a79aae..8f7a57db 100644
+--- a/packages/pi-context-packer/extensions/context-pack.ts
++++ b/packages/pi-context-packer/extensions/context-pack.ts
+@@ -78,7 +78,7 @@ const contextPlanTool: ContextPackerToolDefinition = {
+   promptGuidelines: [
+     "Use context_plan for cross-source planning before collecting large code/docs/task context.",
+     "Treat the result as a read-only plan and provider-boundary membrane, not as task/evidence authority.",
+-    "Explicitly select providers.ripwire=required for code discovery without filename seeds; Pi read/search remains available. Use separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
++    "Automatic code discovery is not approved in this build. Explicitly select providers.ripwire=required for code discovery without filename seeds; Pi read/search remains available. Use separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
+     "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
+   ],
+   parameters: CONTEXT_PLAN_PARAMETERS,
+diff --git a/packages/pi-context-packer/scripts/dogfood-gate.mjs b/packages/pi-context-packer/scripts/dogfood-gate.mjs
+index 9d5bbfb5..36c77866 100644
+--- a/packages/pi-context-packer/scripts/dogfood-gate.mjs
++++ b/packages/pi-context-packer/scripts/dogfood-gate.mjs
+@@ -27,7 +27,7 @@ for (let i = 2; i < process.argv.length; i += 2) {
+ }
+ if (
+   flags.size !== 3 ||
+-  !["RW-01", "RW-02", "RW-03", "RW-04", "RW-05", "RW-06", "RW-07", "RW-08"].includes(
++  !["RW-01", "RW-02", "RW-03", "RW-04", "RW-05", "RW-06", "RW-07", "RW-08", "RW-09"].includes(
+     flags.get("--gate"),
+   ) ||
+   !/^[a-f0-9]{40}$/u.test(flags.get("--candidate-sha"))
+@@ -183,6 +183,11 @@ try {
+       !text.includes("ripwire registered working set PASS")
+     )
+       throw new Error("Working set runtime marker absent");
++    if (
++      Number(flags.get("--gate").slice(3)) >= 9 &&
++      !text.includes("ripwire registered rollout gate PASS")
++    )
++      throw new Error("Rollout runtime marker absent");
+   }
+ } catch (error) {
+   if (!receipt.checks.some((check) => check.status !== "PASS"))
+diff --git a/packages/pi-context-packer/scripts/dogfood-scenarios.mjs b/packages/pi-context-packer/scripts/dogfood-scenarios.mjs
+index f5684124..19815c67 100644
+--- a/packages/pi-context-packer/scripts/dogfood-scenarios.mjs
++++ b/packages/pi-context-packer/scripts/dogfood-scenarios.mjs
+@@ -96,6 +96,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
+     "RW-01": migrationScenario,
+     "RW-02": (await import("./dogfood-budget.mjs")).budgetScenario,
+     "RW-03": (await import("./dogfood-adapter.mjs")).adapterScenario,
++    "RW-09": (await import("./dogfood-policy.mjs")).policyScenario,
+     "RW-08": (await import("./dogfood-evaluation.mjs")).evaluationScenario,
+     "RW-07": (await import("./dogfood-working-set.mjs")).workingSetScenario,
+     "RW-06": (await import("./dogfood-cache.mjs")).cacheScenario,
+diff --git a/packages/pi-context-packer/src/context-pack.js b/packages/pi-context-packer/src/context-pack.js
+index cdf70574..8c69fa83 100644
+--- a/packages/pi-context-packer/src/context-pack.js
++++ b/packages/pi-context-packer/src/context-pack.js
+@@ -591,7 +591,10 @@ export const buildContextPacket = async (input = {}, env = {}) => {
+       remainingBudget,
+       providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "ripwire"),
+     });
+-    if (!result.ok || (result.section.items.length > 0 && selection.keptCount === 0)) {
++    if (
++      result.state.required &&
++      (!result.ok || (result.section.items.length > 0 && selection.keptCount === 0))
++    ) {
+       requiredProviderFailures.push("ripwire");
+     }
+   }
+diff --git a/packages/pi-context-packer/src/context-plan.js b/packages/pi-context-packer/src/context-plan.js
+index a71e34c9..8f07ee38 100644
+--- a/packages/pi-context-packer/src/context-plan.js
++++ b/packages/pi-context-packer/src/context-plan.js
+@@ -21,6 +21,7 @@ import {
+   buildContextPackExecutionSummary,
+   contextPackProviderCapability,
+ } from "./provider-capabilities.js";
++import { plannedRipwirePolicy } from "./ripwire-policy.js";
+ 
+ export { contextPackProviderCapability } from "./provider-capabilities.js";
+ 
+@@ -547,11 +548,6 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
+   if (requestedMode === "off") return { posture: "skipped", reason: "provider disabled by caller" };
+   if (requestedMode === "required")
+     return { posture: "selected", reason: "provider required by caller" };
+-  if (provider === "ripwire")
+-    return {
+-      posture: "optional",
+-      reason: "explicit ripwire selection required; automatic activation is off",
+-    };
+   if (providerMatches(provider, objective, seeds)) {
+     return { posture: "selected", reason: "provider matches objective or seeds" };
+   }
+@@ -564,7 +560,15 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
+ const buildProviderPlans = ({ objective, seeds, providers, budget, env }) =>
+   PROVIDER_IDS.map((provider) => {
+     const mode = normalizeMode(providers[provider]);
+-    const { posture, reason } = postureForProvider(provider, mode, objective, seeds);
++    const { posture, reason } =
++      provider === "ripwire"
++        ? plannedRipwirePolicy({
++            mode,
++            codeIntent: providerMatches(provider, objective, seeds),
++            budget,
++            env,
++          })
++        : postureForProvider(provider, mode, objective, seeds);
+     const selected = posture === "selected" || posture === "optional";
+     const capability = contextPackProviderCapability(provider, env, { reason });
+     return {
+diff --git a/packages/pi-context-packer/src/packet-budget.js b/packages/pi-context-packer/src/packet-budget.js
+index e106e3fb..cbb10e94 100644
+--- a/packages/pi-context-packer/src/packet-budget.js
++++ b/packages/pi-context-packer/src/packet-budget.js
+@@ -3,7 +3,10 @@ summary: "Fit the complete rendered packet, preserving explicit omissions and ho
+ read_when:
+   - "Changing output ceilings, tokenizer fallback, or post-render selection."
+ */
+-import { compactSessionContextUsage } from "./session-context.js";
++import { nonnegative, outputLimits } from "./packet-budget-limits.js";
++
++export { outputLimits } from "./packet-budget-limits.js";
++
+ import {
+   buildDogfoodObservationTemplate,
+   buildMeasurementHints,
+@@ -11,26 +14,6 @@ import {
+ } from "./session-measurement.js";
+ 
+ const bytes = (text) => Buffer.byteLength(text, "utf8");
+-const nonnegative = (value) => Number.isSafeInteger(value) && value >= 0;
+-
+-export function outputLimits(budget = {}, env = {}) {
+-  const configured = nonnegative(budget.maxTokens) ? budget.maxTokens : 40_000;
+-  const reserve = nonnegative(budget.reserveTokens) ? budget.reserveTokens : 0;
+-  const usage = compactSessionContextUsage(env.contextUsage);
+-  const remaining = nonnegative(env.remainingInputTokens)
+-    ? env.remainingInputTokens
+-    : nonnegative(usage.tokens) && nonnegative(usage.windowTokens)
+-      ? Math.max(0, usage.windowTokens - usage.tokens)
+-      : null;
+-  const tokens = Math.max(0, Math.min(configured, remaining ?? configured) - reserve);
+-  // An estimate is not a tokenizer guarantee. The independently enforced byte cap is exact.
+-  const exactCounter = typeof env.countTokens === "function" ? env.countTokens : null;
+-  const maxBytes = Math.min(
+-    nonnegative(budget.maxBytes) ? budget.maxBytes : configured * 4,
+-    exactCounter ? Number.MAX_SAFE_INTEGER : tokens * 2,
+-  );
+-  return { tokens, maxBytes, remaining, reserve, exactCounter };
+-}
+ 
+ function refresh(result) {
+   const { packet, plan } = result;
+diff --git a/packages/pi-context-packer/src/provider-capabilities.js b/packages/pi-context-packer/src/provider-capabilities.js
+index b0ef5cf6..71b87408 100644
+--- a/packages/pi-context-packer/src/provider-capabilities.js
++++ b/packages/pi-context-packer/src/provider-capabilities.js
+@@ -3,6 +3,7 @@ summary: "Classifies context providers as executable, preflight-gated, eligibili
+ read_when:
+   - "Changing provider wiring posture, session eligibility, or recommended next actions."
+ */
++import { ripwireDisabled } from "./ripwire-policy.js";
+ import { hasHighSessionContextPressure } from "./session-context.js";
+ 
+ const PROVIDER_CAPABILITIES = Object.freeze({
+@@ -29,6 +30,12 @@ const PROVIDER_CAPABILITIES = Object.freeze({
+ export const contextPackProviderCapability = (provider, env = {}, planContext = {}) => {
+   const capability = PROVIDER_CAPABILITIES[provider];
+   if (!capability) return { adapterStatus: "unknown", executionStatus: "owner_routed" };
++  if (provider === "ripwire" && ripwireDisabled(env.ripwire))
++    return {
++      adapterStatus: "guarded",
++      executionStatus: "blocked_by_safety_gate",
++      executionCondition: "operator_disabled",
++    };
+   if (
+     provider === "session" &&
+     (planContext.reason === "provider required by caller" ||
+diff --git a/packages/pi-context-packer/src/ripwire-provider.js b/packages/pi-context-packer/src/ripwire-provider.js
+index d6e33690..1784f08a 100644
+--- a/packages/pi-context-packer/src/ripwire-provider.js
++++ b/packages/pi-context-packer/src/ripwire-provider.js
+@@ -13,6 +13,7 @@ import { copyApprovedCorpus } from "./ripwire-corpus.js";
+ import { discoveryArguments, prepareRipwire } from "./ripwire-exec.js";
+ import { expansionArguments, parseExpansion } from "./ripwire-expansion.js";
+ import { parseRipwireCandidates } from "./ripwire-output.js";
++import { ripwireDisabled } from "./ripwire-policy.js";
+ 
+ const PUBLIC_ERRORS = new Set([
+   "ripwire_not_configured",
+@@ -38,6 +39,19 @@ const PUBLIC_ERRORS = new Set([
+ ]);
+ export async function collectRipwire(input, options = {}) {
+   options.signal?.throwIfAborted();
++  if (ripwireDisabled(options))
++    return {
++      ok: false,
++      items: [],
++      omissions: [
++        {
++          provider: "ripwire",
++          reason: "operator_disabled",
++          detail:
++            "Operator disabled code discovery; no process was invoked. Use Pi read/search tools.",
++        },
++      ],
++    };
+   const scratch = await mkdtemp(join(tmpdir(), "pi-ripwire-"));
+   try {
+     const runtime = await prepareRipwire(scratch, options);
+diff --git a/packages/pi-context-packer/src/ripwire-runtime-smoke.ts b/packages/pi-context-packer/src/ripwire-runtime-smoke.ts
+index e2c75611..4f7f813c 100644
+--- a/packages/pi-context-packer/src/ripwire-runtime-smoke.ts
++++ b/packages/pi-context-packer/src/ripwire-runtime-smoke.ts
+@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { type ExtensionContext, SessionManager } from "@earendil-works/pi-coding-agent";
++import { runRipwirePolicySmoke } from "./ripwire-policy-smoke.ts";
+ import type { SmokeTool } from "./runtime-smoke.ts";
+ 
+ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionContext) {
+@@ -146,6 +147,8 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
+       );
+       console.log("ripwire registered working set PASS");
+     }
++    if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 9)
++      await runRipwirePolicySmoke(tool, context);
+     const off = await tool.execute(
+       "ripwire-registered-off",
+       { ...args, providers: { ...providers, ripwire: "off" } },
+diff --git a/packages/pi-context-packer/src/ripwire-section.js b/packages/pi-context-packer/src/ripwire-section.js
+index 21796f8f..996f86cc 100644
+--- a/packages/pi-context-packer/src/ripwire-section.js
++++ b/packages/pi-context-packer/src/ripwire-section.js
+@@ -4,7 +4,7 @@ read_when:
+   - "Changing code-provider execution policy or required-provider outcomes."
+ */
+ import { dedupeCodeItems } from "./code-working-set.js";
+-import { outputLimits } from "./packet-budget.js";
++import { outputLimits } from "./packet-budget-limits.js";
+ import { collectRipwire } from "./ripwire-provider.js";
+ 
+ export async function buildRipwireSection(plan, env = {}) {
