@@ -125,3 +125,8 @@ export async function* watchTaskSession(requestId: string, signal: AbortSignal) 
     });
   }
 }
+
+export {
+  classifyInstalledTaskSessionRequest,
+  taskSessionInstalledIdentity,
+} from "./installed-identity.js";

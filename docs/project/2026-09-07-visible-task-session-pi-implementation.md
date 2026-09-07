@@ -102,3 +102,30 @@ Versions were not released/bumped; downstream must pin the exact reviewed artifa
 5. **Release/rollout owner:** complete declared broad validation safely, supported-platform native packing tests, install/reload reality gate, exact profile/artifact pin activation, lane version/digest compatibility checks and restricted visible end-to-end rollout. None was authorized or performed here.
 
 No DB mutation/query, AK invocation/rebinding, live credential read, provider request, namespace enrollment, pin activation, worker recovery or canonical dirty checkout file mutation was performed. The safe handoff is committed independent code plus explicit blockers—not a claim that an ordinary visible task can launch today.
+
+
+## Continuation: lane5481 canonical binding contract (published before bootstrap work)
+
+New emitted public exports from `@tryinget/pi-little-helpers/task-session-core`:
+
+- `taskSessionInstalledIdentity()` / `pi-task-session identity` (no stdin/options):
+  `{schema:"pi.task-session.installed-identity.v1",producer,configured:true,akInstance,namespace:{id,generation,snapshotDigest},classificationExport:"classifyInstalledTaskSessionRequest",classificationRequestSchema:"pi.task-session.classify-installed-request.v1",identityDigest}`.
+- `classifyInstalledTaskSessionRequest(request)` / `pi-task-session classify-installed`
+  takes exactly `{schema:"pi.task-session.classify-installed-request.v1",requestId,taskIds,cwd}`.
+  Same bounded whole-request semantics and classification.v1 response as above, plus `identityDigest`.
+  `requestDigest` hashes THIS input, not an invented AK-instance-bearing request.
+
+Consumer recipe: import the pinned emitted core; verify descriptor schema/producer and `configured:true`;
+validate the entire legacy argv; call `classifyInstalledTaskSessionRequest` with ALL task IDs and canonical cwd;
+verify response producer, request digest and namespace; only `classification:"outside"` permits legacy consideration.
+The classifier obtains canonical identity and classification from ONE freshly validated account-bound snapshot,
+so callers need not pass a possibly stale descriptor digest or guessed AK CLI/environment identity.
+A changed descriptor between discovery and classification is not an admission or a cached outside certificate.
+
+Canonical binding is derived only when the existing owner-provisioned COMPLETE domain inventory has exactly
+one distinct AK instance and the namespace is not withdrawn. This is a read-only projection of existing owner
+state, NOT a new authority/registry/config file. Missing, mixed-instance, incomplete or replaced inventory returns
+`configured:false` / `classification:"unknown"`; never guessed identity or fabricated outside.
+Public functions have no locator/home/namespace injection argument. Internal filesystem tests use synthetic
+locators; no operator configuration was read to generate fixtures. This contract is implemented in source;
+installed activation remains a separate gate.

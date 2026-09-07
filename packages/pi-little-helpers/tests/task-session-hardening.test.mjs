@@ -6,6 +6,10 @@ import test from "node:test";
 import { classifyNamespace } from "../dist/task-session/classify.js";
 import { taskSessionCapability } from "../dist/task-session/core.js";
 import { DispatchGuard, guardedExecution } from "../dist/task-session/dispatch.js";
+import {
+  classifyInstalledInNamespace,
+  identityFromSnapshot,
+} from "../dist/task-session/installed-identity.js";
 import taskSessionTool from "../dist/task-session/pi-tool.js";
 import {
   durableWrite,
@@ -101,6 +105,18 @@ test("real DB-free classification loads same physical snapshot and detects repla
     cwd: checkout,
   };
   assert.equal(classifyNamespace(request, locator).classification, "outside");
+  assert.equal(identityFromSnapshot(state).akInstance, "a");
+  const installed = {
+    schema: "pi.task-session.classify-installed-request.v1",
+    requestId: "r",
+    taskIds: [1],
+    cwd: checkout,
+  };
+  assert.equal(classifyInstalledInNamespace(installed, locator).classification, "outside");
+  assert.throws(() => identityFromSnapshot({ ...state, withdrawn: true }));
+  assert.throws(() =>
+    identityFromSnapshot({ ...state, domains: [domain, { ...domain, akInstance: "other" }] }),
+  );
   state.enrolled.push(domain);
   durableWrite(join(root, "state.json"), state);
   assert.equal(classifyNamespace(request, locator).classification, "enrolled");
