@@ -360,3 +360,13 @@ approved owner provisioning/profiles/pins/installation; live Pi/Ghostty/provider
 filesystem-fault and supported-platform validation. Public launch and host entry still invoke the unconditional
 producer-verification fence. No AK/DB/native AK build, live auth/config/provider, installation, enrollment,
 claim mutation/recovery, other-worker signaling or out-of-scope source changes were performed.
+
+
+### I03 reopened — requested reasoning fidelity (before correction)
+
+**D151-I03 OPEN:** independent review resolved I01/I02, but found a remaining late refusal:
+a correctly content-addressed gpt-5.4 profile requesting `max` passes model/account/lifetime preflight,
+while pinned SDK reasoning normalization produces `xhigh`; the child rejects constructor state only
+later. The earlier I03 fixed disposition was incomplete. Require exact effective/requested reasoning
+agreement in the read-only preflight before reservation or effect ports; never silently downgrade.
+Retain child rechecks and verify supported levels plus unchanged namespace/zero effects for this repro.
