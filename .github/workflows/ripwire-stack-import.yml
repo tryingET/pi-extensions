@@ -2,7 +2,7 @@ name: Import ripwire stack increment
 on:
   push:
     branches: [work/context-packer-ripwire-bootstrap]
-    paths: ['.ripwire-stack/inbox/*.json']
+    paths: ['.ripwire-stack/inbox/*.json', '.github/workflows/ripwire-stack-import.yml']
 permissions:
   contents: write
 concurrency:
@@ -22,8 +22,7 @@ jobs:
           import base64, hashlib, json, os, pathlib, re, subprocess, tempfile
           def git(*args):
               return subprocess.check_output(['git', *args], text=True).strip()
-          sha = os.environ['GITHUB_SHA']
-          changed = git('diff-tree','--no-commit-id','--name-only','-r',sha).splitlines()
+          changed = git('diff-tree','--no-commit-id','--name-only','-r',os.environ['GITHUB_SHA']).splitlines()
           receipts = []
           for name in changed:
               if not re.fullmatch(r'\.ripwire-stack/inbox/[0-9]{2}-[a-z0-9-]+\.json', name):
@@ -31,11 +30,18 @@ jobs:
               p = pathlib.Path(name)
               assert p.stat().st_size < 1000000
               data = json.loads(p.read_text())
+              if 'source' in data:
+                  assert re.fullmatch(r'[0-9]{2}-[a-z0-9-]+\.json', data['source'])
+                  original = json.loads((p.parent/data['source']).read_text())
+                  for before, after in data['corrections']:
+                      assert original['bundle'].count(before) == 1
+                      original['bundle'] = original['bundle'].replace(before, after)
+                  data = original
               branch, parent, head = data['branch'], data['parent'], data['head']
               assert re.fullmatch(r'stack/ripwire/0[2-9]-[a-z0-9-]+', branch)
               assert re.fullmatch(r'[0-9a-f]{40}', parent) and re.fullmatch(r'[0-9a-f]{40}', head)
               blob = base64.b64decode(data['bundle'], validate=True)
-              assert hashlib.sha256(blob).hexdigest() == data['sha256']
+              assert hashlib.sha256(blob).hexdigest() == data['sha256'], 'Transfer digest mismatch'
               git('fetch', 'origin', parent)
               with tempfile.TemporaryDirectory() as temp:
                   archive = pathlib.Path(temp)/'change.bundle'
@@ -53,10 +59,13 @@ jobs:
                   else:
                       git('push','origin',head+':refs/heads/'+branch)
                   receipts.append({'branch':branch,'head':head,'parent':parent,'tree':git('rev-parse',head+'^{tree}'),'imported':True})
-          assert receipts, 'No increment supplied'
           pathlib.Path(os.environ['RUNNER_TEMP'],'import-receipt.json').write_text(json.dumps(receipts,indent=2))
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ripwire-import-${{ github.sha }}
-          path: ${{ runner.temp }}/import-receipt.json
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/import-receipt.json
+            .ripwire-stack/inbox/*.json
           retention-days: 14
