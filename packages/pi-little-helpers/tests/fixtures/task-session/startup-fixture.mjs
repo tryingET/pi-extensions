@@ -13,9 +13,8 @@ import { installedHostBuild } from "../../../dist/task-session/build-identity.js
 import { bytesDigest, digest } from "../../../dist/task-session/json.js";
 import { loadOwnerModel } from "../../../dist/task-session/model-source.js";
 import { durableWrite, physicalIdentity } from "../../../dist/task-session/state.js";
-export function setup(stop = false) {
-  const root = mkdtempSync(join(tmpdir(), "task5480-e2e-")),
-    checkout = join(root, "checkout");
+export function setup(stop = false, root = mkdtempSync(join(tmpdir(), "task5480-e2e-"))) {
+  const checkout = join(root, "checkout");
   mkdirSync(checkout);
   mkdirSync(join(checkout, ".git"));
   for (const dir of ["profiles", "credentials", "attempts", "agent"])

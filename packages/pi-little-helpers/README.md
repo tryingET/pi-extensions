@@ -47,6 +47,8 @@ installed or enrolled launch proof. The emitted host/viewer and full synthetic s
 Requested aliases require a private, content-addressed owner model source bound by the selected profile;
 no ambient registry, inferred Astra mapping or endpoint/auth fallback is used. Requested and resolved
 identities remain separate in observations and receipts.
+Use `pi-task-session profiles` to discover existing profile hashes and exact requested/resolved labels.
+It reports profile preflight only, not producer/task readiness, and does not publish or activate anything.
 Build with `npm run task-session:build`; focused isolated tests: `npm run task-session:test`.
 Linux x64 N-API support is built at package build time, never on runtime fallback.
 

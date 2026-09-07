@@ -4,6 +4,7 @@ import { digest, id, integer, record, refuse, text } from "./json.js";
 import { accountLocator, canonicalPath, readSnapshot } from "./state.js";
 
 export { classifyTaskSessionRequest } from "./classify.js";
+export { taskSessionProfiles } from "./profiles.js";
 export interface TaskSessionRequest {
   schema: "pi.task-session.request.v1";
   requestId: string;
@@ -59,6 +60,7 @@ export function taskSessionCapability() {
     producer,
     operations: [
       "identity",
+      "profiles",
       "plan",
       "launch",
       "inspect",

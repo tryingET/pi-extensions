@@ -7,6 +7,7 @@ import {
   stopTaskSession,
   taskSessionCapability,
   taskSessionInstalledIdentity,
+  taskSessionProfiles,
 } from "./core.js";
 import { parseJson } from "./json.js";
 /** Thin projection only. Never touches the controller editor, ambient auth or Pi execution handles. */
@@ -19,7 +20,7 @@ export default function taskSessionTool(pi: ExtensionAPI) {
     parameters: Type.Object(
       {
         operation: Type.String({
-          enum: ["capability", "identity", "plan", "launch", "inspect", "stop"],
+          enum: ["capability", "identity", "profiles", "plan", "launch", "inspect", "stop"],
         }),
         request: Type.Optional(Type.String({ maxLength: 65536 })),
         requestId: Type.Optional(Type.String({ maxLength: 128 })),
@@ -31,6 +32,8 @@ export default function taskSessionTool(pi: ExtensionAPI) {
       try {
         if (params.operation === "capability" && !params.request && !params.requestId)
           result = taskSessionCapability();
+        else if (params.operation === "profiles" && !params.request && !params.requestId)
+          result = await taskSessionProfiles();
         else if (params.operation === "identity" && !params.request && !params.requestId)
           result = taskSessionInstalledIdentity();
         else if (params.operation === "stop" && !params.request && params.requestId)

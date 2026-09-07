@@ -8,12 +8,13 @@ import {
   stopTaskSession,
   taskSessionCapability,
   taskSessionInstalledIdentity,
+  taskSessionProfiles,
   watchTaskSession,
 } from "./core.js";
 import { parseJson, refuse } from "./json.js";
 
 const help =
-  "pi-task-session: capability | identity | classify-installed | classify | plan | launch | inspect [request-id] | watch request-id | stop request-id\nclassify/plan/launch read one strict JSON object on stdin. No runtime/FD/account/namespace overrides.\nLaunch is blocked pending native AK verification and approved installation/pins. Inspection is DB-free.\n";
+  "pi-task-session: capability | identity | profiles | classify-installed | classify | plan | launch | inspect [request-id] | watch request-id | stop request-id\nclassify/plan/launch read one strict JSON object on stdin. No runtime/FD/account/namespace overrides.\nLaunch is blocked pending native AK verification and approved installation/pins. Inspection is DB-free.\n";
 async function input() {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -30,6 +31,7 @@ try {
   const [op, ...args] = process.argv.slice(2);
   if ((op === "--help" || op === "help" || !op) && !args.length) process.stdout.write(help);
   else if (op === "capability" && !args.length) output(taskSessionCapability());
+  else if (op === "profiles" && !args.length) output(await taskSessionProfiles());
   else if (op === "identity" && !args.length) output(taskSessionInstalledIdentity());
   else if (op === "classify-installed" && !args.length)
     output(classifyInstalledTaskSessionRequest(await input()));

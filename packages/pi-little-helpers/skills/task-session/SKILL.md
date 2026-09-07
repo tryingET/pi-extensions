@@ -32,3 +32,8 @@ That record binds requested labels to an explicit resolved model/provider while 
 account and pinned native Codex SSE/API/endpoint. Builtin v1 profiles remain supported. No alias discovery,
 model object, endpoint/header/module override or model-source publication is accepted through the tool.
 Unsupported alias fit (including WS/refresh requirements) refuses; do not invent Astra mappings or downgrade.
+
+`pi-task-session profiles` (or `task_session` operation `profiles`) lists existing private profile hashes,
+exact requested/resolved identities and metadata preflight results without invoking AK or logging credentials.
+This is inspection, not publication or admission. Missing profiles need separate owner publication; no
+setup, namespace creation or worker activation is performed by discovery or plan.

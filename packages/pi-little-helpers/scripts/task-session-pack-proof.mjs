@@ -103,6 +103,7 @@ const suites = [
   "task-session-identity.test.mjs",
   "task-session-owner-model.test.mjs",
   "task-session-owner-reasoning.test.mjs",
+  "task-session-public-profiles.test.mjs",
 ];
 for (const suite of suites)
   writeFileSync(
@@ -115,6 +116,7 @@ for (const suite of suites)
 for (const file of [
   "startup-host.mjs",
   "startup-fixture.mjs",
+  "profile-public-loader.mjs",
   "startup-real-tui.mjs",
   "pty-viewer.py",
   "startup-viewer.mjs",
