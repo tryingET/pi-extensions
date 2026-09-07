@@ -70,3 +70,13 @@ reuse; uncommitted changes and scope policy affect identity. Corrupt entries cau
 fresh run. Post-write pruning targets 32 entries/32 MiB; concurrent in-flight writes
 can temporarily exceed the aggregate target. Source acquisition is individually stable,
 not an atomic filesystem snapshot.
+
+### Active working set
+
+The extension inspects Pi's active, compaction-aware session entries for successful
+`context_pack` results. Only visible, non-metadata source items contribute content keys.
+Keys bind repository, location, file bytes and served representation. Matching unchanged
+items become brief references; `code: { mode: "discover", refresh: true }` forces serving.
+A new session or compacted-away original does not inherit a loaded claim. This does not
+inspect arbitrary native read output or guarantee visibility after unrelated extensions
+transform the final prompt. Without active-entry support, deduplication is unavailable.

@@ -27,6 +27,9 @@ const formatPacketItem = (item) => {
     item.provenance?.command
       ? `- command: ${markdownInlineLabel(item.provenance.command, "unknown")}`
       : undefined,
+    item.provenance?.contentKey
+      ? `- context key: ${markdownInlineLabel(item.provenance.contentKey)}`
+      : undefined,
     item.provenance?.symbol
       ? `- symbol: ${markdownInlineLabel(item.provenance.symbol)}`
       : undefined,
@@ -150,6 +153,7 @@ const compactProvenance = (provenance = {}) => ({
         route: provenance.route,
         snapshotId: provenance.snapshotId,
         contentSha256: provenance.contentSha256,
+        contentKey: provenance.contentKey,
         binarySha256: provenance.binarySha256,
       }
     : {}),

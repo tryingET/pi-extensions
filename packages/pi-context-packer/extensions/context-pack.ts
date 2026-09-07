@@ -9,6 +9,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { activeCodeWorkingSet } from "../src/code-working-set.js";
 import { CONTEXT_PACK_PARAMETERS, contextPacketToolResult } from "../src/context-pack.js";
 import {
   buildContextPlan,
@@ -59,6 +60,7 @@ const asToolResult = async (result: Promise<unknown>): Promise<ContextPackerTool
 
 const contextEnv = (ctx: ExtensionContext | undefined, signal?: AbortSignal) => ({
   cwd: ctx?.cwd,
+  workingSet: activeCodeWorkingSet(ctx),
   ripwire: { cacheRoot: process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT },
   systemPrompt: ctx?.getSystemPrompt?.(),
   contextUsage: ctx?.getContextUsage?.(),

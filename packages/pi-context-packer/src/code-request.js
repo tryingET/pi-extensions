@@ -10,6 +10,7 @@ export const CODE_REQUEST_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
+    refresh: { type: "boolean" },
     mode: { type: "string", enum: ["discover", "expand"] },
     selection: {
       type: "object",
@@ -31,10 +32,13 @@ export function normalizeCodeRequest(value) {
     !value ||
     typeof value !== "object" ||
     Array.isArray(value) ||
-    Object.keys(value).some((key) => !["mode", "selection"].includes(key))
+    Object.keys(value).some((key) => !["mode", "selection", "refresh"].includes(key))
   )
     throw new Error("invalid_code_request");
-  if (value.mode === "discover" && value.selection === undefined) return { mode: "discover" };
+  if (value.refresh !== undefined && typeof value.refresh !== "boolean")
+    throw new Error("invalid_code_request");
+  if (value.mode === "discover" && value.selection === undefined)
+    return { mode: "discover", refresh: value.refresh === true };
   const x = value.selection;
   if (
     value.mode !== "expand" ||
@@ -54,6 +58,7 @@ export function normalizeCodeRequest(value) {
     throw new Error("invalid_code_selection");
   return {
     mode: "expand",
+    refresh: value.refresh === true,
     selection: { path: x.path, name: x.name, line: x.line, contentSha256: x.contentSha256 },
   };
 }

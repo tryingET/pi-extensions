@@ -3,6 +3,7 @@ summary: "Connect explicitly selected ripwire discovery to the bounded packet as
 read_when:
   - "Changing code-provider execution policy or required-provider outcomes."
 */
+import { dedupeCodeItems } from "./code-working-set.js";
 import { outputLimits } from "./packet-budget.js";
 import { collectRipwire } from "./ripwire-provider.js";
 
@@ -33,11 +34,14 @@ export async function buildRipwireSection(plan, env = {}) {
         { root: plan.repoRoot ?? plan.cwd, objective: plan.objective, limit: 12, code: plan.code },
         { ...env.ripwire, signal: env.signal },
       );
+  const deduped = dedupeCodeItems(result.items, env.workingSet, plan.code?.refresh);
   return {
     ok: result.ok,
     state: {
       ...(result.state ?? {}),
       status: result.ok ? "collected" : "unavailable",
+      duplicates: deduped.duplicates,
+      workingSetStatus: deduped.workingSetStatus,
       observedItems: result.items.length,
       required: plan.providerPlans.some(
         (entry) => entry.provider === "ripwire" && entry.reason === "provider required by caller",
@@ -50,9 +54,9 @@ export async function buildRipwireSection(plan, env = {}) {
       title: "Ranked code discovery",
       authority:
         "Heuristic, scoped code context from an approved copied corpus; verify in source. Not edit authorization.",
-      items: result.items,
-      bytes: result.items.reduce((sum, item) => sum + item.bytes, 0),
-      estimatedTokens: result.items.reduce((sum, item) => sum + item.estimatedTokens, 0),
+      items: deduped.items,
+      bytes: deduped.items.reduce((sum, item) => sum + item.bytes, 0),
+      estimatedTokens: deduped.items.reduce((sum, item) => sum + item.estimatedTokens, 0),
     },
   };
 }

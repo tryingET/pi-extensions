@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type ExtensionContext, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SmokeTool } from "./runtime-smoke.ts";
 
 export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionContext) {
@@ -83,6 +83,68 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
         else process.env.PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT = prior;
         await rm(cache, { recursive: true, force: true });
       }
+    }
+    if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 7) {
+      const session = SessionManager.inMemory(root);
+      const c = { ...context, sessionManager: session } as ExtensionContext;
+      const served = await tool.execute("working-first", args, undefined, undefined, c);
+      session.appendMessage({
+        role: "toolResult",
+        toolCallId: "working-first",
+        toolName: "context_pack",
+        content: served.content,
+        details: served.details,
+        isError: false,
+        timestamp: Date.now(),
+      });
+      const repeated = await tool.execute("working-repeat", args, undefined, undefined, c);
+      assert.ok(
+        repeated.content.some((x) => x.type === "text" && x.text.includes("Already loaded")),
+      );
+      const refreshed = await tool.execute(
+        "working-refresh",
+        { ...args, code: { mode: "discover", refresh: true } },
+        undefined,
+        undefined,
+        c,
+      );
+      assert.equal(
+        (refreshed.details?.providerRuns as Record<string, { duplicates: number }>)?.ripwire
+          ?.duplicates,
+        0,
+      );
+      const fresh = await tool.execute("working-new", args, undefined, undefined, {
+        ...context,
+        sessionManager: SessionManager.inMemory(root),
+      } as ExtensionContext);
+      assert.equal(
+        (fresh.details?.providerRuns as Record<string, { duplicates: number }>)?.ripwire
+          ?.duplicates,
+        0,
+      );
+      const kept = session.appendMessage({
+        role: "toolResult",
+        toolCallId: "working-repeat",
+        toolName: "context_pack",
+        content: repeated.content,
+        details: repeated.details,
+        isError: false,
+        timestamp: Date.now(),
+      });
+      session.appendCompaction("Older source summarized", kept, 100);
+      const afterCompaction = await tool.execute(
+        "working-compacted",
+        args,
+        undefined,
+        undefined,
+        c,
+      );
+      assert.equal(
+        (afterCompaction.details?.providerRuns as Record<string, { duplicates: number }>)?.ripwire
+          ?.duplicates,
+        0,
+      );
+      console.log("ripwire registered working set PASS");
     }
     const off = await tool.execute(
       "ripwire-registered-off",

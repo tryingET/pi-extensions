@@ -6,6 +6,7 @@ read_when:
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { codeContentKey } from "./code-working-set.js";
 import { boundContextText, defineReadOnlyContextProvider } from "./provider-api.js";
 import { cachedRipwireText } from "./ripwire-cache.js";
 import { copyApprovedCorpus } from "./ripwire-corpus.js";
@@ -123,6 +124,16 @@ export async function collectRipwire(input, options = {}) {
             provider: "ripwire",
             path: record.path,
             symbol: record.name,
+            contentKey: codeContentKey(
+              corpus.root,
+              {
+                path: record.path,
+                line: record.line,
+                contentSha256: corpus.files.get(record.path).sha256,
+                mode: record.content !== undefined ? "body" : "signature",
+              },
+              content,
+            ),
             truncated: bounded.truncated,
             redacted: record.redacted || bounded.redactionCount > 0,
             line: record.line,

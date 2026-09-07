@@ -82,3 +82,9 @@ wrong-line refusal and stale content. The installed Pi closure also expands a re
 Cache-disabled, cold and warm paths are compared on real output. The gate then changes
 uncommitted source, adds/renames/deletes files, changes exclusions and corrupts entries.
 Installed Pi verification proves the registered handler reports a real cache hit.
+
+## RW-07 — active-context working set
+
+The runner verifies repeat, refresh, changed source and session isolation. The installed
+Pi closure uses a real in-memory SessionManager for active-entry projection. No durable
+working-set memory or cross-session claims are created.
