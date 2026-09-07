@@ -219,3 +219,20 @@ canonical DB, real accounts and original dirty checkout were not mutated. No cla
 automatic retirement or other-worker signaling occurred. The failed pack locator-lookup exception is
 disclosed above; no claim of zero locator reads is made for that failed run. Full root pre-push remains
 unclaimed because of reported unrelated missing local links; scoped closure checks are not its proxy.
+
+
+## D151-DEP-R1/R2 reopened — scope v8 / e8504
+
+Operator reports UNKNOWN custody and **DO NOT ENROLL Compass**. No live publication, locator,
+credentials, Astra lookup, Pi/Ghostty install or namespace/pin changes are authorized by this repair.
+The earlier failed-pack locator attempt remains unknown reads as recorded, not zero reads.
+
+R1: owner withdrawal/recovery invariant and original physical lock identity are under AK5479 repair.
+The prior release/34-case report is historical, not replacement authority. Pi will consume only the
+new committed owner contract and newly authorized inert stage, without inventing policy-diff semantics.
+R2: the Pi schema interpreter uses JavaScript RegExp.test, unlike owner Python re.fullmatch; generation
+and reason can accept prefixes/suffixes (including final LF). Reproduction/parity tests precede repair.
+The two owner-JSON formatter-only exceptions remain the entire lint exception scope.
+
+At this reopening, AK HEAD remains 890795c6e and the new owner schema/stage is not yet published.
+Independent pattern tests can proceed; replacement public native success cannot be claimed yet.

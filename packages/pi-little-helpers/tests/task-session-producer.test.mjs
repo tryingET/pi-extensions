@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -167,3 +168,65 @@ test("consumed owner contract bytes equal published compatibility pins", () => {
       expected,
     );
 });
+
+// D151-DEP-R2: Python fullmatch is the owner codec contract, not JS substring/line-end matching.
+for (const field of ["policy_generation", "reason"])
+  test(`DEP-R2 owner Python/JS whole-string parity: ${field}`, () => {
+    const schema = JSON.parse(
+      readFileSync(
+        new URL("../dist/task-session/task-session-deployment-v1.json", import.meta.url),
+      ),
+    );
+    const pattern =
+      field === "reason"
+        ? schema.properties.reason.pattern
+        : schema.$defs.bindings.properties.policy_generation.pattern;
+    const base = field === "reason" ? "configured" : "generation-1";
+    const values = [
+      base,
+      "a",
+      "a".repeat(field === "reason" ? 80 : 96),
+      "a".repeat(field === "reason" ? 81 : 97),
+      "",
+      ...["\n", "\r", "\r\n", "\u2028", "\u2029", " ", "é", "中", "😀", "\u0000", "\t"].flatMap(
+        (s) => [base + s, s + base, base + s + base],
+      ),
+      "x y",
+      "a/b",
+      "a.b",
+      "a-b",
+      "A",
+      "а",
+    ];
+    const expected = JSON.parse(
+      execFileSync(
+        "/usr/bin/python3",
+        [
+          "-I",
+          "-B",
+          "-c",
+          'import json,re,sys\np=json.load(sys.stdin);print(json.dumps([re.fullmatch(p["pattern"],v) is not None for v in p["values"]]))',
+        ],
+        {
+          input: JSON.stringify({ pattern, values }),
+          env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
+          timeout: 10000,
+          maxBuffer: 65536,
+        },
+      ),
+    );
+    const failures = [];
+    values.forEach((value, i) => {
+      const d = descriptor();
+      if (field === "reason") d.reason = value;
+      else d.bindings.policy_generation = value;
+      let accepted = true;
+      try {
+        interpretTaskSessionDescriptor(d);
+      } catch {
+        accepted = false;
+      }
+      if (accepted !== expected[i]) failures.push({ value, js: accepted, python: expected[i] });
+    });
+    assert.deepEqual(failures, [], JSON.stringify({ field, failures }));
+  });
