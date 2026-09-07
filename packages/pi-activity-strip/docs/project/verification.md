@@ -448,7 +448,15 @@ The operator reported the ribbon still was not right, and that it had no space a
 
 **Measured:** the surface anchored flush to the top edge with 8px side margins and none on top, while every tiled window sits on a 16px gap with a 12px corner radius. The ribbon was the only surface on screen not obeying that rhythm.
 
-**Change:** the surface now takes a 16px margin on top, left and right, matching the compositor's `gaps`, and its band is rounded to 12px with a full border rather than a bottom hairline.
+**Change:** the surface now takes a margin on top, left and right equal to the compositor's `gaps`, and its band is rounded to 12px with a full border rather than a bottom hairline. The operator then asked for tighter spacing throughout, so the gap and the margin both moved to 8px.
 
-**Evidence:** window heights on the focused workspace moved from 1084px to 1068px, which is the output height less a 16px top margin, the 84px surface, a 16px gap below it and a 16px bottom gap. The compositor reserves the margin in addition to the exclusive zone, so the total reservation is 100px and no window sits under the ribbon. A capture confirms equal spacing above and beside the ribbon and between it and the window below, at a matching radius.
+**Evidence:** window heights on the focused workspace moved from 1084px to 1068px at a 16px gap, and to 1092px at 8px, each being the output height less the top margin, the 84px surface, the gap below it and the bottom gap. The compositor reserves the margin in addition to the exclusive zone, so the total reservation is 92px and no window sits under the ribbon. Captures confirm equal spacing above and beside the ribbon and between it and the window below, at a matching radius.
+
+## Focus shown by dimming on 2026-09-07
+
+The operator asked for the focus ring to go and for inactive windows to be dimmed instead, leaving the ribbon untouched.
+
+**Change:** the focus ring is off, and a window rule matching `is-active=false` sets `opacity 0.85`.
+
+**Evidence:** the same inactive Ghostty window sampled at identical coordinates rendered at `srgb(30,35,38)` before the rule, which is exactly the Everforest Dark Hard background at full strength, and at `srgb(35,40,42)` after it, lighter because it is now composited over the backdrop. The ribbon sampled `srgb(30,35,39)` throughout: layer-shell surfaces are not windows, so no window rule can reach it, which is what keeps it at full strength without an exception being written for it.
 

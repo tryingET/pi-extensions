@@ -13,7 +13,7 @@ use std::time::Duration;
 const COMPACT_HEIGHT: i32 = 84;
 /// The ribbon sits on the same rhythm as tiled windows, so it reads as one of them rather than as
 /// a bar bolted to the top edge. Matches `gaps` in the compositor's layout.
-const OUTER_MARGIN: i32 = 16;
+const OUTER_MARGIN: i32 = 8;
 const EXPANDED_HEIGHT: i32 = 276;
 const ORDER_REFRESH_MS: i64 = 15_000;
 

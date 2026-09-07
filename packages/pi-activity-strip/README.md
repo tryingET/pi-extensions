@@ -47,7 +47,7 @@ Pi publisher streams
 
 Layer-shell replaces the old floating Electron window and dynamic Niri-config strut helper. The package no longer edits `~/.config/niri/config.kdl`, resets tiled heights, or requires Electron.
 
-The compact surface is 84px tall and sits inset by a 16px margin on the top, left and right, matching the compositor's window gaps, with the same 12px corner radius as tiled windows. It therefore reserves 100px in total. One engaged card expands the surface to 276px while the reservation is unchanged, so detail overlays content without repeatedly resizing tiled windows.
+The compact surface is 84px tall and sits inset by an 8px margin on the top, left and right, matching the compositor's window gaps, with the same 12px corner radius as tiled windows. It therefore reserves 92px in total. One engaged card expands the surface to 276px while the reservation is unchanged, so detail overlays content without repeatedly resizing tiled windows.
 
 ## Supported host
 
