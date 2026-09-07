@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ak.task-session.protocol.v1",
+  "title": "Decision151 AK producer private protocol — blocked draft",
+  "x-status": "blocked-draft-not-integration-ready",
+  "$comment": "Early implementation selection only: no producer source or consumer concurrence yet. Scope reconciliation required for ak-db existing-only writable open. Startup request, baseline/effect and recovery schemas remain incomplete. Do not activate or infer capability. CLOSED must never be persisted or accepted on a new channel.",
+  "x-transport": {
+    "public_command": ["ak", "task-session", "supervise"],
+    "public_input": "One bounded startup request on stdin; no fd, exec, binary, environment or namespace overrides",
+    "host_command": ["/home/tryinget/.local/libexec/pi-task-sessions/host-v1"],
+    "host_fd_0": "Private AF_UNIX SOCK_STREAM socketpair endpoint; bidirectional length-framed protocol",
+    "host_fd_1": "Same open file description of permanent canonical AK flock file; opened unlocked by supervisor, deliberately inherited through stdio mapping",
+    "host_fd_2": "Bounded diagnostics only, never protocol or credentials",
+    "cloexec": "Host native bridge immediately marks 0 and 1 CLOEXEC; no tool/provider/UI inheritance; only supervisor may explicitly LOCK_UN after durable T1 validation",
+    "framing": "4 byte unsigned big-endian byte length followed by strict UTF-8 JSON, no BOM; at most 1048576 payload bytes",
+    "parsing": "Duplicate keys, unknown fields/kinds/versions, floats, negative integers, depth > 16, strings > 65536 UTF-8 bytes and arrays > 4096 elements refuse",
+    "digests": "SHA256 lowercase hex over exact bounded canonical JSON: recursively lexicographic ASCII object keys, compact separators, no ASCII escaping, integers only; reject non-ASCII object keys. Digest fields never include themselves",
+    "sequence": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"],
+    "sidecar": "Private immutable t1.json in the already reserved attempt/incarnation directory under the provisioned namespace; host fsyncs file and directory without namespace mutex; supervisor independently compares durable bytes to T1_PUBLISHED before explicit unlock",
+    "closed": "Private one-shot channel/phase/incarnation-bound message after explicit T2 unlock, not an on-disk receipt, not replayable after restart; dispatch also requires valid local outcome, deadline and post-unlock persistence",
+    "failure": "No automatic retry/unclaim; no EOF/timeout/finally unlock; surviving host retains OFD and denies dispatch on supervisor failure; all-holder death is not effect or claim retirement"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "kind", "binding", "body"],
+  "properties": {
+    "protocol": { "const": "ak.task-session.v1" },
+    "kind": { "enum": ["PREPARED", "ADMISSION_RESULT", "T1_PUBLISHED", "CLOSED"] },
+    "binding": { "$ref": "#/$defs/binding" },
+    "body": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "PREPARED" } } },
+      "then": { "properties": { "body": { "$ref": "#/$defs/prepared" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "ADMISSION_RESULT" } } },
+      "then": { "properties": { "body": { "$ref": "#/$defs/admission" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "T1_PUBLISHED" } } },
+      "then": { "properties": { "body": { "$ref": "#/$defs/t1" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "CLOSED" } } },
+      "then": { "properties": { "body": { "$ref": "#/$defs/closed" } } }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "semantic_digest",
+        "attempt",
+        "incarnation",
+        "reservation",
+        "ak_binary_digest",
+        "policy_digest",
+        "database_identity",
+        "host_build_digest",
+        "profile_digest",
+        "raw_envelope_digest",
+        "effective_envelope_digest"
+      ],
+      "properties": {
+        "request": { "$ref": "#/$defs/id" },
+        "semantic_digest": { "$ref": "#/$defs/digest" },
+        "attempt": { "$ref": "#/$defs/id" },
+        "incarnation": { "$ref": "#/$defs/id" },
+        "reservation": { "$ref": "#/$defs/digest" },
+        "ak_binary_digest": { "$ref": "#/$defs/digest" },
+        "policy_digest": { "$ref": "#/$defs/digest" },
+        "database_identity": { "$ref": "#/$defs/digest" },
+        "host_build_digest": { "$ref": "#/$defs/digest" },
+        "profile_digest": { "$ref": "#/$defs/digest" },
+        "raw_envelope_digest": { "$ref": "#/$defs/digest" },
+        "effective_envelope_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "prepared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "no_dispatch",
+        "startup_deadline_ms",
+        "task_id",
+        "repo",
+        "actor",
+        "lease_seconds",
+        "baseline_digest"
+      ],
+      "properties": {
+        "no_dispatch": { "const": true },
+        "startup_deadline_ms": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "task_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "repo": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "actor": { "$ref": "#/$defs/id" },
+        "lease_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "baseline_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "repo", "version", "claimed_by", "claimed_at", "lease_expires_at"],
+      "properties": {
+        "task_id": { "type": "integer", "minimum": 1 },
+        "repo": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "version": { "type": "integer", "minimum": 1 },
+        "claimed_by": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "claimed_at": { "type": "string", "maxLength": 64 },
+        "lease_expires_at": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "baseline_digest", "readback_digest", "claim", "effects", "reason"],
+      "properties": {
+        "outcome": { "enum": ["ADMITTED", "DENIED", "UNRESOLVED"] },
+        "baseline_digest": { "$ref": "#/$defs/digest" },
+        "readback_digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "claim": { "oneOf": [{ "$ref": "#/$defs/claim" }, { "type": "null" }] },
+        "effects": { "enum": ["not_attempted", "committed_verified", "indeterminate"] },
+        "reason": { "$ref": "#/$defs/id" }
+      }
+    },
+    "t1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "admission_digest", "no_dispatch"],
+      "properties": {
+        "outcome": { "enum": ["ADMITTED", "DENIED"] },
+        "admission_digest": { "$ref": "#/$defs/digest" },
+        "no_dispatch": { "const": true }
+      }
+    },
+    "closed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "t1_digest"],
+      "properties": {
+        "outcome": { "enum": ["ADMITTED", "DENIED"] },
+        "t1_digest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

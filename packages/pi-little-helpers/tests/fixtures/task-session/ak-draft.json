@@ -1,0 +1,52 @@
+{
+  "status": "draft-shape-fixtures-not-runtime-evidence",
+  "valid": [
+    {
+      "protocol": "ak.task-session.v1",
+      "kind": "PREPARED",
+      "binding": {
+        "request": "synthetic-request",
+        "semantic_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "attempt": "synthetic-attempt",
+        "incarnation": "synthetic-incarnation",
+        "reservation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ak_binary_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "database_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "host_build_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "profile_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "raw_envelope_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "effective_envelope_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "body": {
+        "no_dispatch": true,
+        "startup_deadline_ms": 1788750000000,
+        "task_id": 1,
+        "repo": "/synthetic/repo",
+        "actor": "synthetic-child",
+        "lease_seconds": 3600,
+        "baseline_digest": "4444444444444444444444444444444444444444444444444444444444444444"
+      }
+    }
+  ],
+  "invalid_mutations_of_valid_0": [
+    { "path": ["protocol"], "value": "ak.task-session.v2" },
+    { "path": ["kind"], "value": "EXEC" },
+    { "path": ["body", "no_dispatch"], "value": false },
+    { "path": ["body", "lease_seconds"], "value": 0 },
+    { "path": ["body", "lease_seconds"], "value": 86401 },
+    { "path": ["body", "fd"], "value": 9 },
+    { "path": ["body", "exec"], "value": "/bin/sh" },
+    { "path": ["binding", "incarnation"], "value": "../old" },
+    { "path": ["binding", "policy_digest"], "value": "unknown" }
+  ],
+  "wire_rejections_not_tested": [
+    "duplicate object keys before JSON materialization",
+    "malformed UTF-8 or BOM",
+    "frame length exceeding 1048576",
+    "nesting exceeding 16",
+    "CLOSED on a new channel",
+    "duplicate CLOSED on the same channel",
+    "T1 sidecar present but CLOSED absent"
+  ]
+}

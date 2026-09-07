@@ -34,6 +34,18 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `nexus-loop` | Launch the same machinery with four real prompts: governed `deep-review` through `vault_execute_template`, one consolidated Nexus fixup that may use at most one non-Prompt-Vault read-only reviewer when available and useful before atomic completion, posture refresh, and a resolved `/commit` prompt delegated to `dispatch_subagent` |
 | `stash` | Persist and restore stashed editor content across sessions |
 
+## Exact-task session capability (Decision151)
+
+The additive emitted `pi-task-session` CLI, `task_session` Pi tool and
+[`task-session` skill](skills/task-session/SKILL.md) expose one read-only discovery/plan/
+inspection/classification surface. **Launch is blocked:** the AK producer is a blocked draft,
+not an implemented startup interval. Do not fall back to ordinary claim/spawn recipes.
+Independent sealed SDK/Codex/state/native components are tested synthetically; this is not
+installed, enrolled or end-to-end launch proof. See the repo
+[implementation evidence](../../docs/project/2026-09-07-visible-task-session-pi-implementation.md).
+Build with `npm run task-session:build`; focused isolated tests: `npm run task-session:test`.
+Linux x64 N-API support is built at package build time, never on runtime fallback.
+
 ## Automatic ASC execution observer
 
 When Pi runs in TUI mode inside Ghostty, the `sidequest` extension listens for bounded `asc.execution_observation.v1` events and automatically opens a read-only progress tab only when it can target the Ghostty single-instance server and the controller's surface exactly. Direct `dispatch_subagent` calls get one tab per dispatch; all `loop_execute` phases share one tab per logical loop run. The renderer shows status, phase, latest tool, usage, a renewable telemetry-liveness lease, semantic-activity age, and quiet/suspected-stall cues without receiving prompts, objectives, assistant output, stderr, session paths, or receipt paths.

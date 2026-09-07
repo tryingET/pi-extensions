@@ -25,7 +25,13 @@
   "engines": {
     "node": ">=22.19.0"
   },
+  "bin": {
+    "pi-task-session": "./dist/task-session/bin.js"
+  },
   "scripts": {
+    "task-session:build": "node scripts/task-session-build.mjs",
+    "task-session:test": "npm run task-session:build && node --test tests/task-session*.test.mjs",
+    "task-session:pack-proof": "node scripts/task-session-pack-proof.mjs",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "bash ./scripts/quality-gate.sh typecheck",
@@ -35,7 +41,7 @@
     "check": "npm run quality:ci",
     "test": "npm run quality:ci",
     "reality:check": "node ./scripts/reality-check.mjs",
-    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "prepack": "npm run task-session:build && node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
     "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack",
     "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
     "docs:list:workspace": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
@@ -50,6 +56,10 @@
     "loop-landing-check": "npm run check"
   },
   "files": [
+    "dist/task-session",
+    "dist/task-session/pi-tool.js",
+    "src/taskSessionTransport.ts",
+    "skills/task-session",
     "src/ascExecutionObserver.ts",
     "src/ascExecutionObserverProtocol.ts",
     "extensions/code-block-picker.ts",
@@ -145,6 +155,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {
+    "./task-session-core": "./dist/task-session/core.js",
     "./candidate-peer-registry": "./src/candidatePeerRegistry.ts",
     "./candidate-peer-lifecycle-v2": "./src/candidatePeerLifecycleV2.ts",
     "./candidate-peer-lifecycle-archive": "./src/candidatePeerLifecycleArchive.ts",
@@ -174,7 +185,11 @@
       "./extensions/package-update-notify.ts",
       "./extensions/session-presence.ts",
       "./extensions/sidequest.ts",
-      "./extensions/stash.ts"
+      "./extensions/stash.ts",
+      "./dist/task-session/pi-tool.js"
+    ],
+    "skills": [
+      "./skills/task-session"
     ],
     "prompts": [
       "./prompts"
@@ -188,10 +203,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@earendil-works/pi-agent-core": "0.84.3",
-    "@earendil-works/pi-ai": "0.84.3",
-    "@earendil-works/pi-coding-agent": "0.84.3",
-    "@earendil-works/pi-tui": "0.84.3",
+    "@earendil-works/pi-agent-core": "0.84.4",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@earendil-works/pi-tui": "0.84.4",
     "@types/node": "22.14.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "typescript": "5.9.2"

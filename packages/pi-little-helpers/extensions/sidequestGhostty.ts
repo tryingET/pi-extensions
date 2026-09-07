@@ -368,6 +368,8 @@ export function buildGhosttyArgs({
   return args;
 }
 
+export { launchRestrictedTaskSessionWindow } from "../src/taskSessionTransport.ts";
+
 function normalizeGhosttySurfaceIdUint64(surfaceId: string): string | undefined {
   try {
     const value = BigInt(surfaceId);

@@ -4,6 +4,7 @@
   "description": "Cognitive-driven multi-agent orchestration across Agent Kernel, Prompt Vault, ROCS, and Pi runtime owners",
   "type": "module",
   "exports": {
+    "./task-session-adapter": "./dist/task-session/task-session-adapter.js",
     "./toolbox-bundle": "./src/toolboxBundle.ts",
     "./governed-deep-review-preflight": "./src/runtime/governed-deep-review-preflight.ts",
     "./telemetry-learning-kes-adapter": "./src/runtime/telemetry-learning-kes-adapter.ts",
@@ -57,6 +58,7 @@
     "loop-landing-check": "npm run check"
   },
   "files": [
+    "dist/task-session",
     "extensions/runtime-footer.ts",
     "extensions/society-orchestrator.ts",
     "extensions/autoresearch-tool-adapters.ts",
