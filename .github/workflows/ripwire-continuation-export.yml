@@ -1,0 +1,29 @@
+name: Ripwire continuation export
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-continuation-export.yml]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f5c44ddedc2658f179eed2f6ff93ed4b3f7b03a4
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact candidate
+        run: |
+          git branch recovered-pr01 HEAD
+          git bundle create "$RUNNER_TEMP/ripwire-pr01.bundle" recovered-pr01 ^f50a6eee974c0b319ef621ef10dc2a48e3bd7f63
+          sha256sum "$RUNNER_TEMP/ripwire-pr01.bundle" > "$RUNNER_TEMP/ripwire-pr01.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ripwire-continuation-pr01
+          path: |
+            ${{ runner.temp }}/ripwire-pr01.bundle
+            ${{ runner.temp }}/ripwire-pr01.sha256
+          retention-days: 7
