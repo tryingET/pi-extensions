@@ -370,3 +370,45 @@ while pinned SDK reasoning normalization produces `xhigh`; the child rejects con
 later. The earlier I03 fixed disposition was incomplete. Require exact effective/requested reasoning
 agreement in the read-only preflight before reservation or effect ports; never silently downgrade.
 Retain child rechecks and verify supported levels plus unchanged namespace/zero effects for this repro.
+
+
+### I03 reasoning correction — reproduced and fixed; independent re-review pending
+
+- Reopened before mutation in `6fe5d879`; the previous I03 disposition was incomplete.
+- Fix: `c4618db0151e13d3dd43f2e56fe483757b7e6afb` (normal hook passed).
+- Operator reports I01/I02 independently resolved with 19 selected regressions passing; this correction
+  changes neither finding's implementation. I03 remains subject to parent independent re-review.
+
+`profile.ts` now imports the **same pinned pure `clampThinkingLevel` helper** used by SDK0.84.4
+`createAgentSession`. After exact native model digest validation, preflight requires
+`clampThinkingLevel(model, requested) === requested`; otherwise it refuses
+`reasoning_profile_unsupported`. It does not substitute the clamped level. The existing pre-reservation
+and post-baseline preflight calls both use this check, as does child profile loading. Host constructor/
+dispatch reasoning guards are unchanged, and the unconditional producer-verification fence remains.
+
+The added max/gpt-5.4 regression uses a valid native model digest, correct content-addressed profile and
+matching request labels. It independently asserts the pinned SDK clamps max to xhigh. **Before the fix**,
+the test failed with `unexpected_plan`, proving the invalid combination reached the plan port. **After the
+fix**, it refuses with zero plan/viewer/supervisor/fetch calls, unchanged namespace/profile bytes and no
+attempt directory entry. Child profile loading also refuses; there is no downgrade.
+
+Six positive cases (off/minimal/low/medium/high/xhigh) preserve the exact requested level through readonly
+preflight, child profile loading and actual SDK host construction. They perform no send and leave namespace/
+profile bytes unchanged. These are constructor/preflight fidelity checks, not provider-delivery proof.
+
+Observed validation for this correction:
+- Emitted task-session build passed.
+- Selected I03 suite: **12/12 passed** (six supported levels, six admission-negative cases).
+- Little-helpers recursively discovered safe suite: **438/438 passed**, explicitly excluding the synthetic
+  PTY `real private startup/bridge processes: real-tui` case to honor the no-terminal boundary.
+- Orchestrator safe suite: **474/474 passed**, with its single live Pi-loader case explicitly excluded.
+- Little-helpers lint/typecheck/structure, scoped Biome, whitespace and normal source hook passed.
+
+No terminal/window or install was performed in this correction. Consequently the full declared release
+check and install-based packing proof were **not rerun**: prior tarball hashes remain historical and do not
+certify this new source. No native AK/DB operation, provider HTTP, live config/auth, activation, enrollment
+or recovery occurred. Native/installed/live gates and global task5480/Decision151 acceptance remain outside
+this proof. Next step is independent re-review of the new I03 repro/fix, not weakening the producer fence.
+
+Logs under `$TMPDIR`: `task5480-reasoning-{red,build,focused,lint,typecheck,structure,broader,orchestrator}.log`,
+`task5480-reasoning-{open,source-commit}.log`. The red log is retained as the pre-fix counterexample.

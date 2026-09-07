@@ -56,3 +56,14 @@ finding-level source/test dispositions are in the implementation evidence. Paren
 pending; package/SDK compatibility checks are not same-UID sandbox or live/native claimability proof.
 Public producer fence unchanged. No activation, native AK build, live credentials/config/provider/AK/DB,
 recovery, enrollment or out-of-scope source mutation. Old artifact proofs remain historical, not new pins.
+
+
+## I03 follow-up: exact reasoning before reservation
+
+Reopened I03 before changes (`6fe5d879`): valid gpt-5.4/max passed preflight but the SDK clamps to xhigh.
+The red test reached the plan port. Fix `c4618db0151e13d3dd43f2e56fe483757b7e6afb` calls the pinned SDK's
+pure clamp helper and refuses any changed effective level; no downgrade. Existing child guards remain.
+Twelve I03 tests pass, including all six supported constructor levels and the zero-effect max negative;
+safe broader suites pass 438 little-helpers / 474 orchestrator tests. Synthetic PTY and live Pi loading were
+explicitly excluded; no terminal/install or refreshed packing proof. Prior artifacts are historical.
+I01/I02 are independently resolved per operator; this I03 correction awaits independent re-review.
