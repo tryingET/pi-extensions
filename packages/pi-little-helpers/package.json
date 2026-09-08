@@ -50,6 +50,11 @@
     "loop-landing-check": "npm run check"
   },
   "files": [
+    "extensions/session-closeout.ts",
+    "src/sessionCloseout.ts",
+    "src/sessionCloseoutHost.ts",
+    "src/sessionCloseoutReadback.ts",
+    "docs/project/session-closeout.md",
     "src/ascExecutionObserver.ts",
     "src/ascExecutionObserverProtocol.ts",
     "extensions/code-block-picker.ts",
@@ -161,6 +166,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {
+    "./extensions/session-closeout.ts": "./extensions/session-closeout.ts",
     "./candidate-peer-registry": "./src/candidatePeerRegistry.ts",
     "./candidate-peer-lifecycle-v2": "./src/candidatePeerLifecycleV2.ts",
     "./candidate-peer-lifecycle-archive": "./src/candidatePeerLifecycleArchive.ts",
@@ -187,6 +193,7 @@
   },
   "pi": {
     "extensions": [
+      "./extensions/session-closeout.ts",
       "./extensions/code-block-picker.ts",
       "./extensions/codex-reset.ts",
       "./extensions/limits.ts",

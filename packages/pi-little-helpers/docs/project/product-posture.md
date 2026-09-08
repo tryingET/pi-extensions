@@ -46,6 +46,15 @@ launch visible helper work; do not make helper output authority
 
 ## Current landed capability baseline
 
+The [session closeout gate](session-closeout.md) adds `/session-closeout` and
+`session_closeout`: exact host identity, append-only operator-frozen obligations,
+fresh AK/Git readbacks, and a separately typed operator seal. The executor cannot
+supply a safe verdict. WORK and SESSION verdicts remain distinct. This is a bounded
+operator-reviewed receipt, not exhaustive discovery, automated ASC custody proof,
+semantic evidence authority, or a terminal-exit lock. Regression coverage includes
+wrong-child selection, evidence collection drift, same-status Git content races,
+late-await branch changes, expiry, budgets and headless approval refusal.
+
 `pi-little-helpers` currently owns:
 
 - slash commands for `/sidequest`, `/scoutpeer`, `/parallelquest`, `/visible-loop`, and `/nexus-loop`;

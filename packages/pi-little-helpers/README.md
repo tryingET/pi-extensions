@@ -21,6 +21,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 
 | Extension | Description |
 |---|---|
+| `session-closeout` | `/session-closeout` starts the Vault closeout procedure with exact host identity; `session_closeout` gates a declared-scope receipt on immutable findings, fresh AK/Git readback and independent typed operator approval. See [session closeout](docs/project/session-closeout.md). |
 | `code-block-picker` | Pick a code block from the conversation and copy it safely to the clipboard |
 | `codex-reset` | Owns `/resets status\|use\|manage` capability routing and the compatible `/codex-reset` account-bound, confirmed redemption flow |
 | `limits` | Runway subscription cockpit: compare supported provider quotas, key allowance/wallet balances and reset timelines; inspect or explicitly switch |
