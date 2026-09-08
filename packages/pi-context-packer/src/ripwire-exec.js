@@ -7,6 +7,7 @@ import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
+import { CODE_QUERY_MAX_CHARS } from "./code-request.js";
 import { digest, stableRead } from "./ripwire-corpus.js";
 
 export const RIPWIRE_SOURCE = "93c8edaafdb5499e89939cc2cebd0429e278e86f";
@@ -58,7 +59,7 @@ export function discoveryArguments(root, objective, limit = 20) {
   if (
     typeof objective !== "string" ||
     !objective.trim() ||
-    objective.length > 4000 ||
+    objective.length > CODE_QUERY_MAX_CHARS ||
     objective.includes("\0")
   )
     throw new Error("invalid_objective");

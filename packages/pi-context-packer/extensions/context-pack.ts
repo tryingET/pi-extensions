@@ -9,6 +9,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { RIPWIRE_WORKFLOW_GUIDELINES } from "../src/code-workflow-guidance.js";
 import { activeCodeWorkingSet } from "../src/code-working-set.js";
 import { CONTEXT_PACK_PARAMETERS, contextPacketToolResult } from "../src/context-pack.js";
 import {
@@ -29,7 +30,7 @@ import { runRegisteredToolSmoke } from "../src/runtime-smoke.ts";
 export const CONTEXT_PACKER_REGISTERED_TOOL_CONTRACT = Object.freeze({
   package: "@tryinget/pi-context-packer",
   registeredToolContract: "context-packer-registered-tools-v1",
-  runtimeBuild: "ripwire-discovery-v1",
+  runtimeBuild: "ripwire-context-v2",
   requiresCompactContextPlanDetails: true,
 });
 
@@ -74,11 +75,12 @@ const contextPlanTool: ContextPackerToolDefinition = {
   description:
     "Plan a read-only context packet across source-owned providers such as ripwire code discovery, docs, repo-bounded AGENTS/CLAUDE instruction projection, git, session context, Prompt Vault, AK, and FCOS without retrieving or mutating source data.",
   promptSnippet:
-    "Use context_plan before broad context gathering when you need to reduce raw read/search tool calls and preserve source-owner authority boundaries.",
+    "Use context_plan to plan explicit ripwire code discovery and repo-bounded AGENTS/CLAUDE/docs/git context; planning does not retrieve source.",
   promptGuidelines: [
     "Use context_plan for cross-source planning before collecting large code/docs/task context.",
     "Treat the result as a read-only plan and provider-boundary membrane, not as task/evidence authority.",
-    "Automatic code discovery is not approved in this build. Explicitly select providers.ripwire=required for code discovery without filename seeds; Pi read/search remains available. Use separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
+    ...RIPWIRE_WORKFLOW_GUIDELINES,
+    "Use separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
     "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
   ],
   parameters: CONTEXT_PLAN_PARAMETERS,
@@ -99,8 +101,9 @@ const contextPackTool: ContextPackerToolDefinition = {
   description:
     "Assemble a bounded read-only context packet from wired providers such as explicitly selected ripwire, repo-bounded AGENTS/CLAUDE instruction files, Markdown/docs-list, git status, session metadata, and explicit code-retrieval omissions, while recording omissions and owner-surface routes for unavailable or authority-sensitive providers.",
   promptSnippet:
-    "Use context_pack after context_plan when a small read-only packet from repo-bounded AGENTS/CLAUDE/docs/git plus explicit provider omissions can reduce raw read/search tool calls.",
+    "Use context_pack for explicit ripwire discovery and hash-bound source expansion, alongside repo-bounded AGENTS/CLAUDE/docs/git. context_plan is optional for a known single-provider request.",
   promptGuidelines: [
+    ...RIPWIRE_WORKFLOW_GUIDELINES,
     "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, ASC, or peer tooling.",
     "Treat packet content as a projection with provenance and omissions, not source-owner authority.",
     "Expect early MVP omissions for providers that are planned but not wired yet.",

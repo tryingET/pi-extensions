@@ -10,7 +10,7 @@ import { dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 
 import { hasControlCharacter } from "./context-intake-safety.js";
 
-export const CORPUS_POLICY_VERSION = "ripwire-code-corpus-v1";
+export const CORPUS_POLICY_VERSION = "ripwire-code-corpus-v2";
 const EXTENSIONS = new Set([
   ".c",
   ".h",
@@ -27,6 +27,10 @@ const EXTENSIONS = new Set([
   ".tsx",
   ".js",
   ".jsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
   ".py",
   ".go",
   ".rs",
@@ -89,10 +93,15 @@ export async function stableRead(path, maxBytes) {
   }
 }
 
-export async function copyApprovedCorpus(root, destination, options = {}) {
+export async function canonicalCorpusRoot(root) {
   const realRoot = await realpath(root);
   if (realRoot !== resolve(root) || realRoot === sep || !(await lstat(realRoot)).isDirectory())
     throw new Error("invalid_root");
+  return realRoot;
+}
+
+export async function copyApprovedCorpus(root, destination, options = {}) {
+  const realRoot = await canonicalCorpusRoot(root);
   const excluded = options.excludePaths ?? [];
   if (!Array.isArray(excluded) || excluded.length > 256 || !excluded.every(safeRelative))
     throw new Error("invalid_exclusion_policy");

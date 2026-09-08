@@ -581,7 +581,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   }
 
   if (providerIds.includes("ripwire")) {
-    const result = await buildRipwireSection(plan, env);
+    const result = await buildRipwireSection(plan, env, remainingBudget);
     providerRuns.ripwire = result.state;
     omissions.push(...result.omissions);
     const selection = appendSectionWithinBudget({

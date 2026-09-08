@@ -6,14 +6,29 @@ read_when:
 import { hasControlCharacter } from "./context-intake-safety.js";
 import { safeRelative } from "./ripwire-corpus.js";
 
+export const CODE_QUERY_MAX_CHARS = 4000;
+
 export const CODE_REQUEST_SCHEMA = {
   type: "object",
+  description:
+    'Ripwire discovery or hash-bound expansion. Select providers.ripwire="required"; automatic selection is off.',
   additionalProperties: false,
   properties: {
-    refresh: { type: "boolean" },
-    mode: { type: "string", enum: ["discover", "expand"] },
+    refresh: {
+      type: "boolean",
+      description:
+        "Resend unchanged code already in active context; rediscover first when a selection is stale.",
+    },
+    mode: {
+      type: "string",
+      enum: ["discover", "expand"],
+      description:
+        "Discover ranked locations, then expand one exact selection for its source body.",
+    },
     selection: {
       type: "object",
+      description:
+        "For expand only: copy the exact repo-relative path, literal name, line and source SHA-256 from discovery.",
       additionalProperties: false,
       properties: {
         path: { type: "string", maxLength: 4096 },

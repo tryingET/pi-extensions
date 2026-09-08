@@ -212,7 +212,8 @@ try {
       throw new Error("Rollout runtime marker absent");
     if (
       Number(flags.get("--gate").slice(3)) >= 10 &&
-      !text.includes("ripwire registered landing regressions PASS")
+      (!text.includes("ripwire registered landing regressions PASS") ||
+        !text.includes("ripwire registered mustfix workflow PASS"))
     )
       throw new Error("Landing runtime marker absent");
   }

@@ -3,8 +3,7 @@ summary: "Read-only ripwire candidate provider over a private approved-corpus sn
 read_when:
   - "Changing code discovery, candidate provenance, or explicit failure reporting."
 */
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { codeContentKey } from "./code-working-set.js";
 import { boundContextText, defineReadOnlyContextProvider } from "./provider-api.js";
@@ -14,6 +13,7 @@ import { discoveryArguments, prepareRipwire } from "./ripwire-exec.js";
 import { expansionArguments, parseExpansion } from "./ripwire-expansion.js";
 import { parseRipwireCandidates } from "./ripwire-output.js";
 import { ripwireDisabled } from "./ripwire-policy.js";
+import { createRipwireScratch } from "./ripwire-scratch.js";
 
 const PUBLIC_ERRORS = new Set([
   "ripwire_not_configured",
@@ -21,6 +21,7 @@ const PUBLIC_ERRORS = new Set([
   "ripwire_digest_mismatch",
   "ripwire_version_unsupported",
   "invalid_root",
+  "unsafe_temporary_directory",
   "invalid_objective",
   "invalid_limit",
   "invalid_exclusion_policy",
@@ -52,8 +53,9 @@ export async function collectRipwire(input, options = {}) {
         },
       ],
     };
-  const scratch = await mkdtemp(join(tmpdir(), "pi-ripwire-"));
+  let scratch;
   try {
+    scratch = await createRipwireScratch(input.root);
     const runtime = await prepareRipwire(scratch, options);
     const corpusRoot = join(scratch, "corpus");
     await mkdir(corpusRoot, { mode: 0o700 });
@@ -195,12 +197,14 @@ export async function collectRipwire(input, options = {}) {
           provider: "ripwire",
           reason,
           detail:
-            "Ripwire unavailable or refused; use Pi read/search tools. Raw process diagnostics withheld.",
+            reason === "unsafe_temporary_directory"
+              ? "Configure TMPDIR outside the source repository before retrying; no snapshot or backend was created."
+              : "Ripwire unavailable or refused; use Pi read/search tools. Raw process diagnostics withheld.",
         },
       ],
     };
   } finally {
-    await rm(scratch, { recursive: true, force: true });
+    if (scratch) await rm(scratch, { recursive: true, force: true });
   }
 }
 
