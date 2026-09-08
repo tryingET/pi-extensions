@@ -1,0 +1,48 @@
+name: Preserve final reviewed ripwire candidate
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-final-candidate.yml]
+permissions:
+  contents: write
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Resolve the reviewed merge and require its exact tree
+        shell: python
+        run: |
+          import os, pathlib, subprocess
+          os.environ['GIT_INDEX_FILE'] = os.environ['RUNNER_TEMP'] + '/final.index'
+          def git(*args, data=None):
+              return subprocess.check_output(['git',*args],input=data,text=True).strip()
+          git('read-tree','5bb2d922a12f4092dbdb83e3ca50fc9f8b0e3f69')
+          git('apply','--cached','--recount','.ripwire-stack/patches/pr01-archive-budget.patch')
+          file = 'packages/pi-context-packer/scripts/dogfood-gate.mjs'
+          source = subprocess.check_output(['git','show',':'+file],text=True)
+          old = '  const packed = JSON.parse(\n    run("pack", "npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch]),\n  );'
+          new = '  const packOutput = run("pack", "npm", [\n    "pack",\n    "--ignore-scripts",\n    "--json",\n    "--pack-destination",\n    scratch,\n  ]);\n  // The source-checkout gate already depends on canonical root tooling. Reuse its\n  // strict npm 10/11 array and npm 12 package-keyed object parser, not a second dialect.\n  const packed = JSON.parse(\n    run("normalize-pack", process.execPath, [join(repo, "scripts/npm-pack-json.mjs")], {\n      input: packOutput,\n    }),\n  );'
+          assert source.count(old) == 1
+          blob = git('hash-object','-w','--stdin',data=source.replace(old,new))
+          git('update-index','--cacheinfo','100644,'+blob+','+file)
+          tree = git('write-tree')
+          assert tree == 'e3f91cdfba44206f346fd4803a9f4877eae66e1c', tree
+          text = 'tree '+tree+'\nparent 5bb2d922a12f4092dbdb83e3ca50fc9f8b0e3f69\nparent 66eddac21303b4700c41f0c0d273789b3f02831d\nauthor OpenAI <noreply@openai.com> 1788854602 +0000\ncommitter OpenAI <noreply@openai.com> 1788854602 +0000\n\nmerge: combine reviewed ripwire stack and root-install compatibility corrections\n'
+          commit = git('hash-object','-t','commit','-w','--stdin',data=text)
+          assert commit == '4119e4d6d3c8a8d2060f04b861f2f296af64c9e9'
+          ref = 'refs/heads/work/context-packer-ripwire-landing'
+          current = git('ls-remote','--heads','origin',ref)
+          if current:
+              assert current.split()[0] == commit
+          else:
+              git('push','origin',commit+':'+ref)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'final-candidate.txt').write_text(commit+'\n'+tree+'\n')
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ripwire-final-candidate
+          path: ${{ runner.temp }}/final-candidate.txt
+          retention-days: 30
