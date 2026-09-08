@@ -317,7 +317,7 @@ test("dogfood evaluator normalizes structured omission follow-up classes", async
             reason: "packet omission was useful",
             classification: "useful omission",
           },
-          { provider: "sci", reason: "needed symbol lookup", class: "residual-probe" },
+          { provider: "code", reason: "needed symbol lookup", class: "residual-probe" },
           {
             provider: "ak",
             reason: "needed owner surface",

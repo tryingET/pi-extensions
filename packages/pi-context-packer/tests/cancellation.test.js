@@ -44,7 +44,7 @@ test("context_pack propagates cancellation into docs provider subprocesses", asy
       objective: "Discover docs for cancellation behavior",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off", session: "off" },
+      providers: { agents: "off", docs: "required", git: "off", session: "off" },
     },
     { cwd: root, docsListScript, execFileAsync, signal: controller.signal },
   );

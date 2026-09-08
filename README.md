@@ -28,7 +28,7 @@ scripts/         # CI/utility scripts
 
 - Standalone-friendly starting points:
   - `packages/pi-context-overlay`
-  - `packages/pi-context-packer` (read-only context-window provider planning over SCI/docs/AGENTS/git/session/AK/FCOS/Prompt Vault)
+  - `packages/pi-context-packer` (read-only context-window provider planning over docs/AGENTS/git/session/AK/FCOS/Prompt Vault)
   - `packages/pi-activity-strip`
   - `packages/pi-little-helpers`
   - `packages/pi-eval-kernel` (persistent Python/JavaScript `state` with an explicit capability registry; it does not disable or replace Bash)

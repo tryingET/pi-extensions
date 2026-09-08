@@ -89,7 +89,6 @@ const packetInput = {
     agents: "off",
     docs: "required",
     git: "off",
-    sci: "off",
     session: "off",
     prompt_vault: "off",
     ak: "off",

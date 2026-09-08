@@ -29,7 +29,7 @@ test("context_pack discovers ranked Markdown docs through docs-list when availab
       objective: "Use architecture docs for implementation",
       cwd: root,
       repoRoot: root,
-      providers: { docs: "required", git: "off", sci: "off" },
+      providers: { docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -75,7 +75,7 @@ test("context_pack consumes structured docs-list JSON using repo-relative ranked
       objective: "Use architecture docs for implementation",
       cwd: join(root, "packages", "pkg"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -121,7 +121,7 @@ test("context_pack accepts bounded docs-list JSON larger than the legacy buffer"
       objective: "Use ranked docs from a large monorepo inventory",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -158,7 +158,7 @@ test("context_pack fails closed when docs-list output exceeds the bounded buffer
       objective: "Reject an oversized docs-list inventory",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -203,7 +203,7 @@ test("context_pack keeps JSON repoPath in the caller repo-root basis", async () 
       objective: "Use repo-root-relative docs-list JSON repoPath",
       cwd: join(root, "packages", "pkg"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -239,7 +239,7 @@ test("context_pack treats invalid docs-list JSON as schema mismatch without text
       objective: "Use docs from invalid JSON output",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -288,7 +288,7 @@ test("context_pack honors DOCS_LIST_SCRIPT only with explicit trusted override",
       objective: "Use docs-list env configuration",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     });
 
     const docs = result.packet.sections.find((section) => section.provider === "docs");
@@ -337,7 +337,7 @@ test("context_pack ignores process docs-list env overrides unless trusted overri
           objective: `Do not execute untrusted ${envName} docs-list override`,
           cwd: root,
           repoRoot: root,
-          providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+          providers: { agents: "off", docs: "required", git: "off" },
         },
         { disableDefaultDocsListScript: true },
       );
@@ -403,7 +403,7 @@ test("context_pack trusts host docsListScript without noisy process override omi
         objective: "Use trusted host docs-list script without process override noise",
         cwd: root,
         repoRoot: root,
-        providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+        providers: { agents: "off", docs: "required", git: "off" },
       },
       { docsListScript: trustedScript, disableDefaultDocsListScript: true },
     );
@@ -461,7 +461,7 @@ test("context_pack does not derive docs-list executable identity from HOME", asy
         objective: "Do not execute HOME-derived docs-list scripts",
         cwd: root,
         repoRoot: root,
-        providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+        providers: { agents: "off", docs: "required", git: "off" },
       },
       { disableDefaultDocsListScript: true },
     );

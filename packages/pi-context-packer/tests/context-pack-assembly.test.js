@@ -4,7 +4,7 @@ read_when:
   - "You change assembly, budgets, and unsafe-seed safety behavior."
 */
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -32,7 +32,7 @@ test("context_pack assembles AGENTS and seeded Markdown without mutating provide
   assert.ok(result.packet.measurementReceipt.estimatedToolCallsAvoided >= 2);
 });
 
-test("context_pack keeps Markdown-only path packets on docs without SCI omissions", async () => {
+test("context_pack keeps Markdown-only path packets on docs without code omissions", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
     objective: "Read docs context",
@@ -48,7 +48,7 @@ test("context_pack keeps Markdown-only path packets on docs without SCI omission
     ["agents", "docs"],
   );
   assert.equal(
-    result.packet.omissions.some((omission) => omission.provider === "sci"),
+    result.packet.omissions.some((omission) => omission.provider === "code"),
     false,
   );
 });
@@ -73,7 +73,7 @@ test("context_pack omits contaminated Markdown path seeds without reading or lea
       cwd: root,
       repoRoot: root,
       seeds: [{ kind: "path", value: "\ndocs/project/contaminated.md" }],
-      providers: { agents: "off", docs: "required", git: "off", session: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off", session: "off" },
     },
     { docsListScript },
   );
@@ -97,7 +97,7 @@ test("context_pack omits contaminated Markdown path seeds without reading or lea
     ),
   );
   assert.equal(
-    result.packet.omissions.some((omission) => omission.provider === "sci"),
+    result.packet.omissions.some((omission) => omission.provider === "code"),
     false,
   );
 
@@ -107,93 +107,6 @@ test("context_pack omits contaminated Markdown path seeds without reading or lea
     template: result.packet.dogfoodObservationTemplate,
   });
   assert.doesNotMatch(publicPacket, /contaminated\.md|MUST_NOT_READ_CONTAMINATED_SEED/);
-});
-
-test("context_pack keeps provider query seeds scoped through mixed docs and SCI packets", async () => {
-  const root = await makeWorkspace();
-  await mkdir(join(root, "src"), { recursive: true });
-  await writeFile(join(root, "src", "example.js"), "export const target = 1;\n", "utf8");
-  const sciReadFilePaths = [];
-  const sciSymbolQueries = [];
-  const fakeExec = async (_command, args) => {
-    const workflow = args[1];
-    const workflowArgs = JSON.parse(args[3]);
-    if (workflow === "read_file") {
-      sciReadFilePaths.push(workflowArgs.path);
-      assert.equal(workflowArgs.path, "src/example.js");
-      return {
-        stdout: JSON.stringify({
-          content: [
-            { type: "text", text: JSON.stringify({ content: "export const target = 1;\n" }) },
-          ],
-          isError: false,
-        }),
-      };
-    }
-    assert.equal(workflow, "symbol_search");
-    sciSymbolQueries.push(workflowArgs.query);
-    assert.equal(workflowArgs.query, "target");
-    return {
-      stdout: JSON.stringify({
-        content: [{ type: "text", text: JSON.stringify({ count: 1, symbols: [] }) }],
-        isError: false,
-      }),
-    };
-  };
-
-  const result = await buildContextPacket(
-    {
-      objective: "Use architecture docs and implementation code",
-      cwd: root,
-      repoRoot: root,
-      seeds: [
-        { kind: "path", value: "docs/project/note.md" },
-        { kind: "path", value: "src/example.js" },
-        { kind: "symbol", value: "target" },
-      ],
-      providers: { git: "off", session: "off", docs: "required", sci: "required" },
-    },
-    { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
-  );
-
-  assert.equal(result.ok, true);
-  const plans = Object.fromEntries(
-    result.plan.providerPlans.map((providerPlan) => [providerPlan.provider, providerPlan]),
-  );
-  assert.deepEqual(plans.agents.proposedQueries[0].seeds, []);
-  assert.deepEqual(plans.docs.proposedQueries[0].seeds, [
-    { kind: "path", value: "docs/project/note.md" },
-  ]);
-  assert.deepEqual(plans.sci.proposedQueries[0].seeds, [
-    { kind: "path", value: "src/example.js" },
-    { kind: "symbol", value: "target" },
-  ]);
-  assert.deepEqual(sciReadFilePaths, ["src/example.js"]);
-  assert.deepEqual(sciSymbolQueries, ["target"]);
-  const routeByProvider = Object.fromEntries(
-    result.packet.dogfoodObservationTemplate.packet.providerRoutes.map((route) => [
-      route.provider,
-      route,
-    ]),
-  );
-  assert.equal(routeByProvider.docs.routeRole, "selected");
-  assert.equal(routeByProvider.docs.queryCount, 1);
-  assert.equal(routeByProvider.docs.followupQueryCount, 0);
-  assert.deepEqual(routeByProvider.docs.seedCounts, { markdown: 1 });
-  assert.equal(routeByProvider.sci.routeRole, "selected");
-  assert.equal(routeByProvider.sci.queryCount, 1);
-  assert.equal(routeByProvider.sci.followupQueryCount, 0);
-  assert.deepEqual(routeByProvider.sci.seedCounts, { code: 1, symbol: 1 });
-  assert.equal(routeByProvider.agents.seedCount, 0);
-  assert.equal(routeByProvider.prompt_vault.routeRole, "followup");
-  assert.equal(routeByProvider.prompt_vault.queryCount, 1);
-  assert.equal(routeByProvider.prompt_vault.totalQueryCount, 1);
-  assert.equal(routeByProvider.prompt_vault.followupQueryCount, 1);
-  const docs = result.packet.sections.find((section) => section.provider === "docs");
-  assert.deepEqual(
-    docs.items.map((item) => item.provenance.path),
-    ["docs/project/note.md"],
-  );
 });
 
 test("context_pack enforces the global packet budget across providers while preserving reserve", async () => {
@@ -208,7 +121,7 @@ test("context_pack enforces the global packet budget across providers while pres
     repoRoot: root,
     budget: { maxTokens: 1000 },
     seeds: [{ kind: "path", value: "docs/project/note.md" }],
-    providers: { git: "off", sci: "off" },
+    providers: { git: "off" },
   });
 
   assert.equal(result.ok, true);
@@ -233,7 +146,7 @@ test("context_pack enforces cumulative per-provider budget across multiple items
       { kind: "path", value: "docs/project/a.md" },
       { kind: "path", value: "docs/project/b.md" },
     ],
-    providers: { agents: "off", git: "off", sci: "off" },
+    providers: { agents: "off", git: "off" },
     budget: {
       maxTokens: 1000,
       reserveTokens: 1,
@@ -276,42 +189,42 @@ test("context_pack fails closed on unsafe path seeds", async () => {
   );
 });
 
-test("context_pack reports unsafe code path seeds as SCI path omissions", async () => {
+test("context_pack reports unsafe code path seeds as code path omissions", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
     objective: "Read code context",
     cwd: root,
     repoRoot: root,
     seeds: [{ kind: "path", value: "../src/secret.js" }],
-    providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    providers: { agents: "off", docs: "off", git: "off" },
   });
 
   assert.equal(result.ok, true);
   assert.ok(
     result.packet.omissions.some(
       (omission) =>
-        omission.provider === "sci" &&
+        omission.provider === "code" &&
         omission.reason === "unsafe_path" &&
         omission.detail.includes("parent"),
     ),
   );
 });
 
-test("context_pack reports unsafe symbol seeds as SCI symbol omissions", async () => {
+test("context_pack reports unsafe symbol seeds as code symbol omissions", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
     objective: "Find code symbol context",
     cwd: root,
     repoRoot: root,
     seeds: [{ kind: "symbol", value: "target\n## forged" }],
-    providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+    providers: { agents: "off", docs: "off", git: "off" },
   });
 
   assert.equal(result.ok, true);
   assert.ok(
     result.packet.omissions.some(
       (omission) =>
-        omission.provider === "sci" &&
+        omission.provider === "code" &&
         omission.reason === "unsafe_symbol" &&
         omission.detail.includes("control characters"),
     ),

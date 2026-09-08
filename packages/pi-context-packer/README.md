@@ -1,184 +1,129 @@
 ---
-summary: "Overview and quickstart for monorepo package @tryinget/pi-context-packer."
+summary: "Context-packer code-provider migration and validation."
 read_when:
-  - "Starting work in this package workspace."
+  - "Working on the ripwire-only integration."
 system4d:
-  container: "Monorepo package scaffold for pi extension delivery."
-  compass: "Ship safe package-level iterations inside a shared workspace."
-  engine: "Plan -> implement -> validate -> coordinate with monorepo release flow."
-  fog: "Drift risk if package scripts diverge from monorepo root conventions."
+  container: "Read-only context-packer package in pi-extensions."
+  compass: "Remove the old code provider without implied replacement consent."
+  engine: "Plan, bound, verify, and report explicit omissions."
+  fog: "Package verification is not proof of model task performance."
 ---
 
 # @tryinget/pi-context-packer
 
-Read-only context-window packet planning for Pi coding sessions.
+Ripwire is the only code provider. Automatic selection is not approved; use explicit
+`providers.ripwire: "required"` after operator provisioning. Set
+`PI_CONTEXT_PACKER_RIPWIRE_DISABLED=1` to block all ripwire invocation.
+See [rollout and evidence](docs/project/ripwire-rollout.md).
 
-This package is the proposed implementation seam for FCOS item `context-window-packer`: it plans how to assemble useful next-turn context from source-owned providers without turning any provider into a monolithic all-context authority.
+Read-only context planning and packet assembly for Pi. Instructions, Markdown/docs-list,
+Git posture, and session metadata remain available. Prompt Vault, AK, and FCOS remain
+owner-routed. Ripwire is available for explicit, read-only code discovery:
 
-- Workspace path: `packages/pi-context-packer`
-- Release component key: `pi-context-packer`
-- Release config mode: `component` (default: `component`)
-
-## Current surface
-
-- `/context-pack` — preview the package's read-only planning posture.
-- `context_plan` — model-callable tool that returns a provider plan, budget, file-type readability/retrieval risks, non-authorizations, and a capability-derived selected-provider execution summary that separates providers `context_pack` can execute now from runtime-conditional, safety-gated, and owner-routed/unwired providers.
-- `context_pack` — model-callable packet assembler for currently wired read-only providers.
-- `context_dogfood_evaluate` — model-callable, non-persistent evaluator for filled redacted dogfood observation templates.
-- `context_dogfood_summarize` — model-callable, non-persistent aggregate summary for multiple redacted dogfood observations/evaluations.
-
-`context_pack` is the first bounded retrieval slice: it reads only repo-bounded AGENTS/CLAUDE instruction files, caller-seeded or docs-list-ranked Markdown docs, trusted-system-git status, current Pi session/environment metadata, and SCI code context for caller-seeded code paths/symbols only when SCI read-only safety is explicitly confirmed. It returns a curated Markdown packet as primary tool content and keeps structured details compact by default, omitting duplicated raw item content, raw selected item paths, raw omission details, raw next-tool suggestion reasons, raw objective text, and absolute workspace paths from `details`. It records omissions, owner-surface routes, and a measurement receipt with estimated tool calls avoided, packet fill ratio, wired providers, already-loaded prompt dedupe, provider gaps, a packet-local utility recommendation that can say to use the packet, skip duplicate content, or review omissions, and a redacted copy-ready dogfood observation template for externally comparing actual low-level probes against estimates without persisting evidence, duplicating raw packet content, or leaking selected item paths / raw omission details. The observation template includes optional `actualLowLevelCallsAvoided` for cases with a known baseline, `validationCommandsRun` to keep validation activity separate from low-level context probes, `activityType` to distinguish implementation/review/validation/planning dogfood, observer-supplied `runtimeContext` to distinguish `source_local`, `installed_artifact`, `live_pi_reloaded`, and `unknown` calibration without treating it as reload proof, and optional structured omission follow-ups with classifications such as `useful_omission`, `residual_probe`, `validation_activity`, `legacy_missingness`, `provenance_source_owner_followup`, `true_missing_capability`, or `other` without treating labels as completion proof; legacy string-only follow-ups are summarized with the system-assigned `legacy_unspecified` class. `context_dogfood_evaluate` consumes that redacted template after observation fields are filled and returns a packet-local calibration summary (`matched`, `overestimated`, `underestimated`, `needs_review`, or `observation_incomplete`) plus redacted runtime context and omission-follow-up class counts without reading files, calling providers, writing evidence, updating AK/FCOS, or creating session memory. `context_dogfood_summarize` aggregates multiple redacted observations/evaluations into status counts, activity-type counts, core implementation/review/validation coverage, runtime-context counts/live-reloaded coverage, provider omission counts, omission follow-up counts/class counts/truncation totals, validation-command recorded/missing counts, invalid-receipt counts, and cautious next actions under the same non-persistent boundary; stored evaluation inputs are normalized by recomputing calibration status from stored fields rather than trusting a caller-supplied status string, and stable aggregate status requires both core activity coverage and at least one observer-supplied `live_pi_reloaded` receipt. Provider failure omissions use stable public failure classes; raw subprocess stderr/stdout/error text is omitted from Markdown packet output, compact details, and next-tool suggestions. Session awareness emits compact numeric context-usage metadata only; raw session/context-usage objects and system prompt content are not packetized. Markdown structural labels such as objectives, item IDs, paths, and rationales are rendered as bounded one-line display text so caller-controlled labels cannot forge packet sections. Plan intake also enforces compact hard caps for objective length, seed count, seed values, seed notes, and workspace path strings before provider routing so raw caller input cannot become the packet payload. Owner-surface routes are advisory only: when an objective needs `self`, subagent execution, peer messaging/launch, orchestrator gates, AK/FCOS authority, Prompt Vault governance, or ROCS semantics, the packet names the owning surface and states that context-packer did not call, spawn, supervise, persist, or authorize it. It enforces the global packet budget across providers while preserving the configured reasoning reserve, enforces cumulative provider-local caps, preserves Pi loader-style per-directory instruction-file priority inside the accepted `repoRoot` (`AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`) from repo root/ancestor files to deepest package files, and treats Markdown extensions case-insensitively. It does not mutate source state. Caller-controlled path seeds and provider-discovered Markdown paths are screened before packet reads; URI/drive-letter, absolute, parent-traversing, current-directory, hidden/internal, generated/vendor, or malformed path seeds are omitted from provider queries and surfaced as blocked path risks. Caller-controlled `cwd`/`repoRoot` values are also screened before they are echoed as workspace posture: when `repoRoot` is omitted, package cwd can infer the nearest ancestor git root only when that ancestor has a plausible `.git` marker, and package cwd can also name an ancestor monorepo `repoRoot` only with the same marker, while unrelated roots, fake `.git` marker files, and broad non-repo ancestors fail closed. Safe caller path seeds that exist relative to package `cwd` are normalized to repo-root-relative paths after root inference, so package-local seeds and monorepo-root seeds share one provider path basis. Retrieval repeats workspace containment plus descriptor/TOCTOU checks before file content enters a packet. When no explicit safe Markdown seed is supplied, the docs provider may use trusted `docs-list.mjs` read-only ranking to discover repo-relative Markdown candidates by objective, requiring structured JSON `rankedItems` / `repoPath` output because `--json` provider output is a strict contract, even if unrelated unsafe caller seeds were omitted. Docs-list subprocess capture remains bounded at 4 MiB so real monorepo inventories larger than the former 512 KB limit can be parsed without making provider output unbounded. Empty docs-list results are recorded as explicit `docs/no_results` omissions rather than silent clean packets, while invalid JSON, `ok:false`, unsupported JSON schema, unsupported JSON item shapes, or JSON `repoRoot` values outside the caller repoRoot become provider/schema omissions rather than false no-results. Process-level `PI_CONTEXT_PACKER_DOCS_LIST` / `DOCS_LIST_SCRIPT` overrides are treated as trusted executable code and ignored unless `PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST=1` is explicitly set; ambient `HOME` is not used to derive executable identity, and built-in discovery uses fixed default script candidates; package-local test/dogfood harnesses may still inject an internal `docsListScript`. From package subdirectories, docs-list discovery climbs to the nearest package/documentation root before scanning so source-file work still gets package-local docs rather than an empty subdirectory scan or the entire monorepo; package-root markers win over nested `README.md` / `docs` markers, nested `package.json` ambiguity is surfaced, package roots under fixture/sample container directories broaden to the outer package ancestor, legitimate nested package roots and packages merely named sample/fixture stay nearest-package scoped, JSON `repoPath` stays in the caller repo-root basis unless the payload declares a safe inner `repoRoot`, package-scoped `repoPath` values that are not already in the caller repo-root package path require explicit JSON `repoRoot` or a safe `item.path` fallback, and package-local JSON `path` fallback values are rebased to POSIX repo-relative packet paths before repo-root packet reads. If SCI read-only safety is not confirmed, context-packer refuses to run SCI workflows rather than risk creating or mutating `.ontology` artifacts; live Pi hosts opt into the sandboxed SCI seam only with `PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE=true`. Process-level `PI_CONTEXT_PACKER_SCI_CLI` / `SCI_CLI` executable overrides are treated as trusted executable code and ignored unless `PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI=1` is explicitly set; default SCI discovery uses fixed absolute system candidates rather than ambient `PATH`, and SCI subprocesses receive a minimal allowlisted environment with a fixed tool path rather than raw host environment variables. Artifact-creation bypass flags are not accepted as context-packer authorization, existing `.ontology` state under `cwd`, `repoRoot`, or any ancestor between them fails closed (including symlinks), SCI path seeds are copied from the normalized repo-root source through a realpath-checked temporary sandbox before workflow execution, symbol seeds with control characters or more than 240 characters are omitted before subprocess queries, and broad symbol-only SCI searches are omitted unless at least one safe code path seed can bound the sandbox. When the active Pi system prompt already contains a selected AGENTS/CLAUDE instruction file or doc file, the packet emits metadata instead of duplicating the whole content.
-
-Initial live and package-local receipts are recorded in [Dogfood measurement receipts — 2026-05-22](docs/project/2026-05-22-dogfood-measurement-receipts.md), including useful-packet, `no_packet_needed`, provider-route, and structured docs-list JSON smoke cases.
-
-## Provider boundary
-
-`context_plan` may select or mark optional providers for intent, but selection is not a claim that `context_pack` has an unconditional adapter. Every provider plan reports `adapterStatus` and `executionStatus`; conditional providers also report an `executionCondition`. For selected providers, the plan-level `executionSummary` gives action-complete `nextActions` plus a summary next step. Mixed selected plans retain packet, runtime-condition, safety-gate, and owner-surface actions instead of collapsing them into one lossy recommendation. Optional providers retain their per-provider capability fields but do not appear in execution actions until selected. A runtime-eligibility provider may intentionally emit no section; retrieval failures still fail closed as explicit omissions.
-
-Providers:
-
-- SCI code context (`sci`)
-- repo docs / docs-list (`docs`)
-- repo-bounded AGENTS/CLAUDE instruction projection (`agents`)
-- git posture (`git`)
-- current session context pressure (`session`)
-- Prompt Vault read-only procedures (`prompt_vault`)
-- AK read-only task/decision/evidence orientation (`ak`)
-- FCOS read-only control-board orientation (`fcos`)
-
-See the root source-owner docs:
-
-- [Context-window packer FCOS slice](../../docs/project/2026-05-21-context-window-packer-fcos-slice.md)
-- [Context packer provider contract](../../docs/project/2026-05-21-context-packer-provider-contract.md)
-
-## Current MVP omissions
-
-`context_pack` records explicit omissions instead of pretending full integration exists. Prompt Vault, AK, and FCOS are reported as `planned_unwired` / `owner_routed`, not executable packet providers. Repo-bounded instructions, docs/docs-list, and git are wired. Session is guarded by `caller_required_or_high_context_pressure`, so an auto-selected low-pressure session may intentionally emit no section. SCI is guarded and reports either `blocked_by_safety_gate` or `runtime_preflight_required` before packet assembly. The current MVP assembles repo-bounded instruction/docs-list/git/session sections plus SCI code context for safe path seeds, and for symbol seeds only inside a temporary sandbox bounded by at least one safe code path seed, when all SCI preflights pass.
-
-## Runtime dependencies
-
-This package expects pi host runtime APIs and declares them as `peerDependencies`:
-
-- `@earendil-works/pi-coding-agent`
-- `@earendil-works/pi-ai`
-
-When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
-
-## Package checks
-
-Run from package directory:
-
-```bash
-npm install
-npm run check
+```json
+{"objective":"Find the provider capability checks","providers":{"ripwire":"required"}}
 ```
 
-`npm run check` includes structure validation, Biome, real TypeScript checking for the extension entrypoint, tests, and a quick package artifact check. For package-local production dogfood of real structured docs-list JSON intake, run `npm run dogfood:docs-list-json`; it assembles docs packets from package-root and package-subdirectory cwd values using real `rankedItems[].repoPath`, checks compact details redaction, carries provider-route telemetry, tracks validation separately from context probes, labels the activity type and source-local runtime context, and evaluates a non-persistent dogfood receipt.
+Filename seeds are optional. `auto` does not yet activate ripwire. The operator must
+provision the supported executable and set `PI_CONTEXT_PACKER_RIPWIRE_BIN` to its
+absolute path. See [the stack contract](docs/project/ripwire-stack.md) for the
+pinned build, digest, approved-corpus policy, and Linux support boundary.
+The package never installs a tool or changes agent settings. Ordinary Pi read/search
+remains available when discovery is unavailable or insufficient.
 
-For dependency-audit and full release-readiness checks:
+## Start using it from source
 
-```bash
-npm audit --omit=dev --audit-level=moderate
-npm run release:check
+**Supported acquisition platform: Linux.** macOS and Windows currently refuse code
+acquisition; installing on those systems does not remove that boundary. Tested Pi
+host line: `0.84.3`. Automatic provider selection remains off.
+
+From an updated `pi-extensions` checkout, install the package into an existing Pi:
+
+```sh
+pi install "$PWD/packages/pi-context-packer"
 ```
 
-`npm run release:check` includes isolated Pi tarball install plus runtime registration smoke for `/context-pack` and the four model-callable tools, then executes installed artifact code for `context_plan`, seeded `context_pack`, docs-list-discovered `context_pack`, dogfood evaluation, and aggregate dogfood validation-count observability against a temporary read-only fixture. The smoke verifies registered tool metadata through Pi runtime; executable behavior is tested through installed package modules because `pi.getAllTools()` exposes metadata, not tool handler functions.
+Provision ripwire from the pinned source revision (a C++23 compiler, CMake >=3.24 and Git are
+required). This explicit operator step does not install upstream agent skills:
 
-`npm run check` uses the quick artifact release check and intentionally skips the Pi smoke; use `npm run release:check` before claiming live package activation readiness.
-
-Run from monorepo root through the canonical package gate:
-
-```bash
-bash ./scripts/package-quality-gate.sh ci packages/pi-context-packer
+```sh
+# Run in a directory where a new ripwire-pinned checkout may be created.
+git clone https://github.com/redhat-et/ripwire.git ripwire-pinned
+git -C ripwire-pinned checkout --detach 93c8edaafdb5499e89939cc2cebd0429e278e86f
+cmake -S ripwire-pinned -B ripwire-pinned/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ripwire-pinned/build --target ripwire -j2
+export PI_CONTEXT_PACKER_RIPWIRE_BIN="$(realpath ripwire-pinned/build/ripwire)"
+export PI_CONTEXT_PACKER_RIPWIRE_SHA256="$(sha256sum "$PI_CONTEXT_PACKER_RIPWIRE_BIN" | cut -d' ' -f1)"
 ```
 
-The generated package-local `scripts/quality-gate.sh` is a thin wrapper that searches upward for the canonical monorepo root gate.
-If you validate the package outside the monorepo tree, set `PACKAGE_QUALITY_GATE_SCRIPT` to the canonical `pi-extensions` root gate path.
+The digest above records the bytes you built from the reviewed source; it is not an
+independent upstream attestation. Use these environment variables in the shell that
+starts Pi. If the binary is already provisioned, export its absolute path and approved
+digest instead. No automatic download or fallback installation occurs.
 
-## AK task/work-item operations
+Start a fresh Pi from the target repository with those variables set. In Pi, run:
 
-This package is a monorepo member, not a git root.
-Use the monorepo-root AK wrapper for task/work-item operations:
-
-```bash
-# from the monorepo root
-./scripts/ak.sh --doctor
-./scripts/ak.sh task ready
-
-# from this package directory
-../../scripts/ak.sh --doctor
-../../scripts/ak.sh task show <id> -F json
+```text
+/ripwire-context Find where provider execution eligibility is decided
 ```
 
-## Documentation placement
+The prompt explicitly asks for the `context_pack` tool and the ripwire provider.
+It is not an always-on map injection. An already-running Pi needs `/reload` after
+package installation; environment variables changed in another shell require a new
+Pi process. Failure messages are actionable omissions, not a request to authorize
+another backend. Normal Pi tools handle edits and validation separately.
 
-Use:
-- `docs/project/` for dated RFCs, runbooks, and evidence/progress notes
-- `docs/adr/` for adopted architecture decisions
+## Migration
 
-Avoid creating new package-local `docs/dev/` trees.
+SCI is removed from this package's runtime, routing, prompts, and active experiments.
+Remove `providers.sci` and its provider budget from saved requests; obsolete configuration
+is rejected, never silently mapped to permission to execute another tool. No installed
+software or user `.ontology` data is removed. Historical code and evidence are archived
+at `docs/archive/pi-context-packer/pre-ripwire` in the monorepo, outside this package artifact.
+Other independently owned monorepo packages are not removed by this migration.
 
-## Live package activation
+## Verification
 
-Install the package into Pi from the package directory containing this package's `package.json`:
+Run the canonical gate from the monorepo root:
 
-```bash
-pi install /absolute/path/to/your/monorepo/packages/pi-context-packer
+```sh
+bash scripts/package-quality-gate.sh ci packages/pi-context-packer
 ```
 
-Then in Pi:
+Run `npm run release:check` from this package for isolated installed-Pi verification.
+The quick release check skips Pi smoke and is not proof of activation.
+`npm run dogfood:gate -- --gate RW-01 --candidate-sha <SHA> --output-dir <EXTERNAL_DIR>`
+checks an exact clean candidate and emits an independently rerunnable receipt.
+An offline registered-tool smoke is not a model-task benchmark or independent authorship.
 
-1. run `/reload`
-2. verify with a real command or tool call from this package
+The package does not apply edits, run validation commands, install tools, or move task authority.
 
-The current `context_plan` build prints `context_pack executable now:` and `recommended next step:`. If those lines are absent after `/reload`, treat the in-session tool closure as stale rather than claiming activation; start a fresh Pi process/session and verify again. Installed-artifact smoke or a fresh process can prove package loading, but neither retroactively refreshes a stale closure in an already-running session.
+### Focused source expansion
 
-## Release metadata
+After discovery, call `context_pack` with `providers.ripwire: "required"` and
+`code: { mode: "expand", selection: { path, name, line, contentSha256 } }`.
+Copy the repo-relative path, literal symbol, line and source SHA-256 from the discovery
+packet. The adapter rechecks source content and requires exactly one matching body;
+a stale hash, mismatched line or ambiguous definition refuses instead of guessing.
+Body and ancillary-context omissions are explicit. Redacted output is not editable source.
 
-This scaffold keeps npm identity separate from release component identity:
+### Optional private cache
 
-- npm package name: `@tryinget/pi-context-packer`
-- release component/tag stem: `pi-context-packer` (for example `pi-context-packer-vX.Y.Z`)
+`PI_CONTEXT_PACKER_RIPWIRE_CACHE_ROOT` is an operator setting, not a model argument.
+Use an absolute, user-owned mode-0700 directory outside source repositories with no
+symlink ancestors. Leave it unset to disable caching. Entries are mode 0600 and may
+contain source-derived text. Each request revalidates binary and corpus bytes before
+reuse; uncommitted changes and scope policy affect identity. Corrupt entries cause a
+fresh run. Post-write pruning targets 32 entries/32 MiB; concurrent in-flight writes
+can temporarily exceed the aggregate target. Source acquisition is individually stable,
+not an atomic filesystem snapshot.
 
-The npm package name must stay scoped. The release component should usually stay unscoped so root release-please component tags remain readable and stable.
+### Active working set
 
-This scaffold writes component metadata in `package.json` under `x-pi-template`:
-
-- `workspacePath`
-- `releaseComponent`
-- `releaseConfigMode`
-
-Default `releaseConfigMode` is `component`, meaning the package expects root-managed component release metadata such as a monorepo release-please component map. Use `none` only as an explicit opt-out when the monorepo root deliberately manages releases another way.
-
-Use these values when wiring monorepo-level release-please component maps.
-
-## Docs discovery
-
-```bash
-npm run docs:list
-npm run docs:list:workspace
-npm run docs:list:json
-npm run dogfood:docs-list-json
-```
-
-## Stack lane companions
-
-This package follows the shared `pi-ts` lane.
-Add companions only when they materially improve clarity or reuse:
-
-- `fast-check` for parser/rendering/selection invariants
-- `@cucumber/cucumber` for executable Gherkin/operator workflows
-- `nunjucks` for reusable text/config/prompt/file templates
-- `engineering-pi-ts.ts-quality.md` when the package explicitly adopts deterministic screening with `ts-quality`
-
-If this package adopts `ts-quality`, prefer repo-local rollout truth in `docs/project/ts-quality-current-vs-target.md` and keep the detailed adoption doctrine upstream in `~/ai-society/softwareco/owned/ts-quality/docs/adoption/`.
-
-## Copier lifecycle policy
-
-- Keep `.copier-answers.yml` committed.
-- Do not edit `.copier-answers.yml` manually.
-- Run update/recopy from a clean destination repo (commit or stash pending changes first).
-- Use `copier update --trust` when `.copier-answers.yml` includes `_commit` and update is supported.
-- In non-interactive shells/CI, append `--defaults` to update/recopy.
-- Use `copier recopy --trust` when update is unavailable (for example local non-VCS source) or cannot reconcile cleanly.
-- After recopy, re-apply local deltas intentionally and run `npm run check`.
+The extension inspects Pi's active, compaction-aware session entries for successful
+`context_pack` results. Only visible, non-metadata source items contribute content keys.
+Keys bind repository, location, file bytes and served representation. Matching unchanged
+items become brief references; `code: { mode: "discover", refresh: true }` forces serving.
+A new session or compacted-away original does not inherit a loaded claim. This does not
+inspect arbitrary native read output or guarantee visibility after unrelated extensions
+transform the final prompt. Without active-entry support, deduplication is unavailable.

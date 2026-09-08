@@ -17,7 +17,7 @@ import {
 } from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
 import { isPlannedUnwiredContextPackProvider } from "./provider-capabilities.js";
-import { buildSciSection } from "./sci-provider.js";
+import { buildRipwireSection } from "./ripwire-section.js";
 import {
   buildDogfoodObservationTemplate,
   buildMeasurementHints,
@@ -405,7 +405,7 @@ const ownerSurfaceForProvider = (provider) => {
   if (provider === "prompt_vault") return "Prompt Vault governed read surfaces";
   if (provider === "ak") return "AK / accepted society authority surfaces";
   if (provider === "fcos") return "FCOS control-board owner surface";
-  if (provider === "sci") return "SCI / semantic-code-intelligence";
+  if (provider === "code") return "Pi read/search tools";
   return `${provider} owner surface`;
 };
 
@@ -500,21 +500,36 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const repoRoot = resolve(plan.repoRoot ?? plan.cwd);
   const providerIds = selectedProviderIds(plan);
   const sections = [];
+  const providerRuns = {};
+  const requiredProviderFailures = [];
   const sessionAwareness = buildSessionAwareness({ ...env, cwd });
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const providerBudgets = new Map();
   const omissions = (plan.omittedSeeds ?? []).map((seed) => {
     const seedKind = normalizeContextPlanSeedKind(seed.kind);
     return {
-      provider: seed.provider ?? (seedKind === "symbol" ? "sci" : "docs"),
+      provider: seed.provider ?? (seedKind === "symbol" ? "code" : "docs"),
       reason: omissionReasonForSeedKind(seedKind),
       detail: `${seedKind} seed omitted during planning: ${seed.reason}`,
     };
   });
+  if (
+    !providerIds.includes("ripwire") &&
+    (plan.unavailableCodeSeeds.length > 0 ||
+      /\b(code|symbol|implementation|refactor|typescript|javascript|python)\b/iu.test(
+        plan.objective,
+      ))
+  ) {
+    omissions.push({
+      provider: "code",
+      reason: "unavailable",
+      detail:
+        "Code retrieval was not selected. Use providers.ripwire=required after provisioning, or Pi read/search tools. No code backend was invoked.",
+    });
+  }
   let docsSeeds = providerQuerySeeds(plan, "docs").filter(
     (seed) => seed.kind === "path" && isMarkdownPath(seed.value),
   );
-  const sciSeeds = providerQuerySeeds(plan, "sci");
 
   if (providerIds.includes("agents")) {
     const result = await buildAgentsSection({
@@ -565,23 +580,23 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     });
   }
 
-  if (providerIds.includes("sci")) {
-    const result = await buildSciSection({
-      cwd,
-      repoRoot,
-      seeds: sciSeeds,
-      maxBytes: providerMaxBytes(plan, "sci", remainingBudget),
-      env,
-      signal: env.signal,
-    });
+  if (providerIds.includes("ripwire")) {
+    const result = await buildRipwireSection(plan, env);
+    providerRuns.ripwire = result.state;
     omissions.push(...result.omissions);
-    appendSectionWithinBudget({
+    const selection = appendSectionWithinBudget({
       sections,
       omissions,
       section: result.section,
       remainingBudget,
-      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "sci"),
+      providerRemainingBudget: remainingProviderBudget(providerBudgets, plan, "ripwire"),
     });
+    if (
+      result.state.required &&
+      (!result.ok || (result.section.items.length > 0 && selection.keptCount === 0))
+    ) {
+      requiredProviderFailures.push("ripwire");
+    }
   }
 
   if (providerIds.includes("session") && shouldShowSessionSection({ plan, sessionAwareness })) {
@@ -639,7 +654,9 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const ownerSurfaceRecommendations = plan.ownerSurfaceRecommendations ?? [];
   const nextOwnerActions = ownerSurfaceRecommendations.map(ownerActionFromRecommendation);
   const packet = {
-    ok: true,
+    ok: requiredProviderFailures.length === 0,
+    providerRuns,
+    requiredProviderFailures,
     objective: plan.objective,
     generatedAt: dogfoodObservationTemplate.packet.generatedAt,
     cwd,
@@ -679,5 +696,5 @@ export { formatContextPacket };
 
 export const contextPacketToolResult = async (input = {}, env = {}) => {
   const result = await buildContextPacket(input, env);
-  return toolResultFromContextPacketResult(result);
+  return toolResultFromContextPacketResult(result, env);
 };

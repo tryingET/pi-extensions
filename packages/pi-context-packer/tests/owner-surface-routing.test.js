@@ -8,7 +8,7 @@ import test from "node:test";
 import { buildOwnerSurfaceRecommendations } from "../src/owner-surface-routing.js";
 
 const providerPlans = (selectedProviders = []) =>
-  ["agents", "git", "sci", "docs", "session", "prompt_vault", "ak", "fcos"].map((provider) => ({
+  ["agents", "git", "docs", "session", "prompt_vault", "ak", "fcos"].map((provider) => ({
     provider,
     posture: selectedProviders.includes(provider) ? "selected" : "optional",
   }));

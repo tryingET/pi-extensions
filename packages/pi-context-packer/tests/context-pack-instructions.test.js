@@ -19,7 +19,7 @@ test("context_pack treats uppercase Markdown seeds as docs", async () => {
     cwd: root,
     repoRoot: root,
     seeds: [{ kind: "path", value: "docs/project/README.MD" }],
-    providers: { git: "off", sci: "off" },
+    providers: { git: "off" },
   });
 
   const docs = result.packet.sections.find((section) => section.provider === "docs");
@@ -38,7 +38,7 @@ test("context_pack preserves repo-root-to-leaf AGENTS order", async () => {
     objective: "Read instruction context",
     cwd: join(root, "packages", "pkg"),
     repoRoot: root,
-    providers: { git: "off", sci: "off", docs: "off" },
+    providers: { git: "off", docs: "off" },
   });
 
   const agents = result.packet.sections.find((section) => section.provider === "agents");
@@ -61,7 +61,7 @@ test("context_pack applies Pi instruction-file fallback and priority inside repo
     objective: "Read instruction context",
     cwd: join(root, "packages", "pkg"),
     repoRoot: root,
-    providers: { git: "off", sci: "off", docs: "off" },
+    providers: { git: "off", docs: "off" },
   });
 
   const agents = result.packet.sections.find((section) => section.provider === "agents");
@@ -91,7 +91,7 @@ test("context_pack dedupes selected fallback instruction files", async () => {
       objective: "Read instruction context",
       cwd: join(root, "packages", "pkg"),
       repoRoot: root,
-      providers: { git: "off", sci: "off", docs: "off" },
+      providers: { git: "off", docs: "off" },
     },
     { systemPrompt: leafClaude },
   );
@@ -117,7 +117,7 @@ test("context_pack documents instruction context as a repo-bounded projection", 
     objective: "Read instruction context",
     cwd: packageCwd,
     repoRoot: root,
-    providers: { git: "off", sci: "off", docs: "off" },
+    providers: { git: "off", docs: "off" },
   });
 
   const agents = result.packet.sections.find((section) => section.provider === "agents");
@@ -142,7 +142,7 @@ test("context_pack accepts a git-root ancestor repoRoot from a package cwd", asy
       objective: "Read monorepo package instruction context",
       cwd: packageCwd,
       repoRoot: root,
-      providers: { git: "off", sci: "off", docs: "off" },
+      providers: { git: "off", docs: "off" },
     },
     { cwd: packageCwd },
   );
@@ -171,7 +171,7 @@ test("context_pack infers git-root ancestor from package cwd when repoRoot is om
     {
       objective: "Read monorepo package instruction context",
       cwd: packageCwd,
-      providers: { git: "off", sci: "off", docs: "off" },
+      providers: { git: "off", docs: "off" },
     },
     { cwd: packageCwd },
   );
@@ -197,7 +197,7 @@ test("context_pack rebases cwd-relative docs seeds after repoRoot inference", as
       objective: "Read package-local docs",
       cwd: packageCwd,
       seeds: [{ kind: "path", value: "docs/project/vision.md" }],
-      providers: { agents: "off", git: "off", sci: "off", docs: "required" },
+      providers: { agents: "off", git: "off", docs: "required" },
     },
     { cwd: packageCwd },
   );
@@ -222,7 +222,7 @@ test("context_pack preserves repo-root-relative docs seeds when package cwd has 
       objective: "Read repo docs",
       cwd: packageCwd,
       seeds: [{ kind: "path", value: "docs/README.md" }],
-      providers: { agents: "off", git: "off", sci: "off", docs: "required" },
+      providers: { agents: "off", git: "off", docs: "required" },
     },
     { cwd: packageCwd },
   );
@@ -249,7 +249,7 @@ test("context_pack runs git status at repoRoot after package-cwd inference", asy
     {
       objective: "Check git status before implementation",
       cwd: packageCwd,
-      providers: { agents: "off", docs: "off", sci: "off", git: "required" },
+      providers: { agents: "off", docs: "off", git: "required" },
     },
     { cwd: packageCwd, execFileAsync: fakeExec },
   );
@@ -263,14 +263,14 @@ test("context_pack runs git status at repoRoot after package-cwd inference", asy
 test("context_pack records planned provider omissions and owner routes for selected unwired providers", async () => {
   const root = await makeWorkspace();
   const result = await buildContextPacket({
-    objective: "Use SCI and FCOS context for code coordination",
+    objective: "Use FCOS context for code coordination",
     cwd: root,
     repoRoot: root,
     providers: { git: "off" },
   });
 
   const omittedProviders = result.packet.omissions.map((omission) => omission.provider);
-  assert.ok(omittedProviders.includes("sci"));
+  assert.ok(omittedProviders.includes("code"));
   assert.ok(omittedProviders.includes("fcos"));
   assert.ok(
     result.packet.ownerSurfaceRecommendations.some((recommendation) =>
