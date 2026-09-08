@@ -36,8 +36,7 @@ commit and package digest. Implementer re-execution is not independent external 
 
 ## RW-03: trusted adapter
 
-`@tryinget/pi-context-packer/ripwire` exports the read-only provider. It is not yet selected by
-`context_pack`. Provision the CLI explicitly; this package does not install tools or agent skills.
+`@tryinget/pi-context-packer/ripwire` exports the read-only provider. It is available to `context_pack` when explicitly selected (RW-04 onward). Provision the CLI explicitly; this package does not install tools or agent skills.
 Set `PI_CONTEXT_PACKER_RIPWIRE_BIN` to an absolute executable path. Linux x64 has a recorded default
 build digest; another operator-approved build requires `PI_CONTEXT_PACKER_RIPWIRE_SHA256` and must
 report the supported version. A supplied digest is an operator trust decision, not upstream build

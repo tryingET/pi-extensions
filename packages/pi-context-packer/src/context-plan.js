@@ -4,7 +4,7 @@ read_when:
   - "Changing context_plan normalization, provider selection, risk reporting, or its compact result contract."
 */
 
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { CODE_REQUEST_SCHEMA, normalizeCodeRequest } from "./code-request.js";
 import {
@@ -113,16 +113,16 @@ const normalizeMode = (value) => {
 
 const normalizeBudget = (inputBudget = {}) => {
   const budget = asObject(inputBudget);
-  const maxTokens = positiveInteger(budget.maxTokens, DEFAULT_MAX_TOKENS);
+  const maxTokens = budgetInteger(budget.maxTokens, DEFAULT_MAX_TOKENS);
   const reserveFallback = Math.min(DEFAULT_RESERVE_TOKENS, Math.floor(maxTokens * 0.3));
-  const rawReserveTokens = positiveInteger(budget.reserveTokens, reserveFallback);
+  const rawReserveTokens = budgetInteger(budget.reserveTokens, reserveFallback);
   const reserveTokens = Math.min(rawReserveTokens, Math.max(0, maxTokens - 1));
-  const maxBytes = positiveInteger(budget.maxBytes, maxTokens * ESTIMATED_BYTES_PER_TOKEN);
+  const maxBytes = budgetInteger(budget.maxBytes, maxTokens * ESTIMATED_BYTES_PER_TOKEN);
   const rawPerProvider = asObject(budget.perProviderMaxTokens);
   const perProviderMaxTokens = {};
 
   for (const provider of PROVIDER_IDS) {
-    perProviderMaxTokens[provider] = positiveInteger(
+    perProviderMaxTokens[provider] = budgetInteger(
       rawPerProvider[provider],
       DEFAULT_PROVIDER_MAX_TOKENS,
     );
@@ -131,11 +131,8 @@ const normalizeBudget = (inputBudget = {}) => {
   return { maxTokens, maxBytes, perProviderMaxTokens, reserveTokens };
 };
 
-const positiveInteger = (value, fallback) => {
-  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
-  const normalized = Math.floor(value);
-  return normalized > 0 ? normalized : fallback;
-};
+const budgetInteger = (value, fallback) =>
+  Number.isSafeInteger(value) && value >= 0 ? value : fallback;
 
 const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
 const textTokens = (value) => Math.ceil(textBytes(value) / ESTIMATED_BYTES_PER_TOKEN);
@@ -328,7 +325,16 @@ const trustedFallbackCwd = (env, risks) => {
     });
     return process.cwd();
   }
-  return candidate;
+  try {
+    return realpathSync(candidate);
+  } catch {
+    risks.push({
+      kind: "path",
+      severity: "blocked",
+      message: "trusted cwd changed during resolution",
+    });
+    return process.cwd();
+  }
 };
 
 const repoRootTrustIssue = (repoRoot, trustedEnvCwd) => {
@@ -463,6 +469,20 @@ const normalizeWorkspace = (raw, env) => {
       });
       repoRoot = undefined;
     }
+  }
+
+  // Trust is about resolved directories, not a lexical alias inside the workspace.
+  try {
+    cwd = realpathSync(cwd);
+    if (repoRoot) repoRoot = realpathSync(repoRoot);
+  } catch {
+    risks.push({
+      kind: "path",
+      severity: "blocked",
+      message: "workspace changed during resolution",
+    });
+    cwd = fallbackCwd;
+    repoRoot = undefined;
   }
 
   if (repoRoot) {

@@ -50,3 +50,12 @@ test("corpus is descriptor anchored, excludes symlinks and fingerprints source",
     await rm(dest, { recursive: true, force: true });
   }
 });
+
+test("candidate signature redaction markers retain a non-byte-exact disclosure", () => {
+  const xml = fixture.replace(
+    "function read(x: A&lt;B&gt;)",
+    "function read(key = [REDACTED:secret])",
+  );
+  assert.equal(parseRipwireCandidates(xml, corpus).records[0].redacted, true);
+  assert.equal(parseRipwireCandidates(fixture, corpus).records[0].redacted, false);
+});

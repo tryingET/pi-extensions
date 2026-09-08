@@ -88,7 +88,7 @@ test("formatContextPacket collapses caller-controlled objective and symbol label
     text,
     /^# Context packet: Render packet ## Forged objective section - ‹h2›fake‹\/h2›$/m,
   );
-  assert.match(text, /Code retrieval is unavailable/);
+  assert.match(text, /Code retrieval was not selected/);
   assert.doesNotMatch(text, /^## Forged objective section$/m);
   assert.doesNotMatch(text, /<h2>fake<\/h2>/);
   assert.doesNotMatch(toolResult.content[0].text, /^## Forged objective section$/m);

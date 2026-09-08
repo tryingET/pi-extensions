@@ -74,6 +74,7 @@ export function parseRipwireCandidates(stdout, corpus) {
       !Number.isFinite(Number(attr.s))
     )
       throw new Error("invalid_candidate_identity");
+    const signature = decode(row[2] ?? "");
     records.push({
       path: attr.p,
       line: Number(attr.l),
@@ -82,7 +83,11 @@ export function parseRipwireCandidates(stdout, corpus) {
       kind: attr.k,
       rank: Number(attr.r),
       score: Number(attr.s),
-      signature: decode(row[2] ?? ""),
+      signature,
+      // The candidates dialect can redact signatures without a row flag. Treat
+      // the visible marker conservatively; do not advertise byte-exact source.
+      redacted: attr.redacted === "1" || /\[REDACTED[:\]]/u.test(signature),
+      scrubbed: attr.scrubbed === "1",
       contentSha256: corpus.files.get(attr.p).sha256,
     });
     body = body.slice(row[0].length);

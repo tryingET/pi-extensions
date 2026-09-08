@@ -31,6 +31,48 @@ pinned build, digest, approved-corpus policy, and Linux support boundary.
 The package never installs a tool or changes agent settings. Ordinary Pi read/search
 remains available when discovery is unavailable or insufficient.
 
+## Start using it from source
+
+**Supported acquisition platform: Linux.** macOS and Windows currently refuse code
+acquisition; installing on those systems does not remove that boundary. Tested Pi
+host line: `0.84.3`. Automatic provider selection remains off.
+
+From an updated `pi-extensions` checkout, install the package into an existing Pi:
+
+```sh
+pi install "$PWD/packages/pi-context-packer"
+```
+
+Provision ripwire from the pinned source revision (a C++23 compiler, CMake >=3.24 and Git are
+required). This explicit operator step does not install upstream agent skills:
+
+```sh
+# Run in a directory where a new ripwire-pinned checkout may be created.
+git clone https://github.com/redhat-et/ripwire.git ripwire-pinned
+git -C ripwire-pinned checkout --detach 93c8edaafdb5499e89939cc2cebd0429e278e86f
+cmake -S ripwire-pinned -B ripwire-pinned/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ripwire-pinned/build --target ripwire -j2
+export PI_CONTEXT_PACKER_RIPWIRE_BIN="$(realpath ripwire-pinned/build/ripwire)"
+export PI_CONTEXT_PACKER_RIPWIRE_SHA256="$(sha256sum "$PI_CONTEXT_PACKER_RIPWIRE_BIN" | cut -d' ' -f1)"
+```
+
+The digest above records the bytes you built from the reviewed source; it is not an
+independent upstream attestation. Use these environment variables in the shell that
+starts Pi. If the binary is already provisioned, export its absolute path and approved
+digest instead. No automatic download or fallback installation occurs.
+
+Start a fresh Pi from the target repository with those variables set. In Pi, run:
+
+```text
+/ripwire-context Find where provider execution eligibility is decided
+```
+
+The prompt explicitly asks for the `context_pack` tool and the ripwire provider.
+It is not an always-on map injection. An already-running Pi needs `/reload` after
+package installation; environment variables changed in another shell require a new
+Pi process. Failure messages are actionable omissions, not a request to authorize
+another backend. Normal Pi tools handle edits and validation separately.
+
 ## Migration
 
 SCI is removed from this package's runtime, routing, prompts, and active experiments.

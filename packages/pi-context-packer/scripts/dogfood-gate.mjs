@@ -27,12 +27,23 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 if (
   flags.size !== 3 ||
-  !["RW-01", "RW-02", "RW-03", "RW-04", "RW-05", "RW-06", "RW-07", "RW-08", "RW-09"].includes(
-    flags.get("--gate"),
-  ) ||
+  ![
+    "RW-01",
+    "RW-02",
+    "RW-03",
+    "RW-04",
+    "RW-05",
+    "RW-06",
+    "RW-07",
+    "RW-08",
+    "RW-09",
+    "RW-10",
+  ].includes(flags.get("--gate")) ||
   !/^[a-f0-9]{40}$/u.test(flags.get("--candidate-sha"))
 )
-  throw new Error("Expected --gate RW-01|RW-02 --candidate-sha SHA --output-dir EXTERNAL_DIR");
+  throw new Error(
+    "Expected --gate RW-01 through RW-10 --candidate-sha SHA --output-dir EXTERNAL_DIR",
+  );
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const head = git("rev-parse", "HEAD");
 if (head !== flags.get("--candidate-sha") || git("status", "--porcelain"))
@@ -188,6 +199,11 @@ try {
       !text.includes("ripwire registered rollout gate PASS")
     )
       throw new Error("Rollout runtime marker absent");
+    if (
+      Number(flags.get("--gate").slice(3)) >= 10 &&
+      !text.includes("ripwire registered landing regressions PASS")
+    )
+      throw new Error("Landing runtime marker absent");
   }
 } catch (error) {
   if (!receipt.checks.some((check) => check.status !== "PASS"))

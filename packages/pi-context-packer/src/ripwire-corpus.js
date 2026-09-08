@@ -65,11 +65,19 @@ export async function stableRead(path, maxBytes) {
   const before = await lstat(path, { bigint: true });
   if (!before.isFile() || before.isSymbolicLink() || before.size > BigInt(maxBytes))
     throw new Error("unsupported_or_oversize_file");
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const opened = await handle.stat({ bigint: true });
     if (!sameFile(before, opened)) throw new Error("source_changed");
-    const data = await handle.readFile();
+    // Never let concurrent file growth turn a bounded read into an unbounded allocation.
+    const buffer = Buffer.alloc(Number(before.size) + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    const data = buffer.subarray(0, length);
     if (
       !sameFile(opened, await handle.stat({ bigint: true })) ||
       BigInt(data.length) !== before.size
@@ -83,7 +91,8 @@ export async function stableRead(path, maxBytes) {
 
 export async function copyApprovedCorpus(root, destination, options = {}) {
   const realRoot = await realpath(root);
-  if (realRoot === sep || !(await lstat(realRoot)).isDirectory()) throw new Error("invalid_root");
+  if (realRoot !== resolve(root) || realRoot === sep || !(await lstat(realRoot)).isDirectory())
+    throw new Error("invalid_root");
   const excluded = options.excludePaths ?? [];
   if (!Array.isArray(excluded) || excluded.length > 256 || !excluded.every(safeRelative))
     throw new Error("invalid_exclusion_policy");
@@ -163,6 +172,8 @@ export async function copyApprovedCorpus(root, destination, options = {}) {
   try {
     if (!sameFile(rootBefore, await rootHandle.stat({ bigint: true })))
       throw new Error("directory_changed");
+    if ((await realpath(`/proc/self/fd/${rootHandle.fd}`)) !== realRoot)
+      throw new Error("source_path_changed");
     await walk(rootHandle);
   } finally {
     await rootHandle.close();

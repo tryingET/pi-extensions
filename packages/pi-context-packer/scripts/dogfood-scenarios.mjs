@@ -93,6 +93,7 @@ export async function migrationScenario() {
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const scenarios = {
+    "RW-10": async () => (await import("./dogfood-landing.mjs")).landingScenario(migrationScenario),
     "RW-01": migrationScenario,
     "RW-02": (await import("./dogfood-budget.mjs")).budgetScenario,
     "RW-03": (await import("./dogfood-adapter.mjs")).adapterScenario,

@@ -14,7 +14,7 @@ export async function buildRipwireSection(plan, env = {}) {
   );
   const blocked = blockedRoot
     ? "invalid_workspace"
-    : limits.maxBytes < 256
+    : limits.maxBytes < 256 || plan.budget.perProviderMaxTokens.ripwire === 0
       ? "insufficient_headroom"
       : null;
   const result = blocked

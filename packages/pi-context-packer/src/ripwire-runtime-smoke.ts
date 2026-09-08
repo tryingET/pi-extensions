@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type ExtensionContext, SessionManager } from "@earendil-works/pi-coding-agent";
+import { runRipwireLandingSmoke } from "./ripwire-landing-smoke.ts";
 import { runRipwirePolicySmoke } from "./ripwire-policy-smoke.ts";
 import type { SmokeTool } from "./runtime-smoke.ts";
 
@@ -149,6 +150,8 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
     }
     if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 9)
       await runRipwirePolicySmoke(tool, context);
+    if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 10)
+      await runRipwireLandingSmoke(tool, context);
     const off = await tool.execute(
       "ripwire-registered-off",
       { ...args, providers: { ...args.providers, ripwire: "off" } },

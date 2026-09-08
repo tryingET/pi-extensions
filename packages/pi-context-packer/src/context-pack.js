@@ -524,7 +524,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       provider: "code",
       reason: "unavailable",
       detail:
-        "Code retrieval is unavailable in this increment; use Pi read/search tools. No code backend was invoked.",
+        "Code retrieval was not selected. Use providers.ripwire=required after provisioning, or Pi read/search tools. No code backend was invoked.",
     });
   }
   let docsSeeds = providerQuerySeeds(plan, "docs").filter(
