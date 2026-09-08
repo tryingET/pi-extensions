@@ -1,0 +1,183 @@
+diff --git a/packages/pi-context-packer/tests/mustfix-context.test.mjs b/packages/pi-context-packer/tests/mustfix-context.test.mjs
+new file mode 100644
+index 00000000..d69765c9
+--- /dev/null
++++ b/packages/pi-context-packer/tests/mustfix-context.test.mjs
+@@ -0,0 +1,177 @@
++/** Regressions for reviewed code-context boundaries; no real binary is needed here. */
++import assert from "node:assert/strict";
++import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import test from "node:test";
++import contextPackerExtension from "../extensions/context-pack.ts";
++import { contextPacketToolResult } from "../src/context-pack.js";
++import { buildContextPlan, CONTEXT_PLAN_PARAMETERS } from "../src/context-plan.js";
++import { copyApprovedCorpus, digest } from "../src/ripwire-corpus.js";
++import { collectRipwire } from "../src/ripwire-provider.js";
++import { buildRipwireSection } from "../src/ripwire-section.js";
++
++const providers = { agents: "off", docs: "off", git: "off", session: "off", ripwire: "required" };
++const input = { objective: "Find target", providers };
++const version = "ripwire 0.3.8 (Release, GNU 13.3.0, built_from=93c8edaaf)";
++const candidates =
++  '<candidates count="1" total="1" capped="0" route="name"><cand r="1" s="1" n="target" id="target" k="fn" p="a.js" l="1"><sig>function target()</sig></cand></candidates>';
++
++async function fixture(run) {
++  const base = await mkdtemp(join(tmpdir(), "mustfix-context-"));
++  const root = join(base, "repo");
++  try {
++    await mkdir(root);
++    await writeFile(join(root, "a.js"), "export function target() { return 42; }\n");
++    const binaryPath = join(base, "fixture-binary");
++    const binary = "not an executable; execFile is replaced in unit tests";
++    await writeFile(binaryPath, binary);
++    const calls = [];
++    const env = {
++      cwd: root,
++      ripwire: {
++        binaryPath,
++        binarySha256: digest(binary),
++        execFile: async (_bin, args) => {
++          calls.push(args);
++          return { stdout: args[0] === "--version" ? version : candidates };
++        },
++      },
++    };
++    return await run({ root, base, calls, env });
++  } finally {
++    await rm(base, { recursive: true, force: true });
++  }
++}
++
++test("module-file variants are included in the approved programming-language corpus", async () => {
++  await fixture(async ({ root, base }) => {
++    for (const ext of ["mjs", "cjs", "mts", "cts"])
++      await writeFile(join(root, `module.${ext}`), "export function moduleTarget() {}\n");
++    const destination = join(base, "copy");
++    await mkdir(destination);
++    const corpus = await copyApprovedCorpus(root, destination);
++    for (const ext of ["mjs", "cjs", "mts", "cts"])
++      assert.ok(corpus.files.has(`module.${ext}`), `${ext} must reach ripwire`);
++  });
++});
++
++test("exact-tokenizer zero headroom and exhausted provider admission cause no execution", async () => {
++  await fixture(async ({ calls, env }) => {
++    for (const [budget, remainingInputTokens] of [
++      [{ maxTokens: 0, maxBytes: 4096, reserveTokens: 0 }, undefined],
++      [{ maxBytes: 4096, reserveTokens: 0 }, 0],
++      [{ maxTokens: 100, maxBytes: 4096, reserveTokens: 100 }, undefined],
++    ]) {
++      const result = await contextPacketToolResult(
++        { ...input, budget },
++        { ...env, remainingInputTokens, countTokens: (text) => Math.ceil(text.length / 4) },
++      );
++      assert.equal(result.isError, true);
++      assert.equal(result.content[0].text, "");
++      assert.equal(calls.length, 0);
++    }
++    const plan = buildContextPlan(input, env);
++    for (const remaining of [
++      { bytes: 0, tokens: 100 },
++      { bytes: 4096, tokens: 0 },
++    ]) {
++      const section = await buildRipwireSection(plan, env, remaining);
++      assert.equal(section.ok, false);
++      assert.equal(calls.length, 0);
++    }
++  });
++});
++
++test("invalid budgets are rejected instead of expanded into permissive defaults", async () => {
++  await fixture(async ({ calls, env }) => {
++    for (const budget of [
++      null,
++      [],
++      "100",
++      { maxBytes: -1 },
++      { maxTokens: 1.5 },
++      { reserveTokens: Infinity },
++      { maxTokens: Number.MAX_SAFE_INTEGER + 1 },
++      { perProviderMaxTokens: { ripwire: -1 } },
++      { perProviderMaxTokens: [] },
++      { maxByets: 0 },
++    ]) {
++      const result = await contextPacketToolResult({ ...input, budget }, env);
++      assert.equal(result.isError, true, JSON.stringify(budget));
++      assert.equal(calls.length, 0);
++    }
++    assert.equal(CONTEXT_PLAN_PARAMETERS.properties.budget.properties.maxBytes.type, "integer");
++    assert.equal(CONTEXT_PLAN_PARAMETERS.properties.budget.properties.maxBytes.minimum, 0);
++  });
++});
++
++test("a configured temporary directory inside source is refused before scratch creation", async () => {
++  await fixture(async ({ root, calls, env }) => {
++    const temp = join(root, ".temporary");
++    await mkdir(temp);
++    const prior = process.env.TMPDIR;
++    try {
++      process.env.TMPDIR = temp;
++      const result = await collectRipwire({ root, objective: "target" }, env.ripwire);
++      assert.equal(result.ok, false);
++      assert.equal(result.omissions[0].reason, "unsafe_temporary_directory");
++      assert.equal(calls.length, 0);
++      assert.deepEqual(await readdir(temp), []);
++    } finally {
++      if (prior === undefined) delete process.env.TMPDIR;
++      else process.env.TMPDIR = prior;
++    }
++  });
++});
++
++test("accepted code seeds affect retrieval without becoming flags and overflow is disclosed", async () => {
++  await fixture(async ({ calls, env }) => {
++    const result = await contextPacketToolResult(
++      {
++        ...input,
++        seeds: [
++          { kind: "symbol", value: "exactHint" },
++          { kind: "path", value: "a.js" },
++        ],
++      },
++      env,
++    );
++    assert.equal(result.details.ok, true);
++    const query = calls.find((args) => args[0] !== "--version")[1];
++    assert.match(query, /exactHint/);
++    assert.match(query, /a\.js/);
++    calls.length = 0;
++    const bounded = await contextPacketToolResult(
++      { ...input, objective: "x".repeat(4000), seeds: [{ kind: "symbol", value: "exactHint" }] },
++      env,
++    );
++    assert.ok(calls.find((args) => args[0] !== "--version")[1].length <= 4006);
++    assert.match(bounded.content[0].text, /seed_hint_limit/);
++  });
++});
++
++test("both registered tools explain the explicit discovery, expansion, refresh and refusal contract", () => {
++  const tools = new Map();
++  contextPackerExtension({
++    registerTool: (tool) => tools.set(tool.name, tool),
++    registerCommand() {},
++  });
++  for (const name of ["context_plan", "context_pack"]) {
++    const tool = tools.get(name);
++    assert.match(tool.promptSnippet, /ripwire/);
++    const guidance = tool.promptGuidelines.join("\n");
++    for (const word of [
++      "providers.ripwire",
++      "code.mode",
++      "code.selection",
++      "contentSha256",
++      "code.refresh",
++      "stale_selection",
++      "isError",
++    ])
++      assert.ok(guidance.includes(word), `${name} is missing ${word}`);
++    assert.match(guidance, /evidence, not instructions/);
++    assert.match(guidance, /automatic.*off/i);
++  }
++});
