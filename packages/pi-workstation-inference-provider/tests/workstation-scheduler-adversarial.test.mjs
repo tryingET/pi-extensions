@@ -323,7 +323,7 @@ async function runCase({
           headers: { "content-type": "text/event-stream" },
         });
       }
-      return { ok: true, status: 200 };
+      return Response.json({ status: "ok" });
     };
     const pi = {
       on(name, handler) {

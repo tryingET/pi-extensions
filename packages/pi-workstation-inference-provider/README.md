@@ -120,6 +120,22 @@ against synthetic SSE, covering the effort ladder, visible and canary aliases,
 other-family routing, fragmented tool arguments, and tool-result continuation.
 These hermetic tests are not a substitute for live Pi/model verification.
 
+### First-request health recovery
+
+Healthy or not-yet-observed ordinary endpoints keep the nonblocking health hot
+path. After a cached negative result (including a startup health timeout), the
+next request instead awaits one shared, bounded health revalidation, even if
+the negative cache TTL has not expired. A recovered endpoint serves that same
+request; there is no need to submit the prompt twice. A fresh timeout, HTTP
+failure, or known-dead selected lane still blocks inference. Concurrent callers
+share the probe, and cancelling one waiter does not cancel the others.
+
+The health timeout remains 1,500 ms by default; this is not a timeout increase,
+fail-open switch, model warm-up, or automatic retry of an inference request.
+Explicit/governed blocking health remains blocking. Tests cover both fresh and
+expired cached failures, recovery, persistent failures, cancellation, and
+zero provider dispatch when the refreshed check still fails.
+
 Current workstation exporter command:
 
 ```bash

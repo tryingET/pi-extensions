@@ -441,8 +441,11 @@ async function probeHealthUrl(healthUrl: string): Promise<HealthProbeResult> {
           ...(lanes?.length ? { lanes } : {}),
         };
       }
-    } catch {
-      // Non-JSON health bodies stay gated on HTTP status only.
+    } catch (error) {
+      // Complete non-JSON bodies may use HTTP-only health, but a timed-out or
+      // interrupted body is not a successful recovery observation.
+      if (controller.signal.aborted) throw controller.signal.reason;
+      if (!(error instanceof SyntaxError)) throw error;
     }
     return undefined;
   } catch (error) {

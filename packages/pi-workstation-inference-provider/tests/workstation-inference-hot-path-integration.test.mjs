@@ -79,12 +79,12 @@ test("background health returns before a slow probe and singleflights callers", 
       ]);
       assert.equal(outcome, "resolved");
       assert.equal(calls, 1);
-      gate.resolve({ ok: true, status: 200 });
+      gate.resolve(Response.json({ status: "ok" }));
       await requests;
     });
   } finally {
     globalThis.fetch = originalFetch;
-    gate.resolve({ ok: true, status: 200 });
+    gate.resolve(Response.json({ status: "ok" }));
   }
 });
 
@@ -102,12 +102,12 @@ test("blocking health remains available for governed paths", async () => {
         delay(25).then(() => "waiting"),
       ]);
       assert.equal(outcome, "waiting");
-      gate.resolve({ ok: true, status: 200 });
+      gate.resolve(Response.json({ status: "ok" }));
       assert.equal((await request).model.pi_model_id, "baseline-text-visible");
     });
   } finally {
     globalThis.fetch = originalFetch;
-    gate.resolve({ ok: true, status: 200 });
+    gate.resolve(Response.json({ status: "ok" }));
   }
 });
 

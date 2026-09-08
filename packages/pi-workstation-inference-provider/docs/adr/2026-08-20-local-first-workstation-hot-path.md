@@ -28,7 +28,7 @@ The existing adapter rereads and reparses contract files for every model request
 3. Load contracts into immutable generations with an O(1) model index.
 4. Refresh generations atomically and in the background after a TTL; explicit operator status/refresh waits for a fresh generation.
 5. Prime endpoint health after provider registration.
-6. Use stale-while-revalidate, singleflight health for ordinary text inference.
+6. Use stale-while-revalidate, singleflight health for ordinary text inference. A cached negative verdict is the recovery-path exception: await one bounded revalidation in the current request, including inside the negative TTL. Do not reject on yesterday's verdict while a background probe repairs only the next request. A fresh failure still denies dispatch; inference is never retried by this check (AK5550 clarification, 2026-09-07).
 7. Preserve blocking health and all existing no-retry/authority constraints for governed audio.
 8. Treat Modal only as optional overflow, travel, disaster-recovery, or larger-than-local-model capacity.
 
@@ -47,6 +47,7 @@ The existing adapter rereads and reparses contract files for every model request
 
 - Contract changes become visible after the bounded refresh TTL rather than on the next request.
 - A stale healthy health verdict may allow one request to discover a newly failed endpoint through the actual provider transport.
+- A cached unhealthy endpoint adds at most one shared health-probe wait to the next request. Persistent failures still reject that request; subsequent caller-initiated requests may recheck without waiting for the negative TTL.
 - Warm local models consume power and VRAM even when idle.
 - The runtime owner still needs separate admission control for concurrent voice and batch workloads.
 

@@ -128,7 +128,7 @@ async function runWorkbenchAuthorityProviderCase({
     if (init.method === "POST") {
       throw new Error("Workbench provider POST bypassed the governed socket transport");
     }
-    return { ok: true, status: 200 };
+    return Response.json({ status: "ok" });
   };
   try {
     await writeFile(audioPath, audio);
