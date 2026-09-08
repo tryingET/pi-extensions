@@ -1,0 +1,261 @@
+diff --git a/packages/pi-context-packer/src/packet-budget-input.js b/packages/pi-context-packer/src/packet-budget-input.js
+new file mode 100644
+index 00000000..b6180809
+--- /dev/null
++++ b/packages/pi-context-packer/src/packet-budget-input.js
+@@ -0,0 +1,51 @@
++/**
++summary: "Validate explicit packet budgets without silently widening caller limits."
++read_when:
++  - "Changing budget input schemas, defaults, or reserved headroom."
++*/
++import { nonnegative } from "./packet-budget-limits.js";
++
++const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
++const fields = ["maxTokens", "maxBytes", "reserveTokens", "perProviderMaxTokens"];
++const integerSchema = () => ({ type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER });
++
++export const packetBudgetSchema = (providerIds) => ({
++  type: "object",
++  additionalProperties: false,
++  properties: {
++    maxTokens: integerSchema(),
++    maxBytes: integerSchema(),
++    reserveTokens: integerSchema(),
++    perProviderMaxTokens: {
++      type: "object",
++      additionalProperties: false,
++      properties: Object.fromEntries(providerIds.map((id) => [id, integerSchema()])),
++    },
++  },
++});
++
++export function normalizePacketBudget(value, providerIds) {
++  const budget = value === undefined ? {} : value;
++  if (!isObject(budget) || Object.keys(budget).some((key) => !fields.includes(key)))
++    throw new Error("invalid_budget");
++  const perProvider = budget.perProviderMaxTokens === undefined ? {} : budget.perProviderMaxTokens;
++  if (!isObject(perProvider) || Object.keys(perProvider).some((key) => !providerIds.includes(key)))
++    throw new Error("invalid_budget");
++  for (const number of [
++    budget.maxTokens,
++    budget.maxBytes,
++    budget.reserveTokens,
++    ...Object.values(perProvider),
++  ])
++    if (number !== undefined && !nonnegative(number)) throw new Error("invalid_budget");
++  const maxTokens = budget.maxTokens ?? 40_000;
++  return {
++    maxTokens,
++    maxBytes: budget.maxBytes ?? Math.min(Number.MAX_SAFE_INTEGER, maxTokens * 4),
++    // An explicit reserve may consume all capacity; never lower it to force a packet through.
++    reserveTokens: budget.reserveTokens ?? Math.min(12_000, Math.floor(maxTokens * 0.3)),
++    perProviderMaxTokens: Object.fromEntries(
++      providerIds.map((id) => [id, perProvider[id] ?? 12_000]),
++    ),
++  };
++}
+diff --git a/packages/pi-context-packer/src/ripwire-corpus.js b/packages/pi-context-packer/src/ripwire-corpus.js
+index b4f8f3f1..96c59820 100644
+--- a/packages/pi-context-packer/src/ripwire-corpus.js
++++ b/packages/pi-context-packer/src/ripwire-corpus.js
+@@ -12,3 +12,3 @@ import { hasControlCharacter } from "./context-intake-safety.js";
+ 
+-export const CORPUS_POLICY_VERSION = "ripwire-code-corpus-v1";
++export const CORPUS_POLICY_VERSION = "ripwire-code-corpus-v2";
+ const EXTENSIONS = new Set([
+@@ -29,2 +29,6 @@ const EXTENSIONS = new Set([
+   ".jsx",
++  ".mjs",
++  ".cjs",
++  ".mts",
++  ".cts",
+   ".py",
+@@ -91,3 +95,3 @@ export async function stableRead(path, maxBytes) {
+ 
+-export async function copyApprovedCorpus(root, destination, options = {}) {
++export async function canonicalCorpusRoot(root) {
+   const realRoot = await realpath(root);
+@@ -95,2 +99,7 @@ export async function copyApprovedCorpus(root, destination, options = {}) {
+     throw new Error("invalid_root");
++  return realRoot;
++}
++
++export async function copyApprovedCorpus(root, destination, options = {}) {
++  const realRoot = await canonicalCorpusRoot(root);
+   const excluded = options.excludePaths ?? [];
+diff --git a/packages/pi-context-packer/src/ripwire-exec.js b/packages/pi-context-packer/src/ripwire-exec.js
+index 26fb5f00..279b7cd6 100644
+--- a/packages/pi-context-packer/src/ripwire-exec.js
++++ b/packages/pi-context-packer/src/ripwire-exec.js
+@@ -9,2 +9,3 @@ import { isAbsolute, join } from "node:path";
+ import { promisify } from "node:util";
++import { CODE_QUERY_MAX_CHARS } from "./code-request.js";
+ import { digest, stableRead } from "./ripwire-corpus.js";
+@@ -60,3 +61,3 @@ export function discoveryArguments(root, objective, limit = 20) {
+     !objective.trim() ||
+-    objective.length > 4000 ||
++    objective.length > CODE_QUERY_MAX_CHARS ||
+     objective.includes("\0")
+diff --git a/packages/pi-context-packer/src/ripwire-landing-smoke.ts b/packages/pi-context-packer/src/ripwire-landing-smoke.ts
+index 92afc595..44b148d9 100644
+--- a/packages/pi-context-packer/src/ripwire-landing-smoke.ts
++++ b/packages/pi-context-packer/src/ripwire-landing-smoke.ts
+@@ -10,2 +10,3 @@ import { join } from "node:path";
+ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
++import { mustfixScenario } from "../scripts/dogfood-mustfix.mjs";
+ import type { SmokeTool } from "./runtime-smoke.ts";
+@@ -44,2 +45,11 @@ export async function runRipwireLandingSmoke(tool: SmokeTool, context: Extension
+     assert.equal(await readFile(join(outside, "private.ts"), "utf8"), source);
++    await mustfixScenario((args, env) =>
++      tool.execute("mustfix-registered-workflow", args, undefined, undefined, {
++        ...context,
++        cwd: env.cwd,
++        getSystemPrompt: () => "",
++        getContextUsage: () => ({ tokens: 0, contextWindow: 100000 }),
++      } as ExtensionContext),
++    );
++    console.log("ripwire registered mustfix workflow PASS");
+     console.log("ripwire registered landing regressions PASS");
+diff --git a/packages/pi-context-packer/src/ripwire-provider.js b/packages/pi-context-packer/src/ripwire-provider.js
+index 1784f08a..4fac0860 100644
+--- a/packages/pi-context-packer/src/ripwire-provider.js
++++ b/packages/pi-context-packer/src/ripwire-provider.js
+@@ -5,4 +5,3 @@ read_when:
+ */
+-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+-import { tmpdir } from "node:os";
++import { mkdir, rm } from "node:fs/promises";
+ import { join } from "node:path";
+@@ -16,2 +15,3 @@ import { parseRipwireCandidates } from "./ripwire-output.js";
+ import { ripwireDisabled } from "./ripwire-policy.js";
++import { createRipwireScratch } from "./ripwire-scratch.js";
+ 
+@@ -23,2 +23,3 @@ const PUBLIC_ERRORS = new Set([
+   "invalid_root",
++  "unsafe_temporary_directory",
+   "invalid_objective",
+@@ -54,4 +55,5 @@ export async function collectRipwire(input, options = {}) {
+     };
+-  const scratch = await mkdtemp(join(tmpdir(), "pi-ripwire-"));
++  let scratch;
+   try {
++    scratch = await createRipwireScratch(input.root);
+     const runtime = await prepareRipwire(scratch, options);
+@@ -197,3 +199,5 @@ export async function collectRipwire(input, options = {}) {
+           detail:
+-            "Ripwire unavailable or refused; use Pi read/search tools. Raw process diagnostics withheld.",
++            reason === "unsafe_temporary_directory"
++              ? "Configure TMPDIR outside the source repository before retrying; no snapshot or backend was created."
++              : "Ripwire unavailable or refused; use Pi read/search tools. Raw process diagnostics withheld.",
+         },
+@@ -202,3 +206,3 @@ export async function collectRipwire(input, options = {}) {
+   } finally {
+-    await rm(scratch, { recursive: true, force: true });
++    if (scratch) await rm(scratch, { recursive: true, force: true });
+   }
+diff --git a/packages/pi-context-packer/src/ripwire-scratch.js b/packages/pi-context-packer/src/ripwire-scratch.js
+new file mode 100644
+index 00000000..c08e36b5
+--- /dev/null
++++ b/packages/pi-context-packer/src/ripwire-scratch.js
+@@ -0,0 +1,19 @@
++/**
++summary: "Refuse source-local temporary storage before creating a ripwire snapshot."
++read_when:
++  - "Changing private snapshot placement or source non-mutation guarantees."
++*/
++import { mkdtemp, realpath } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { isAbsolute, join, relative } from "node:path";
++import { canonicalCorpusRoot } from "./ripwire-corpus.js";
++
++export async function createRipwireScratch(root) {
++  const sourceRoot = await canonicalCorpusRoot(root);
++  const temporaryRoot = await realpath(tmpdir());
++  const rel = relative(sourceRoot, temporaryRoot);
++  if (!rel || (rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel)))
++    throw new Error("unsafe_temporary_directory");
++  // Resolve the configured temp parent before creation; source-local aliases are also refused.
++  return mkdtemp(join(temporaryRoot, "pi-ripwire-"));
++}
+diff --git a/packages/pi-context-packer/src/ripwire-section.js b/packages/pi-context-packer/src/ripwire-section.js
+index 4fd9df17..f10702b9 100644
+--- a/packages/pi-context-packer/src/ripwire-section.js
++++ b/packages/pi-context-packer/src/ripwire-section.js
+@@ -5,2 +5,3 @@ read_when:
+ */
++import { CODE_QUERY_MAX_CHARS } from "./code-request.js";
+ import { dedupeCodeItems } from "./code-working-set.js";
+@@ -9,4 +10,19 @@ import { collectRipwire } from "./ripwire-provider.js";
+ 
+-export async function buildRipwireSection(plan, env = {}) {
++function discoveryQuery(plan) {
++  let objective = plan.objective;
++  let omitted = 0;
++  const hints = new Set(
++    (plan.unavailableCodeSeeds ?? []).map((seed) => `${seed.kind}: ${seed.value}`),
++  );
++  for (const hint of hints) {
++    const addition = `\n${hint}`;
++    if (objective.length + addition.length <= CODE_QUERY_MAX_CHARS) objective += addition;
++    else omitted++;
++  }
++  return { objective, omitted };
++}
++
++export async function buildRipwireSection(plan, env = {}, remainingBudget = {}) {
+   const limits = outputLimits(plan.budget, env);
++  const query = discoveryQuery(plan);
+   const blockedRoot = plan.risks.some(
+@@ -16,3 +32,5 @@ export async function buildRipwireSection(plan, env = {}) {
+     ? "invalid_workspace"
+-    : limits.maxBytes < 256 || plan.budget.perProviderMaxTokens.ripwire === 0
++    : Math.min(limits.maxBytes, remainingBudget.bytes ?? limits.maxBytes) < 256 ||
++        Math.min(limits.tokens, remainingBudget.tokens ?? limits.tokens) === 0 ||
++        plan.budget.perProviderMaxTokens.ripwire === 0
+       ? "insufficient_headroom"
+@@ -33,3 +51,3 @@ export async function buildRipwireSection(plan, env = {}) {
+     : await collectRipwire(
+-        { root: plan.repoRoot ?? plan.cwd, objective: plan.objective, limit: 12, code: plan.code },
++        { root: plan.repoRoot ?? plan.cwd, objective: query.objective, limit: 12, code: plan.code },
+         { ...env.ripwire, signal: env.signal },
+@@ -49,3 +67,14 @@ export async function buildRipwireSection(plan, env = {}) {
+     },
+-    omissions: result.omissions,
++    omissions: [
++      ...result.omissions,
++      ...(query.omitted && plan.code?.mode !== "expand"
++        ? [
++            {
++              provider: "ripwire",
++              reason: "seed_hint_limit",
++              detail: `${query.omitted} code hint(s) did not fit the retrieval query; shorten the objective or use fewer seeds.`,
++            },
++          ]
++        : []),
++    ],
+     section: {
+diff --git a/packages/pi-context-packer/tests/context-pack-extension.test.js b/packages/pi-context-packer/tests/context-pack-extension.test.js
+index 058e75d2..4a538b20 100644
+--- a/packages/pi-context-packer/tests/context-pack-extension.test.js
++++ b/packages/pi-context-packer/tests/context-pack-extension.test.js
+@@ -102,3 +102,3 @@ test("context-packer extension registers command and all model-callable tools",
+   );
+-  assert.equal(result.details.runtimeContract.runtimeBuild, "ripwire-discovery-v1");
++  assert.equal(result.details.runtimeContract.runtimeBuild, "ripwire-context-v2");
+ 
+diff --git a/packages/pi-context-packer/tests/context-plan.test.js b/packages/pi-context-packer/tests/context-plan.test.js
+index 236b9797..42590ec0 100644
+--- a/packages/pi-context-packer/tests/context-plan.test.js
++++ b/packages/pi-context-packer/tests/context-plan.test.js
+@@ -660,3 +660,3 @@ test("context_plan scales the default reserve for small packet budgets", () => {
+ 
+-test("context_plan clamps explicit reserve below max tokens", () => {
++test("context_plan preserves an explicit reserve even when it consumes all capacity", () => {
+   const plan = buildContextPlan({
+@@ -667,3 +667,3 @@ test("context_plan clamps explicit reserve below max tokens", () => {
+   assert.equal(plan.budget.maxTokens, 1000);
+-  assert.equal(plan.budget.reserveTokens, 999);
++  assert.equal(plan.budget.reserveTokens, 5000);
+ });
