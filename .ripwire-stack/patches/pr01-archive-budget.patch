@@ -1,0 +1,47 @@
+diff --git a/policy/file-budget-exceptions.json b/policy/file-budget-exceptions.json
+index fee15b6b..cd59b379 100644
+--- a/policy/file-budget-exceptions.json
++++ b/policy/file-budget-exceptions.json
+@@ -1,6 +1,42 @@
+ {
+   "notes": "Owner-scoped brownfield exceptions for files exceeding readability budgets. Every entry names an owner, a genuine justification, and a reopen trigger that must fire before the exception is reconsidered. Stale entries (file no longer over budget) and unknown paths are rejected by scripts/file-budget-audit.mjs with a non-zero exit in both warn-only and fail modes \u2014 remove entries when their files are split below budget.",
+   "exceptions": [
++    {
++      "path": "docs/archive/pi-context-packer/pre-ripwire/experiments/source-selection/2026-07-25-v3/experiment-preparation.mjs",
++      "owner": "softwareco/owned/pi-extensions",
++      "reason": "Byte-preserved retired context-packer evidence from f50a6eee974c; excluded from runtime and published package. Splitting this historical artifact would alter the evidence it preserves. Original blob 60ecb16f1c1cca0765fc7c14efaa4b9a1c438383.",
++      "reopen_trigger": "Any content change to this archived file or any attempt to restore it to active runtime requires a new owner review; this exception does not authorize active reuse."
++    },
++    {
++      "path": "docs/archive/pi-context-packer/pre-ripwire/experiments/source-selection/2026-07-25-v3/source-list-observations.mjs",
++      "owner": "softwareco/owned/pi-extensions",
++      "reason": "Byte-preserved retired context-packer evidence from f50a6eee974c; excluded from runtime and published package. Splitting this historical artifact would alter the evidence it preserves. Original blob 1bbe256ba83c449fab0d3f5282a3abfeeedf7fd9.",
++      "reopen_trigger": "Any content change to this archived file or any attempt to restore it to active runtime requires a new owner review; this exception does not authorize active reuse."
++    },
++    {
++      "path": "docs/archive/pi-context-packer/pre-ripwire/experiments/source-selection/2026-07-25-v3/v3-experiment.mjs",
++      "owner": "softwareco/owned/pi-extensions",
++      "reason": "Byte-preserved retired context-packer evidence from f50a6eee974c; excluded from runtime and published package. Splitting this historical artifact would alter the evidence it preserves. Original blob 281f9f694980ba7d3f6e5fe5912e03d56db438d3.",
++      "reopen_trigger": "Any content change to this archived file or any attempt to restore it to active runtime requires a new owner review; this exception does not authorize active reuse."
++    },
++    {
++      "path": "docs/archive/pi-context-packer/pre-ripwire/experiments/source-selection/2026-07-26-v4/v4-experiment.mjs",
++      "owner": "softwareco/owned/pi-extensions",
++      "reason": "Byte-preserved retired context-packer evidence from f50a6eee974c; excluded from runtime and published package. Splitting this historical artifact would alter the evidence it preserves. Original blob c4d67a18e20dcc1e15451d77b21262c1158bd62b.",
++      "reopen_trigger": "Any content change to this archived file or any attempt to restore it to active runtime requires a new owner review; this exception does not authorize active reuse."
++    },
++    {
++      "path": "docs/archive/pi-context-packer/pre-ripwire/src/sci-provider.js",
++      "owner": "softwareco/owned/pi-extensions",
++      "reason": "Byte-preserved retired context-packer evidence from f50a6eee974c; excluded from runtime and published package. Splitting this historical artifact would alter the evidence it preserves. Original blob 0faf7d357d1167d7a3da17fe90d9166bbc4a1498.",
++      "reopen_trigger": "Any content change to this archived file or any attempt to restore it to active runtime requires a new owner review; this exception does not authorize active reuse."
++    },
++    {
++      "path": "docs/archive/pi-context-packer/pre-ripwire/tests/sci-provider.test.js",
++      "owner": "softwareco/owned/pi-extensions",
++      "reason": "Byte-preserved retired context-packer evidence from f50a6eee974c; excluded from runtime and published package. Splitting this historical artifact would alter the evidence it preserves. Original blob bdb71cf7a822348ef6b4f4e07f622abb3a3f98c3.",
++      "reopen_trigger": "Any content change to this archived file or any attempt to restore it to active runtime requires a new owner review; this exception does not authorize active reuse."
++    },
+     {
+       "path": "docs/project/2026-04-22-rfc-peer-session-messaging-primitive.md",
+       "owner": "softwareco/owned/pi-extensions",
