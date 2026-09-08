@@ -55,6 +55,16 @@ receipt availability. #5501/export owners must recover and verify that projectio
 normal `/session-closeout` deliberately refuses procedure delivery without it.
 Do not represent the runtime proof as recovery of that independent incident.
 
+**01:37Z follow-up:** the export owner restored the byte-exact receipt
+`112630c6e4b1c1b78d44de14e832409f5c17edac75221df5f99a1009834fbb8b`.
+The fresh default-installed normal `/session-closeout` entrypoint then passed:
+`entrypoint-013728/result.json`, session `01a07ea9-bf73-7173-8f3d-4063a7343e8a`.
+It created the exact host-bound journal and delivered the receipt-matching global
+prompt via the real extension input path. A test observer stopped the procedure
+at delivery, before model execution: this proves entrypoint wiring, not a full
+real-work audit. Receipt and prompt hashes were stable across the run. AK evidence
+**8567** supersedes the missing-receipt caveat in runtime evidence **8565** and the
+historical #5538 completion result. No global export freshness claim is made.
 
 ## Failures resolved and limits retained
 
