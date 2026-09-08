@@ -99,6 +99,27 @@ Contracts must use credential-free loopback HTTP and a recognized workstation au
 
 Transport ownership membrane: this package must never register its custom `streamSimple` under shared built-in API ids such as `openai-completions`. Workstation models use `api: "workstation-inference"`; the stream handler then delegates internally to OpenAI-compatible transport after it has resolved the selected workstation contract and model.
 
+### Baseline aliases and thinking effort
+
+For ordinary `family: "baseline-text"` requests, the HTTP model stays the selected
+`pi_model_id` (or normalized `id`), including `baseline-text-visible` and canary
+aliases. `upstream_model` describes the underlying artifact; it is **not** the
+adapter-facing request model. Sending that raw ID bypasses workstation's alias
+normalization, losing thinking-off defaults and effort-to-budget translation.
+Other contract families and claim-governed audio retain their upstream routing.
+
+Pi forwards the contract-declared effort levels; the workstation adapter owns
+native model translation and thinking-token budgets. Do not replace this with a
+Pi-local copy of Aeon's effort map. In particular, an adapter can accept `high`
+even when the underlying model's chat template cannot. Visible aliases rely on
+the adapter's non-thinking default. Available levels remain contract-owned;
+this routing fix does not add `max` to contracts that do not expose it.
+
+`tests/workstation-inference-routing.test.mjs` exercises the real Pi transport
+against synthetic SSE, covering the effort ladder, visible and canary aliases,
+other-family routing, fragmented tool arguments, and tool-result continuation.
+These hermetic tests are not a substitute for live Pi/model verification.
+
 Current workstation exporter command:
 
 ```bash

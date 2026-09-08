@@ -225,7 +225,14 @@ export function streamWorkstationInference(
         signal: (options as (SimpleStreamOptions & { signal?: AbortSignal }) | undefined)?.signal,
       });
       const providerId = selected.contract.provider_id ?? DEFAULT_PROVIDER_ID;
-      const payloadModel = selected.model.upstream_model ?? model.id;
+      // baseline-text contracts export adapter aliases, not backend request ids.
+      // Keep that route so workstation applies visible/off defaults and effort
+      // budgets. upstream_model is provenance there; governed audio and other
+      // contract families still require their exact upstream identity.
+      const payloadModel =
+        !attachment && selected.contract.family === "baseline-text"
+          ? model.id
+          : (selected.model.upstream_model ?? model.id);
       if (attachment) {
         if (model.provider !== attachment.providerId || providerId !== attachment.providerId) {
           throw new Error("audio provider identity drifted before dispatch");
