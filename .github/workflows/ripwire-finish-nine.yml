@@ -1,0 +1,38 @@
+name: Recover exact ninth ripwire increment
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-finish-nine.yml]
+permissions:
+  contents: write
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and verify exact source tree and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin 268319b0af1920c176809ee6c91edcf879979520
+          git show HEAD:.ripwire-stack/patches/09-actual0.patch > "$RUNNER_TEMP/09-modified.patch"
+          export GIT_INDEX_FILE="$RUNNER_TEMP/recovery.index"
+          git read-tree a3dbe8a0134e779684271de616f36cd0812626a5
+          git apply --cached "$RUNNER_TEMP/09-modified.patch"
+          tree=$(git write-tree)
+          test "$tree" = 7ee5926849dc4e4b311a8fa1ab8ca4631ff8936d
+          printf 'tree %s\nparent d5544e145aac32853ac6366fd1bf51102a60213c\nauthor OpenAI <noreply@openai.com> 1788809943 +0000\ncommitter OpenAI <noreply@openai.com> 1788809943 +0000\n\nfeat(context-packer): gate automatic discovery on reviewed adoption evidence\n' "$tree" > "$RUNNER_TEMP/commit.txt"
+          commit=$(git hash-object -t commit -w "$RUNNER_TEMP/commit.txt")
+          test "$commit" = b0d3bff0eb80e0b2c52a58d58e90f75a49c837a0
+          ref=refs/heads/stack/ripwire/09-selective-auto
+          current=$(git ls-remote --heads origin "$ref" | cut -f1)
+          if test -n "$current"; then test "$current" = "$commit"; else git push origin "$commit:$ref"; fi
+          printf '{"head":"%s","tree":"%s","exactRecovery":true}\n' "$commit" "$tree" > "$RUNNER_TEMP/recovery-receipt.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ripwire-nine-exact-recovery
+          path: ${{ runner.temp }}/recovery-receipt.json
+          retention-days: 14
