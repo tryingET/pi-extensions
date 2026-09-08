@@ -1,0 +1,98 @@
+name: Verify ripwire must-fix candidate
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-mustfix-verify.yml]
+permissions:
+  contents: read
+jobs:
+  import:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and verify the tested source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ripwire-stack/patches/mustfix-{0,1,2,3}.patch > "$RUNNER_TEMP/mustfix.patch"
+          echo "f2d5d63325666a369d9f5020231eee46a90d22aa0e96b70735e4d8cf048fbb2d  $RUNNER_TEMP/mustfix.patch" | sha256sum --check
+          export GIT_INDEX_FILE="$RUNNER_TEMP/mustfix.index"
+          git read-tree 2abdd14627da60985b03e396bbbf5f87708d7925
+          git apply --cached "$RUNNER_TEMP/mustfix.patch"
+          tree=$(git write-tree)
+          test "$tree" = a0cf04dcf0d342440b6f60072a22a4c536b936f4
+          printf 'tree %s\nparent 2abdd14627da60985b03e396bbbf5f87708d7925\nauthor OpenAI <noreply@openai.com> 1788862933 +0000\ncommitter OpenAI <noreply@openai.com> 1788862933 +0000\n\nfix(context-packer): close code workflow and acquisition boundary regressions\n' "$tree" > "$RUNNER_TEMP/mustfix.commit"
+          commit=$(git hash-object -t commit -w "$RUNNER_TEMP/mustfix.commit")
+          test "$commit" = 34da0fb41eeb463870a28823c73f040fecf4e0f9
+          ref=refs/heads/fix/context-packer-mustfix
+          current=$(git ls-remote --heads origin "$ref" | cut -f1)
+          if test -n "$current"; then test "$current" = "$commit"; else git push origin "$commit:$ref"; fi
+  verify:
+    needs: import
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 34da0fb41eeb463870a28823c73f040fecf4e0f9
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.22.2'
+          package-manager-cache: false
+      - name: Establish exact candidate and isolated runtime locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 34da0fb41eeb463870a28823c73f040fecf4e0f9
+          test "$(git rev-parse HEAD^{tree})" = a0cf04dcf0d342440b6f60072a22a4c536b936f4
+          mkdir -p "$RUNNER_TEMP/mustfix-evidence" "$RUNNER_TEMP/mustfix-tmp" "$RUNNER_TEMP/mustfix-npm"
+          echo "PI_EXTENSIONS_TMPDIR=$RUNNER_TEMP/mustfix-tmp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$RUNNER_TEMP/mustfix-tmp" >> "$GITHUB_ENV"
+          echo "NPM_CONFIG_CACHE=$RUNNER_TEMP/mustfix-npm" >> "$GITHUB_ENV"
+          echo "TERM=xterm" >> "$GITHUB_ENV"
+          npm install --global --prefix "$RUNNER_TEMP/npm-tools" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-tools/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/packages/pi-context-packer/node_modules/.bin" >> "$GITHUB_PATH"
+          git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/mustfix-evidence/candidate.txt"
+      - name: Install locked package dependencies
+        working-directory: packages/pi-context-packer
+        run: npm ci --ignore-scripts
+      - name: Build pinned ripwire without its installer or agent skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/redhat-et/ripwire.git "$RUNNER_TEMP/ripwire-source"
+          git -C "$RUNNER_TEMP/ripwire-source" checkout --detach 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          test "$(git -C "$RUNNER_TEMP/ripwire-source" rev-parse HEAD)" = 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          cmake -S "$RUNNER_TEMP/ripwire-source" -B "$RUNNER_TEMP/ripwire-build" -DCMAKE_BUILD_TYPE=Release -DRIPWIRE_TESTS=OFF > "$RUNNER_TEMP/mustfix-evidence/ripwire-build.log" 2>&1
+          cmake --build "$RUNNER_TEMP/ripwire-build" --target ripwire -j2 >> "$RUNNER_TEMP/mustfix-evidence/ripwire-build.log" 2>&1
+          "$RUNNER_TEMP/ripwire-build/ripwire" --version | tee "$RUNNER_TEMP/mustfix-evidence/ripwire-version.txt"
+          sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" > "$RUNNER_TEMP/mustfix-evidence/ripwire-binary.sha256"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_BIN=$RUNNER_TEMP/ripwire-build/ripwire" >> "$GITHUB_ENV"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_SHA256=$(sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+      - name: Full release check with clean isolated Pi installation
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run release:check 2>&1 | tee "$RUNNER_TEMP/mustfix-evidence/release-check.log"
+      - name: Cumulative packed and actual registered-Pi dogfood
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dogfood:gate -- --gate RW-10 --candidate-sha 34da0fb41eeb463870a28823c73f040fecf4e0f9 --output-dir "$RUNNER_TEMP/mustfix-evidence/gates" 2>&1 | tee "$RUNNER_TEMP/mustfix-evidence/dogfood.log"
+          test -z "$(git status --porcelain)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ripwire-mustfix-candidate-evidence
+          path: ${{ runner.temp }}/mustfix-evidence
+          retention-days: 30
