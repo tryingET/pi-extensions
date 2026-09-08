@@ -1,0 +1,23 @@
+diff --git a/packages/pi-context-packer/scripts/dogfood-gate.mjs b/packages/pi-context-packer/scripts/dogfood-gate.mjs
+--- a/packages/pi-context-packer/scripts/dogfood-gate.mjs
++++ b/packages/pi-context-packer/scripts/dogfood-gate.mjs
+@@ -87,9 +87,21 @@
+   );
+-  const packed = JSON.parse(
+-    run("pack", "npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch]),
+-  );
++  const packOutput = run("pack", "npm", [
++    "pack",
++    "--ignore-scripts",
++    "--json",
++    "--pack-destination",
++    scratch,
++  ]);
++  // The source-checkout gate already depends on canonical root tooling. Reuse its
++  // strict npm 10/11 array and npm 12 package-keyed object parser, not a second dialect.
++  const packed = JSON.parse(
++    run("normalize-pack", process.execPath, [join(repo, "scripts/npm-pack-json.mjs")], {
++      input: packOutput,
++    }),
++  );
+   const archive = join(scratch, packed[0].filename);
