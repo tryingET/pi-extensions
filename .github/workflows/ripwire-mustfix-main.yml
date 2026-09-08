@@ -1,0 +1,114 @@
+name: Verify actual main after ripwire must-fix merge
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-mustfix-main.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 555fb3ab6ba51adfa3b837836e6c743dff57a0fa
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.22.2'
+          package-manager-cache: false
+      - name: Verify exact main and establish isolated runtime locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 555fb3ab6ba51adfa3b837836e6c743dff57a0fa
+          test "$(git rev-parse HEAD^{tree})" = a0cf04dcf0d342440b6f60072a22a4c536b936f4
+          mkdir -p "$RUNNER_TEMP/mustfix-main-evidence" "$RUNNER_TEMP/mustfix-main-tmp" "$RUNNER_TEMP/mustfix-main-npm"
+          echo "PI_EXTENSIONS_TMPDIR=$RUNNER_TEMP/mustfix-main-tmp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$RUNNER_TEMP/mustfix-main-tmp" >> "$GITHUB_ENV"
+          echo "NPM_CONFIG_CACHE=$RUNNER_TEMP/mustfix-main-npm" >> "$GITHUB_ENV"
+          echo "TERM=xterm" >> "$GITHUB_ENV"
+          npm install --global --prefix "$RUNNER_TEMP/npm-tools" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-tools/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/packages/pi-context-packer/node_modules/.bin" >> "$GITHUB_PATH"
+          git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/mustfix-main-evidence/candidate.txt"
+          git branch main-verification-export HEAD
+          git bundle create "$RUNNER_TEMP/mustfix-main-evidence/main-merge.bundle" main-verification-export ^34da0fb41eeb463870a28823c73f040fecf4e0f9
+      - name: Install locked package dependencies
+        working-directory: packages/pi-context-packer
+        run: npm ci --ignore-scripts
+      - name: Build pinned ripwire without installer or agent skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/redhat-et/ripwire.git "$RUNNER_TEMP/ripwire-source"
+          git -C "$RUNNER_TEMP/ripwire-source" checkout --detach 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          test "$(git -C "$RUNNER_TEMP/ripwire-source" rev-parse HEAD)" = 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          cmake -S "$RUNNER_TEMP/ripwire-source" -B "$RUNNER_TEMP/ripwire-build" -DCMAKE_BUILD_TYPE=Release -DRIPWIRE_TESTS=OFF > "$RUNNER_TEMP/mustfix-main-evidence/ripwire-build.log" 2>&1
+          cmake --build "$RUNNER_TEMP/ripwire-build" --target ripwire -j2 >> "$RUNNER_TEMP/mustfix-main-evidence/ripwire-build.log" 2>&1
+          "$RUNNER_TEMP/ripwire-build/ripwire" --version | tee "$RUNNER_TEMP/mustfix-main-evidence/ripwire-version.txt"
+          sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" > "$RUNNER_TEMP/mustfix-main-evidence/ripwire-binary.sha256"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_BIN=$RUNNER_TEMP/ripwire-build/ripwire" >> "$GITHUB_ENV"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_SHA256=$(sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+      - name: Full release check with clean isolated Pi installation
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run release:check 2>&1 | tee "$RUNNER_TEMP/mustfix-main-evidence/release-check.log"
+      - name: Cumulative packed and actual registered-Pi dogfood
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dogfood:gate -- --gate RW-10 --candidate-sha 555fb3ab6ba51adfa3b837836e6c743dff57a0fa --output-dir "$RUNNER_TEMP/mustfix-main-evidence/gates" 2>&1 | tee "$RUNNER_TEMP/mustfix-main-evidence/dogfood.log"
+          test -z "$(git status --porcelain)"
+      - name: Use code discovery and expansion against the actual monorepo
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          import { writeFile } from 'node:fs/promises';
+          import { contextPacketToolResult } from './packages/pi-context-packer/src/context-pack.js';
+          const cwd=process.cwd();
+          const destination=`${process.env.RUNNER_TEMP}/mustfix-main-evidence`;
+          const before=execFileSync('git',['status','--porcelain'],{encoding:'utf8'});
+          let calls=0;
+          const env={cwd,ripwire:{onExecution:()=>calls++}};
+          const input={objective:'Find the strict parser for npm pack JSON that supports arrays and package-keyed objects and rejects multiple package entries',providers:{ripwire:'required',agents:'off',docs:'off',git:'off',session:'off'}};
+          const textOf=r=>r.content.filter(x=>x.type==='text').map(x=>x.text).join('\n');
+          const discovery=await contextPacketToolResult(input,env);
+          assert.equal(discovery.details.ok,true);
+          const text=textOf(discovery);
+          await writeFile(`${destination}/realrepo-discovery.txt`,text);
+          const part=text.split(/(?=^- path: )/m).find(s=>s.startsWith('- path: packages/pi-eval-kernel/scripts/npm-pack-json.mjs\n')&&/^- symbol: parseNpmPackJson$/m.test(s));
+          assert.ok(part,'Actual source parser must be found without filename hints');
+          const path=/^- path: (.+)$/m.exec(part)[1];
+          const name=/^- symbol: (.+)$/m.exec(part)[1];
+          const contentSha256=/^- source SHA-256: ([a-f0-9]{64})$/m.exec(part)[1];
+          const location=part.split('\n').find(s=>s.startsWith(`${path}:`));
+          const line=Number(location.slice(path.length+1));
+          assert.ok(Number.isSafeInteger(line)&&line>0);
+          const selection={path,name,line,contentSha256};
+          const expanded=await contextPacketToolResult({...input,code:{mode:'expand',selection}},env);
+          assert.equal(expanded.details.ok,true);
+          const body=textOf(expanded);
+          await writeFile(`${destination}/realrepo-expansion.txt`,body);
+          assert.match(body,/Array\.isArray\(parsed\)/);
+          assert.match(body,/Object\.entries\(parsed\)/);
+          assert.equal(execFileSync('git',['status','--porcelain'],{encoding:'utf8'}),before);
+          const receipt={schema:'mustfix-real-repository-dogfood-v1',source:execFileSync('git',['rev-parse','HEAD','HEAD^{tree}'],{encoding:'utf8'}).trim().split('\n'),selection,analyzedFiles:discovery.details.providerRuns.ripwire.analyzedFiles,backendInvocations:calls,renderedBytes:Buffer.byteLength(text)+Buffer.byteLength(body),discoverySha256:createHash('sha256').update(text).digest('hex'),expansionSha256:createHash('sha256').update(body).digest('hex'),sourceStatusUnchanged:true,modelVisibleSelection:true,modelTaskBenchmark:false,verdict:'PASS'};
+          await writeFile(`${destination}/realrepo-receipt.json`,JSON.stringify(receipt,null,2));
+          console.log(JSON.stringify(receipt,null,2));
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ripwire-mustfix-main-evidence
+          path: ${{ runner.temp }}/mustfix-main-evidence
+          retention-days: 30
