@@ -15,6 +15,7 @@ export async function landingScenario(migrationScenario) {
     ["working-set", "workingSetScenario"],
     ["evaluation", "evaluationScenario"],
     ["policy", "policyScenario"],
+    ["mustfix", "mustfixScenario"],
   ]) {
     checks.push(await (await import(`./dogfood-${file}.mjs`))[name]());
   }
@@ -32,6 +33,15 @@ export async function landingScenario(migrationScenario) {
   assert.match(expanded, /Find the cache identity/);
   assert.match(expanded, /providers\.ripwire: "required"/);
   assert.doesNotMatch(expanded, /\$@/);
+  for (const field of [
+    "code.mode",
+    "code.selection",
+    "contentSha256",
+    "code.refresh",
+    "stale_selection",
+    "isError",
+  ])
+    assert.ok(expanded.includes(field), `Installed prompt must explain ${field}`);
   assert.equal(prompts.filter((p) => p.name === "ripwire-context").length, 1);
   return {
     gate: "RW-10",

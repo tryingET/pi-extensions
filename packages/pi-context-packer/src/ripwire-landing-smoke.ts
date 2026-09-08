@@ -8,6 +8,7 @@ import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { mustfixScenario } from "../scripts/dogfood-mustfix.mjs";
 import type { SmokeTool } from "./runtime-smoke.ts";
 
 export async function runRipwireLandingSmoke(tool: SmokeTool, context: ExtensionContext) {
@@ -42,6 +43,15 @@ export async function runRipwireLandingSmoke(tool: SmokeTool, context: Extension
     assert.equal(zero.details?.ok, false);
     assert.ok(zero.content.every((item) => item.type !== "text" || item.text.length === 0));
     assert.equal(await readFile(join(outside, "private.ts"), "utf8"), source);
+    await mustfixScenario((args, env) =>
+      tool.execute("mustfix-registered-workflow", args, undefined, undefined, {
+        ...context,
+        cwd: env.cwd,
+        getSystemPrompt: () => "",
+        getContextUsage: () => ({ tokens: 0, contextWindow: 100000 }),
+      } as ExtensionContext),
+    );
+    console.log("ripwire registered mustfix workflow PASS");
     console.log("ripwire registered landing regressions PASS");
   } finally {
     await rm(alias, { force: true });

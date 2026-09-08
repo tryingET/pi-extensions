@@ -24,7 +24,9 @@ owner-routed. Ripwire is available for explicit, read-only code discovery:
 {"objective":"Find the provider capability checks","providers":{"ripwire":"required"}}
 ```
 
-Filename seeds are optional. `auto` does not yet activate ripwire. The operator must
+Filename seeds are optional. Known symbol/path seeds are ranking hints, not scope
+restrictions; hints that exceed the query limit are reported as omissions.
+`auto` does not yet activate ripwire. The operator must
 provision the supported executable and set `PI_CONTEXT_PACKER_RIPWIRE_BIN` to its
 absolute path. See [the stack contract](docs/project/ripwire-stack.md) for the
 pinned build, digest, approved-corpus policy, and Linux support boundary.
@@ -61,6 +63,9 @@ independent upstream attestation. Use these environment variables in the shell t
 starts Pi. If the binary is already provisioned, export its absolute path and approved
 digest instead. No automatic download or fallback installation occurs.
 
+Keep `TMPDIR` (when set) outside the target repository. Source-local temporary
+storage is refused before snapshot creation, including aliases pointing inside it.
+
 Start a fresh Pi from the target repository with those variables set. In Pi, run:
 
 ```text
@@ -81,6 +86,19 @@ is rejected, never silently mapped to permission to execute another tool. No ins
 software or user `.ontology` data is removed. Historical code and evidence are archived
 at `docs/archive/pi-context-packer/pre-ripwire` in the monorepo, outside this package artifact.
 Other independently owned monorepo packages are not removed by this migration.
+
+## Input and workflow safeguards
+
+JavaScript/TypeScript module variants `.mjs`, `.cjs`, `.mts`, and `.cts` are included
+alongside `.js` and `.ts`. Both tools describe discovery, expansion, refresh and
+stale-selection recovery; `/ripwire-context` is a prompt helper, not a nested tool.
+After changing source, rediscover before expanding an old selection. Always inspect
+error/omission signals; retrieval remains heuristic and automatic selection stays off.
+
+Budget values must be non-negative safe integers. Invalid fields are rejected rather
+than replaced with larger defaults. An explicit reserve is never lowered; a reserve
+that consumes the budget prevents code acquisition, including with a host tokenizer.
+The installed result contract identifies this revision as `ripwire-context-v2`.
 
 ## Verification
 

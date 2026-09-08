@@ -6,7 +6,7 @@ read_when:
 
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
-import { CODE_REQUEST_SCHEMA, normalizeCodeRequest } from "./code-request.js";
+import { CODE_QUERY_MAX_CHARS, CODE_REQUEST_SCHEMA, normalizeCodeRequest } from "./code-request.js";
 import {
   hasControlCharacter,
   hasSchemeOrDrivePrefix,
@@ -17,6 +17,7 @@ import {
 } from "./context-intake-safety.js";
 import { fileBudgetRisksForPathSeeds } from "./file-budget.js";
 import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
+import { normalizePacketBudget, packetBudgetSchema } from "./packet-budget-input.js";
 import {
   buildContextPackExecutionSummary,
   contextPackProviderCapability,
@@ -27,11 +28,8 @@ export { contextPackProviderCapability } from "./provider-capabilities.js";
 
 const PROVIDER_IDS = ["agents", "git", "docs", "ripwire", "session", "prompt_vault", "ak", "fcos"];
 
-const DEFAULT_MAX_TOKENS = 40_000;
-const DEFAULT_RESERVE_TOKENS = 12_000;
-const DEFAULT_PROVIDER_MAX_TOKENS = 12_000;
 const ESTIMATED_BYTES_PER_TOKEN = 4;
-const MAX_OBJECTIVE_CHARS = 4_000;
+const MAX_OBJECTIVE_CHARS = CODE_QUERY_MAX_CHARS;
 const MAX_SEEDS = 40;
 const MAX_SEED_VALUE_CHARS = 1_000;
 const MAX_SEED_NOTE_CHARS = 500;
@@ -110,29 +108,6 @@ const normalizeMode = (value) => {
   if (value === "required" || value === "off" || value === "auto") return value;
   return "auto";
 };
-
-const normalizeBudget = (inputBudget = {}) => {
-  const budget = asObject(inputBudget);
-  const maxTokens = budgetInteger(budget.maxTokens, DEFAULT_MAX_TOKENS);
-  const reserveFallback = Math.min(DEFAULT_RESERVE_TOKENS, Math.floor(maxTokens * 0.3));
-  const rawReserveTokens = budgetInteger(budget.reserveTokens, reserveFallback);
-  const reserveTokens = Math.min(rawReserveTokens, Math.max(0, maxTokens - 1));
-  const maxBytes = budgetInteger(budget.maxBytes, maxTokens * ESTIMATED_BYTES_PER_TOKEN);
-  const rawPerProvider = asObject(budget.perProviderMaxTokens);
-  const perProviderMaxTokens = {};
-
-  for (const provider of PROVIDER_IDS) {
-    perProviderMaxTokens[provider] = budgetInteger(
-      rawPerProvider[provider],
-      DEFAULT_PROVIDER_MAX_TOKENS,
-    );
-  }
-
-  return { maxTokens, maxBytes, perProviderMaxTokens, reserveTokens };
-};
-
-const budgetInteger = (value, fallback) =>
-  Number.isSafeInteger(value) && value >= 0 ? value : fallback;
 
 const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
 const textTokens = (value) => Math.ceil(textBytes(value) / ESTIMATED_BYTES_PER_TOKEN);
@@ -718,8 +693,20 @@ export const buildContextPlan = (input = {}, env = {}) => {
     };
   }
 
+  let budget;
+  try {
+    budget = normalizePacketBudget(raw.budget, PROVIDER_IDS);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        "Invalid budget; use known fields and non-negative safe integers. No provider was invoked.",
+      ],
+      budget: { maxTokens: 0, maxBytes: 0, reserveTokens: 0 },
+      nonAuthorizations: nonAuthorizations(),
+    };
+  }
   const { cwd, repoRoot, risks: workspaceRisks } = normalizeWorkspace(raw, env);
-  const budget = normalizeBudget(raw.budget);
   const { seeds, omittedSeeds: intakeOmittedSeeds } = normalizeSeeds(raw.seeds);
   const domainNormalizedSeeds = normalizePathSeedDomains({ seeds, cwd, repoRoot });
   const { safeSeeds: partitionedSafeSeeds, omittedSeeds: safetyOmittedSeeds } =
@@ -869,19 +856,7 @@ export const CONTEXT_PLAN_PARAMETERS = {
       description: "Optional repository root when known.",
       maxLength: MAX_WORKSPACE_PATH_CHARS,
     },
-    budget: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        maxTokens: { type: "number" },
-        maxBytes: { type: "number" },
-        reserveTokens: { type: "number" },
-        perProviderMaxTokens: {
-          type: "object",
-          additionalProperties: { type: "number" },
-        },
-      },
-    },
+    budget: packetBudgetSchema(PROVIDER_IDS),
     seeds: {
       type: "array",
       maxItems: MAX_SEEDS,
