@@ -199,5 +199,118 @@
     "priorFailedPackLocatorReads": "unknown; preserved, never recast as zero",
     "liveActivation": false,
     "independentAcceptance": false
+  },
+  "depR1R2Executed": {
+    "status": "58_passed_actual_packed_ABI3_public_synthetic_integration_not_live_acceptance",
+    "supersedes": "depR1R2 pending-stage disposition only; historical 34-case receipt retained",
+    "execution": {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-release-packet-E1p5Xo/execution-evidence.json",
+      "sha256": "cd6c160348ce8e16f7f94cc24c068bfe2e7cd6389ffb6741fe85941b7439e2d5"
+    },
+    "sourceCommit": "fb8cf30e59c7735b86de2df9dfd4f67b1cdc3a84",
+    "akSourceCommit": "5e1ee75b1ac0a82b1be320c53d0c760928b547e5",
+    "akEvidenceCommit": "77b33b5f1c593adc2c86c9e28a789586a89af202",
+    "ownerReceipt": {
+      "path": "/home/tryinget/ai-society/softwareco/owned/agent-kernel/docs/project/contracts/task-session-dep-r1-verification-v1.json",
+      "sha256": "a23e0057c961ded67be7f879de3b407a16b42004a5fdfe754298245557ef3b30"
+    },
+    "stage": {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5479-stage-output-eUcGDDKs/libexec/agent-kernel/5e1ee75b1ac0a82b1be320c53d0c760928b547e5",
+      "workerSha256": "edab3754fd049f1b8bc2c38b12444739c470697013355ed21eede12c93f3135a",
+      "manifestSha256": "cc2b1138323c607a19e47ea7f3e6483e791d97100bf9bb7ee1a6dcc1e912062e",
+      "abi": "ak.task-session.worker.v3",
+      "testSupport": false,
+      "rebuilt": false,
+      "restaged": false,
+      "hashSizeModeOwnerLinkAndGitClosureVerified": true
+    },
+    "packet": {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-public-release-packet-E1p5Xo/packet.json",
+      "sha256": "f5c69452b87434af8f02eeb6db33fc8d416e902737843151260b09918da8cd92",
+      "seedPinsSha256": "938f685e94ad97a7decc9ad2eb8b9bc11f898247944dcffff25e59bb34d804c7",
+      "ownerFixtureSha256": "711f54b15706199081187c6613e55ca99ba941430f9905e6c55f543a2d5ca677"
+    },
+    "results": {
+      "schema40": 29,
+      "schema43": 29,
+      "total": 58,
+      "syntheticRoots": 54,
+      "refusalsBeforeMarkerAndNative": true,
+      "knownValidBaselineForNegative": true,
+      "originalLockPathDeviceInode": true,
+      "heldOriginalOfdReplacement": true,
+      "legitimateRecoveries": 4,
+      "ownerDescriptorFileSyscallTraces": 2,
+      "ownerPythonJsFixtureParityCases": 4,
+      "providerAndDesktopSynthetic": true,
+      "actualPackedDefaultRelease": true
+    },
+    "checks": {
+      "focused": 188,
+      "declaredHelpers": 628,
+      "safeOrchestrator": 474,
+      "packed": 124,
+      "normalHooks": true,
+      "rootCI": "not run or certified; separate owner reports dev pin policy mismatch"
+    },
+    "pack": {
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-pack-proof-Gs56l0",
+      "byteIdenticalToPublicMatrixPackedInput": true,
+      "tarballs": [
+        {
+          "name": "tryinget-pi-little-helpers-0.9.0.tgz",
+          "sha256": "1cdafc36309a9dec53fda63d04fbe18b2a12b7f7553951ad0e430d4380b1639b"
+        },
+        {
+          "name": "tryinget-pi-society-orchestrator-0.11.5.tgz",
+          "sha256": "78ff208963aaaef834cd34c9dc95ba50d3b561cadbd8cb0b4c0a1992d39b08de"
+        }
+      ]
+    },
+    "logs": [
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-public-first.log",
+        "sha256": "dce18a99625016ec72d898a84400fc91d789b358224c965a4b76edc68f0c516b"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-focused.log",
+        "sha256": "60d96ddb94808185100f580f87be0946d10bde1e41b31b8576004c68712355e5"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-check.log",
+        "sha256": "57cdf40ff5ba6f481f0d0b6f49b3a0bd888ddb2f576154163260f88e4abf7b9b"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-orch.log",
+        "sha256": "b7e1887c4fe7e9e3984062d2228ed5fcb700891ac497941674731c40787aa35a"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-orch-lint.log",
+        "sha256": "23e0a4e0516129448ce0f47308f5175f32bb264f1c36aa33f5ba1b5fd718183c"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-orch-typecheck.log",
+        "sha256": "a98e3dce5ab9f9236ae6f1a24dce1dbbbf62396539ed02d687f7d27df8914a82"
+      },
+      {
+        "path": "/home/tryinget/.local/state/pi-quests/tmp/task5480-abi3-pack.log",
+        "sha256": "34dcaa285a49958d4b45f194e4b045009a69805129fd1b64acda55d84d2890ce"
+      }
+    ],
+    "sdkPins": {
+      "current": "four helpers dev pins 0.84.4; identity manifests/trees/entrypoints and proof tied to these bytes",
+      "introducedBy": "58a904001762498c176ba3a4f2851f77015f1188",
+      "minimumAPIVersionProven": false,
+      "version0843Tested": false,
+      "alignmentImpact": "manifest/tree identity refusal with current source; requires separate SDK audit/repinning, build/profile/publication closure renewal and all regressions, not only package.json edit",
+      "rootDecisionOwner": "AK5552/5554; no root policy/pin/checker mutation or merge"
+    },
+    "noNewProducerOrHarnessDefectObserved": true,
+    "priorFailedPackLocatorReads": "unknown; unchanged historical disclosure",
+    "liveLookupThisContinuation": false,
+    "ordinaryCdeefUnchanged": true,
+    "custody": "UNKNOWN / DO NOT ENROLL Compass",
+    "independentAcceptance": false,
+    "livePublication": false
   }
 }

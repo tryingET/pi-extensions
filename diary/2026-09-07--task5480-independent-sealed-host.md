@@ -133,3 +133,16 @@ The earlier34 proof/logs and prior failed-pack unknown locator reads remain hist
 See existing [public evidence](../docs/project/2026-09-07-visible-task-session-public-implementation.md)
 and generic receipt `depR1R2` section for exact commits, pins, checks and stage handoff. No new diary date
 path, live account/config/custody change, ordinary-cdeef upgrade or unrelated package mutation.
+
+
+## ABI3 replacement stage consumed — 58/58 actual public cases
+
+Resumed at fb8cf30e5. Audited existing AK5e1ee75b stage/77b33b5f evidence; no rebuild/re-stage. New packet
+`task5480-public-release-packet-E1p5Xo` uses packed helpers and exact default ABI3 release, NEW current
+initializer seed, relocated OS-home/desktop/provider/resources. Actual58/58 (29 per schema40/43), including
+all intended withdrawal/original-lock gates, legitimate recoveries, descriptor file-syscall absence and
+owner Python/JS corpus parity. No code/harness repair needed; historical34 retained. Fresh188/628/474/124
+focused/declared/safe/packed checks pass; new pack byte-identical to tested artifacts. Generic receipt's
+`depR1R2Executed` and existing public evidence bind hashes and limits. Read-only0.84.4 rationale distinguishes
+audited byte pins from unproved minimum API necessity; root policy/checker/other-owner patches untouched.
+UNKNOWN/DO NOT ENROLL and publication/acceptance holds persist. Prior unknown locator reads stay unknown.

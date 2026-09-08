@@ -306,3 +306,99 @@ still **UNKNOWN / DO NOT ENROLL Compass**. Publication/profile activation, names
 provider/Ghostty/Pi canaries and Task5480/Decision151 acceptance remain held. No other git writers or
 unrelated5508/limits/interaction/AK5133 work was modified. No deployment, live claims, cleanup or recovery
 was performed by this continuation; new recovery tests remain unexecuted pending the proper stage.
+
+
+## ABI3 stage resumed — actual 58/58 replacement public proof
+
+This section supersedes the pending-stage disposition above, **not** the historical34 receipts.
+Execution source remained `fb8cf30e59c7735b86de2df9dfd4f67b1cdc3a84` (implementation `ce3bac1b`).
+No production/harness correction was needed. Controller-reserved main was clean before execution.
+
+Consumed AK source `5e1ee75b1ac0a82b1be320c53d0c760928b547e5`, evidence commit
+`77b33b5f1c593adc2c86c9e28a789586a89af202`. Exact owner receipt
+`agent-kernel/docs/project/contracts/task-session-dep-r1-verification-v1.json` was compared to the
+committed Git blob. Existing stage (NOT rebuilt/re-staged):
+`$TMPDIR/task5479-stage-output-eUcGDDKs/libexec/agent-kernel/5e1ee75b1ac0a82b1be320c53d0c760928b547e5`.
+
+- Worker SHA256 `edab3754fd049f1b8bc2c38b12444739c470697013355ed21eede12c93f3135a`.
+- Manifest SHA256 `cc2b1138323c607a19e47ea7f3e6483e791d97100bf9bb7ee1a6dcc1e912062e`.
+- Actual version/ABI probe: exact clean source version, ABI3, schemas40/43, test_support:false.
+- All staged artifacts: hash/size/mode/owner/single-link/canonical path checked; closure compared with
+  immutable owner Git objects. Final schema/protocol hashes equal the early-consumed copies exactly.
+- Current initializer export `task5479-review-artifacts.xIY8KvGC/native-worker-fixture` SHA256
+  `4828006480e59513a111102a08a7cde7e8c9efdba6e9a8110e711988dbd9b0ec` verified before invocation.
+  A NEW scratch seed projection references it; historical seed packet/initializer/report is untouched.
+  This test-support binary initializes/observes NEW synthetic DBs only; actual admission/recovery uses
+  the independently pinned default release. It is never promoted to worker authority.
+
+New packet: `$TMPDIR/task5480-public-release-packet-E1p5Xo/packet.json`.
+Executed `node scripts/task-session-public-integration.mjs <packet>`: **58/58**, **29 schema40 +
+29 schema43**, 54 NEW isolated synthetic roots. No failures or bounded consumer/harness repair arose.
+This is actual packed public CLI/Pi projection/native-release/SDK/tool execution with unshipped OS-home,
+desktop/provider and resource-constructor seams, not installed Pi or real Ghostty/provider activation.
+
+Observed replacement coverage:
+- Original34 case names retained; SDK/resource/custody/I03/I04 checks remain intact.
+- Eighteen withdrawal cases: known-valid public plan/admission, original held T0 path/device/inode,
+  completed synthetic SDK write/host closure/owned effect-disposition before explicit test recovery.
+- Both schemas: unchanged-policy enabled recovery and changed-policy advanced-generation recovery-only
+  recover successfully. Changed-enabled, unchanged generation, changed lock directory, replaced inode
+  (including original OFD still held), operational timeout and nominal metadata drift refuse at exact
+  intended owner gates, before once-marker/native start. Native family/oracles and historical admission
+  receipt remain unchanged for negatives. Pi occupancy is not automatically retired after native recovery.
+- Future synthetic publications/profiles are fully repinned from owner-produced descriptor facts, so
+  negatives are not pin-hash/permissions shortcuts. Pi consumes only opaque invariant/full-policy binding.
+- Two actual owner strace file-syscall checks show no DB/lock path operations during describe, even with
+  unreadable synthetic DB/absent lock directory. No inference from mere successful descriptor output.
+- Four cross-language cases consume committed owner fixture corpus and actual owner Python codec,
+  comparing generation/reason with packed JS acceptance.
+
+Hash-bound execution receipt:
+`$TMPDIR/task5480-public-release-packet-E1p5Xo/execution-evidence.json`, SHA256
+`cd6c160348ce8e16f7f94cc24c068bfe2e7cd6389ffb6741fe85941b7439e2d5`.
+It binds packet/seed, owner receipt/stage, matrix log and per-root custody/native/recovery/strace receipts.
+The repo generic receipt adds **depR1R2Executed** without overwriting historical34 evidence or pretending
+that the previous pending-stage report was a passing run.
+
+Fresh independent checks: **188 focused, 628 declared helpers, 474 safe orchestrator, 124 packed**.
+Helpers used isolated HOME/concurrency4 and explicit live-smoke skip; the exact orchestrator live-loader
+case remained excluded. Lint/typecheck/structure/release checks passed. Root CI is not claimed.
+Fresh pack `$TMPDIR/task5480-pack-proof-Gs56l0/` is byte-for-byte identical to the W75uOT tarballs
+actually consumed by the matrix, confirmed by cmp and SHA256:
+- helpers `1cdafc36309a9dec53fda63d04fbe18b2a12b7f7553951ad0e430d4380b1639b`.
+- orchestrator `78ff208963aaaef834cd34c9dc95ba50d3b561cadbd8cb0b4c0a1992d39b08de`.
+
+### Read-only SDK0.84.4 assessment for root owner AK5552/5554
+
+Observed history: helpers' four exact devDependencies (pi-agent-core, pi-ai, pi-coding-agent, pi-tui)
+changed from0.84.3 to0.84.4 in initial task-session commit `58a904001`. They are not a new change in
+this continuation. Independent typescript-tool pins are not owned or justified by task5480.
+
+**Actual present need is the audited compatibility pin, not a proved minimum API version.**
+`identity.ts` pins all four manifests, package-owned trees, consumed entrypoints and dependency-resolution
+closure. The host uses SDK AgentSession/ModelRuntime, literal resources, native Codex API/compat imports
+and TUI; profile reasoning equality, serializer/tool continuation and model identity were verified
+against0.84.4. Pack proof explicitly installs0.84.4. The installed changelog describes intervening fixes,
+including tool-result/compaction ordering, but this is not proof those changes are required by our sealed
+configuration. No0.84.3 comparative installation/test was done, so neither API incompatibility nor safety
+equivalence is asserted. Do not use synthetic success to declare root policy's0.84.3 stale or overridden.
+
+A package.json-only downgrade would diverge from the audited tree/manifests and fail SDK identity;
+leaving proof installs at0.84.4 would test the wrong resolution. Aligning0.84.3 requires separately scoped
+source/provider/resource/serializer review, lock/dependency consistency, deliberate identity repinning,
+reasoning/catalog/model/profile audit and complete focused/packed/native matrix reproof. Build digests
+and any future owner host/policy/profile publications must be regenerated together; old receipts cannot
+certify new bytes. Conversely retaining0.84.4 needs an explicit root-owner policy disposition, not a local
+checker exemption. No root pins/policy/checker were edited, and isolated fix5f0600cc/merge74fad392 was
+not merged. Root CI mismatch is controller-reported; these scoped checks do not certify root CI.
+
+### Remaining hold
+
+No new producer defect observed in the58 matrix; independent acceptance remains external. UNKNOWN
+custody / **DO NOT ENROLL Compass** still blocks publication/enrollment and live canaries. Ordinary
+cdeef, canonical AK/DB, live policy/pins/namespace, credentials and original checkout remain untouched.
+No live locator lookup occurred in this continuation; prior failed-pack reads remain **unknown** as
+recorded, never recast as zero. No release rebuild, Pi install, Ghostty/provider or live claim operation.
+Platform/power-loss/forced COMMIT-I/O/hostile-containment coverage is not expanded by these tests.
+Task5480/Decision151 closeout, controlled publication and root engineering-pin reconciliation remain
+separate owner gates.
