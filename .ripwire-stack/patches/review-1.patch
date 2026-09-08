@@ -1,0 +1,304 @@
+diff --git a/packages/pi-context-packer/src/ripwire-corpus.js b/packages/pi-context-packer/src/ripwire-corpus.js
+index 3d7d4de4..b4f8f3f1 100644
+--- a/packages/pi-context-packer/src/ripwire-corpus.js
++++ b/packages/pi-context-packer/src/ripwire-corpus.js
+@@ -65,11 +65,19 @@ export async function stableRead(path, maxBytes) {
+   const before = await lstat(path, { bigint: true });
+   if (!before.isFile() || before.isSymbolicLink() || before.size > BigInt(maxBytes))
+     throw new Error("unsupported_or_oversize_file");
+-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
++  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+   try {
+     const opened = await handle.stat({ bigint: true });
+     if (!sameFile(before, opened)) throw new Error("source_changed");
+-    const data = await handle.readFile();
++    // Never let concurrent file growth turn a bounded read into an unbounded allocation.
++    const buffer = Buffer.alloc(Number(before.size) + 1);
++    let length = 0;
++    while (length < buffer.length) {
++      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
++      if (bytesRead === 0) break;
++      length += bytesRead;
++    }
++    const data = buffer.subarray(0, length);
+     if (
+       !sameFile(opened, await handle.stat({ bigint: true })) ||
+       BigInt(data.length) !== before.size
+@@ -83,7 +91,8 @@ export async function stableRead(path, maxBytes) {
+ 
+ export async function copyApprovedCorpus(root, destination, options = {}) {
+   const realRoot = await realpath(root);
+-  if (realRoot === sep || !(await lstat(realRoot)).isDirectory()) throw new Error("invalid_root");
++  if (realRoot !== resolve(root) || realRoot === sep || !(await lstat(realRoot)).isDirectory())
++    throw new Error("invalid_root");
+   const excluded = options.excludePaths ?? [];
+   if (!Array.isArray(excluded) || excluded.length > 256 || !excluded.every(safeRelative))
+     throw new Error("invalid_exclusion_policy");
+@@ -163,6 +172,8 @@ export async function copyApprovedCorpus(root, destination, options = {}) {
+   try {
+     if (!sameFile(rootBefore, await rootHandle.stat({ bigint: true })))
+       throw new Error("directory_changed");
++    if ((await realpath(`/proc/self/fd/${rootHandle.fd}`)) !== realRoot)
++      throw new Error("source_path_changed");
+     await walk(rootHandle);
+   } finally {
+     await rootHandle.close();
+diff --git a/packages/pi-context-packer/src/ripwire-landing-smoke.ts b/packages/pi-context-packer/src/ripwire-landing-smoke.ts
+new file mode 100644
+index 00000000..92afc595
+--- /dev/null
++++ b/packages/pi-context-packer/src/ripwire-landing-smoke.ts
+@@ -0,0 +1,50 @@
++/**
++summary: "Verify landing regressions through installed registered Pi code-context calls."
++read_when:
++  - "Changing workspace trust or zero-budget refusal during landing."
++*/
++import assert from "node:assert/strict";
++import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
++import type { SmokeTool } from "./runtime-smoke.ts";
++
++export async function runRipwireLandingSmoke(tool: SmokeTool, context: ExtensionContext) {
++  const outside = await mkdtemp(join(tmpdir(), "landing-outside-"));
++  const alias = join(context.cwd, "outside-alias");
++  const source = "export function privateLandingCanary() { return 123; }\n";
++  const providers = { agents: "off", docs: "off", git: "off", session: "off", ripwire: "required" };
++  try {
++    await writeFile(join(outside, "private.ts"), source);
++    await symlink(outside, alias, "dir");
++    const blocked = await tool.execute(
++      "landing-root-alias",
++      { objective: "Find privateLandingCanary", providers, cwd: alias, repoRoot: alias },
++      undefined,
++      undefined,
++      context,
++    );
++    assert.equal(blocked.details?.ok, false);
++    const text = blocked.content
++      .filter((item) => item.type === "text")
++      .map((item) => item.text)
++      .join("\n");
++    assert.match(text, /invalid_workspace/);
++    assert.doesNotMatch(text, /private\.ts/);
++    const zero = await tool.execute(
++      "landing-zero-budget",
++      { objective: "Find implementation", providers, budget: { maxBytes: 0 } },
++      undefined,
++      undefined,
++      context,
++    );
++    assert.equal(zero.details?.ok, false);
++    assert.ok(zero.content.every((item) => item.type !== "text" || item.text.length === 0));
++    assert.equal(await readFile(join(outside, "private.ts"), "utf8"), source);
++    console.log("ripwire registered landing regressions PASS");
++  } finally {
++    await rm(alias, { force: true });
++    await rm(outside, { recursive: true, force: true });
++  }
++}
+diff --git a/packages/pi-context-packer/src/ripwire-output.js b/packages/pi-context-packer/src/ripwire-output.js
+index b3ce2d7a..0685346a 100644
+--- a/packages/pi-context-packer/src/ripwire-output.js
++++ b/packages/pi-context-packer/src/ripwire-output.js
+@@ -74,6 +74,7 @@ export function parseRipwireCandidates(stdout, corpus) {
+       !Number.isFinite(Number(attr.s))
+     )
+       throw new Error("invalid_candidate_identity");
++    const signature = decode(row[2] ?? "");
+     records.push({
+       path: attr.p,
+       line: Number(attr.l),
+@@ -82,7 +83,11 @@ export function parseRipwireCandidates(stdout, corpus) {
+       kind: attr.k,
+       rank: Number(attr.r),
+       score: Number(attr.s),
+-      signature: decode(row[2] ?? ""),
++      signature,
++      // The candidates dialect can redact signatures without a row flag. Treat
++      // the visible marker conservatively; do not advertise byte-exact source.
++      redacted: attr.redacted === "1" || /\[REDACTED[:\]]/u.test(signature),
++      scrubbed: attr.scrubbed === "1",
+       contentSha256: corpus.files.get(attr.p).sha256,
+     });
+     body = body.slice(row[0].length);
+diff --git a/packages/pi-context-packer/src/ripwire-runtime-smoke.ts b/packages/pi-context-packer/src/ripwire-runtime-smoke.ts
+index 4f7f813c..8d51e3f4 100644
+--- a/packages/pi-context-packer/src/ripwire-runtime-smoke.ts
++++ b/packages/pi-context-packer/src/ripwire-runtime-smoke.ts
+@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { type ExtensionContext, SessionManager } from "@earendil-works/pi-coding-agent";
++import { runRipwireLandingSmoke } from "./ripwire-landing-smoke.ts";
+ import { runRipwirePolicySmoke } from "./ripwire-policy-smoke.ts";
+ import type { SmokeTool } from "./runtime-smoke.ts";
+ 
+@@ -149,6 +150,8 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
+     }
+     if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 9)
+       await runRipwirePolicySmoke(tool, context);
++    if (Number(process.env.PI_CONTEXT_PACKER_DOGFOOD_GATE?.slice(3)) >= 10)
++      await runRipwireLandingSmoke(tool, context);
+     const off = await tool.execute(
+       "ripwire-registered-off",
+       { ...args, providers: { ...args.providers, ripwire: "off" } },
+diff --git a/packages/pi-context-packer/src/ripwire-section.js b/packages/pi-context-packer/src/ripwire-section.js
+index 996f86cc..4fd9df17 100644
+--- a/packages/pi-context-packer/src/ripwire-section.js
++++ b/packages/pi-context-packer/src/ripwire-section.js
+@@ -14,7 +14,7 @@ export async function buildRipwireSection(plan, env = {}) {
+   );
+   const blocked = blockedRoot
+     ? "invalid_workspace"
+-    : limits.maxBytes < 256
++    : limits.maxBytes < 256 || plan.budget.perProviderMaxTokens.ripwire === 0
+       ? "insufficient_headroom"
+       : null;
+   const result = blocked
+diff --git a/packages/pi-context-packer/tests/context-pack-format-session.test.js b/packages/pi-context-packer/tests/context-pack-format-session.test.js
+index b3b9f8ec..986ff24c 100644
+--- a/packages/pi-context-packer/tests/context-pack-format-session.test.js
++++ b/packages/pi-context-packer/tests/context-pack-format-session.test.js
+@@ -88,7 +88,7 @@ test("formatContextPacket collapses caller-controlled objective and symbol label
+     text,
+     /^# Context packet: Render packet ## Forged objective section - ‹h2›fake‹\/h2›$/m,
+   );
+-  assert.match(text, /Code retrieval is unavailable/);
++  assert.match(text, /Code retrieval was not selected/);
+   assert.doesNotMatch(text, /^## Forged objective section$/m);
+   assert.doesNotMatch(text, /<h2>fake<\/h2>/);
+   assert.doesNotMatch(toolResult.content[0].text, /^## Forged objective section$/m);
+diff --git a/packages/pi-context-packer/tests/landing-review.test.mjs b/packages/pi-context-packer/tests/landing-review.test.mjs
+new file mode 100644
+index 00000000..f20616ad
+--- /dev/null
++++ b/packages/pi-context-packer/tests/landing-review.test.mjs
+@@ -0,0 +1,108 @@
++import assert from "node:assert/strict";
++import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import test from "node:test";
++import { contextPacketToolResult } from "../src/context-pack.js";
++import { buildContextPlan } from "../src/context-plan.js";
++import { copyApprovedCorpus, stableRead } from "../src/ripwire-corpus.js";
++
++const providers = { agents: "off", docs: "off", git: "off", session: "off", ripwire: "required" };
++
++test("requested cwd/repoRoot aliases cannot escape trusted workspace or invoke code", async () => {
++  const root = await mkdtemp(join(tmpdir(), "review-root-"));
++  const outside = await mkdtemp(join(tmpdir(), "review-outside-"));
++  try {
++    await writeFile(join(outside, "private.ts"), "export function escapedCanary() {}\n");
++    await symlink(outside, join(root, "alias"), "dir");
++    let calls = 0;
++    for (const input of [
++      { cwd: join(root, "alias"), repoRoot: join(root, "alias") },
++      { cwd: join(root, "alias") },
++    ]) {
++      const result = await contextPacketToolResult(
++        { ...input, objective: "Locate escapedCanary", providers },
++        { cwd: root, ripwire: { onExecution: () => calls++ } },
++      );
++      assert.equal(result.isError, true);
++      assert.equal(result.details.providerRuns.ripwire.status, "unavailable");
++      assert.match(result.content[0].text, /invalid_workspace/);
++      assert.doesNotMatch(result.content[0].text, /private\.ts/);
++    }
++    assert.equal(calls, 0);
++    await mkdir(join(root, "copy"));
++    await assert.rejects(
++      copyApprovedCorpus(join(root, "alias"), join(root, "copy")),
++      /invalid_root/,
++    );
++  } finally {
++    await rm(root, { recursive: true, force: true });
++    await rm(outside, { recursive: true, force: true });
++  }
++});
++
++test("trusted and requested in-workspace aliases resolve without losing legitimate scope", async () => {
++  const root = await mkdtemp(join(tmpdir(), "review-contained-"));
++  try {
++    await mkdir(join(root, "real"));
++    await symlink(join(root, "real"), join(root, "alias"), "dir");
++    const plan = buildContextPlan(
++      { objective: "Find code", cwd: join(root, "alias"), providers },
++      { cwd: root },
++    );
++    assert.equal(plan.cwd, join(root, "real"));
++    assert.equal(
++      plan.risks.some((r) => r.kind === "path" && r.severity === "blocked"),
++      false,
++    );
++    const trustedAlias = buildContextPlan(
++      { objective: "Find code", providers },
++      { cwd: join(root, "alias") },
++    );
++    assert.equal(trustedAlias.cwd, join(root, "real"));
++  } finally {
++    await rm(root, { recursive: true, force: true });
++  }
++});
++
++test("zero packet or provider budgets never become defaults or execute code", async () => {
++  const root = await mkdtemp(join(tmpdir(), "review-zero-"));
++  try {
++    let calls = 0;
++    for (const budget of [
++      { maxBytes: 0 },
++      { maxTokens: 0 },
++      { perProviderMaxTokens: { ripwire: 0 } },
++    ]) {
++      const result = await contextPacketToolResult(
++        { objective: "Find code", providers, budget },
++        { cwd: root, ripwire: { onExecution: () => calls++ } },
++      );
++      assert.equal(result.isError, true);
++      if (budget.maxBytes === 0 || budget.maxTokens === 0) assert.equal(result.content[0].text, "");
++    }
++    assert.equal(calls, 0);
++    assert.equal(
++      buildContextPlan({ objective: "Read", budget: { reserveTokens: 0 } }, { cwd: root }).budget
++        .reserveTokens,
++      0,
++    );
++  } finally {
++    await rm(root, { recursive: true, force: true });
++  }
++});
++
++test("stable reads enforce the byte boundary and reject source symlinks", async () => {
++  const root = await mkdtemp(join(tmpdir(), "review-read-"));
++  try {
++    const file = join(root, "source.ts");
++    await writeFile(file, "1234");
++    assert.equal((await stableRead(file, 4)).toString(), "1234");
++    await assert.rejects(stableRead(file, 3), /oversize/);
++    await symlink(file, join(root, "link.ts"));
++    await assert.rejects(stableRead(join(root, "link.ts"), 4), /unsupported/);
++    assert.equal(await readFile(file, "utf8"), "1234");
++  } finally {
++    await rm(root, { recursive: true, force: true });
++  }
++});
+diff --git a/packages/pi-context-packer/tests/ripwire-adapter.test.js b/packages/pi-context-packer/tests/ripwire-adapter.test.js
+index 1871b510..550aa8fb 100644
+--- a/packages/pi-context-packer/tests/ripwire-adapter.test.js
++++ b/packages/pi-context-packer/tests/ripwire-adapter.test.js
+@@ -50,3 +50,12 @@ test("corpus is descriptor anchored, excludes symlinks and fingerprints source",
+     await rm(dest, { recursive: true, force: true });
+   }
+ });
++
++test("candidate signature redaction markers retain a non-byte-exact disclosure", () => {
++  const xml = fixture.replace(
++    "function read(x: A&lt;B&gt;)",
++    "function read(key = [REDACTED:secret])",
++  );
++  assert.equal(parseRipwireCandidates(xml, corpus).records[0].redacted, true);
++  assert.equal(parseRipwireCandidates(fixture, corpus).records[0].redacted, false);
++});
