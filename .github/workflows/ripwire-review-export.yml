@@ -1,0 +1,33 @@
+name: Export ripwire stack for final review
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-review-export.yml]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export reviewed stack refs without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          refs=(refs/remotes/origin/main)
+          while IFS= read -r ref; do refs+=("$ref"); done < <(git for-each-ref --format='%(refname)' refs/remotes/origin/stack/ripwire/)
+          git bundle create "$RUNNER_TEMP/ripwire-review.bundle" "${refs[@]}"
+          git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin/main refs/remotes/origin/stack/ripwire/ > "$RUNNER_TEMP/review-refs.txt"
+          sha256sum "$RUNNER_TEMP/ripwire-review.bundle" > "$RUNNER_TEMP/review-bundle.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ripwire-review-source
+          path: |
+            ${{ runner.temp }}/ripwire-review.bundle
+            ${{ runner.temp }}/review-refs.txt
+            ${{ runner.temp }}/review-bundle.sha256
+          retention-days: 14
