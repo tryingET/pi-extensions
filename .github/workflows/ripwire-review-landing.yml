@@ -1,0 +1,94 @@
+name: Verify reviewed ripwire landing
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-review-landing.yml]
+permissions:
+  contents: read
+jobs:
+  import:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Apply reviewed source and enforce exact identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ripwire-stack/patches/review-{0,1}.patch > "$RUNNER_TEMP/review.patch"
+          export GIT_INDEX_FILE="$RUNNER_TEMP/review.index"
+          git read-tree b0d3bff0eb80e0b2c52a58d58e90f75a49c837a0
+          git apply --cached --recount "$RUNNER_TEMP/review.patch"
+          tree=$(git write-tree)
+          echo "Reviewed tree: $tree"
+          test "$tree" = 1a823df79cba0ae5194f87456b0a08baab015627
+          printf 'tree %s\nparent b0d3bff0eb80e0b2c52a58d58e90f75a49c837a0\nauthor OpenAI <noreply@openai.com> 1788853357 +0000\ncommitter OpenAI <noreply@openai.com> 1788853423 +0000\n\nfix(context-packer): harden workspace boundaries and verify the complete landing\n' "$tree" > "$RUNNER_TEMP/review-commit.txt"
+          commit=$(git hash-object -t commit -w "$RUNNER_TEMP/review-commit.txt")
+          test "$commit" = 5bb2d922a12f4092dbdb83e3ca50fc9f8b0e3f69
+          ref=refs/heads/stack/ripwire/10-review-hardening
+          current=$(git ls-remote --heads origin "$ref" | cut -f1)
+          if test -n "$current"; then test "$current" = "$commit"; else git push origin "$commit:$ref"; fi
+  verify:
+    needs: import
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5bb2d922a12f4092dbdb83e3ca50fc9f8b0e3f69
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.22.2'
+          package-manager-cache: false
+      - name: Set isolated verification locations
+        run: |
+          mkdir -p "$RUNNER_TEMP/landing-evidence" "$RUNNER_TEMP/landing-tmp" "$RUNNER_TEMP/landing-npm"
+          echo "PI_EXTENSIONS_TMPDIR=$RUNNER_TEMP/landing-tmp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$RUNNER_TEMP/landing-tmp" >> "$GITHUB_ENV"
+          echo "NPM_CONFIG_CACHE=$RUNNER_TEMP/landing-npm" >> "$GITHUB_ENV"
+          echo "TERM=xterm" >> "$GITHUB_ENV"
+          npm install --global --prefix "$RUNNER_TEMP/npm-tools" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-tools/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/packages/pi-context-packer/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Install locked package dependencies
+        working-directory: packages/pi-context-packer
+        run: npm ci --ignore-scripts
+      - name: Build the pinned ripwire source without installer or skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/redhat-et/ripwire.git "$RUNNER_TEMP/ripwire-source"
+          git -C "$RUNNER_TEMP/ripwire-source" checkout --detach 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          test "$(git -C "$RUNNER_TEMP/ripwire-source" rev-parse HEAD)" = 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          cmake -S "$RUNNER_TEMP/ripwire-source" -B "$RUNNER_TEMP/ripwire-build" -DCMAKE_BUILD_TYPE=Release -DRIPWIRE_TESTS=OFF > "$RUNNER_TEMP/landing-evidence/ripwire-build.log" 2>&1
+          cmake --build "$RUNNER_TEMP/ripwire-build" --target ripwire -j2 >> "$RUNNER_TEMP/landing-evidence/ripwire-build.log" 2>&1
+          "$RUNNER_TEMP/ripwire-build/ripwire" --version | tee "$RUNNER_TEMP/landing-evidence/ripwire-version.txt"
+          sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" > "$RUNNER_TEMP/landing-evidence/ripwire-binary.sha256"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_BIN=$RUNNER_TEMP/ripwire-build/ripwire" >> "$GITHUB_ENV"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_SHA256=$(sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+      - name: Full networked release check with isolated Pi installation
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run release:check 2>&1 | tee "$RUNNER_TEMP/landing-evidence/full-release-check.log"
+      - name: Cumulative exact-candidate packed and registered-runtime dogfood
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dogfood:gate -- --gate RW-10 --candidate-sha 5bb2d922a12f4092dbdb83e3ca50fc9f8b0e3f69 --output-dir "$RUNNER_TEMP/landing-evidence/gates" 2>&1 | tee "$RUNNER_TEMP/landing-evidence/dogfood.log"
+          test -z "$(git status --porcelain)"
+          git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/landing-evidence/candidate.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ripwire-reviewed-landing-evidence
+          path: ${{ runner.temp }}/landing-evidence
+          retention-days: 30
