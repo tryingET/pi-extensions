@@ -112,8 +112,19 @@ try {
     });
     throw new Error("Ripwire binary required");
   }
+  const packOutput = run("pack", "npm", [
+    "pack",
+    "--ignore-scripts",
+    "--json",
+    "--pack-destination",
+    scratch,
+  ]);
+  // The source-checkout gate already depends on canonical root tooling. Reuse its
+  // strict npm 10/11 array and npm 12 package-keyed object parser, not a second dialect.
   const packed = JSON.parse(
-    run("pack", "npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch]),
+    run("normalize-pack", process.execPath, [join(repo, "scripts/npm-pack-json.mjs")], {
+      input: packOutput,
+    }),
   );
   const archive = join(scratch, packed[0].filename);
   receipt.candidate.artifactSha256 = sha256(readFileSync(archive));
