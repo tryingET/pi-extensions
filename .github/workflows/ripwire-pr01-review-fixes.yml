@@ -1,0 +1,40 @@
+name: Apply reviewed PR01 landing fixes
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-pr01-review-fixes.yml]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Verify exact tree and fast-forward the reviewed feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_INDEX_FILE="$RUNNER_TEMP/review-fixes.index"
+          git read-tree f5c44ddedc2658f179eed2f6ff93ed4b3f7b03a4
+          git apply --cached --recount .ripwire-stack/patches/pr01-archive-budget.patch
+          git apply --cached --recount .ripwire-stack/patches/pr01-pack-compat.patch
+          tree=$(git write-tree)
+          test "$tree" = 4cf85654a0ad2692f9bad964dff651d8cfd9677d
+          printf 'tree %s\nparent f5c44ddedc2658f179eed2f6ff93ed4b3f7b03a4\nauthor OpenAI <noreply@openai.com> 1788854358 +0000\ncommitter OpenAI <noreply@openai.com> 1788854439 +0000\n\nfix(context-packer): preserve archive budgets and normalize npm pack dialects\n' "$tree" > "$RUNNER_TEMP/review-fixes.commit"
+          commit=$(git hash-object -t commit -w "$RUNNER_TEMP/review-fixes.commit")
+          test "$commit" = 66eddac21303b4700c41f0c0d273789b3f02831d
+          ref=refs/heads/stack/ripwire/01-remove-sci
+          current=$(git ls-remote --heads origin "$ref" | cut -f1)
+          if test "$current" != "$commit"; then
+            test "$current" = f5c44ddedc2658f179eed2f6ff93ed4b3f7b03a4
+            git push origin "$commit:$ref"
+          fi
+          printf '{"head":"%s","tree":"%s","fastForwardOnly":true}\n' "$commit" "$tree" > "$RUNNER_TEMP/review-fixes.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ripwire-pr01-reviewed-fixes
+          path: ${{ runner.temp }}/review-fixes.json
+          retention-days: 30
