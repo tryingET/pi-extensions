@@ -334,7 +334,7 @@ export function registerAutoresearchLiveSupervisionTool(
       completedActionCount: Type.Optional(
         Type.Number({
           description:
-            "For action=level3_matrix_cell_executor or level4_autoresearch_campaign_runner, the count of previously controller-run and verified Level-3 runner nextLegalActions; Level-4 also resumes from its receipt file.",
+            "Controller assertion of previously executed and verified Level-3 actions. Level-4 persists this cursor only for an unchanged request/action-plan digest; waiting observations never increment it. Not effect proof; never use to retry indeterminate effects.",
           minimum: 0,
         }),
       ),
@@ -359,7 +359,7 @@ export function registerAutoresearchLiveSupervisionTool(
       maxAutomatedActions: Type.Optional(
         Type.Number({
           description:
-            "Maximum safe actions Level-4 may automate in one invocation (1-25, default 1).",
+            "Legacy action budget (1-25, default 1). Level-4 currently has no execution adapter and only presents one controller action; this budget never authorizes or proves execution.",
           minimum: 1,
           maximum: 25,
         }),
@@ -375,13 +375,13 @@ export function registerAutoresearchLiveSupervisionTool(
       allowMeasureExportReview: Type.Optional(
         Type.Boolean({
           description:
-            "When true, Level-4 may execute safe measure/export/status actions instead of stopping for the controller seam.",
+            "Reserved measure/export/status permission. No Level-4 execution adapter is bound: true still stops for explicit controller execution and never creates an executed receipt.",
         }),
       ),
       allowReviewGeneration: Type.Optional(
         Type.Boolean({
           description:
-            "When true, Level-4 may execute safe review packet generation actions; owner gates still remain exact.",
+            "Reserved review permission. Without an owner execution adapter, true never dispatches review or advances the cursor; exact owner gates remain preserved.",
         }),
       ),
       maxIterations: Type.Optional(

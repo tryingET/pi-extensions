@@ -4,10 +4,17 @@
 //   - "Changing level-3 action selection, level-4 automation receipts, or visible candidate launch watch orchestration."
 // ---
 
-import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { verifyLevel4MeasuredPacket } from "./autoresearch-level4-runner-packets.ts";
+import {
+  appendLevel4Receipt,
+  level4Digest,
+  level4RequestDigest,
+  loadLevel4Receipts,
+  resolveLevel4ReceiptPath,
+} from "./autoresearch-level4-runner-receipts.ts";
 import {
   buildAutoresearchMatrixCampaignRunnerContract,
   checkpointAutoresearchMatrixCampaignRunner,
@@ -630,29 +637,41 @@ function buildLevel4PromptRunnerBundle(
         cockpitRow?.packetPath ??
         contractLane?.candidateResultPacketPath ??
         "<candidate-result-packet-path>";
-      const packetExists =
-        !packetPath.startsWith("<") && fs.existsSync(path.resolve(input.cwd, packetPath));
-      const status: AutoresearchLevel4CandidatePacketInventoryStatus =
-        sourceState === "measured_exported_selectable" ||
-        sourceState === "measured_exported_not_selectable" ||
-        packetExists
-          ? "controller_verified_measured_packet"
-          : sourceState === "missing_packet" || sourceState === "packet_missing"
-            ? "pending_candidate_result_packet"
-            : checkpointAccepted || sourceState === "measurement_export_unlocked"
-              ? "pending_measurement_or_export"
-              : state === "ready_to_launch_visible_candidate_peers"
-                ? "pending_visible_launch"
-                : "pending_controller_lineage_verification";
+      const scopedLaneId = `${lane.cellId}-${lane.laneId}`;
+      const bindings = (input.candidateBindings ?? []).filter(
+        (binding) => binding.laneId === scopedLaneId,
+      );
+      const verification = verifyLevel4MeasuredPacket({
+        cwd: input.cwd,
+        packetPath,
+        laneId: scopedLaneId,
+        binding: bindings.length === 1 ? bindings[0] : undefined,
+        metricName: input.metricName?.trim() || "operator_ux_blockers",
+        direction: input.direction ?? "lower",
+      });
+      if (packetPath !== contractLane?.candidateResultPacketPath) {
+        verification.verified = false;
+        verification.issues.push("packetPath does not match the planned lane export");
+      }
+      const status: AutoresearchLevel4CandidatePacketInventoryStatus = verification.verified
+        ? "controller_verified_measured_packet"
+        : sourceState === "missing_packet" || sourceState === "packet_missing"
+          ? "pending_candidate_result_packet"
+          : checkpointAccepted || sourceState === "measurement_export_unlocked"
+            ? "pending_measurement_or_export"
+            : state === "ready_to_launch_visible_candidate_peers"
+              ? "pending_visible_launch"
+              : "pending_controller_lineage_verification";
       return {
         cellId: lane.cellId,
         laneId: lane.laneId,
         packetPath,
         sourceState,
         status,
-        controllerVerified: status === "controller_verified_measured_packet",
-        measuredPacket: status === "controller_verified_measured_packet",
-        selected: cockpitRow?.selected ?? false,
+        controllerVerified: verification.verified,
+        verificationIssues: verification.issues,
+        measuredPacket: verification.verified,
+        selected: verification.verified && (cockpitRow?.selected ?? false),
       };
     });
   const pendingPacketRows = packetInventoryRows.filter(
@@ -661,6 +680,13 @@ function buildLevel4PromptRunnerBundle(
   const controllerVerifiedMeasuredPacketRows = packetInventoryRows.filter(
     (row) => row.status === "controller_verified_measured_packet",
   );
+  if (checkpointAccepted) {
+    closeoutBlockers.push(
+      ...pendingPacketRows.flatMap((row) =>
+        row.verificationIssues.map((issue) => `${row.cellId}/${row.laneId}: ${issue}`),
+      ),
+    );
+  }
   const packetInventory = {
     totalLaneCount: packetInventoryRows.length,
     pendingVisibleLaunchCount: packetInventoryRows.filter(
@@ -783,6 +809,7 @@ function buildLevel4PromptRunnerBundle(
     (row) => row.status === "controller_verified_measured_packet" && row.selected,
   );
   const fanInComplete =
+    checkpointAccepted &&
     packetInventoryRows.length > 0 &&
     packetInventoryRows.every((row) => row.status === "controller_verified_measured_packet");
   const ownerReviewCall = fanInComplete
@@ -974,8 +1001,10 @@ function buildLevel4PromptRunnerBundle(
     postIntegrationCleanupReady,
     postFaninPromotionHandoff,
     comparison: {
-      status: checkpointAccepted ? "ready_for_review_packet" : "pending_candidate_result_packets",
-      aggregateReviewCall: contract.lanes[0]?.reviewCandidateWaveCall ?? null,
+      status: fanInComplete ? "ready_for_review_packet" : "pending_candidate_result_packets",
+      aggregateReviewCall: fanInComplete
+        ? (contract.lanes[0]?.reviewCandidateWaveCall ?? null)
+        : null,
       reviewRequiresControllerVerifiedPackets: true,
     },
     metric: {
@@ -1095,73 +1124,68 @@ function buildLevel4PromptRunnerBundle(
   };
 }
 
-function resolveLevel4ReceiptPath(input: AutoresearchLevel4CampaignRunnerRequest): string {
-  if (input.level4ReceiptPath) {
-    const resolved = path.resolve(input.cwd, input.level4ReceiptPath);
-    const cwdResolved = path.resolve(input.cwd);
-    if (!resolved.startsWith(`${cwdResolved}${path.sep}`) && resolved !== cwdResolved) {
-      throw new Error("level4ReceiptPath must stay under cwd.");
-    }
-    return resolved;
+function isLevel4ReviewReady(call: string, bundle: AutoresearchLevel4PromptRunnerBundle): boolean {
+  if (!/review_candidate_wave|review_matrix_campaign/u.test(call)) return true;
+  if (bundle.state !== "checkpoint_accepted_controller_sequence_ready") return false;
+  if (/review_matrix_campaign/u.test(call))
+    return bundle.candidateCloseoutPacket.comparison.status === "ready_for_review_packet";
+  try {
+    const payload = JSON.parse(call.slice(call.indexOf("(") + 1, call.lastIndexOf(")")));
+    const paths: unknown = payload.candidateResultPacketPaths;
+    if (
+      !Array.isArray(paths) ||
+      paths.length === 0 ||
+      !paths.every((entry) => typeof entry === "string")
+    )
+      return false;
+    const rows = bundle.candidateCloseoutPacket.packetInventory.rows.filter((row) =>
+      paths.includes(row.packetPath),
+    );
+    const cells = new Set(rows.map((row) => row.cellId));
+    return (
+      cells.size === 1 &&
+      rows.length === paths.length &&
+      rows.every((row) => row.controllerVerified) &&
+      bundle.candidateCloseoutPacket.packetInventory.rows.filter((row) => cells.has(row.cellId))
+        .length === rows.length
+    );
+  } catch {
+    return false;
   }
-  return path.join(input.cwd, ".autoresearch", "level4-campaign-runner-receipts.jsonl");
-}
-
-function loadLevel4Receipts(receiptPath: string): AutoresearchLevel4CampaignRunnerReceipt[] {
-  if (!fs.existsSync(receiptPath)) return [];
-  return fs
-    .readFileSync(receiptPath, "utf8")
-    .split(/\r?\n/u)
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as AutoresearchLevel4CampaignRunnerReceipt);
-}
-
-function appendLevel4Receipts(
-  receiptPath: string,
-  receipts: readonly AutoresearchLevel4CampaignRunnerReceipt[],
-): void {
-  if (receipts.length === 0) return;
-  fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
-  fs.appendFileSync(
-    receiptPath,
-    `${receipts.map((receipt) => JSON.stringify(receipt)).join("\n")}\n`,
-  );
-}
-
-function classifyLevel4Disposition(
-  call: string,
-  input: AutoresearchLevel4CampaignRunnerRequest,
-): AutoresearchLevel4CampaignRunnerReceipt["disposition"] {
-  if (/finalize_post_fanin|promotion|ak_owner_write|evidence_record\(/u.test(call)) {
-    return "blocked_dangerous_gate";
-  }
-  if (
-    /candidate_cleanup|candidate_peer_cleanup|worktree\s+remove|branch\s+-D|rm\s+-rf/u.test(call)
-  ) {
-    return "blocked_dangerous_gate";
-  }
-  if (/autoresearch_runtime_run|candidate_result_export|autoresearch_runtime_status/u.test(call)) {
-    return input.allowMeasureExportReview === true
-      ? "executed_by_level4"
-      : "awaiting_external_controller";
-  }
-  if (/review_candidate_wave|review_matrix_campaign/u.test(call)) {
-    return input.allowReviewGeneration === true
-      ? "executed_by_level4"
-      : "awaiting_external_controller";
-  }
-  return "awaiting_external_controller";
 }
 
 export function runAutoresearchLevel4CampaignRunner(
   input: AutoresearchLevel4CampaignRunnerRequest,
 ): AutoresearchLevel4CampaignRunner {
+  input.signal?.throwIfAborted();
   const receiptPath = resolveLevel4ReceiptPath(input);
-  const loadedReceipts = loadLevel4Receipts(receiptPath);
-  const completedActionCount = Math.max(
-    resolveLevel3CompletedActionCount(input.completedActionCount),
-    loadedReceipts.length,
+  const initialExecutor = advanceAutoresearchLevel3MatrixCellExecutor({
+    ...input,
+    completedActionCount: 0,
+  });
+  const actions = initialExecutor.runnerNextLegalActions;
+  const requestDigest = level4RequestDigest(input);
+  const actionPlanDigest = level4Digest(actions);
+  const loadedReceipts = loadLevel4Receipts(receiptPath, requestDigest, actionPlanDigest, actions);
+  // These are controller-supplied cursor hints, not evidence of completed effects.
+  const persistedCursor = loadedReceipts.reduce(
+    (cursor, row) => Math.max(cursor, row.actionIndex),
+    0,
   );
+  const completedActionCount =
+    input.completedActionCount === undefined
+      ? persistedCursor
+      : resolveLevel3CompletedActionCount(input.completedActionCount);
+  if (completedActionCount < persistedCursor || completedActionCount > actions.length) {
+    throw new Error("completedActionCount cursor cannot rewind or exceed the bound action plan.");
+  }
+  if (
+    actions
+      .slice(0, completedActionCount)
+      .some((call) => !classifyLevel3MatrixCellAction(call).allowedByStateMachine)
+  ) {
+    throw new Error("completedActionCount cannot skip a dangerous owner gate.");
+  }
   const maxAutomatedActions = input.maxAutomatedActions ?? 1;
   if (
     !Number.isInteger(maxAutomatedActions) ||
@@ -1172,72 +1196,64 @@ export function runAutoresearchLevel4CampaignRunner(
   }
 
   const newReceipts: AutoresearchLevel4CampaignRunnerReceipt[] = [];
-  let executor = advanceAutoresearchLevel3MatrixCellExecutor({
+  const executor = advanceAutoresearchLevel3MatrixCellExecutor({
     ...input,
     completedActionCount,
   });
   let posture: AutoresearchLevel4CampaignRunner["posture"] =
     executor.posture === "blocked_by_level3_runner" ? "blocked_by_level3" : "complete_review_ready";
 
-  for (let i = 0; i < maxAutomatedActions; i += 1) {
-    const action = executor.selectedAction;
-    if (!action) {
-      posture =
-        executor.posture === "blocked_by_level3_runner"
-          ? "blocked_by_level3"
-          : "complete_review_ready";
-      break;
-    }
-    if (!action.allowedByStateMachine) {
-      posture = "blocked_dangerous_gate";
-      break;
-    }
-    const disposition = classifyLevel4Disposition(action.call, input);
+  const action = executor.selectedAction;
+  if (action || executor.level3Runner.checkpointAccepted) {
+    const disposition = !action
+      ? "controller_cursor_recorded"
+      : action.allowedByStateMachine
+        ? "awaiting_external_controller"
+        : "blocked_dangerous_gate";
+    if (disposition !== "controller_cursor_recorded") posture = disposition;
     const receipt: AutoresearchLevel4CampaignRunnerReceipt = {
-      kind: "autoresearch.level4_campaign_runner_receipt.v1",
-      receiptId: createHash("sha256")
-        .update(`${input.taskId}\0${input.cwd}\0${action.index}\0${action.call}`)
-        .digest("hex"),
-      actionIndex: action.index,
-      call: action.call,
+      kind: "autoresearch.level4_campaign_runner_receipt.v2",
+      requestDigest,
+      actionPlanDigest,
+      receiptId: level4Digest([
+        requestDigest,
+        actionPlanDigest,
+        completedActionCount,
+        action?.call ?? "",
+        disposition,
+      ]),
+      actionIndex: completedActionCount,
+      call: action?.call ?? "",
       disposition,
-      executedAtEpochMs: Date.now(),
+      effectStatus: "not_dispatched",
+      observedAtEpochMs: Date.now(),
       summary:
-        disposition === "executed_by_level4"
-          ? "Level-4 accepted and automated this safe action, then persisted a resumable receipt."
-          : disposition === "awaiting_external_controller"
-            ? "Level-4 stopped at an action that requires an external controller/tool seam result."
-            : "Level-4 preserved an exact dangerous-action gate and did not execute this action.",
+        "Plan observation only. No owner execution adapter is bound; permissions are not effect proof. Controller must execute and verify the exact action.",
     };
-    newReceipts.push(receipt);
-    if (disposition !== "executed_by_level4") {
-      posture =
-        disposition === "blocked_dangerous_gate"
-          ? "blocked_dangerous_gate"
-          : "awaiting_external_controller";
-      break;
-    }
-    executor = advanceAutoresearchLevel3MatrixCellExecutor({
-      ...input,
-      completedActionCount: action.index + 1,
-    });
-    posture = "advanced_safe_actions";
+    if (!loadedReceipts.some((row) => row.receiptId === receipt.receiptId))
+      newReceipts.push(receipt);
   }
-
-  appendLevel4Receipts(receiptPath, newReceipts);
-  const finalCompletedActionCount =
-    completedActionCount +
-    newReceipts.filter((receipt) => receipt.disposition === "executed_by_level4").length;
-  const blockerValue =
-    posture === "blocked_by_level3" || posture === "blocked_dangerous_gate" ? 1 : 0;
   const promptRunnerBundle = buildLevel4PromptRunnerBundle(input, executor);
+  if (
+    posture === "complete_review_ready" &&
+    promptRunnerBundle.candidateCloseoutPacket.comparison.status !== "ready_for_review_packet"
+  ) {
+    posture = "awaiting_external_controller";
+  }
+  const blockerValue = posture === "complete_review_ready" ? 0 : 1;
+  input.signal?.throwIfAborted();
+  for (const receipt of newReceipts) appendLevel4Receipt(receiptPath, receipt);
   const nextLegalActions =
     posture === "blocked_by_level3" &&
     promptRunnerBundle.state === "ready_to_launch_visible_candidate_peers"
       ? promptRunnerBundle.visibleCandidatePeerSpawnCalls
-      : executor.emittedNextLegalActions;
+      : executor.emittedNextLegalActions.filter((call) =>
+          isLevel4ReviewReady(call, promptRunnerBundle),
+        );
   return {
     kind: "autoresearch.level4_autoresearch_campaign_runner.v1",
+    execution: "not_executed_by_orchestrator",
+    actionPlanDigest,
     taskId: input.taskId,
     cwd: input.cwd,
     objective: input.objective,
@@ -1246,7 +1262,7 @@ export function runAutoresearchLevel4CampaignRunner(
     receiptPath,
     loadedReceiptCount: loadedReceipts.length,
     newReceipts,
-    completedActionCount: finalCompletedActionCount,
+    completedActionCount,
     posture,
     metric: {
       name: "level4_autoresearch_automation_blockers",
@@ -1265,13 +1281,13 @@ export function runAutoresearchLevel4CampaignRunner(
     boundaries: [
       "Level-4 is above Level-3: it consumes Level-3 state-machine output and records resumable receipts.",
       "Level-4 now carries the prompt-runner matrix bundle from the proven Target-3 pattern: prompt bundle -> visible candidate_peer_spawn -> ACK/FINAL watch -> controller lineage verification -> bind/measure/export/review.",
-      "Level-4 may automate only explicitly allowed safe measure/export/review steps. Candidate cleanup and lifecycle-v2 effects are never executed by Level-4.",
+      "Level-4 has no owner execution adapter: allowMeasureExportReview and allowReviewGeneration never dispatch effects. Observations are not effect receipts. Candidate cleanup and lifecycle-v2 effects are never executed by Level-4.",
       "Finalizer apply, pre-closeout cleanup, AK evidence/task writes, merge, release, and promotion are never inferred from Level-4 automation.",
       "Visible peer text remains communication only; Level-4 receipts are resumability receipts, not durable AK evidence.",
     ],
     nextStep:
       posture === "awaiting_external_controller"
-        ? "Run or bind the awaiting external controller action, then rerun Level-4; receipts make the loop resumable."
+        ? "No owner execution adapter is bound. Controller must execute and verify the awaiting action, then explicitly supply completedActionCount for this unchanged action plan. Resolve missing/invalid measured packets before review; never mechanically retry indeterminate effects."
         : posture === "blocked_dangerous_gate"
           ? "Stop at the preserved exact gate; obtain the required owner token or closeout evidence before continuing."
           : posture === "blocked_by_level3"

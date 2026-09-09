@@ -276,10 +276,10 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       createToolContext(cwd),
     );
 
-    assert.equal(awaiting.details.ok, true);
+    assert.equal(awaiting.details.ok, false);
     const level4 = awaiting.details.level4CampaignRunner;
     assert.equal(level4.posture, "awaiting_external_controller");
-    assert.equal(level4.metric.value, 0);
+    assert.equal(level4.metric.value, 1);
     assert.equal(level4.promptRunnerBundle.state, "checkpoint_accepted_controller_sequence_ready");
     assert.equal(
       level4.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0].state,
@@ -302,7 +302,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(level4.newReceipts[0].disposition, "awaiting_external_controller");
     assert.match(level4.newReceipts[0].call, /^autoresearch_candidate_bind\(/);
     assert.equal(level4.loadedReceiptCount, 0);
-    assert.match(awaiting.content[0].text, /level4_autoresearch_automation_blockers: 0/);
+    assert.match(awaiting.content[0].text, /level4_autoresearch_automation_blockers: 1/);
     assert.match(awaiting.content[0].text, /Exact gates preserved/);
 
     const measuredPacketRelativePath = closeoutPacket.packetInventory.rows[0].packetPath;
@@ -323,29 +323,26 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     const measuredCloseout =
       measuredPackets.details.level4CampaignRunner.promptRunnerBundle.candidateCloseoutPacket;
     const measuredInventory = measuredCloseout.packetInventory;
-    assert.equal(measuredInventory.controllerVerifiedMeasuredPacketCount, 1);
-    assert.equal(measuredInventory.pendingMeasurementOrExportCount, 0);
-    assert.equal(measuredInventory.pendingPacketPaths.length, 0);
-    assert.deepEqual(measuredInventory.controllerVerifiedMeasuredPacketPaths, [
-      measuredPacketRelativePath,
-    ]);
-    assert.equal(measuredInventory.rows[0].status, "controller_verified_measured_packet");
-    assert.equal(measuredCloseout.postFaninPromotionHandoff.posture, "ready_for_owner_review");
+    // A legacy thin fixture plus file existence is not measured-packet proof.
+    assert.equal(measuredInventory.controllerVerifiedMeasuredPacketCount, 0);
+    assert.equal(measuredInventory.pendingPacketPaths.length, 1);
+    assert.deepEqual(measuredInventory.controllerVerifiedMeasuredPacketPaths, []);
+    assert.equal(measuredInventory.rows[0].controllerVerified, false);
+    assert.ok(measuredInventory.rows[0].verificationIssues.length > 0);
     assert.equal(
-      measuredCloseout.postFaninPromotionHandoff.ownerReviewCall?.startsWith(
-        "autoresearch_live_supervision(",
-      ),
-      true,
+      measuredCloseout.postFaninPromotionHandoff.posture,
+      "blocked_until_candidate_fan_in_complete",
     );
+    assert.equal(measuredCloseout.postFaninPromotionHandoff.ownerReviewCall, null);
     assert.equal(measuredCloseout.postFaninPromotionHandoff.finalizerTokenRequestCall, null);
     assert.match(measuredPackets.content[0].text, /Post-fan-in promotion handoff:/);
-    assert.match(measuredPackets.content[0].text, /ready_for_owner_review/);
+    assert.match(measuredPackets.content[0].text, /blocked_until_candidate_fan_in_complete/);
 
     const receiptText = readFileSync(
       path.join(cwd, ".autoresearch", "level4-test-receipts.jsonl"),
       "utf8",
     );
-    assert.match(receiptText, /autoresearch\.level4_campaign_runner_receipt\.v1/);
+    assert.match(receiptText, /autoresearch\.level4_campaign_runner_receipt\.v2/);
     assert.match(receiptText, /awaiting_external_controller/);
 
     const resumed = await tool.execute(
@@ -358,7 +355,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.equal(resumed.details.level4CampaignRunner.loadedReceiptCount, 1);
     assert.match(
       resumed.details.level4CampaignRunner.sourceLevel3Executor.selectedAction.call,
-      /^autoresearch_runtime_run\(/,
+      /^autoresearch_candidate_bind\(/,
     );
 
     const concreteWorktree = path.join(cwd, ".worktrees", "cell-01-01-candidate-01");
@@ -392,6 +389,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       "tc-level4-concrete-binding-resume",
       {
         ...baseRequest,
+        completedActionCount: 1, // explicit controller assertion, never inferred from waiting
         checkpointConfirmation: requiredToken,
         level4ReceiptPath: ".autoresearch/level4-concrete-binding-receipts.jsonl",
         level3CandidateBindings: [
@@ -412,6 +410,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     const runCall =
       concreteResumed.details.level4CampaignRunner.sourceLevel3Executor.selectedAction.call;
     assert.match(runCall, /^autoresearch_runtime_run\(/);
+    assert.equal(concreteResumed.details.level4CampaignRunner.completedActionCount, 1);
     assert.match(runCall, new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(runCall, /candidate\/cell-01-01-candidate-01/);
     assert.doesNotMatch(runCall, /branch-from-candidate_peer_spawn/);

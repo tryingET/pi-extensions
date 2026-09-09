@@ -32,6 +32,11 @@ const allowedAutoresearchConsumers = [
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
   {
+    // AK5582: read-only consumer of the owner adapter packet validator.
+    file: "src/runtime/autoresearch-level4-runner-packets.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+  {
     // pure move from autoresearch-types.ts (live-core type-catalog slice)
     file: "src/runtime/autoresearch-live-core-types.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",

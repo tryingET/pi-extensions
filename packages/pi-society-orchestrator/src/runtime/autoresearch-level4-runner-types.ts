@@ -22,16 +22,18 @@ export interface AutoresearchLevel4CampaignRunnerRequest
 }
 
 export interface AutoresearchLevel4CampaignRunnerReceipt {
-  kind: "autoresearch.level4_campaign_runner_receipt.v1";
+  kind: "autoresearch.level4_campaign_runner_receipt.v2";
+  requestDigest: string;
+  actionPlanDigest: string;
+  effectStatus: "not_dispatched";
   receiptId: string;
   actionIndex: number;
   call: string;
   disposition:
-    | "executed_by_level4"
     | "awaiting_external_controller"
     | "blocked_dangerous_gate"
-    | "blocked_by_level3";
-  executedAtEpochMs: number;
+    | "controller_cursor_recorded";
+  observedAtEpochMs: number;
   summary: string;
 }
 
@@ -297,6 +299,7 @@ export interface AutoresearchLevel4CandidateCloseoutPacket {
       sourceState: AutoresearchMatrixCampaignOperatorLaneState | "not_in_cockpit";
       status: AutoresearchLevel4CandidatePacketInventoryStatus;
       controllerVerified: boolean;
+      verificationIssues: readonly string[];
       measuredPacket: boolean;
       selected: boolean;
     }[];
@@ -367,6 +370,8 @@ export interface AutoresearchLevel4PromptRunnerBundle {
 
 export interface AutoresearchLevel4CampaignRunner {
   kind: "autoresearch.level4_autoresearch_campaign_runner.v1";
+  execution: "not_executed_by_orchestrator";
+  actionPlanDigest: string;
   taskId: number;
   cwd: string;
   objective: string;
