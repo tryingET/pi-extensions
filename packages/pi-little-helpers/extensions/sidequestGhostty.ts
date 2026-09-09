@@ -385,6 +385,17 @@ type ControllerGhosttyDbusTarget = {
   objectPath: string;
 };
 
+function uniqueBusNamesForPid(rows: string[][], pid: number): string[] {
+  return rows
+    .filter(
+      (fields) =>
+        fields.length >= 2 &&
+        fields[0]?.startsWith(":") &&
+        Number.parseInt(fields[1] || "", 10) === pid,
+    )
+    .map((fields) => fields[0] as string);
+}
+
 export async function resolveControllerGhosttyDbusTarget({
   execRunner,
   controllerGhostty,
@@ -397,7 +408,8 @@ export async function resolveControllerGhosttyDbusTarget({
   readProcessExecutable?: (pid: number) => string | undefined;
 }): Promise<ControllerGhosttyDbusTarget | undefined> {
   if (!controllerGhostty?.exe || !surfaceId) return undefined;
-  const endpoint = resolveGhosttyDbusEndpoint(controllerGhostty.exe);
+  const controllerExe = controllerGhostty.exe;
+  const endpoint = resolveGhosttyDbusEndpoint(controllerExe);
   if (!endpoint) return undefined;
   const normalizedSurfaceId = normalizeGhosttySurfaceIdUint64(surfaceId);
   if (!normalizedSurfaceId) return undefined;
@@ -410,42 +422,34 @@ export async function resolveControllerGhosttyDbusTarget({
     const rows = String(result.stdout || "")
       .split("\n")
       .map((line) => line.trim().split(/\s+/));
+    const controllerPid = controllerGhostty.pid;
 
-    // A --gtk-single-instance server owns its executable family's well-known D-Bus name and every
-    // surface/window in that family. Per-session launcher processes can expose stub windows, so the
-    // nearest Ghostty ancestor PID is not a reliable action target. Select the endpoint from the
-    // controller executable family first, then resolve only that well-known owner; never cross-fall
-    // back between the normal and transitional legacy brokers.
+    const targetForPid = (pid: number): ControllerGhosttyDbusTarget | undefined => {
+      const names = uniqueBusNamesForPid(rows, pid);
+      if (names.length !== 1) return undefined;
+      const executable = readProcessExecutable(pid);
+      if (!executable || resolve(executable) !== resolve(controllerExe)) return undefined;
+      return {
+        busName: names[0] as string,
+        ownerPid: pid,
+        surfaceId: normalizedSurfaceId,
+        wellKnownName: endpoint.wellKnownName,
+        objectPath: endpoint.objectPath,
+      };
+    };
+
+    // Long-lived --gtk-single-instance=false windows export org.gtk.Actions on their own unique
+    // name. Sending that surface id to the well-known daemon opens a tab in the focused daemon
+    // window instead of the originating parent.
+    const originating = Number.isInteger(controllerPid) ? targetForPid(controllerPid) : undefined;
+    if (originating) return originating;
+
     const wellKnownOwnerPid = rows
       .filter((fields) => fields[0] === endpoint.wellKnownName)
       .map((fields) => Number.parseInt(fields[1] || "", 10))
       .find((pid) => Number.isInteger(pid) && pid > 0);
-    if (!wellKnownOwnerPid) return undefined;
-
-    // The well-known name must be owned by the exact controller build, not merely another
-    // executable in the same identity family. This prevents a stale packaged singleton or a
-    // same-user bus-name claimant from receiving the controller surface ID and embedded argv.
-    const ownerExecutable = readProcessExecutable(wellKnownOwnerPid);
-    if (!ownerExecutable || resolve(ownerExecutable) !== resolve(controllerGhostty.exe)) {
-      return undefined;
-    }
-
-    const ownerUniqueNames = rows
-      .filter(
-        (fields) =>
-          fields.length >= 2 &&
-          fields[0]?.startsWith(":") &&
-          Number.parseInt(fields[1] || "", 10) === wellKnownOwnerPid,
-      )
-      .map((fields) => fields[0] as string);
-    if (ownerUniqueNames.length !== 1) return undefined;
-    return {
-      busName: ownerUniqueNames[0] as string,
-      ownerPid: wellKnownOwnerPid,
-      surfaceId: normalizedSurfaceId,
-      wellKnownName: endpoint.wellKnownName,
-      objectPath: endpoint.objectPath,
-    };
+    if (!wellKnownOwnerPid || wellKnownOwnerPid === controllerPid) return undefined;
+    return targetForPid(wellKnownOwnerPid);
   } catch {
     return undefined;
   }

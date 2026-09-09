@@ -61,6 +61,16 @@ function pidForUniqueName(rows, busName) {
   return match ? Number.parseInt(match[1] || "", 10) : undefined;
 }
 
+function uniqueNamesForPid(rows, pid) {
+  return rows
+    .filter((fields) => fields[0]?.startsWith(":") && Number.parseInt(fields[1] || "", 10) === pid)
+    .map((fields) => fields[0]);
+}
+
+function actionOwnerPid(rows, controllerPid, wellKnownOwnerPid) {
+  return uniqueNamesForPid(rows, controllerPid).length === 1 ? controllerPid : wellKnownOwnerPid;
+}
+
 function livePiPids() {
   const result = spawnSync("pgrep", ["-x", "pi"], { encoding: "utf8" });
   if (result.status !== 0) return [];
@@ -133,7 +143,10 @@ test(
       assert.ok(ownerPid, `${controller.endpoint.wellKnownName} must have a live owner`);
       assert.equal(target.wellKnownName, controller.endpoint.wellKnownName);
       assert.equal(target.objectPath, controller.endpoint.objectPath);
-      assert.equal(pidForUniqueName(rows, target.busName), ownerPid);
+      assert.equal(
+        pidForUniqueName(rows, target.busName),
+        actionOwnerPid(rows, controller.ancestor.pid, ownerPid),
+      );
       familyCounts.set(
         controller.endpoint.wellKnownName,
         (familyCounts.get(controller.endpoint.wellKnownName) ?? 0) + 1,
@@ -184,10 +197,16 @@ test(
       controllerGhostty: controller.ancestor,
       surfaceId: controller.surfaceId,
     });
-    assert.ok(target, "the live origin/main controller must resolve its exact normal broker");
+    assert.ok(
+      target,
+      "the live origin/main controller must resolve its originating Ghostty process",
+    );
     assert.equal(target.wellKnownName, NORMAL_ENDPOINT.wellKnownName);
     assert.equal(target.objectPath, NORMAL_ENDPOINT.objectPath);
-    assert.equal(pidForUniqueName(rows, target.busName), ownerPid);
+    assert.equal(
+      pidForUniqueName(rows, target.busName),
+      actionOwnerPid(rows, controller.ancestor.pid, ownerPid),
+    );
 
     const describedAction = spawnSync(
       "busctl",
