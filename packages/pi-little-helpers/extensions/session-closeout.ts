@@ -26,6 +26,7 @@ import {
   journalState,
   pendingCalls,
 } from "../src/sessionCloseoutHost.ts";
+import { boundCloseoutProcedurePrompt } from "../src/sessionCloseoutPrompt.ts";
 import { gitSnapshot, observeObligation, registeredRepo } from "../src/sessionCloseoutReadback.ts";
 
 const parameters = Type.Object(
@@ -292,7 +293,6 @@ export default function sessionCloseout(pi: ExtensionAPI) {
           throw new Error("Usage: /session-closeout [status|check|seal]");
         if (!ctx.isIdle() || ctx.hasPendingMessages())
           throw new Error("Wait for the session to settle before using the command");
-        pi.setActiveTools([...new Set([...pi.getActiveTools(), CLOSEOUT_TOOL])]);
         const outcome = await action({ action: operation }, ctx);
         pi.sendMessage({
           customType: "session-closeout-report",
@@ -318,7 +318,14 @@ export default function sessionCloseout(pi: ExtensionAPI) {
             throw new Error(
               "Gate opened, but close-session lacks a matching Vault export receipt; export from Vault first",
             );
-          pi.sendUserMessage(content);
+          const host = outcome.details as {
+            closeoutId: string;
+            sessionId: string;
+            sessionFile: string;
+            repo: string;
+            boundary: string;
+          };
+          pi.sendUserMessage(boundCloseoutProcedurePrompt(content, host));
         }
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : "Closeout failed", "error");

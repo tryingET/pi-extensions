@@ -14,8 +14,12 @@ system4d:
 
 After local package install and `/reload`, run **`/session-closeout`**.
 It opens this host session's gate and sends the global Prompt Vault `close-session`
-export only when its bytes match the v2 export receipt. `/close-session` remains
-Vault-owned procedure text; the runtime does not shadow that template name.
+export only when its bytes match the v2 export receipt, prefixed with the exact
+host-bound `closeoutId` / `sessionId` / `sessionFile` / `repo` / `boundary`.
+Do not `setActiveTools` in that command: `session_closeout` is always-active when
+registered so the model can call add/freeze/bind/check/seal without breaking the
+prompt-cache tool prefix. `/close-session` remains Vault-owned procedure text;
+the runtime does not shadow that template name.
 
 The executor inventories and resolves work. It cannot pass a `verdict`, delete a
 finding, weaken acceptance criteria, or approve its own report. You independently
@@ -50,6 +54,9 @@ when observations are unbound or invalid. Use those exact binding values only
 after performing the required proof; do not invent hashes to satisfy the gate.
 
 Work requires an exact AK task in the obligation's registered owning repository.
+If none exists, create one with scoped `ak task create`, then claim, record evidence,
+and complete it. Missing task IDs are not a reason to leave work unbound. Do not
+create tasks for retained items or an empty inventory.
 A resolved item requires task `done` and an exact task-bound passing evidence row.
 
 - Code evidence: `details.commit` (also `commit_sha` or `head_sha`) must equal current
@@ -167,5 +174,6 @@ seal, and reload readback; jq corroborates the host-bound journal. It does **not
 accept real work or prove live AK resolved/deferral behavior. Those branches have
 fixture coverage; a separate real AK read-only probe verifies registered-repo,
 task and evidence envelope compatibility and refusal of a still-claimed task.
-Use `/session-closeout` to start normally: the installed toolbox may initially
-keep `session_closeout` inactive, and the command activates it.
+Use `/session-closeout` to start normally. `session_closeout` stays in the
+toolbox always-active set when `pi-little-helpers` is registered; the command
+must not hotload it.

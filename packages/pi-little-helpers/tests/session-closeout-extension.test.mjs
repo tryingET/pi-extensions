@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import extension from "../extensions/session-closeout.ts";
 import { CLOSEOUT_ENTRY } from "../src/sessionCloseout.ts";
+import { boundCloseoutProcedurePrompt } from "../src/sessionCloseoutPrompt.ts";
 import { gitSnapshot } from "../src/sessionCloseoutReadback.ts";
 import { testGit } from "./session-closeout-git.mjs";
 
@@ -33,6 +34,7 @@ async function harness(t) {
   let commands;
   const approvals = [];
   const sent = [];
+  let setActiveToolsCalls = 0;
   const ctx = {
     cwd: repo,
     mode: "tui",
@@ -60,6 +62,7 @@ async function harness(t) {
     events = new Map();
     tools = new Map();
     commands = new Map();
+    setActiveToolsCalls = 0;
     extension({
       registerTool: (tool) => tools.set(tool.name, tool),
       registerCommand: (name, command) => commands.set(name, command),
@@ -71,7 +74,9 @@ async function harness(t) {
           id: `entry-${entries.length}`,
           data: structuredClone(data),
         }),
-      setActiveTools: () => {},
+      setActiveTools: () => {
+        setActiveToolsCalls += 1;
+      },
       getActiveTools: () => [],
       getCommands: () => [],
       sendMessage: (message) => sent.push(message),
@@ -92,6 +97,7 @@ async function harness(t) {
     events: () => events,
     commands: () => commands,
     tools: () => tools,
+    setActiveToolsCalls: () => setActiveToolsCalls,
   };
 }
 
@@ -237,4 +243,28 @@ test("operator must submit unchanged review and exact typed token, never default
   h.ctx.ui.editor = async () => "weakened inventory";
   h.ctx.ui.input = async (title) => title.replace("Type exactly: ", "");
   await assert.rejects(h.call("freeze"), /not approved/);
+});
+
+test("Feature: /session-closeout binds host identity without hotloading tools", async (t) => {
+  const procedure = 'Call session_closeout({ action: "open" }) first.\n';
+  const bound = boundCloseoutProcedurePrompt(procedure, {
+    closeoutId: "close-1",
+    sessionId: "caller",
+    sessionFile: "/tmp/caller.jsonl",
+    repo: "/tmp/repo",
+    boundary: "leaf-1",
+  });
+  assert.match(bound, /CALLER_SESSION_ID=caller/);
+  assert.match(bound, /CALLER_SESSION_FILE=\/tmp\/caller\.jsonl/);
+  assert.match(bound, /Do not call `session_closeout\(\{ action: "open" \}\)` again/);
+  assert.ok(bound.endsWith(procedure));
+
+  const h = await harness(t);
+  await h.commands().get("session-closeout").handler("", h.ctx);
+  assert.equal(h.setActiveToolsCalls(), 0);
+  const prompt = h.sent.find((item) => typeof item === "string");
+  if (prompt) {
+    assert.match(prompt, /CALLER_SESSION_ID=caller/);
+    assert.match(prompt, /CALLER_SESSION_FILE=/);
+  }
 });
