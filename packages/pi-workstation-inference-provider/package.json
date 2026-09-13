@@ -52,6 +52,7 @@
   },
   "files": [
     "extensions/workstation-inference.ts",
+    "extensions/workstation-tool-argument-hygiene.ts",
     "extensions/workstation-inference-audio-turn.ts",
     "extensions/workstation-inference-contract.ts",
     "extensions/workstation-inference-stream.ts",

@@ -39,6 +39,13 @@ import {
   quarantineCurrentAudio,
   streamWorkstationInference,
 } from "./workstation-inference-stream.ts";
+import {
+  describeRepairs,
+  registerToolArgumentHygiene,
+} from "./workstation-tool-argument-hygiene.ts";
+
+/** Set to "1" to surface every repaired tool argument in the TUI. */
+const TOOL_ARGUMENT_HYGIENE_NOTIFY_ENV = "WORKSTATION_TOOL_ARGUMENT_HYGIENE_NOTIFY";
 
 export { sendWorkbenchAudioTurn } from "./workstation-inference-audio-turn.ts";
 export {
@@ -52,6 +59,10 @@ export {
   workstationProviderHotPathStatus,
 } from "./workstation-inference-contract.ts";
 export { streamWorkstationInference } from "./workstation-inference-stream.ts";
+export {
+  registerToolArgumentHygiene,
+  repairToolArguments,
+} from "./workstation-tool-argument-hygiene.ts";
 
 async function runLaneOp(
   pi: ExtensionAPI,
@@ -145,6 +156,15 @@ export default async function (pi: ExtensionAPI) {
     pi.on("model_select", dispose("model-changed-before-provider-dispatch"));
     pi.on("session_before_switch", dispose("session-switched-before-provider-dispatch"));
     pi.on("session_shutdown", dispose("session-shutdown-before-provider-dispatch"));
+
+    // Repair wrapping newlines the qwen3_coder XML tool parser leaks into arguments.
+    // Read-modify of already-validated tool input; grants no runtime authority.
+    registerToolArgumentHygiene(pi, {
+      onRepair:
+        process.env[TOOL_ARGUMENT_HYGIENE_NOTIFY_ENV] === "1"
+          ? (repairs) => console.error(describeRepairs(repairs))
+          : undefined,
+    });
   }
 
   pi.registerCommand("workstation-inference", {
