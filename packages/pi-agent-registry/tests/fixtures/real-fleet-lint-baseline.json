@@ -1,10 +1,10 @@
 {
   "schema": "ai-society.agent-fleet-lint-baseline/1",
-  "observedAt": "2026-08-31T00:00:00.000Z",
-  "stateSha256": "08a334dd9f84f5537de2a145aaa80bf83fd28d7c9e6e3e572e3450e995811e36",
-  "reportSha256": "ee90d305ca0a304e8ea79e5e66141d2865041dbc67a579dd8d88287191ab4581",
+  "observedAt": "2026-09-07T00:00:00.000Z",
+  "stateSha256": "299e5f6b0aa768cb279c2122e3ca17badfca11f2efd1145f9baabef02edbdfbb",
+  "reportSha256": "7816d6e92ec7a00c76f2949140f6a1251e7fa449ea4e53b9b0d0ca5db655773b",
   "profileSource": {
-    "commit": "51fc387556d0873bee61fea18164d707554b6af9",
+    "commit": "9225dd66a83b5a9c23e14d2f834dbabdd2ce71d8",
     "rawSha256": "b60d156d3001b78f1c5ef8ba2130690575a529be04028a3ca4c232e1fcad3473"
   },
   "summary": {

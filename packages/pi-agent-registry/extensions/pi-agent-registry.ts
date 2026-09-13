@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import { dispatchAgent } from "../src/dispatch.ts";
 import { lintAgentFleet } from "../src/fleet-lint.ts";
 import { type AgentRegistry, AgentRegistryError, createAgentRegistry } from "../src/registry.ts";
+import { registerStandingAgentSpawnTool } from "./standing-agent-spawn.ts";
 
 interface RegistryHandle {
   registry: AgentRegistry;
@@ -375,4 +376,6 @@ Phase-2 boundaries: standing-agent dispatch is one level deep (children carry PI
       };
     },
   });
+
+  registerStandingAgentSpawnTool({ pi, getRegistry });
 }

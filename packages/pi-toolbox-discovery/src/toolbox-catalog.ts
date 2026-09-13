@@ -408,13 +408,13 @@ export const CATALOG: ToolboxBundle[] = [
     description: "Foundational self-inspection and subagent dispatch surfaces.",
     ownerPackage: "packages/pi-autonomous-session-control",
     ownerSemantics:
-      "pi-autonomous-session-control owns self/subagent behavior; self and dispatch_subagent remain always-active foundational tools when their owner package is registered.",
-    keywords: ["self", "subagent", "introspection", "progress", "loop"],
+      "pi-autonomous-session-control owns self/subagent behavior; pi-little-helpers owns session_closeout. self, dispatch_subagent, and session_closeout remain always-active foundational tools when their owner packages are registered.",
+    keywords: ["self", "subagent", "introspection", "progress", "loop", "closeout"],
     profiles: [
       {
         id: "default",
-        description: "Foundational self-inspection and subagent dispatch tools.",
-        tools: ["self", "dispatch_subagent"],
+        description: "Foundational self-inspection, subagent dispatch, and session closeout tools.",
+        tools: ["self", "dispatch_subagent", "session_closeout"],
         risk: "safe",
         defaultTtlTurns: 6,
         requiresExplicitUserIntent: false,

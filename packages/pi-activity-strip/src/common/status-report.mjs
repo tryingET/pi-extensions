@@ -60,6 +60,18 @@ export function formatBrokerRuntimeStatus(result) {
           : "";
     lines.push(`tab inventory: ${runtime.tabInventoryState}${detail}`);
   }
+  if (typeof runtime.akTaskState === "string") {
+    if (runtime.akTaskState === "ok") {
+      const orphaned = Number(runtime.akTaskOrphanCount ?? 0);
+      lines.push(
+        `AK task refs: ok (${runtime.akTaskClaimCount ?? 0} live claims, ${runtime.akTaskDeferredCount ?? 0} deferred${orphaned > 0 ? `, ${orphaned} orphaned claims` : ""})`,
+      );
+    } else if (runtime.akTaskState !== "disabled") {
+      lines.push(
+        `AK task refs: ${runtime.akTaskState}${runtime.akTaskError ? ` (${runtime.akTaskError})` : ""}`,
+      );
+    }
+  }
   if (typeof runtime.unplacedSurfaceCount === "number" && runtime.unplacedSurfaceCount > 0) {
     lines.push(
       `unplaced hidden tabs: ${runtime.unplacedSurfaceCount} (placed once the tab inventory or a visible title reveals their window)`,

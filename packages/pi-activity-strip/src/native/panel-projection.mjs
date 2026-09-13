@@ -4,6 +4,7 @@
 //   - "changing native panel card membership, focus, or transport revisions"
 // ---
 
+import { joinAkTaskChips } from "../common/ak-tasks.mjs";
 import { resolveSnapshotSession } from "../common/niri-focus.mjs";
 import { projectSessionCards, sessionRecordKey } from "../common/session-cards.mjs";
 
@@ -32,6 +33,9 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
   let workspaceRecordKeys = new Set();
   /** @type {Map<string, CardPlacement>} */
   let workspacePlacements = new Map();
+  /** Read-only AK task claims joined onto cards; absent until the first successful AK read. */
+  /** @type {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
+  let akTasks = null;
   let revision = 0;
 
   function allSessions() {
@@ -39,14 +43,32 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
   }
 
   function getDisplaySessions() {
-    if (!isNiriSession()) return projectSessionCards(allSessions(), null);
-    const sessions = allSessions().filter((session) =>
-      workspaceRecordKeys.has(sessionRecordKey(session)),
+    const rawSessions = allSessions();
+    let cards;
+    if (!isNiriSession()) {
+      cards = projectSessionCards(rawSessions, null);
+    } else {
+      const sessions = rawSessions.filter((session) =>
+        workspaceRecordKeys.has(sessionRecordKey(session)),
+      );
+      cards = projectSessionCards(sessions, workspaceCardIds).map((card) => {
+        const placement = workspacePlacements.get(card.cardId);
+        return placement ? { ...card, ...placement } : card;
+      });
+    }
+    if (!akTasks) return cards;
+    // Dead-session detection must consider every live session, including cards projected onto
+    // other workspaces, so a claim is only orphaned when no live session anywhere holds it.
+    const liveSessionIds = new Set(
+      rawSessions.map((session) => String(session.sessionId ?? "")).filter(Boolean),
     );
-    return projectSessionCards(sessions, workspaceCardIds).map((card) => {
-      const placement = workspacePlacements.get(card.cardId);
-      return placement ? { ...card, ...placement } : card;
-    });
+    return joinAkTaskChips({
+      cards,
+      claims: akTasks.claims,
+      deferred: akTasks.deferred,
+      liveSessionIds,
+      nowMs: Date.now(),
+    }).cards;
   }
 
   function currentView() {
@@ -84,6 +106,16 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
     /** @param {SessionRecord[]} records */
     setAgentSessions(records) {
       agentSessions = Array.isArray(records) ? records : [];
+    },
+    /**
+     * Replace the read-only AK task data joined onto cards. An empty refresh clears every chip;
+     * `null` data (AK never read) leaves cards untouched, which is how the strip stays unchanged
+     * when AK is absent.
+     * @param {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} state
+     */
+    setAkTasks(state) {
+      akTasks = state;
+      send();
     },
     /** @param {string} targetId */
     resolveTarget: (targetId) => resolveSnapshotSession(getDisplaySessions(), targetId),

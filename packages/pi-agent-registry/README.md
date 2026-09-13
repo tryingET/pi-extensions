@@ -1,11 +1,11 @@
 ---
-summary: "Overview and operator contract for pi-agent-registry manifest inspection, immutable fleet lint, and the Phase-2 exact-task read-only dispatch contract."
+summary: "Overview and operator contract for pi-agent-registry manifest inspection, immutable fleet lint, and Phase-2 dispatch / Phase-3 visible admission contracts."
 read_when:
   - "Starting work in this package workspace."
-  - "Using agent_registry, pi-agent-registry-lint, dispatch_agent, or the agent manifest convention."
+  - "Using agent_registry, pi-agent-registry-lint, dispatch_agent, standing_agent_spawn, or the agent manifest convention."
 system4d:
-  container: "Pi extension and CLI for standing-agent manifest/fleet observation and the Phase-2 dispatch contract."
-  compass: "Make fleet contract drift visible and bind one provable read-only dispatch without owning lifecycle or spawn machinery."
+  container: "Pi extension and CLI for standing-agent manifest/fleet observation and bounded dispatch/visible admission contracts."
+  compass: "Make fleet contract drift visible and bind one provable read-only dispatch without owning lifecycle or transport machinery."
   engine: "Discover every candidate -> capture committed bytes -> lint deterministically -> authorize one exact task -> dispatch read-only through ASC."
   fog: "A green tool run can be mistaken for a healthy or authorized fleet, and one settled dispatch can be mistaken for general standing-agent enablement."
 ---
@@ -14,16 +14,16 @@ system4d:
 
 Standing-agent registry for Pi: reads `ai-society.agent/1` manifests for
 inspection, emits a bounded, immutable-observation fleet lint report, and owns
-the Fleet Phase-2 dispatch contract. It does not own agent creation,
-lifecycle, role acceptance, or execution machinery — spawn/session/capacity
-stay ASC-owned.
+the Fleet Phase-2 dispatch and Phase-3 visible admission contracts. It does not
+own agent creation, lifecycle, role acceptance, or transport machinery. Phase-2
+execution stays ASC-owned; Phase-3 Ghostty transport stays little-helpers-owned.
 
-Status: **Fleet Phase 2 (AK 5132)**. Manifest/template/profile contracts and
-fleet lint are converged (Phase 1), and `dispatch_agent` now executes exactly
-one read-only standing-agent dispatch per `(agent, exact AK task)` pair with an
-immutable receipt and one typed AK evidence row. Visible Ghostty standing
-agents, lifecycle-v2 permit binding, and orchestrator fleet integration
-remain later fleet phases.
+Status: **Fleet Phase 3 (AK 5133), locally implemented and live-dogfood verified**.
+Phase-2 (AK 5132) read-only ASC dispatch is unchanged. Phase 3 adds one clean
+visible standing-agent TUI admission for an exact claimed task, not lifecycle
+authority. The real TUI driver → real child TUI proof and passing package/release
+gates are recorded below. AK owns closeout. This is not a published-feature
+claim; AK 5134 remains separate.
 
 ## Operator surfaces
 
@@ -40,6 +40,9 @@ remain later fleet phases.
 - `dispatch_agent` — the Fleet Phase-2 exact-task read-only contract (see
   below); fails closed with `confirmed_no_effects` before any ASC identity,
   capacity, session, or spawn effect exists.
+- `standing_agent_spawn` — Fleet Phase-3 exact-task clean visible admission
+  through the little-helpers Ghostty transport; no automatic retry or AK
+  evidence recording (see below).
 - `/agents` — concise operator listing.
 
 ## Fleet layout
@@ -195,6 +198,110 @@ records AK evidence; an undetectable modify-and-restore interval is not
 claimed absent. The dispatch does not authenticate the calling session as the
 AK claimant — lifecycle-v2 permit binding (Fleet Phase 4) tightens that.
 
+## Phase-3 clean visible admission (AK 5133)
+
+`standing_agent_spawn { agent, task, objective, parentPeerTarget, reportBack?, cwd? }`
+composes one clean Pi TUI session in a Ghostty tab/window. `task` is an exact
+positive AK task id; `objective` is nonblank, bounded to 32 KiB UTF-8, and
+read-only — never an unbound standby brief. `reportBack` defaults to
+`intercom` and requires an exact `session-<UUID>` controller target, not
+`parent`/`active` aliases. `manual` and `none` may omit `parentPeerTarget`.
+`cwd` defaults to the origin repository root and must remain within that
+same Git repository.
+
+Admission gates and composition:
+
+1. Reject malformed requests, recursive standing-agent children, unavailable
+   version-1 transport, unknown agents, mutation tools, and any manifest
+   extensions. Declared tools must be a nonempty subset of `read,bash`;
+   `intercom` is an explicit added communication instrument, recorded
+   separately from declared tools.
+2. Observe the origin Git repository and authorize `ak task show`: the exact
+   task must be origin-repo-bound, claimed, and carry a live lease. This does
+   not authenticate the caller as the AK claimant.
+3. Require a clean agent repository and agreement between cached, freshly
+   parsed, committed, and current manifest/persona inputs. Compose the persona
+   plus advisory scope, selected skills, model, and manifest thinking request;
+   recheck these inputs and origin/agent stability around transport admission.
+4. Use `--offline --no-extensions --no-skills --no-prompt-templates`, then
+   explicit `--extension` paths for approved locally installed
+   `@tryinget/pi-peer-messaging` intercom and `@tryinget/pi-little-helpers`
+   session-presence entrypoints, and explicit `--skill` selections. No ambient
+   extension/skill discovery or controller conversation is inherited. Normal
+   cwd-bound AGENTS context is retained; this is not an empty-policy session.
+   `--offline` is a Pi startup flag, not network isolation: model/intercom
+   communication still occurs. Installed Pi supplies builtin `zai` (including
+   the dogfood model `zai/glm-5.3`); no ambient provider extension is needed.
+   Unsupported provider/bootstrap shapes fail closed.
+5. Persist an exclusive per-`(agent, task)` reservation before transport,
+   then reread the exact task/lease and recheck inputs, bootstrap entry bytes,
+   and origin/agent observations immediately before launch. Reservations are
+   scoped to the resolved visible-receipts directory, not fleet-global.
+6. Delegate to `@tryinget/pi-little-helpers/sidequest-launch` only when
+   `STANDING_AGENT_TRANSPORT_VERSION === 1` and `launchPiQuestSession` exists.
+   Registry owns composition/admission/receipts, not Ghostty or session machinery.
+   Publish a write-once `pi-agent-registry.visible-launch-receipt/1` receipt
+   (`0o400`, canonical self-digest, hard-link publication) after transport
+   observation; post-launch drift remains indeterminate rather than clean proof.
+
+**Never retry automatically**, including `confirmed_no_effects`, reservation
+failure, cancellation, crash, receipt-publication failure, or indeterminate
+transport. Existing, corrupt, or partial reservations block admission and are
+never automatically released. Supervise the returned run id; any further
+attempt requires explicit owner disposition. Phase-2's three-attempt policy
+is not a Phase-3 retry policy.
+
+For intercom mode, the child must send one correlated `PEER_ACK` before any
+file/context work, stop visibly with `ACK_FAILED` if sending fails, and send
+one correlated `PEER_FINAL` when the bounded objective ends, then stop.
+Admission is **not** session-start, ACK, read-only lifetime, task consumption,
+or completion proof. Receipt fields for startup/ACK/completion remain
+`unproven` even when separate live evidence exists. The launcher writes no
+AK evidence; the parent owns reality-test evidence and closeout.
+
+Limits: `bash` and scope/read-only instructions are advisory, not a sandbox.
+Launch-window Git observations exclude ignored files, .git internals, external
+surfaces, and modify-and-restore intervals. Bootstrap hashes cover approved
+package manifests and entry files only, not settings/auth/models or transitive
+import integrity. Skill selection/materialization is not whole-runtime
+immutability. Manifest thinking is the **request**, not a guarantee of the
+runtime level: Pi clamps to model-supported levels; live `medium` requested
+became `high` on `zai/glm-5.3`.
+
+### Local evidence and release boundary (2026-09-07)
+
+Real TUI driver → real child TUI proof, with immutable launch receipt,
+independent runtime assertion output and bounded session observation:
+[Phase-3 dogfood](docs/project/2026-09-07-fleet-phase3-dogfood.md).
+AK evidence/task state remains authoritative.
+
+- Run: `standingagent-mtqmbq5w-aeaf6023`; agent revision:
+  `dc354723482f0470ad287d1de3e067a72cd99a85`.
+- Receipt: `visible-agent-adoption-steward.20260907T022519Z.8fb48fd0.launch-receipt.json`;
+  SHA-256: `6a37b218e3ea7dff14ec0a13e8230920585ddcbf83598d5d949d62828adffd15`.
+- Child session: `01a079af-2ef4-762c-8bfc-228d0b411d4a`; observed PID
+  `189076`, `terminalBound` on `/dev/pts/11`, Ghostty surface
+  `0x516815b20d7e09a3`.
+- Ghostty build: `origin-main492300cad`, actual version `1.3.2-main`;
+  this does **not** prove a literal 1.4 release.
+- Correlated ACK `cce92533-53a7-49d0-bc42-0b808408aafe` and FINAL
+  `44cee2a7-9695-42f8-a76e-d4a08b000752` received; no duplicate protocol.
+  Child inspected four files read-only; no file or AK writes observed.
+- Registry check: **134/134**; little-helpers check: **430/430**; both full
+  release checks pass, including installed-tarball smoke. The stale real-fleet
+  baseline was explicitly refreshed after independent HEAD-only reproduction:
+  engineering-core docs-only revision `51fc387` → `9225dd6`, unchanged profile
+  bytes, fleet revisions, diagnostics and counts. Assertions were not weakened.
+- The new standing-agent reality assertion passes. The broader all-controller
+  observer check still detects an unrelated live process naming retired Ghostty
+  `9d8fbd15`; this task did not restart other sessions to hide that drift.
+
+The version-1 export exists in local little-helpers **0.9.0 source**, not a
+proven published release. Its next release must ship `./sidequest-launch`
+and the version marker before registry publication can claim Phase 3. A packed
+registry resolving older npm helpers fails closed `visible_transport_unavailable`.
+See [dependency posture](docs/engineering.local.md#package-local-deltas-on-the-pi-ts-lane).
+
 ## Environment
 
 | Variable | Meaning |
@@ -203,6 +310,7 @@ AK claimant — lifecycle-v2 permit binding (Fleet Phase 4) tightens that.
 | `PI_AGENT_REGISTRY_EC_PROFILES` | engineering-core `skills/profiles.json` |
 | `PI_AGENT_REGISTRY_USER_SKILLS` | mutable user fallback for runtime extras; fleet lint does not call it immutable |
 | `PI_AGENT_REGISTRY_DISPATCH_RECEIPTS_DIR` | explicit dispatch-receipts directory (default `<pi-agent-dir>/dispatch-receipts`) |
+| `PI_AGENT_REGISTRY_VISIBLE_LAUNCH_RECEIPTS_DIR` | Phase-3 receipts and persistent pair reservations (default `<pi-agent-dir>/visible-launch-receipts`) |
 
 ## Validation
 
@@ -219,7 +327,9 @@ smoke, and the Phase-2 dispatch contract: AK authorization matrix,
 write-once/tamper-evident receipts, settled-pair re-dispatch rejection, the
 three-attempt bound, ledger rename-integrity, read-only violation observation,
 recursion guard, ASC effect-receipt-first disposition derivation, and ASC
-request composition.
+request composition. Phase-3 coverage adds explicit bootstrap/argv composition,
+exact-task rechecks, drift/cancellation gates, durable pair reservation,
+transport capability gating, and immutable admission receipts.
 
 Live dogfood (2026-08-31, AK 5132): `agent-adoption-steward` dispatched for
 task 5132 through a fresh one-shot Pi session. Attempt 1 failed closed at child

@@ -1,4 +1,4 @@
-// summary: orchestrates visible Pi session launch through existing Ghostty and detached-window owners without changing fallback semantics.
+// summary: orchestrates visible Pi session launch through existing Ghostty and detached-window owners with exact-target refusal before session dispatch.
 // read_when:
 //   - changing Ghostty launch routing, model/thinking/cwd propagation, fallback, or observer session launch.
 
@@ -6,9 +6,17 @@ import { existsSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AscObserverLaunchRequest } from "../src/ascExecutionObserver.ts";
 import {
-  prefixPiArgsWithCompanyContext,
-  resolveChildCompanyContext,
-} from "../src/companyContextProvenance.ts";
+  assertBoundedLaunchArgv,
+  assertDispatchWindow,
+  type BeforeDispatch,
+  invalidLaunchOutcome,
+  prepareLaunchArguments,
+  runAdmittedLaunch,
+  settleLaunchOutcome,
+  type SidequestLaunchOutcome,
+  validLaunchArgv,
+} from "./sidequestLaunchAdmission.ts";
+export { assertBoundedLaunchArgv, type SidequestLaunchOutcome } from "./sidequestLaunchAdmission.ts";
 import {
   type DetachedGhosttyWindowLaunchRequest,
   launchDetachedGhosttyWindow,
@@ -27,13 +35,10 @@ import {
   LOCAL_GHOSTTY_WRAPPER,
   resolveControllerGhosttyDbusTarget,
   resolveGhosttyBin,
-  supportsGhosttyNewTab,
-  supportsGhosttySurfaceId,
+  GHOSTTY_PROBE_TIMEOUT_MS,
 } from "./sidequestGhostty.ts";
 import { detectPostLaunchPlacementMismatch } from "./sidequestLaunchPlacement.ts";
 import {
-  buildModelArgs,
-  buildTitle,
   describeWindowFallback,
   joinLaunchNotes,
   type ModelLike,
@@ -42,6 +47,8 @@ import {
   summarizePrompt,
 } from "./sidequestLaunchResult.ts";
 
+export const STANDING_AGENT_TRANSPORT_VERSION = 1;
+export const STANDING_AGENT_DISPATCH_GUARD_VERSION = 1;
 const DEFAULT_PEER_LAUNCH_STAGGER_MS = 1000;
 
 type GhosttyCommandSpec = { command: string; args: string[] };
@@ -62,31 +69,6 @@ export type SidequestLaunchOptions = {
 };
 type QuestSessionMode = "fork" | "clean";
 type QuestPlacementPolicy = "visible-fallback" | "controller-tab-only";
-type SidequestLaunchSuccess = {
-  ok: true;
-  effectDisposition: "settled";
-  launchMode: LaunchMode;
-  sessionMode: QuestSessionMode;
-  cwd: string;
-  sourceSessionFile?: string;
-  titleBase: string;
-  promptSummary: string;
-  launchNote?: string;
-};
-type SidequestLaunchFailure = {
-  ok: false;
-  failure: string;
-  effectDisposition: LaunchResult["effectDisposition"];
-  launchMode: LaunchMode;
-  sessionMode: QuestSessionMode;
-  cwd: string;
-  sourceSessionFile?: string;
-  titleBase: string;
-  promptSummary: string;
-  launchNote?: string;
-};
-export type SidequestLaunchOutcome = SidequestLaunchSuccess | SidequestLaunchFailure;
-
 let peerLaunchStaggerTail: Promise<void> = Promise.resolve();
 let lastPeerLaunchStartedAt = 0;
 
@@ -112,27 +94,30 @@ function resolvePeerLaunchStaggerMs({
   return hasCustomExec ? 0 : DEFAULT_PEER_LAUNCH_STAGGER_MS;
 }
 
-async function waitForPeerLaunchStagger(options: {
+async function reservePeerLaunchStagger(options: {
   env: NodeJS.ProcessEnv;
   hasCustomExec: boolean;
-}): Promise<number> {
+}): Promise<(dispatchAttempted?: boolean) => void> {
   const staggerMs = resolvePeerLaunchStaggerMs(options);
-  if (staggerMs <= 0) return 0;
-
+  if (staggerMs <= 0) return () => {};
   const previous = peerLaunchStaggerTail.catch(() => undefined);
-  let waitedMs = 0;
-  const next = previous.then(async () => {
-    const elapsedMs =
-      lastPeerLaunchStartedAt > 0 ? Date.now() - lastPeerLaunchStartedAt : staggerMs;
-    waitedMs = Math.max(0, staggerMs - elapsedMs);
-    if (waitedMs > 0) {
-      await sleep(waitedMs);
-    }
-    lastPeerLaunchStartedAt = Date.now();
-  });
-  peerLaunchStaggerTail = next;
-  await next;
-  return waitedMs;
+  let unlock!: () => void;
+  peerLaunchStaggerTail = new Promise<void>((resolveSlot) => { unlock = resolveSlot; });
+  await previous;
+  // The slot stays held through Describe and final identity checks. Time is monotonic.
+  while (lastPeerLaunchStartedAt > 0) {
+    const remaining = staggerMs - (performance.now() - lastPeerLaunchStartedAt);
+    if (remaining <= 0) break;
+    await sleep(remaining);
+  }
+  let released = false;
+  return (dispatchAttempted = false) => {
+    if (released) return;
+    released = true;
+    // Record after transport invocation (including synchronous throw), not before async inspection.
+    if (dispatchAttempted) lastPeerLaunchStartedAt = performance.now();
+    unlock();
+  };
 }
 
 export async function launchPiQuestSession({
@@ -147,6 +132,12 @@ export async function launchPiQuestSession({
   titlePrefix = "Sidequest",
   command,
   placementPolicy = "visible-fallback",
+  modelArgs: modelArgsOverride,
+  extraPiArgs,
+  childProvenanceEnv,
+  signal,
+  beforeDispatch,
+  dispatchDeadlineMs,
 }: {
   pi: ExtensionAPI;
   ctx: { model?: unknown; cwd?: string };
@@ -159,11 +150,41 @@ export async function launchPiQuestSession({
   titlePrefix?: string;
   command?: GhosttyCommandSpec;
   placementPolicy?: QuestPlacementPolicy;
+  /** Replaces controller-derived model/thinking args (Fleet Phase-3 standing agents pin their own). */
+  modelArgs?: string[];
+  /** Inserted between model args and the trailing prompt on the clean-session path only. */
+  extraPiArgs?: string[];
+  /** Additive child-only provenance; never replaces company provenance or arbitrary environment. */
+  childProvenanceEnv?: Record<string, string>;
+  signal?: AbortSignal;
+  beforeDispatch?: BeforeDispatch;
+  dispatchDeadlineMs?: number;
 }): Promise<SidequestLaunchOutcome> {
   const env = options.env ?? process.env;
+  const prepared = prepareLaunchArguments({
+    env,
+    parentCwd: ctx.cwd,
+    model: ctx.model as ModelLike | undefined,
+    thinkingLevel: pi.getThinkingLevel(),
+    defaultPiBin,
+    prompt,
+    titlePrompt,
+    titlePrefix,
+    cwd,
+    sourceSessionFile,
+    command,
+    modelArgs: modelArgsOverride,
+    extraPiArgs,
+    childProvenanceEnv,
+    signal,
+    beforeDispatch,
+    dispatchDeadlineMs,
+  });
+  if (!prepared.ok) return invalidLaunchOutcome(Boolean(sourceSessionFile));
+  const { title, piArgs } = prepared;
   const pathExists = options.pathExists ?? existsSync;
   const execRunner: ExecRunner =
-    options.exec ?? ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+    options.exec ?? ((cmd, args, opts) => pi.exec(cmd, args, opts));
   const controllerGhostty =
     options.currentGhosttyAncestor ??
     (options.exec ? undefined : findGhosttyAncestor(options.processId ?? process.pid));
@@ -175,54 +196,45 @@ export async function launchPiQuestSession({
         ? strictControllerBin
         : ""
       : resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
-  const piBin = env.PI_SIDEQUEST_PI_BIN?.trim() || defaultPiBin;
-  const thinkingLevel = pi.getThinkingLevel();
-  const modelArgs = buildModelArgs(ctx.model as ModelLike | undefined, thinkingLevel);
-  const title = buildTitle(titlePrompt, titlePrefix);
-  let supportsNewTab =
-    process.platform === "linux" && ghosttyBin
-      ? await supportsGhosttyNewTab(execRunner, ghosttyBin)
-      : false;
+  if (!validLaunchArgv([ghosttyBin])) return invalidLaunchOutcome(Boolean(sourceSessionFile));
+  // +help is command-capability inspection, not a session launch. Unknown is NOT unsupported.
+  const refuseBeforeDispatch = (failure: string): Extract<SidequestLaunchOutcome, { ok: false }> => ({
+    ok: false, failure, effectDisposition: "confirmed_no_effects", launchMode: "tab",
+    sessionMode: sourceSessionFile ? "fork" : "clean", cwd, sourceSessionFile,
+    titleBase: title, promptSummary: summarizePrompt(titlePrompt),
+    launchNote: "No session/tab/window dispatch attempted by this launch; inspection and prior bookkeeping are not global no-effects.",
+  });
+  const inspectNewTab = async (bin: string): Promise<boolean | undefined> => {
+    try {
+      const result = await execRunner(bin, ["+help"], { timeout: GHOSTTY_PROBE_TIMEOUT_MS });
+      if (result.killed || result.code !== 0 || !result.stdout?.trim()) return undefined;
+      if (result.stdout.includes("+new-tab")) return true;
+      return result.stdout.includes("+new-window") ? false : undefined;
+    } catch { return undefined; }
+  };
+  let supportsNewTab = process.platform === "linux" && ghosttyBin
+    ? await inspectNewTab(ghosttyBin) : false;
+  if (supportsNewTab === undefined) return refuseBeforeDispatch("Ghostty capability inspection unavailable; no launch attempted");
   let wrapperTabAttachNote: string | undefined;
   if (
-    placementPolicy === "visible-fallback" &&
-    process.platform === "linux" &&
-    isGhosttySession(env) &&
-    !supportsNewTab &&
-    pathExists(LOCAL_GHOSTTY_WRAPPER) &&
+    placementPolicy === "visible-fallback" && process.platform === "linux" &&
+    isGhosttySession(env) && !supportsNewTab && pathExists(LOCAL_GHOSTTY_WRAPPER) &&
     ghosttyBin !== LOCAL_GHOSTTY_WRAPPER
   ) {
-    const wrapperSupportsNewTab = await supportsGhosttyNewTab(execRunner, LOCAL_GHOSTTY_WRAPPER);
+    const wrapperSupportsNewTab = await inspectNewTab(LOCAL_GHOSTTY_WRAPPER);
+    if (wrapperSupportsNewTab === undefined) return refuseBeforeDispatch("Ghostty wrapper inspection unavailable; no launch attempted");
     if (wrapperSupportsNewTab) {
       ghosttyBin = LOCAL_GHOSTTY_WRAPPER;
       supportsNewTab = true;
-      wrapperTabAttachNote =
-        "current Ghostty binary does not support +new-tab; used sidequest wrapper for tab launch";
+      wrapperTabAttachNote = "wrapper advertises tabs; exact controller action still required";
     }
   }
   const requestedSurfaceId = getGhosttySurfaceId(env);
-  const surfaceId =
-    supportsNewTab && requestedSurfaceId && (await supportsGhosttySurfaceId(execRunner, ghosttyBin))
-      ? requestedSurfaceId
-      : undefined;
-  const windowFallbackReason = describeWindowFallback({
-    supportsNewTab,
-    env,
-  });
+  // Do not run +new-tab, even with invalid argv, to discover surface targeting.
+  const surfaceId = requestedSurfaceId;
+  const windowFallbackReason = describeWindowFallback({ supportsNewTab, env });
 
   const sessionMode: QuestSessionMode = sourceSessionFile ? "fork" : "clean";
-  const rawPiArgs = command
-    ? [command.command, ...command.args]
-    : sourceSessionFile
-      ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
-      : [piBin, ...modelArgs, prompt];
-  const companyProvenance = command
-    ? undefined
-    : resolveChildCompanyContext({ env, targetCwd: cwd, parentCwd: ctx.cwd });
-  const piArgs =
-    companyProvenance && companyProvenance.source !== "target_cwd"
-      ? prefixPiArgsWithCompanyContext(rawPiArgs, companyProvenance)
-      : rawPiArgs;
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
   const controllerDbusTarget =
     launchMode === "tab"
@@ -233,36 +245,6 @@ export async function launchPiQuestSession({
           readProcessExecutable: options.readProcessExecutable,
         })
       : undefined;
-  const promptSummary = summarizePrompt(titlePrompt);
-  const detachedWindowLauncher = options.detachedGhosttyWindowLaunch ?? launchDetachedGhosttyWindow;
-  const useDetachedWindowLaunch =
-    placementPolicy === "visible-fallback" &&
-    (!options.exec || Boolean(options.detachedGhosttyWindowLaunch));
-  const runWindowLaunch = () =>
-    useDetachedWindowLaunch
-      ? detachedWindowLauncher({
-          command: ghosttyBin,
-          cwd,
-          buildArgs: (launchHandshake) =>
-            buildGhosttyArgs({
-              cwd,
-              title,
-              launchMode: "window",
-              piArgs,
-              launchHandshake,
-            }),
-        })
-      : runGhosttyLaunch(
-          execRunner,
-          ghosttyBin,
-          buildGhosttyArgs({
-            cwd,
-            title,
-            launchMode: "window",
-            piArgs,
-          }),
-          cwd,
-        );
   if (placementPolicy === "controller-tab-only" && !controllerDbusTarget) {
     const reason =
       windowFallbackReason ??
@@ -273,50 +255,97 @@ export async function launchPiQuestSession({
           : !surfaceId
             ? "controller Ghostty surface targeting is unsupported"
             : "Ghostty single-instance D-Bus target could not be proven");
-    return {
-      ok: false,
-      failure: `exact controller Ghostty tab unavailable: ${reason}`,
-      effectDisposition: "confirmed_no_effects",
-      launchMode: "tab",
-      sessionMode,
-      cwd,
-      sourceSessionFile,
-      titleBase: title,
-      promptSummary,
-    };
+    return refuseBeforeDispatch(`exact controller Ghostty tab unavailable: ${reason}`);
   }
-  await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
-  const launchedAfterMs = Date.now();
-  const ghosttyExecArgs = buildGhosttyExecArgs({ cwd, title, piArgs });
-  let launchResult =
-    launchMode === "window"
-      ? await runWindowLaunch()
-      : controllerDbusTarget
-        ? await runGhosttyLaunch(
-            execRunner,
-            "busctl",
-            buildControllerGhosttyDbusArgs({
-              target: controllerDbusTarget,
-              execArgs: ghosttyExecArgs,
-            }),
-            cwd,
-          )
-        : await runGhosttyLaunch(
-            execRunner,
-            ghosttyBin,
-            buildGhosttyArgs({
+  if (launchMode === "tab" && !controllerDbusTarget) return refuseBeforeDispatch("exact controller Ghostty tab unavailable: D-Bus target could not be proven");
+  const promptSummary = summarizePrompt(titlePrompt);
+  const detachedWindowLauncher = options.detachedGhosttyWindowLaunch ?? launchDetachedGhosttyWindow;
+  const useDetachedWindowLaunch =
+    placementPolicy === "visible-fallback" &&
+    (!options.exec || Boolean(options.detachedGhosttyWindowLaunch));
+  const dispatchGuard = { beforeDispatch, dispatchDeadlineMs, signal };
+  let launchedAfterMs = Date.now();
+  const runWindowLaunch = (onInvoked?: () => void) => {
+    const args = buildGhosttyArgs({ cwd, title, launchMode: "window", piArgs });
+    return runAdmittedLaunch({
+      ...dispatchGuard,
+      argv: [ghosttyBin, ...args],
+      onInvoked,
+      invoke: () => {
+        launchedAfterMs = Date.now();
+        return useDetachedWindowLaunch
+          ? detachedWindowLauncher({
+              command: ghosttyBin,
               cwd,
-              title,
-              launchMode,
-              surfaceId,
-              piArgs,
-            }),
-            cwd,
-          );
+              buildArgs: (launchHandshake) => {
+                const complete = buildGhosttyArgs({
+                  cwd, title, launchMode: "window", piArgs, launchHandshake,
+                });
+                assertBoundedLaunchArgv([ghosttyBin, ...complete]);
+                assertDispatchWindow(dispatchGuard);
+                return complete;
+              },
+            })
+          : runGhosttyLaunch(execRunner, ghosttyBin, args, cwd);
+      },
+    });
+  };
+  const releaseLaunchSlot = await reservePeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
+  let launchResult: LaunchResult;
+  let dispatchAttempted = false;
+  const markInvoked = () => {
+    dispatchAttempted = true;
+    releaseLaunchSlot(true);
+  };
+  try {
+    if (signal?.aborted) return { ...refuseBeforeDispatch("Cancelled before admission"), launchMode };
+    if (launchMode === "tab") {
+      const target = controllerDbusTarget!;
+      try {
+        const description = await execRunner("busctl", [
+          "--user", "call", target.busName, target.objectPath,
+          "org.gtk.Actions", "Describe", "s", "new-tab",
+        ], { timeout: GHOSTTY_PROBE_TIMEOUT_MS });
+        if (description.killed || description.code !== 0 ||
+            !/^\(bgav\)\s+true\s+"\(tas\)"\s+0\s*$/.test(description.stdout ?? ""))
+          return refuseBeforeDispatch("exact controller Ghostty new-tab action capability unavailable");
+        const fresh = await resolveControllerGhosttyDbusTarget({
+          execRunner, controllerGhostty, surfaceId, readProcessExecutable: options.readProcessExecutable,
+        });
+        if (!fresh || fresh.busName !== target.busName ||
+            fresh.ownerPid !== target.ownerPid || fresh.surfaceId !== target.surfaceId ||
+            fresh.objectPath !== target.objectPath || fresh.wellKnownName !== target.wellKnownName)
+          return refuseBeforeDispatch("exact controller Ghostty identity changed during capability inspection");
+      } catch {
+        return refuseBeforeDispatch("exact controller Ghostty action inspection failed; no launch attempted");
+      }
+    }
+    if (signal?.aborted) return { ...refuseBeforeDispatch("Cancelled before admission"), launchMode };
+    if (launchMode === "window") {
+      launchResult = await runWindowLaunch(markInvoked);
+    } else {
+      const args = buildControllerGhosttyDbusArgs({
+        target: controllerDbusTarget!,
+        execArgs: buildGhosttyExecArgs({ cwd, title, piArgs }),
+      });
+      launchResult = await runAdmittedLaunch({
+        ...dispatchGuard,
+        argv: ["busctl", ...args],
+        onInvoked: markInvoked,
+        invoke: () => {
+          launchedAfterMs = Date.now();
+          return runGhosttyLaunch(execRunner, "busctl", args, cwd);
+        },
+      });
+    }
+  } finally {
+    // Inspection refusal releases without claiming a dispatch; cannot relabel a prior attempt.
+    releaseLaunchSlot();
+  }
   let launchNote = joinLaunchNotes(
     windowFallbackReason ?? wrapperTabAttachNote,
     controllerDbusTarget
-      ? `targeted Ghostty single-instance process ${controllerDbusTarget.ownerPid} through ${controllerDbusTarget.busName}`
+      ? `targeted Ghostty process ${controllerDbusTarget.ownerPid} through ${controllerDbusTarget.busName}`
       : undefined,
     launchMode === "window" && useDetachedWindowLaunch && launchResult.ok
       ? "confirmed direct-window command admission through a private handshake"
@@ -326,10 +355,13 @@ export async function launchPiQuestSession({
   if (
     !launchResult.ok &&
     launchResult.effectDisposition === "confirmed_no_effects" &&
+    dispatchAttempted && // A validation/owner/cancellation refusal must never trigger fallback.
     launchMode === "tab" &&
     placementPolicy === "visible-fallback"
   ) {
-    const tabFailure = summarizeLaunchFailure(launchResult);
+    const tabFailure = childProvenanceEnv
+      ? "transport rejected admission"
+      : summarizeLaunchFailure(launchResult);
     const fallbackResult = await runWindowLaunch();
     launchMode = "window";
     launchResult = fallbackResult;
@@ -378,24 +410,7 @@ export async function launchPiQuestSession({
     );
   }
 
-  if (!launchResult.ok) {
-    return {
-      ok: false,
-      failure: summarizeLaunchFailure(launchResult),
-      effectDisposition: launchResult.effectDisposition,
-      launchMode,
-      sessionMode,
-      cwd,
-      sourceSessionFile,
-      titleBase: title,
-      promptSummary,
-      launchNote,
-    };
-  }
-
-  return {
-    ok: true,
-    effectDisposition: "settled",
+  return settleLaunchOutcome(launchResult, {
     launchMode,
     sessionMode,
     cwd,
@@ -403,7 +418,7 @@ export async function launchPiQuestSession({
     titleBase: title,
     promptSummary,
     launchNote,
-  };
+  }, Boolean(childProvenanceEnv));
 }
 
 export async function launchAscExecutionObserverSession(

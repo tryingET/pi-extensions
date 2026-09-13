@@ -20,6 +20,7 @@ import {
   type SupportedModel,
   writeConfig,
 } from "../src/config.ts";
+import { supportsFast } from "../src/fast-support.ts";
 import { _imageTest, registerOpenAIImage } from "../src/image.ts";
 import { _proTest, registerPro } from "./pro.ts";
 
@@ -32,14 +33,6 @@ export const BETTER_OPENAI_FAST_STATE_SCHEMA = "pi.better_openai.fast_state.v1";
 
 function currentModelKey(ctx: ExtensionContext): string {
   return ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "none";
-}
-
-function supportsFast(ctx: ExtensionContext, supportedModels: SupportedModel[]): boolean {
-  const current = ctx.model;
-  if (!current) return false;
-  return supportedModels.some(
-    (model) => model.provider === current.provider && (model.id === "*" || model.id === current.id),
-  );
 }
 
 function modelList(supportedModels: SupportedModel[]): string {

@@ -25,7 +25,7 @@ The minimum producer contract consumed or preserved by this companion is:
 - structural public-API, state, registry, and test risk signals with explicit evidence/unknown accounting; path or name conventions remain low-confidence naming fallback rather than structural detection, and no signal claims whole-program semantics;
 - progressive `explore_symbol_impact` disclosure: `compact` is the bounded decision-first default, `standard` adds sparse normalized evidence under `details.schemaVersion: 2`, and `debug` adds separately bounded and redacted diagnostics;
 - a model/operator split in Pi: the compact/standard/debug model projection participates in model context, while the validated, disclosure-sanitized producer packet is retained only in a bounded TUI custom entry;
-- safe boundary recovery only for the exact allowlisted reason `outside_workspace`, projected to locally authored target-root/repo-relative guidance without producer prose, submitted paths, host paths, raw diagnostics, stderr, or stack traces;
+- safe boundary recovery for exact allowlisted `outside_workspace` and existing NEXUS reasons, projected to locally authored guidance without producer prose, submitted paths, host paths, raw diagnostics, stderr, or stack traces;
 - preview-only native Pi schemas: no `apply` input, no `ALLOW_SNAPSHOT_APPLY`, and no companion authority to apply a producer snapshot to the working tree.
 
 The producer candidate supports installed CLI and MCP stdio for one trusted local operator and repository. Its experimental `semantic-code-intelligence experimental structural-evidence-receipt` command is outside that production-candidate interface commitment, and repository closeout receipt tooling is source-checkout-only. HTTP/MCP HTTP/LSP, hosted or network-exposed operation, multiple users or tenants, untrusted repositories, public publication, broad adoption/effectiveness claims, and performance/SLO claims remain unsupported. This companion does not promote those surfaces.
@@ -77,6 +77,10 @@ The bridge now performs a hidden `get_snapshot { nexus:true }` handshake before 
 Workspace and snapshot references are identity/lineage, not authorization tokens. They cannot select a filesystem root, do not replace SCI lexical/realpath/descriptor containment, and do not grant cross-repo access. NEXUS reasons such as `workspace_path_unresolved`, `workspace_state_changed`, and `stale_snapshot_ref` receive locally authored path-redacted recovery; unknown or malformed producer errors remain generic.
 
 ### Safe workspace-boundary recovery
+
+The normal-mode producer must retain its bounded public error fields; enabling debug/test mode is not a recovery prerequisite. The companion recognizes all seven existing workspace reasons (`workspace_ref_required`, `workspace_ref_mismatch`, `workspace_binding_mismatch`, `workspace_path_invalid`, `workspace_path_unresolved`, `workspace_state_changed`, `workspace_state_unavailable`) plus the existing outside-workspace and snapshot recovery reasons. This does not authorize root selection, rebinding or broader execution.
+
+Tool failures still throw so Pi records `isError=true`. The explore renderer uses the host error flag independently of successful `explorePresentation` metadata, recognizes only exact locally authored safe error text, and shows it in both collapsed and expanded views. Unclassified/unsafe text produces a fixed redacted failure instead; a renderer exception is contained rather than allowing Pi's raw-text fallback. A failure view never reuses a retained success packet. These views are recovery guidance, not semantic evidence or an automatic retry mechanism.
 
 All five native composites recognize SCI's allowlisted `outside_workspace` reason contract from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2` without matching or copying producer prose. The bridge emits locally authored model-visible recovery: use a repo-relative path in a Pi session started at the target repository root. A shell `cd` does not rebind the session's `ctx.cwd`; start a target-root Pi session instead. Obvious absolute, file-URI, Windows drive/UNC, NUL, and `..` traversal inputs fail locally for the declared repo-relative `file` and `paths` fields, while repo-relative symlinks still reach SCI so realpath containment remains final authority. Unknown, malformed, extended, secret-bearing, transport, startup, stderr, and backend errors retain generic redaction, and no rejected path or workspace path is reflected.
 
@@ -139,6 +143,16 @@ bash ../../scripts/package-quality-gate.sh ci packages/pi-semantic-code-intellig
 - separate explore model/operator byte receipts and custom-entry retention;
 - narrow-width call, collapsed, expanded, and durable-entry renderer assertions;
 - native registration, installed-MCP contract, and preview-only assertions.
+
+For the normal-mode producer/companion error corridor, run the opt-in integration tests against reviewed source and a **private** MCP build:
+
+```bash
+SCI_PRODUCER_ROOT=/absolute/path/to/semantic-code-intelligence \
+SCI_TEST_MCP_COMMAND=/absolute/path/to/private-build/semantic-code-mcp \
+node --import tsx --test tests/sci-error-producer-contract.test.ts tests/sci-error-transport.test.ts
+```
+
+Without these explicit inputs, the two integration tests report skipped rather than claiming producer proof. The first imports only producer error factories/mapping in a production-mode child (no analyzer or DB). The second starts the supplied MCP in a synthetic temporary Git repository, checks missing-file and nested-repo rejection through the real Pi tool-row component, and closes its worker before cleaning up its own fixture. It never defaults to the active session's `SCI_MCP_COMMAND`. This is isolated transport/component proof, not activation of the operator's current Pi session.
 
 ## Release posture
 

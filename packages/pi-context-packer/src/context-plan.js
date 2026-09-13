@@ -3,8 +3,10 @@ summary: "Builds bounded provider plans from safe seeds, workspace trust checks,
 read_when:
   - "Changing context_plan normalization, provider selection, risk reporting, or its compact result contract."
 */
-import { readFileSync, statSync } from "node:fs";
+
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
+import { CODE_QUERY_MAX_CHARS, CODE_REQUEST_SCHEMA, normalizeCodeRequest } from "./code-request.js";
 import {
   hasControlCharacter,
   hasSchemeOrDrivePrefix,
@@ -15,20 +17,19 @@ import {
 } from "./context-intake-safety.js";
 import { fileBudgetRisksForPathSeeds } from "./file-budget.js";
 import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
+import { normalizePacketBudget, packetBudgetSchema } from "./packet-budget-input.js";
 import {
   buildContextPackExecutionSummary,
   contextPackProviderCapability,
 } from "./provider-capabilities.js";
+import { plannedRipwirePolicy } from "./ripwire-policy.js";
 
 export { contextPackProviderCapability } from "./provider-capabilities.js";
 
-const PROVIDER_IDS = ["agents", "git", "sci", "docs", "session", "prompt_vault", "ak", "fcos"];
+const PROVIDER_IDS = ["agents", "git", "docs", "ripwire", "session", "prompt_vault", "ak", "fcos"];
 
-const DEFAULT_MAX_TOKENS = 40_000;
-const DEFAULT_RESERVE_TOKENS = 12_000;
-const DEFAULT_PROVIDER_MAX_TOKENS = 12_000;
 const ESTIMATED_BYTES_PER_TOKEN = 4;
-const MAX_OBJECTIVE_CHARS = 4_000;
+const MAX_OBJECTIVE_CHARS = CODE_QUERY_MAX_CHARS;
 const MAX_SEEDS = 40;
 const MAX_SEED_VALUE_CHARS = 1_000;
 const MAX_SEED_NOTE_CHARS = 500;
@@ -46,10 +47,10 @@ const CONTEXT_PLAN_SEED_KIND_SET = new Set(CONTEXT_PLAN_SEED_KINDS);
 const isMarkdownPath = (value) => /\.md$/i.test(value);
 
 const PROVIDER_AUTHORITY = {
+  ripwire: "Read-only heuristic code discovery; not a complete graph or edit authorization.",
   agents:
     "Repo-bounded AGENTS/CLAUDE instruction projection; global and above-repo Pi-loaded instruction files are outside this packet provider.",
   git: "Current workspace git posture; read-only status/diff metadata only.",
-  sci: "Semantic Code Intelligence code-navigation provider; code semantics only.",
   docs: "Repo/docs-list Markdown discovery provider; docs are data unless active authority says otherwise.",
   session: "Pi current-session context usage provider; measurement signal, not durable evidence.",
   prompt_vault: "Prompt Vault read-only reusable prompt/procedure provider.",
@@ -58,7 +59,7 @@ const PROVIDER_AUTHORITY = {
 };
 
 const NON_AUTHORIZATIONS = Object.freeze([
-  "does not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, peer tooling, or source-owner repos",
+  "does not mutate files, git, AK, FCOS, Prompt Vault, ASC, peer tooling, or source-owner repos",
   "does not treat retrieved Markdown as higher authority than active instructions",
   "does not close FCOS items or create/update AK tasks",
   "does not call self, dispatch subagents, launch peers, send intercom messages, supervise workflows, fan in, persist, or authorize owner-surface movement",
@@ -67,18 +68,16 @@ const NON_AUTHORIZATIONS = Object.freeze([
 const nonAuthorizations = () => [...NON_AUTHORIZATIONS];
 
 const PROVIDER_KEYWORDS = {
-  sci: [
+  ripwire: [
     "code",
     "symbol",
     "definition",
-    "reference",
-    "refactor",
-    "test",
     "implementation",
+    "refactor",
     "typescript",
     "javascript",
     "python",
-    "patch",
+    "bug",
   ],
   docs: ["doc", "docs", "markdown", "architecture", "policy", "adr", "rfc", "readme"],
   session: ["context", "token", "tokens", "tool-call", "tool call", "compact", "window"],
@@ -108,32 +107,6 @@ const asObject = (value) => {
 const normalizeMode = (value) => {
   if (value === "required" || value === "off" || value === "auto") return value;
   return "auto";
-};
-
-const normalizeBudget = (inputBudget = {}) => {
-  const budget = asObject(inputBudget);
-  const maxTokens = positiveInteger(budget.maxTokens, DEFAULT_MAX_TOKENS);
-  const reserveFallback = Math.min(DEFAULT_RESERVE_TOKENS, Math.floor(maxTokens * 0.3));
-  const rawReserveTokens = positiveInteger(budget.reserveTokens, reserveFallback);
-  const reserveTokens = Math.min(rawReserveTokens, Math.max(0, maxTokens - 1));
-  const maxBytes = positiveInteger(budget.maxBytes, maxTokens * ESTIMATED_BYTES_PER_TOKEN);
-  const rawPerProvider = asObject(budget.perProviderMaxTokens);
-  const perProviderMaxTokens = {};
-
-  for (const provider of PROVIDER_IDS) {
-    perProviderMaxTokens[provider] = positiveInteger(
-      rawPerProvider[provider],
-      DEFAULT_PROVIDER_MAX_TOKENS,
-    );
-  }
-
-  return { maxTokens, maxBytes, perProviderMaxTokens, reserveTokens };
-};
-
-const positiveInteger = (value, fallback) => {
-  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
-  const normalized = Math.floor(value);
-  return normalized > 0 ? normalized : fallback;
 };
 
 const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
@@ -231,12 +204,12 @@ const seedSafetyIssue = (seed) => {
 };
 
 const omittedSeedProvider = (seed) => {
-  if (seed.kind === "symbol") return "sci";
+  if (seed.kind === "symbol") return "code";
   if (seed.kind === "path") {
     return isMarkdownPath(seed.value) ||
       isMarkdownPath(seedValueForProviderClassification(seed.value))
       ? "docs"
-      : "sci";
+      : "code";
   }
   if (seed.kind === "ak" || seed.kind === "task") return "ak";
   if (seed.kind === "fcos") return "fcos";
@@ -327,7 +300,16 @@ const trustedFallbackCwd = (env, risks) => {
     });
     return process.cwd();
   }
-  return candidate;
+  try {
+    return realpathSync(candidate);
+  } catch {
+    risks.push({
+      kind: "path",
+      severity: "blocked",
+      message: "trusted cwd changed during resolution",
+    });
+    return process.cwd();
+  }
 };
 
 const repoRootTrustIssue = (repoRoot, trustedEnvCwd) => {
@@ -464,6 +446,20 @@ const normalizeWorkspace = (raw, env) => {
     }
   }
 
+  // Trust is about resolved directories, not a lexical alias inside the workspace.
+  try {
+    cwd = realpathSync(cwd);
+    if (repoRoot) repoRoot = realpathSync(repoRoot);
+  } catch {
+    risks.push({
+      kind: "path",
+      severity: "blocked",
+      message: "workspace changed during resolution",
+    });
+    cwd = fallbackCwd;
+    repoRoot = undefined;
+  }
+
   if (repoRoot) {
     const trustIssue = repoRootTrustIssue(repoRoot, fallbackCwd);
     if (trustIssue) {
@@ -511,9 +507,8 @@ const normalizeWorkspace = (raw, env) => {
 };
 
 const seedMatchesProvider = (provider, seed) => {
-  if (provider === "sci") {
+  if (provider === "ripwire")
     return seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value));
-  }
   if (provider === "docs") return seed.kind === "path" && isMarkdownPath(seed.value);
   if (provider === "ak") return seed.kind === "ak" || seed.kind === "task";
   if (provider === "fcos") return seed.kind === "fcos";
@@ -560,7 +555,15 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
 const buildProviderPlans = ({ objective, seeds, providers, budget, env }) =>
   PROVIDER_IDS.map((provider) => {
     const mode = normalizeMode(providers[provider]);
-    const { posture, reason } = postureForProvider(provider, mode, objective, seeds);
+    const { posture, reason } =
+      provider === "ripwire"
+        ? plannedRipwirePolicy({
+            mode,
+            codeIntent: providerMatches(provider, objective, seeds),
+            budget,
+            env,
+          })
+        : postureForProvider(provider, mode, objective, seeds);
     const selected = posture === "selected" || posture === "optional";
     const capability = contextPackProviderCapability(provider, env, { reason });
     return {
@@ -647,6 +650,33 @@ const buildRisks = ({
 
 export const buildContextPlan = (input = {}, env = {}) => {
   const raw = asObject(input);
+  let code;
+  try {
+    code = normalizeCodeRequest(raw.code);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        "Invalid code request; expansion requires a safe path, literal symbol, line and source SHA-256.",
+      ],
+      nonAuthorizations: nonAuthorizations(),
+    };
+  }
+  const unknownProvider = Object.keys(asObject(raw.providers)).some(
+    (key) => !PROVIDER_IDS.includes(key),
+  );
+  const unknownBudget = Object.keys(asObject(asObject(raw.budget).perProviderMaxTokens)).some(
+    (key) => !PROVIDER_IDS.includes(key),
+  );
+  if (unknownProvider || unknownBudget) {
+    return {
+      ok: false,
+      errors: [
+        "Unsupported provider or provider budget. Remove obsolete provider configuration; providers are never silently remapped.",
+      ],
+      nonAuthorizations: nonAuthorizations(),
+    };
+  }
   const objective = coerceString(raw.objective).trim();
   if (!objective) {
     return {
@@ -663,8 +693,20 @@ export const buildContextPlan = (input = {}, env = {}) => {
     };
   }
 
+  let budget;
+  try {
+    budget = normalizePacketBudget(raw.budget, PROVIDER_IDS);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        "Invalid budget; use known fields and non-negative safe integers. No provider was invoked.",
+      ],
+      budget: { maxTokens: 0, maxBytes: 0, reserveTokens: 0 },
+      nonAuthorizations: nonAuthorizations(),
+    };
+  }
   const { cwd, repoRoot, risks: workspaceRisks } = normalizeWorkspace(raw, env);
-  const budget = normalizeBudget(raw.budget);
   const { seeds, omittedSeeds: intakeOmittedSeeds } = normalizeSeeds(raw.seeds);
   const domainNormalizedSeeds = normalizePathSeedDomains({ seeds, cwd, repoRoot });
   const { safeSeeds: partitionedSafeSeeds, omittedSeeds: safetyOmittedSeeds } =
@@ -693,11 +735,20 @@ export const buildContextPlan = (input = {}, env = {}) => {
 
   return {
     ok: true,
+    code,
     objective,
     cwd,
     ...(repoRoot ? { repoRoot } : {}),
     budget,
     providerPlans,
+    unavailableCodeSeeds: safeSeeds.filter(
+      (seed) => seed.kind === "symbol" || (seed.kind === "path" && !isMarkdownPath(seed.value)),
+    ),
+    codeContextStatus: providerPlans.some(
+      (entry) => entry.provider === "ripwire" && entry.posture === "selected",
+    )
+      ? "runtime_preflight_required"
+      : "unavailable",
     executionSummary: buildContextPackExecutionSummary(providerPlans),
     ownerSurfaceRecommendations,
     ...(omittedSeeds.length ? { omittedSeeds } : {}),
@@ -789,6 +840,7 @@ export const CONTEXT_PLAN_PARAMETERS = {
   type: "object",
   additionalProperties: false,
   properties: {
+    code: CODE_REQUEST_SCHEMA,
     objective: {
       type: "string",
       description: "Task/question to plan context for.",
@@ -804,19 +856,7 @@ export const CONTEXT_PLAN_PARAMETERS = {
       description: "Optional repository root when known.",
       maxLength: MAX_WORKSPACE_PATH_CHARS,
     },
-    budget: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        maxTokens: { type: "number" },
-        maxBytes: { type: "number" },
-        reserveTokens: { type: "number" },
-        perProviderMaxTokens: {
-          type: "object",
-          additionalProperties: { type: "number" },
-        },
-      },
-    },
+    budget: packetBudgetSchema(PROVIDER_IDS),
     seeds: {
       type: "array",
       maxItems: MAX_SEEDS,

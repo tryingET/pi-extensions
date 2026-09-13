@@ -1,29 +1,32 @@
 ---
-summary: "Design record for pi-agent-registry runtime inspection, Fleet Phase-1 immutable lint, and the Phase-2 exact-task read-only dispatch contract."
+summary: "Design record for pi-agent-registry runtime inspection, Fleet Phase-1 immutable lint, and Phase-2 dispatch / Phase-3 visible admission contracts."
 read_when:
-  - "Changing manifest loading, fleet discovery/lint, immutable observations, or dispatch posture."
+  - "Changing manifest loading, fleet discovery/lint, immutable observations, or dispatch/visible admission posture."
   - "Onboarding to the standing-agent fleet contract implementation."
 system4d:
   container: "Pi-side read-only registry and fleet observation package."
   compass: "Converge owner interfaces without absorbing lifecycle or execution authority."
-  engine: "Capture committed bytes -> lint every candidate -> report stable diagnostics -> keep dispatch disabled."
+  engine: "Capture committed bytes -> lint every candidate -> report stable diagnostics -> authorize bounded dispatch/admission."
   fog: "Mutable paths and a green process exit can be mistaken for immutable fleet health."
 ---
 
-# pi-agent-registry — Phase-1 design record
+# pi-agent-registry — fleet contract design record
 
 The monorepo manifest convention is the consumer contract. L0
 `tpl-agent-repo` owns birth/propagation shape, `softwareco-agents` owns
 fleet/role/lifecycle conventions, engineering-core owns profile keys/members,
-AK owns task/evidence/decision truth, and ASC owns any future execution.
+AK owns task/evidence/decision truth, ASC owns Phase-2 execution, and
+little-helpers owns Phase-3 visible Ghostty transport.
 
-This package owns two read-only Pi-side surfaces and one bounded execution
-contract:
+This package owns two read-only Pi-side surfaces and two bounded composition
+contracts:
 
 1. mutable manifest inspection for already loadable agents;
 2. aggregate immutable-observation fleet lint;
 3. the Fleet Phase-2 exact-task read-only dispatch contract (authorization,
-   receipt, evidence) with all spawn/session/capacity machinery ASC-owned.
+   receipt, evidence) with all Phase-2 spawn/session/capacity machinery ASC-owned;
+4. the Fleet Phase-3 exact-task clean visible admission contract, with
+   little-helpers-owned transport and no automatic AK evidence.
 
 None of these surfaces grants standing-agent lifecycle authority.
 
@@ -80,6 +83,21 @@ src/dispatch-request.ts
 
 src/dispatch.ts + src/sessions-dir.ts
   Phase-2 pipeline with fail-closed gates; sessions delegated to ASC
+
+extensions/standing-agent-spawn.ts + src/visible-launch.ts
+  Phase-3 tool registration and exact-task admission/recheck pipeline
+
+src/visible-launch-contract.ts + visible-launch-compose.ts
+  clean child argv, manifest persona/model/thinking request, ACK/FINAL brief
+
+src/visible-launch-inputs.ts + visible-launch-bootstrap.ts
+  clean agent byte agreement and approved installed bootstrap entry checks
+
+src/visible-launch-admission.ts + visible-launch-receipt.ts
+  persistent exclusive agent/task reservation and write-once launch observation
+
+src/visible-launch-transport.ts
+  version-1 little-helpers sidequest-launch capability gate, not transport code
 ```
 
 ## Manifest compatibility
@@ -218,7 +236,7 @@ failure still fails closed with `confirmed_no_effects`:
   request and creates the runtime through ASC's exported
   `createAscExecutionRuntime` + `resolveSubagentSessionsDir` + model
   selection; the registry supplies only the `extraSkillProfileResolver` seam
-  (`skillProfile = agent name`). No spawn/session/capacity code lives here.
+  (`skillProfile = agent name`). No Phase-2 spawn/session/capacity code lives here.
   `src/sessions-dir.ts` now delegates to ASC instead of the Phase-0
   quarantine.
 - **One level deep**: dispatched children carry
@@ -256,11 +274,65 @@ so dash-led prompts (persona front matter) require the registry's dispatch
 header envelope — a pi/ASC transport hardening candidate for a later slice
 (first observed live 2026-08-31 as child exit `Unknown option: ---`).
 
+## Phase-3 clean visible admission (AK 5133)
+
+**Locally implemented and live-dogfood verified; not published.**
+`standing_agent_spawn { agent, task, objective, parentPeerTarget, reportBack?, cwd? }`
+adds visible TUI admission without changing Phase-2 ASC dispatch. Full operator
+contract and compact evidence identifiers live in the
+[README](../../README.md#phase-3-clean-visible-admission-ak-5133) and the
+[2026-09-07 dogfood evidence](2026-09-07-fleet-phase3-dogfood.md), including
+receipt and real-runtime assertion output. AK owns evidence and closeout.
+
+The exact task must be claimed with a live lease in the observed origin repo;
+child cwd cannot cross that repo boundary. Clean committed manifest/persona
+inputs must agree with cached, fresh, and resolved inputs. After exclusive
+persistent pair reservation, task/lease facts and origin/agent/bootstrap inputs
+are rechecked immediately before transport and inputs are observed afterward.
+An unresolved, corrupt, partial, or admitted reservation blocks another
+admission in that receipts directory. Never retry automatically — including
+no-effects, reservation failure, cancellation, crash, or publication failure;
+explicit owner disposition is required. Phase-2 attempt limits do not apply.
+
+Composition uses `--offline --no-extensions --no-skills --no-prompt-templates`
+plus approved installed intercom/presence entrypoints and explicitly selected
+skills. Normal cwd-bound AGENTS context remains; controller conversation and
+ambient extension/skill discovery do not. Builtin `zai` is supported without
+an ambient provider extension. Manifest thinking is requested via argv, then
+Pi applies its supported-level clamp (live `medium` → `high` on
+`zai/glm-5.3`). Settings/auth/models, transitive imports, and full skill/runtime
+integrity are not proven by the approved-entry hashes. Offline startup is not
+network isolation; `bash`/scope are advisory, not a sandbox.
+
+Registry composes; little-helpers' exported `sidequest-launch` owns visible
+transport and must advertise `STANDING_AGENT_TRANSPORT_VERSION === 1`.
+The export is present in local helpers 0.9.0 source but must ship in its next
+release; older npm helpers make packed registry admission fail closed. No
+claim of published availability follows from local tests.
+
+The immutable launch receipt records transport admission and bounded
+launch-window observations, never session-start/ACK/completion proof; those
+fields remain `unproven`. Intercom mode requires an exact controller
+`session-<UUID>`, one first-action `PEER_ACK`, then one closing `PEER_FINAL`
+and stop; manual/none modes may omit the target. No automatic AK evidence is
+written. Verified live proof used a real TUI driver and real child TUI,
+correlated ACK/FINAL without duplicates, and four read-only file inspections
+with no file/AK writes observed. Ghostty was `1.3.2-main`
+(`origin-main492300cad`), not a literal 1.4 release.
+
+Final package checks: registry **134/134**, helpers **430/430**, and both full
+release checks pass. The real-fleet pin was explicitly refreshed after independent
+HEAD-only reproduction of engineering-core's docs-only `51fc387` → `9225dd6`
+drift; profile bytes, fleet revisions, diagnostics and assertions are unchanged.
+The new standing-agent reality assertion passes; the broader observer test still
+reports an unrelated process on retired Ghostty `9d8fbd15`. AK5134 remains separate.
+
 ## Real fleet baseline
 
 The real `~/ai-society/agents/agent-*` walk is revision-bound in
-`tests/fixtures/real-fleet-lint-baseline.json`. The known unhealthy result is a
-successful implementation proof:
+`tests/fixtures/real-fleet-lint-baseline.json`. The original Phase-1 unhealthy
+result recorded these historical observations (not a claim about current
+external HEADs):
 
 - four canonical repositories observed;
 - three missing manifests;
@@ -283,5 +355,7 @@ slice rather than silently turning green.
 - real fleet test: exact commits, profile bytes, diagnostics, and report digest;
 - extension test: `action=lint` returns observation-only unhealthy baseline;
 - CLI test: JSON and exit taxonomy;
-- packed smoke: shipped CLI/module/action plus Phase-0 dispatch gate;
+- packed smoke: shipped CLI/module/action and fail-closed dependency capability gates;
+- Phase-3 tests: argv/bootstrap composition, exact-task and input rechecks,
+  persistent reservation, cancellation/drift, and immutable launch receipts;
 - package check, fresh Pi dogfood, root loop gates, and independent review.

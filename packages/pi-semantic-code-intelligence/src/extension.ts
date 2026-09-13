@@ -3,6 +3,7 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { safeLocalSciErrorText } from "./error-presentation.ts";
 import {
   createExplorePresentation,
   EXPLORE_OPERATOR_ENTRY_TYPE,
@@ -22,7 +23,6 @@ import {
   isWorkspacePathRefV1,
   isWorkspaceRefV1,
   isWorkspaceStateRefV1,
-  localSciBridgeError,
   NEXUS_WORKSPACE_ENTRY_TYPE,
   nextPinnedNexusWorkspace,
   renderNexusWorkspaceEntry,
@@ -30,7 +30,12 @@ import {
   type WorkspaceRefV1,
 } from "./nexus-workspace.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
-import { hasSciErrorSignal, sciErrorText, sciInputPathError } from "./sci-error-projection.ts";
+import {
+  hasSciErrorSignal,
+  sciBridgeFailureText,
+  sciErrorText,
+  sciInputPathError,
+} from "./sci-error-projection.ts";
 import {
   type PiSciDoorName,
   resolveSciRoute,
@@ -95,11 +100,11 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
                 result: { content: Array<{ type: string; text?: string }>; details?: unknown },
                 renderOptions: { expanded: boolean; isPartial: boolean },
                 _theme: unknown,
-                context: { toolCallId: string; lastComponent?: unknown },
+                context: { toolCallId: string; lastComponent?: unknown; isError?: boolean },
               ) {
                 return renderExploreResult(
                   result,
-                  renderOptions,
+                  { ...renderOptions, isError: context.isError },
                   context.toolCallId,
                   retainedExplorePackets,
                   context.lastComponent,
@@ -142,10 +147,8 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
             }
             result = await bridge.callTool(resolved.workflow, boundArgs, ctx.cwd, signal);
           } catch (error) {
-            const local = localSciBridgeError(error);
-            if (local) throw local;
             throw new Error(
-              `SCI workflow ${resolved.workflow} failed. Backend diagnostics, paths, and stderr were withheld.`,
+              safeLocalSciErrorText(error) ?? sciBridgeFailureText(resolved.workflow),
             );
           }
           if (hasSciErrorSignal(result)) throw new Error(sciErrorText(resolved.workflow, result));

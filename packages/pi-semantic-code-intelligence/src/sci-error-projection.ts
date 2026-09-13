@@ -15,16 +15,32 @@ const TARGET_ROOT_RECOVERY =
   "Use a repo-relative path in a Pi session started at the target repository root. A shell cd does not rebind this Pi session's workspace; start a target-root Pi session and retry.";
 const NEXUS_RECOVERY_BY_REASON = new Map<string, string>([
   [
+    "workspace_ref_required",
+    "requires a bound workspace reference (reason: workspace_ref_required). Establish the target-root workspace handshake before retrying.",
+  ],
+  [
+    "workspace_binding_mismatch",
+    "could not validate the bound workspace (reason: workspace_binding_mismatch). Start a fresh target-root process; do not silently rebind this one.",
+  ],
+  [
+    "workspace_path_invalid",
+    "rejected a malformed workspace-relative path (reason: workspace_path_invalid). Use a normalized repository-relative path in the bound workspace.",
+  ],
+  [
+    "workspace_state_unavailable",
+    "could not establish complete workspace state (reason: workspace_state_unavailable). Use a bounded repository workspace whose state can be verified; do not retry unchanged.",
+  ],
+  [
     OUTSIDE_WORKSPACE_REASON,
     `rejected the request (reason: ${OUTSIDE_WORKSPACE_REASON}). ${TARGET_ROOT_RECOVERY}`,
   ],
   [
     "workspace_path_unresolved",
-    "could not resolve the repository-relative path in this bound workspace (reason: workspace_path_unresolved). Verify the target-root Pi session before retrying.",
+    "could not resolve the repository-relative path in this bound workspace (reason: workspace_path_unresolved). Verify the target-root Pi session and that the repository-relative file exists before retrying.",
   ],
   [
     "workspace_ref_mismatch",
-    "received a different workspace identity (reason: workspace_ref_mismatch). Start a target-root Pi session instead of rebinding this one.",
+    "rejected a workspace identity or repository-boundary mismatch (reason: workspace_ref_mismatch). Start a target-root Pi session instead of rebinding this one.",
   ],
   [
     "workspace_state_changed",
@@ -78,6 +94,24 @@ export function sciErrorText(name: SciCompositeToolName, result: SciBridgeCallRe
   return recovery
     ? `SCI workflow ${name} ${recovery} ${WITHHELD_NOTICE}`
     : `SCI workflow ${name} returned an error. ${WITHHELD_NOTICE}`;
+}
+
+export function sciBridgeFailureText(name: SciCompositeToolName): string {
+  return `SCI workflow ${name} failed. Backend diagnostics, paths, and stderr were withheld.`;
+}
+
+/** Only exact locally authored output may be rendered as a safe plain-text error. */
+export function knownSciErrorText(name: SciCompositeToolName, text: unknown): string | undefined {
+  if (typeof text !== "string" || text.length > 4096) return undefined;
+  const messages = [
+    sciErrorText(name, { isError: true }),
+    sciBridgeFailureText(name),
+    sciInputPathError(name, { file: "..", paths: [".."] }),
+    ...[...NEXUS_RECOVERY_BY_REASON.values()].map(
+      (recovery) => `SCI workflow ${name} ${recovery} ${WITHHELD_NOTICE}`,
+    ),
+  ];
+  return messages.find((message) => message === text);
 }
 
 function allowlistedRecovery(result: SciBridgeCallResult): string | undefined {

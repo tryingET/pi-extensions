@@ -237,12 +237,17 @@ test("compatibility canary covers direct autoresearch runtime packet exports", (
   assert.ok(scenario.upstreamSurfaces.includes("learning packet export seam"));
   assert.deepEqual(scenario.command, [
     "node",
+    "../../scripts/pi-host-compatibility-canary/selected-tests.mjs",
+    "--cwd",
+    ".",
     "--import",
     "tsx",
-    "--test",
-    "--test-name-pattern",
-    "segment closeout summarizes empirical decisions and candidate bindings|autoresearch_runtime_status can request closeout, setup, and finalize packets",
-    "tests/runtime.test.ts",
+    "--case",
+    "tests/runtime-closeout-adapters.test.ts",
+    "segment closeout summarizes empirical decisions and candidate bindings",
+    "--case",
+    "tests/runtime-status-actions.test.ts",
+    "autoresearch_runtime_status can request closeout, setup, and finalize packets",
   ]);
 });
 
@@ -261,19 +266,66 @@ test("compatibility canary covers orchestrator start_campaign/status/closeout su
   assert.equal(scenario.owner, "pi-society-orchestrator");
   assert.deepEqual(scenario.packages, expectedPackages);
   assert.ok(scenario.upstreamSurfaces.includes("start_campaign/status/closeout supervision seam"));
-  assert.equal(scenario.command[0], "bash");
-  assert.match(scenario.command.join(" "), /npm --prefix \.\.\/pi-autoresearch ci/);
-  assert.match(scenario.command.join(" "), /pi-autonomous-session-control/);
-  assert.match(scenario.command.join(" "), /start_campaign delegates execution then supervises/);
-  assert.match(scenario.command.join(" "), /review_matrix_campaign aggregates managed cell waves/);
+  assert.equal(scenario.cwd, "packages/pi-society-orchestrator");
+  assert.deepEqual(scenario.command, [
+    "node",
+    "../../scripts/pi-host-compatibility-canary/selected-tests.mjs",
+    "--cwd",
+    ".",
+    "--case",
+    "tests/live-control-plane/sessions-and-start-campaign.test.mjs",
+    "autoresearch_live_supervision start/status/stop manages a live running session",
+    "--case",
+    "tests/live-control-plane/sessions-and-start-campaign.test.mjs",
+    "autoresearch_live_supervision start_campaign delegates execution then supervises",
+    "--case",
+    "tests/live-control-plane/matrix-campaign-review.test.mjs",
+    "autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves",
+  ]);
+  assert.doesNotMatch(scenario.command.join(" "), /\b(?:npm|npx|bash|sh|tsx)\b|--import|--test-name-pattern|&&|[|*]/);
+  assert.match(scenario.notes, /independently before baseline capture and candidate alignment/);
+  assert.match(scenario.notes, /Missing dependencies fail; never install in the scenario/);
+  assert.match(scenario.notes, /real synthetic benchmark and check scripts through pi-autoresearch/);
+});
 
-  const matrixScenario = result.scenarios.find(
+test("compatibility canary covers orchestrator matrix closeout with exact selected bodies", () => {
+  const result = runJson(["list", "--profile", "current"]);
+  const scenario = result.scenarios.find(
     (entry) => entry.id === "orchestrator-autoresearch-matrix-closeout",
   );
-  assert.ok(matrixScenario);
-  assert.deepEqual(matrixScenario.packages, expectedPackages);
-  assert.match(matrixScenario.command.join(" "), /npm --prefix \.\.\/pi-autoresearch ci/);
-  assert.match(matrixScenario.command.join(" "), /pi-autonomous-session-control/);
+
+  assert.ok(scenario);
+  assert.equal(scenario.owner, "monorepo-root");
+  assert.deepEqual(scenario.packages, [
+    "packages/pi-autonomous-session-control",
+    "packages/pi-autoresearch",
+    "packages/pi-society-orchestrator",
+  ]);
+  assert.equal(scenario.cwd, "packages/pi-society-orchestrator");
+  assert.deepEqual(scenario.command, [
+    "node",
+    "../../scripts/pi-host-compatibility-canary/selected-tests.mjs",
+    "--cwd",
+    ".",
+    "--case",
+    "tests/live-control-plane/matrix-campaign.test.mjs",
+    "autoresearch_live_supervision plan_matrix_campaign makes matrix cells the implementation-wave substrate",
+    "--case",
+    "tests/live-control-plane/matrix-campaign.test.mjs",
+    "autoresearch_live_supervision plan_matrix_campaign fails closed against level-2 packet-only narrowing",
+    "--case",
+    "tests/live-control-plane/matrix-campaign-review.test.mjs",
+    "autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves",
+    "--case",
+    "tests/live-control-plane/matrix-campaign-review.test.mjs",
+    "autoresearch_live_supervision review_matrix_campaign blocks proof-only review packet closure without downgrade",
+    "--case",
+    "tests/live-control-plane/candidate-wave-review.test.mjs",
+    "autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection",
+  ]);
+  assert.doesNotMatch(scenario.command.join(" "), /\b(?:npm|npx|bash|sh|tsx)\b|--import|--test-name-pattern|&&|[|*]/);
+  assert.match(scenario.notes, /independently before baseline capture and candidate alignment/);
+  assert.match(scenario.notes, /Missing dependencies fail; never install in the scenario/);
 });
 
 test("compatibility canary list uses explicit leaf package roots from the manifest", () => {
@@ -1067,6 +1119,61 @@ if (operation === "install") {
   }
   assert.equal(existsSync(tempDir), false);
 });
+test("compatibility canary root validation executes all 21 four-owner alignment tests", (t) => {
+  // Keep this body in the already-listed root suite, not an imported test
+  // registration: exact selection requires bodies defined in their entry file.
+  // Preserve HOME/TMPDIR, but do not leak parent runner/loader/coverage controls.
+  const env = { ...process.env };
+  for (const key of ["NODE_TEST_CONTEXT", "NODE_OPTIONS", "NODE_PATH", "NODE_V8_COVERAGE"]) delete env[key];
+  const result = spawnSync(process.execPath, [
+    "--test", "--test-reporter=tap",
+    path.join(ROOT, "scripts/pi-host-compatibility-canary/four-owner-alignment.test.mjs"),
+  ], { cwd: ROOT, env, encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024 });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.signal, null);
+  assert.equal(result.status, 0, result.stderr + "\n" + result.stdout);
+  // Trusted builtin-only suite: require one complete nonvacuous TAP summary,
+  // its exact plan, and all 21 successful top-level results, not exit 0 alone.
+  for (const [field, expected] of Object.entries({
+    tests: 21, suites: 0, pass: 21, fail: 0, cancelled: 0, skipped: 0, todo: 0,
+  })) {
+    const matches = [...result.stdout.matchAll(new RegExp(`^# ${field} (\\d+)$`, "gm"))];
+    assert.equal(matches.length, 1, `missing/duplicate child summary: ${field}\n${result.stdout}`);
+    assert.equal(Number(matches[0][1]), expected, `child summary: ${field}`);
+  }
+  assert.deepEqual(result.stdout.match(/^1\.\.\d+$/gm), ["1..21"]);
+  const passed = [...result.stdout.matchAll(/^ok (\d+) - /gm)].map((match) => Number(match[1]));
+  assert.deepEqual(passed, Array.from({ length: 21 }, (_, index) => index + 1));
+  assert.doesNotMatch(result.stdout, /^not ok |^(?:not )?ok .*# (?:SKIP|TODO)\b/im);
+  t.diagnostic("four-owner child: tests=21 pass=21 fail=0 skipped=0 cancelled=0 todo=0");
+});
+test("compatibility canary root validation executes cold consumption fixtures and hook calibration", () => {
+  // A bounded API regression gate, NOT a stock scenario or SDK qualification.
+  // Children receive only synthetic HOME/TMPDIR from the fixture invocation.
+  const receipts = ["consumption.test.mjs", "consumption-calibration.mjs"].map((file) => {
+    const result = spawnSync(process.execPath, [
+      path.join(ROOT, "scripts/pi-host-compatibility-canary", file),
+    ], { cwd: ROOT, env: { HOME: process.env.HOME, TMPDIR: process.env.TMPDIR },
+      encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024 });
+    assert.equal(result.error, undefined, result.error?.message);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0, result.stderr + "\n" + result.stdout);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.version, process.version);
+    assert.equal(receipt.passed, true);
+    return receipt;
+  });
+  const [fixtures, calibration] = receipts;
+  assert.equal(fixtures.results.length, 46);
+  assert.equal(new Set(fixtures.results.map((entry) => entry.scenario)).size, 46);
+  assert.ok(fixtures.results.every((entry) => entry.passed === true));
+  for (const name of ["static", "delayed", "detached-delayed", "caught-rejection", "missing-finalize",
+    "version-absent", "version-number", "version-empty", "resolve-only", "warm-root", "warm-edge"]) {
+    assert.ok(fixtures.results.some((entry) => entry.scenario === name && entry.passed === true));
+  }
+  assert.equal(calibration.capability, "hook-ordering-calibration-only");
+  assert.ok(calibration.events.some((entry) => entry.hook === "outer-load" && entry.format === "module"));
+});
 test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
     "run", "--dry-run", "--profile", "current", "--scenario", "vault-live-trigger-contract",
@@ -1094,8 +1201,50 @@ test("compatibility canary dry-run can target a single scenario with package-set
       "@earendil-works/pi-coding-agent@0.84.3",
       "@earendil-works/pi-ai@0.84.3",
       "@earendil-works/pi-tui@0.84.3",
+      "@earendil-works/pi-agent-core@0.84.3",
     ]);
   }
   assert.ok(["dry-run", "ready"].includes(result.results[0].host.preparation.status));
   assert.equal(result.results[0].host.restoration.status, "not-run");
+});
+
+test("compatibility workflow prepares orchestrator siblings before baseline and gates upgrade effects", () => {
+  // Source wiring only: no workflow, package manager or actual scenario runs.
+  const workflow = readFileSync(path.join(ROOT, ".github/workflows/compatibility-canary.yml"), "utf8");
+  const readiness = workflow.indexOf("name: Check execution readiness before dependency effects");
+  const npmClient = workflow.indexOf("name: Install governed npm client");
+  assert.ok(readiness >= 0 && readiness < npmClient);
+  assert.match(workflow.slice(readiness, npmClient), /requireUpgradeCompletionIntegration\(profile, false\)/);
+  const build = workflow.indexOf("name: Prepare linked ASC source runtime");
+  const linked = workflow.indexOf("name: Install linked source dependencies before baseline");
+  const sibling = workflow.indexOf("name: Install autoresearch sibling dependencies before baseline");
+  const install = workflow.indexOf("name: Install scenario dependencies");
+  const bind = workflow.indexOf("name: Bind prepared local ASC before baseline");
+  const run = workflow.indexOf("name: Run canary scenario against exact host contract");
+  const validate = workflow.indexOf("name: Validate prepared local source closure before baseline");
+  assert.ok(build >= 0 && build < linked && linked < sibling && sibling < install && install < bind && bind < validate && validate < run);
+  assert.match(workflow, /run-scenario:\n\s+needs: discover/);
+  const condition = "if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'";
+  const dependencies = workflow.slice(linked, sibling);
+  assert.ok(dependencies.includes(condition));
+  assert.ok(dependencies.includes("for package in packages/pi-interaction/pi-interaction-kit packages/pi-interaction/pi-trigger-adapter packages/pi-vault-client; do"));
+  assert.ok(dependencies.includes('npm --prefix "$package" ci --include=dev --no-audit --no-fund'));
+  const validation = workflow.slice(validate, run);
+  assert.ok(validation.includes(condition));
+  assert.ok(validation.includes("node ./scripts/validate-local-package-links.mjs --package packages/pi-society-orchestrator --package packages/pi-autonomous-session-control"));
+  assert.ok(workflow.slice(sibling, install).includes(condition));
+  assert.match(workflow.slice(sibling, install), /working-directory: packages\/pi-autoresearch\n\s+run: npm ci --include=dev --no-audit --no-fund/);
+  const binding = workflow.slice(bind, validate);
+  assert.ok(binding.includes(condition));
+  assert.match(binding, /working-directory: packages\/pi-society-orchestrator/);
+  assert.ok(binding.includes("npm install --no-save --package-lock=false --install-links=false --ignore-scripts --no-audit --no-fund ../pi-autonomous-session-control"));
+  assert.ok(binding.includes("assert.equal(realpathSync('node_modules/@tryinget/pi-autonomous-session-control'), realpathSync('../pi-autonomous-session-control'))"));
+});
+
+test("compatibility canary root validation executes bounded completion regressions", async (t) => {
+  // SOURCE-REGRESSION only: trusted caller/source, not external fixture admission,
+  // SDK qualification, a sandbox, or authority to execute other effectful root tests.
+  const { runSourceRegressionSuites } = await import("./pi-host-compatibility-canary/source-regression-harness.mjs");
+  const result = runSourceRegressionSuites(path.join(ROOT, "scripts/pi-host-compatibility-canary"), ROOT);
+  t.diagnostic(`${result.purpose}: ${result.suites.map(([file, count]) => `${file}=${count}`).join(", ")}; evidence=${result.scratch}`);
 });

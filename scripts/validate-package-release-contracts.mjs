@@ -14,17 +14,22 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function walkPackageJsonPaths(rootDir) {
+export function walkPackageJsonPaths(rootDir) {
   const results = [];
   const stack = [rootDir];
   while (stack.length > 0) {
     const current = stack.pop();
     if (!current) continue;
     const entries = fs.readdirSync(current, { withFileTypes: true });
+    const hasOwnerManifest = entries.some((entry) => entry.isFile() && entry.name === "package.json");
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
+        // An owner's dist/ is generated output, not another release owner (e.g.
+        // dist/task-session/package.json is a Node module-scope marker). Keep
+        // recursing elsewhere, including through package-group manifests.
+        if (hasOwnerManifest && entry.name === "dist") continue;
         stack.push(fullPath);
         continue;
       }
@@ -396,4 +401,6 @@ function main() {
   console.log(`package release contract validation passed (${checked} publishable package${checked === 1 ? "" : "s"}).`);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

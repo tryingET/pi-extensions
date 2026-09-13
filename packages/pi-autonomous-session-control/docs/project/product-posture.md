@@ -61,7 +61,7 @@ ASC currently owns:
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - cache-aware delegation advice through `self.cache_routing_advice.v1`, distinguishing same-session `/tree` affinity from new-identity `/fork`/`clone` replay and clean parallel dispatch without claiming provider KV-cache inheritance or executing session replacement from a tool turn;
 - exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
-- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, operator-submitted Level-4 `/visible-loop --count 1 --delegate-commit` prefills for self-evolution routing, explicit Level-4 owner-bridge launches through the pi-little-helpers `/visible-loop` bridge, nested visible-loop launch deferral when a visible-loop child asks to continue self-evolution (the controller should launch one `/visible-loop --count N --delegate-commit` run for serial iterations), operator-submitted Level-5 `/autoresearch ...` prefills for measured campaign routing, explicit Level-5 `/autoresearch ...` launch requests that still prefill the slash command for operator submission through Pi's slash parser, safe continuation aliases (`continue safely`, `next autonomous step`) over the existing suggested-next-move membrane, fresh same-cwd explicit continuation candidates winning over stale mirror-derived next moves after reload/compaction, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
+- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, operator-submitted Level-4 `/visible-loop --count 1 --delegate-commit` prefills for self-evolution routing, explicit Level-4 owner-bridge launches through the pi-little-helpers `/visible-loop` bridge, nested visible-loop launch deferral when a visible-loop child asks to continue self-evolution (the controller should launch one `/visible-loop --count N --delegate-commit` run for serial iterations), operator-submitted Level-5 `/autoresearch ...` prefills for measured campaign routing, explicit Level-5 `/autoresearch ...` launch requests that return the slash command for manual operator submission through Pi's slash parser, safe continuation aliases (`continue safely`, `next autonomous step`) over the existing suggested-next-move membrane, fresh same-cwd explicit continuation candidates winning over stale mirror-derived next moves after reload/compaction, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
 - `dispatch_subagent` and the public `createAscExecutionRuntime` seam with a stable host/project prefix followed by one user-level role/envelope/task message, prompt-envelope provenance, advisory typed task contracts, child thinking/extension/skill-profile policy, stable dispatch plus per-attempt identity, explicit owner-checked resume/cancel, in-process and cross-process capacity reservation, separately bounded startup/execution timeout handling, first-turn and aggregate prompt-cache measurements, bounded progress/usage metadata, version-aware authoritative agent settlement with a final terminal assistant outcome, true Pi tool-error signaling, and structured public-runtime failure taxonomy;
 - rewind/recovery behavior and runtime invariants for Pi-side session control.
 
@@ -79,11 +79,70 @@ ASC must not become:
 
 ## Trust gates
 
+### Editor boundary repair — AK5432 (validated source and isolated TUI)
+
+Owner evidence 8329 records an unwanted editor replacement from a plain create-handoff
+query. Root causes were the handoff resolver's opt-out prefill default and the wrapper's
+unconditional editor fallback after blocked/failed sends. Source now defaults to shown
+text, requires anchored explicit `prefill` intent, snapshots before the first await,
+requires empty/unchanged editor text immediately before a synchronous write and confirms
+readback. It neither substitutes a send nor retries/rolls back a failed write.
+`ctx.mode === "tui"` is the supported host discriminator; RPC has `hasUI=true` but its
+getter returns a placeholder, so RPC/unknown mode cannot authorize a draft-safe write.
+No atomic compare-and-set is exposed by Pi; this is observed-text protection, not a
+versioned-editor guarantee against arbitrary synchronous plugin interference.
+
+Typed `editorDelivery` plus requested/performed/unavailable/conflict fields distinguish
+suggestion from effect. Follow-up budget, dedup, mode and slash guards remain enforced;
+blocked or failed sends return text rather than overwriting a draft. Existing operator
+editor was not used for reproduction. Colon-prefill directives own their literal
+payload even when it contains continuation or notification keywords. Directive shape
+independently excludes sends; opt-outs deny writing without enabling another action.
+
+Validation is revision-specific. Independent review found both affirmative and opt-out
+`prefill: continue safely` requests could resolve to a saved continuation/send. The
+expanded collision suite reproduced 42 failures before the root correction and passed
+all **50 cases** afterward; the focused matrix passed **146 tests**. Independent
+source review then passed (`dispatch-1788827195501`). The September 8 `npm run check`
+passed **617 tests**, lint/typecheck, packed whitelist and JavaScript transport smoke.
+Publication was dry-run only; the existing-version guard was expected. The quick
+release gate skipped embedded Pi-install smoke, not silently replaced by a live claim.
+
+The preceding private-root Ghostty proof exercised the actual package-registered self
+callback through a capture proxy with real TUI editor methods: 13 checks in each startup
+and reload round, one tool-originated explicit prefill per round, and zero calls to the
+intercepted follow-up-send seam. Fixture setup/cleanup also wrote the private editor.
+Create/show preserved empty and nonempty drafts; nonempty explicit requests and
+intervening edits were rejected. This proves the callback/editor integration tested,
+not normal model dispatch, installed-package discovery or operator-session adoption.
+
+Receipts: `$TMPDIR/closeout-resolution.J4uCnG/5432-live/{proof.json,round-0.json,
+round-1.json,network.json,terminal.log,exit-code,source-before.sha256}`. The fetch hook
+blocked five attempts without recording destinations; this is not proof of network-
+namespace or filesystem confinement, or that other network clients could not run.
+Earlier `$TMPDIR/pi-self-5432-live*` artifacts are historical, separate runs and do not
+establish current-source isolation.
+
+The repaired revision has separate Bubblewrap/Ghostty evidence at
+`$TMPDIR/ak5432-tui-retry.VMb7Wu/`: **50 checks before and 50 after `/reload`**, six
+confirmed explicit tool editor writes per round, zero send callbacks and zero intercepted
+fetch attempts. Saved continuation candidates survived unchanged. Source/settings mounts
+were read-only, only the private proof root writable, with a private network namespace.
+All 114 self-source hashes and global settings hashes matched before/after. This proves
+actual local callback/editor behavior, not model/schema dispatch, installed-package
+discovery, cancellation/corruption coverage or operator-session adoption. An earlier
+scratch mount-check failure stopped before Pi startup; its artifacts remain at
+`$TMPDIR/ak5432-tui-proof.wfstRS/`, distinct from the successful run.
+
+No operator editor or global settings were changed. Coordinated source landing and
+owner-approved installation/reload remain separate gates; no current-session adoption
+or canonical task closure is claimed. See README's editor safety contract.
+
 A self/ASC recommendation is trustworthy only when:
 
 1. **Mirror scope** — output says when it is session-local and not durable truth.
 2. **Owner seam** — suggested actions name the owning package or authority surface.
-3. **Risk posture** — low-risk notifications may send, including status text about compaction/reload; actual commands, peer launches, compaction commands, durable records, commits, and owner writes are prefilled or deferred. Slash-command routes such as `/visible-loop` and `/autoresearch` default to operator submission through Pi's slash-command parser; explicit launch directives may send the whole slash command only to the owning package's narrow extension bridge. ASC reports whether editor prefill or user-message delivery actually happened. Delivery-state fields are mirror/runtime receipts, not proof that an owner command completed. Active live behavior claims require separate owner-bound, ordered package-check, install, reload, and post-reload `self` dogfood proof tiers in `self.live_runtime_proof_guard.v1`.
+3. **Risk posture** — low-risk notifications may send, including status text about compaction/reload; actual commands, peer launches, compaction commands, durable records, commits, and owner writes are shown for review or deferred; only an explicit `prefill` request may write an empty, unchanged, readable TUI editor. Slash-command routes such as `/visible-loop` and `/autoresearch` default to operator submission through Pi's slash-command parser; explicit launch directives may send the whole slash command only to the owning package's narrow extension bridge. ASC reports whether editor prefill or user-message delivery actually happened. Delivery-state fields are mirror/runtime receipts, not proof that an owner command completed. Active live behavior claims require separate owner-bound, ordered package-check, install, reload, and post-reload `self` dogfood proof tiers in `self.live_runtime_proof_guard.v1`.
 4. **Verification** — implementation changes still pass package checks and live reload dogfood when runtime behavior changes; validation-wrapper flakes such as leftover `.tmp-self-tests` cleanup are product reliability issues, not harmless CI noise.
 5. **Stateless dogfood prompt quality** — `pi -p` probes and fresh Ghostty continuation tabs must be prompted as stateless sessions with repo path, package owner, objective, expected behavior, validation, and non-authorizations included explicitly.
 6. **No hidden escalation** — diagnostic candidates do not create vent records, AK tasks/evidence, issues, incidents, KES notes, ontology entries, or telemetry.
@@ -98,7 +157,7 @@ The active self-evolution frontier is:
 self.evolution_candidate.v1 + candidateId -> execution-ready gate -> candidate-bound visible implementation and/or measured evaluation -> host-observed verification -> bound feedback -> owner-routed learning/evidence
 ```
 
-ASC now assigns each candidate a bounded session-local id, scopes candidate/feedback ledgers to the active session/tree, distinguishes caller claims from host-observed or validation-corroborated evidence, allowlists self-evolution owner routes, and carries candidate identity into explicit action routes. Exact continuation aliases prefill `/visible-loop ... --candidate <id>`; pi-little-helpers resolves the correlated self tool result, requires a canonical typed owner artifact bound to that candidate/owner, and owns the execution envelope/config and host-correlated closeout gate. Autoresearch prefills carry only the same candidate id, owner, and typed owner-artifact path instead of raw candidate prose or a hard-coded benchmark. Missing, invented, caller-claim-only, unknown-owner, stale-session, nested-loop, reflection-blocked, multiline/directional, instruction-like, or unresolved-promotion routes fail closed without prefill or hidden launch; pi-little-helpers additionally rejects missing, mismatched, symlinked, stale, or cross-session artifact/config launch inputs. Execution/evaluation still routes through the owner map in [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md).
+ASC now assigns each candidate a bounded session-local id, scopes candidate/feedback ledgers to the active session/tree, distinguishes caller claims from host-observed or validation-corroborated evidence, allowlists self-evolution owner routes, and carries candidate identity into explicit action routes. Exact continuation aliases suggest `/visible-loop ... --candidate <id>` without editor mutation; explicit `prefill` requests additionally pass the draft guard; pi-little-helpers resolves the correlated self tool result, requires a canonical typed owner artifact bound to that candidate/owner, and owns the execution envelope/config and host-correlated closeout gate. Autoresearch prefills carry only the same candidate id, owner, and typed owner-artifact path instead of raw candidate prose or a hard-coded benchmark. Missing, invented, caller-claim-only, unknown-owner, stale-session, nested-loop, reflection-blocked, multiline/directional, instruction-like, or unresolved-promotion routes fail closed without prefill or hidden launch; pi-little-helpers additionally rejects missing, mismatched, symlinked, stale, or cross-session artifact/config launch inputs. Execution/evaluation still routes through the owner map in [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md).
 That root spine also carries the DRY many-of-the-greats translation; ASC owns only the mirror, candidate, action-routing, feedback, reflection-guard, and live-runtime proof-status surfaces. External validation and active runtime behavior remain caller/owner-provided evidence, not something ASC infers from reflective query prose or install/reload text alone.
 
 ## Next product bets

@@ -4,6 +4,7 @@
 //   - "Changing recovery record schemas, state enums, identities, or persisted metadata."
 // ---
 import path from "node:path";
+import { MAX_CHILD_CLEARANCE_ATTEMPTS } from "./child-clearance.mjs";
 import { IntegrityError } from "./integrity.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -236,8 +237,17 @@ export function validateStatePayload(value, expectedKind) {
     value,
     "journal",
     ["revision", "updatedAt", "manifest", "profile", "phase", "scenarioId", "child", "targets"],
-    ["host", "recoveryOwner"],
+    ["host", "recoveryOwner", "completionHold", "childClearanceAttempts"],
   );
+  if ("completionHold" in value) {
+    const hold = value.completionHold;
+    exactKeys(hold, ["reason", "effectMayBeActive", "recordedAt"], [], "journal.completionHold");
+    if (!["command-completion-unverified", "scenario-integrity-failed", "restoration-completion-unverified"].includes(hold.reason)) {
+      fail("journal.completionHold.reason is unknown");
+    }
+    if (typeof hold.effectMayBeActive !== "boolean") fail("journal.completionHold.effectMayBeActive must be boolean");
+    timestamp(hold.recordedAt, "journal.completionHold.recordedAt");
+  }
   integer(value.revision, "journal.revision");
   timestamp(value.updatedAt, "journal.updatedAt");
   manifest(value.manifest, "journal.manifest");
@@ -245,6 +255,16 @@ export function validateStatePayload(value, expectedKind) {
   if (!PHASES.has(value.phase)) fail("journal.phase is unknown");
   if (value.scenarioId !== null) string(value.scenarioId, "journal.scenarioId");
   child(value.child, "journal.child");
+  if ("childClearanceAttempts" in value) {
+    const attempts = value.childClearanceAttempts;
+    if (!Array.isArray(attempts) || attempts.length < 1 || attempts.length > MAX_CHILD_CLEARANCE_ATTEMPTS) {
+      fail("journal.childClearanceAttempts must be a nonempty bounded array");
+    }
+    attempts.forEach((entry, index) => {
+      if (entry === null) fail("journal.childClearanceAttempts cannot contain null");
+      child(entry, `journal.childClearanceAttempts[${index}]`);
+    });
+  }
   if (!Array.isArray(value.targets) || value.targets.length > 128) fail("journal.targets is invalid");
   value.targets.forEach(target);
   if (value.host !== undefined) host(value.host, "journal.host");

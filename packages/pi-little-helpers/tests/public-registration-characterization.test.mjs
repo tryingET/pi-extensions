@@ -268,7 +268,7 @@ test("sidequest keeps PI_SIDEQUEST_PI_BIN as an import-time fallback", async () 
 
     const calls = [];
     const extension = freshModule.createSidequestExtension({
-      env: { TERM_PROGRAM: "ghostty", GHOSTTY_BIN_DIR: "/usr/bin", GHOSTTY_SURFACE_ID: "19" },
+      env: { TERM_PROGRAM: "xterm", GHOSTTY_BIN_DIR: "/usr/bin", GHOSTTY_SURFACE_ID: "19" },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
       pathExists(path) {
         return path === "/usr/bin/ghostty";
@@ -277,7 +277,7 @@ test("sidequest keeps PI_SIDEQUEST_PI_BIN as an import-time fallback", async () 
         calls.push({ command, args });
         if (args[0] === "+help") return { code: 0, stdout: "+new-tab\n" };
         if (args[0] === "+version") return { code: 0, stdout: "Ghostty 1.4.0\n" };
-        if (args[0] === "+new-tab") return { code: 0, stdout: "" };
+        if (args[0]?.startsWith("--working-directory=")) return { code: 0, stdout: "" };
         throw new Error(`unexpected call: ${command} ${args.join(" ")}`);
       },
     });
@@ -318,7 +318,7 @@ test("sidequest keeps PI_SIDEQUEST_PI_BIN as an import-time fallback", async () 
 
     await commands.get("sidequest").handler("characterize import fallback", ctx);
     const launch = calls.find(
-      ({ args }) => args[0] === "+new-tab" && args.includes("sidequest-pi"),
+      ({ args }) => args[0]?.startsWith("--working-directory=") && args.includes("sidequest-pi"),
     );
     assert.ok(launch);
     const marker = launch.args.indexOf("sidequest-pi");

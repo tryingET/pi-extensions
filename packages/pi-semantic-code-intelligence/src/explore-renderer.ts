@@ -1,3 +1,4 @@
+import { formatExploreError, safeSciErrorMessage } from "./error-presentation.ts";
 import type { ExploreOperatorEntry } from "./explore-presentation.ts";
 import { summarizeExplorePacket } from "./explore-presentation.ts";
 
@@ -49,31 +50,51 @@ export function renderExploreCall(
 
 export function renderExploreResult(
   result: ExploreRenderResult,
-  options: { expanded: boolean; isPartial: boolean },
+  options: { expanded: boolean; isPartial: boolean; isError?: boolean },
   toolCallId: string,
   retained: ReadonlyMap<string, ExploreOperatorEntry>,
   lastComponent?: unknown,
 ): BoundedAsciiText {
-  if (options.isPartial) return component("SCI explore_symbol_impact running", lastComponent);
-  const details = record(result.details);
-  const presentation = record(details?.explorePresentation);
-  const operator = retained.get(toolCallId);
-  const collapsed = collapsedResult(presentation, operator);
-  if (!options.expanded) return component(collapsed, lastComponent);
+  try {
+    if (options.isPartial) return component("SCI explore_symbol_impact running", lastComponent);
+    const error = safeSciErrorMessage("explore_symbol_impact", result.content);
+    // Host failure is authoritative even if a stale success presentation/packet remains.
+    if (options.isError === true || error) {
+      return component(formatExploreError(error, options.expanded), lastComponent);
+    }
+    const details = record(result.details);
+    const presentation = record(details?.explorePresentation);
+    if (!presentation) {
+      return component(
+        "SCI explore result unavailable: no validated presentation; raw detail withheld.",
+        lastComponent,
+      );
+    }
+    const operator = retained.get(toolCallId);
+    const collapsed = collapsedResult(presentation, operator);
+    if (!options.expanded) return component(collapsed, lastComponent);
 
-  const modelText = result.content.find((item) => item.type === "text")?.text;
-  const expanded = [
-    collapsed,
-    "",
-    "Model projection (sent to the model):",
-    typeof modelText === "string"
-      ? safePrettyText(modelText)
-      : "[bounded model projection unavailable]",
-    "",
-    "Operator packet (validated, disclosure-sanitized, bounded, TUI-only):",
-    operator ? safePretty(operator.packet) : "[operator packet unavailable; raw fallback withheld]",
-  ].join("\n");
-  return component(expanded, lastComponent);
+    const modelText = result.content.find((item) => item.type === "text")?.text;
+    const expanded = [
+      collapsed,
+      "",
+      "Model projection (sent to the model):",
+      typeof modelText === "string"
+        ? safePrettyText(modelText)
+        : "[bounded model projection unavailable]",
+      "",
+      "Operator packet (validated, disclosure-sanitized, bounded, TUI-only):",
+      operator
+        ? safePretty(operator.packet)
+        : "[operator packet unavailable; raw fallback withheld]",
+    ].join("\n");
+    return component(expanded, lastComponent);
+  } catch {
+    // A throwing custom renderer makes Pi fall back to raw content. Never take that path.
+    return new BoundedAsciiText(
+      "SCI explore failed: presentation could not be validated; raw detail withheld.",
+    );
+  }
 }
 
 export function renderExploreOperatorEntry(

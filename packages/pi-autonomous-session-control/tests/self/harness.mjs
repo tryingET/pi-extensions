@@ -103,6 +103,8 @@ export async function loadExtensionWithMocks() {
     "context-pressure.ts",
     "continuation-candidate.ts",
     "follow-up-policy.ts",
+    "editor-prefill.ts",
+    "action-delivery.ts",
     "perception.ts",
     "perception-command-evidence.ts",
     "perception-patterns.ts",
@@ -312,6 +314,7 @@ export async function reloadExtensionWithMocks(tempDir) {
 export function createMockContext(overrides = {}) {
   return {
     hasUI: false,
+    mode: "tui",
     isIdle: () => true,
     ...overrides,
   };

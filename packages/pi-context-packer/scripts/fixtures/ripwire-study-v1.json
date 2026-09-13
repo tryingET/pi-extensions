@@ -1,0 +1,349 @@
+{
+  "schema": "pi.ripwire-retrieval-study.v1",
+  "repositories": [
+    {
+      "id": "pi-extensions",
+      "revision": "f50a6eee974c0b319ef621ef10dc2a48e3bd7f63"
+    },
+    {
+      "id": "ripwire",
+      "revision": "93c8edaafdb5499e89939cc2cebd0429e278e86f"
+    },
+    {
+      "id": "aider",
+      "revision": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c"
+    }
+  ],
+  "cases": [
+    {
+      "id": "pi-extensions-01",
+      "repository": "pi-extensions",
+      "question": "Where is a provider classified as executable now, runtime conditional, or owner routed?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/provider-capabilities.js",
+          "sha256": "d3b8df867654cc2cf290a197c2e212ff441d6e1c9dde5578216d294845339f15"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-02",
+      "repository": "pi-extensions",
+      "question": "Where are provider preferences and reasoning reserve normalized into a context plan?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/context-plan.js",
+          "sha256": "c0c0994a16c9f18c7b62cc7c5319d09416fbbf341603eaaaf5374ba9425d7ba1"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-03",
+      "repository": "pi-extensions",
+      "question": "Where are retrieved items admitted against the remaining provider and packet budgets?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/context-pack.js",
+          "sha256": "dc9cf7b1a41ebfd84924ce6bf106f15d8c2c456aab6465c638609cd73da0b032"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-04",
+      "repository": "pi-extensions",
+      "question": "Where is the Markdown context packet rendered with section headings and compact tool details?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/context-pack-result.js",
+          "sha256": "c5c87b713399dcd60fd8923c869c88dea022baf80afdea4615b29f7b16248e26"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-05",
+      "repository": "pi-extensions",
+      "question": "Where are unsafe path seeds and control characters rejected before retrieval?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/context-intake-safety.js",
+          "sha256": "cf302ff7116453e256f9b206ca2533675896db567b3cef94535e81c962cc96af"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-06",
+      "repository": "pi-extensions",
+      "question": "Where is session context pressure computed from token usage?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/session-context.js",
+          "sha256": "59cff666198bc39e74767217c11ed3683decb77cb52d397a6a870a802e70efc3"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-07",
+      "repository": "pi-extensions",
+      "question": "Where are structured docs-list results discovered and rebased to repository-relative paths?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/docs-provider.js",
+          "sha256": "cc2f04667eb304298c6da051875a572c2c5df1747c034ce96044c337425d85f0"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-08",
+      "repository": "pi-extensions",
+      "question": "Where does the shared read-only provider runner bound items and convert collection failures into omissions?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/provider-api.js",
+          "sha256": "4f2c5187a74fb0ed78e59fcacf8bcc25fe2fec8c23431c08f2d0ab8bc91512ea"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-09",
+      "repository": "pi-extensions",
+      "question": "Where are dogfood observations aggregated and their calibration status recomputed?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/dogfood-observation.js",
+          "sha256": "622d9460e116f331068b2717d9bbb5dc38a3fa8e36a38e1e2ba120d0767135e7"
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions-10",
+      "repository": "pi-extensions",
+      "question": "Where is Git porcelain status parsed into verified worktree context?",
+      "gold": [
+        {
+          "path": "packages/pi-context-packer/src/git-worktree-provider.js",
+          "sha256": "20811fc1e08d2654ba228826cd434092bd2b39afa553dddd9829ea0ce3877793"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-01",
+      "repository": "ripwire",
+      "question": "Where does the PageRank iteration redistribute dangling mass and test convergence?",
+      "gold": [
+        {
+          "path": "src/pagerank.cpp",
+          "sha256": "7057489a92a93f657b5f36e7f80c9a0c9f96553c41d1bbc3054d7d61d6ad7db3"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-02",
+      "repository": "ripwire",
+      "question": "Where are credential-shaped secrets redacted from emitted source context?",
+      "gold": [
+        {
+          "path": "src/redact.h",
+          "sha256": "985743068bdaecd2a6561a1be7d41eaf762f3e49534fa0e0f234103e60450779"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-03",
+      "repository": "ripwire",
+      "question": "Where are lexical relevance scores computed from query terms?",
+      "gold": [
+        {
+          "path": "src/lexical.h",
+          "sha256": "df505f3b4f5067ab6d4e82f1acde9817d1abdca681f94a5652a0cceead79b75c"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-04",
+      "repository": "ripwire",
+      "question": "Where are multi-file edit plans prepared and earlier writes rolled back on failure?",
+      "gold": [
+        {
+          "path": "src/editplan.h",
+          "sha256": "3baf3c082a38aa7fddfc6fc0f88ef2340a46449db51c6d8364d635edfec362c9"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-05",
+      "repository": "ripwire",
+      "question": "Where are references resolved into incoming and outgoing symbol graph edges?",
+      "gold": [
+        {
+          "path": "src/graph.h",
+          "sha256": "30debbe09dffc9e1ab92039f3ac1ab319692311fa57d96dd148dd5298c93f09f"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-06",
+      "repository": "ripwire",
+      "question": "Where is bounded edit distance used to suggest a near-miss symbol name?",
+      "gold": [
+        {
+          "path": "src/didyoumean.h",
+          "sha256": "921a2a7b66b082f36917f435de849db17facc0391342adaf66a981252a5f4a70"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-07",
+      "repository": "ripwire",
+      "question": "Where are source directories crawled and binary or oversized inputs filtered?",
+      "gold": [
+        {
+          "path": "src/ingest_crawl.h",
+          "sha256": "abc6322fe96bf5d31d5996124b260ae45448dda8f80e4f3825985e614a25c72b"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-08",
+      "repository": "ripwire",
+      "question": "Where is a selected symbol expanded into its source body?",
+      "gold": [
+        {
+          "path": "src/expand.h",
+          "sha256": "8b3954136ceef79ece77d80ab93ffe0b42171f8bd9b314a8bd0f11f508cbfc4b"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-09",
+      "repository": "ripwire",
+      "question": "Where are symbol maps serialized as XML with escaped text?",
+      "gold": [
+        {
+          "path": "src/serialize.h",
+          "sha256": "8cb57433f6cf0db52a92fefeeec68fdc00be946a830e055f47f698e522ba0402"
+        }
+      ]
+    },
+    {
+      "id": "ripwire-10",
+      "repository": "ripwire",
+      "question": "Where are repository notes parsed and matched to their symbol targets?",
+      "gold": [
+        {
+          "path": "src/notes.h",
+          "sha256": "5af34907d29ff3bf457ba01042f6076220721d8b98bce50ff9341c0eab2b0340"
+        }
+      ]
+    },
+    {
+      "id": "aider-01",
+      "repository": "aider",
+      "question": "Where are code definitions ranked using a graph personalized to files in the chat?",
+      "gold": [
+        {
+          "path": "aider/repomap.py",
+          "sha256": "a5d4befe70445114b9f62da47b0eeb2a5384f9e84a0c083c77a4b339caf61ecd"
+        }
+      ]
+    },
+    {
+      "id": "aider-02",
+      "repository": "aider",
+      "question": "Where are lint errors converted into source lines to show the model?",
+      "gold": [
+        {
+          "path": "aider/linter.py",
+          "sha256": "b798f0599d5dbc8cd1b628359134a3ce5eaed4b45fc347b5f6ac0d21e9f68c08"
+        }
+      ]
+    },
+    {
+      "id": "aider-03",
+      "repository": "aider",
+      "question": "Where are changed files watched for AI comments requesting work?",
+      "gold": [
+        {
+          "path": "aider/watch.py",
+          "sha256": "ce709984708195c326fb849124ff81d2659fb25e6adba0c077ece5936cf2910f"
+        }
+      ]
+    },
+    {
+      "id": "aider-04",
+      "repository": "aider",
+      "question": "Where are web pages retrieved and converted from HTML to Markdown?",
+      "gold": [
+        {
+          "path": "aider/scrape.py",
+          "sha256": "3d22a70734de8b2a824d45580816430bca27437f46567c69074116c2fed006cf"
+        }
+      ]
+    },
+    {
+      "id": "aider-05",
+      "repository": "aider",
+      "question": "Where are terminal commands run through a pseudo-terminal or subprocess fallback?",
+      "gold": [
+        {
+          "path": "aider/run_cmd.py",
+          "sha256": "f7e36948be2196a22775ffc43758e79967e35fbbc83db0e02a018f19102bd91c"
+        }
+      ]
+    },
+    {
+      "id": "aider-06",
+      "repository": "aider",
+      "question": "Where is microphone audio recorded and transcribed into a prompt?",
+      "gold": [
+        {
+          "path": "aider/voice.py",
+          "sha256": "24a57e219ed9c0bef522d7d7e783a624eccf4aae593e51ad78122e9cd7149025"
+        }
+      ]
+    },
+    {
+      "id": "aider-07",
+      "repository": "aider",
+      "question": "Where are old chat messages summarized when their token count becomes too large?",
+      "gold": [
+        {
+          "path": "aider/history.py",
+          "sha256": "5c9377875d6c9268ba16ec6cfd3cc30c7d3d8c23d42ffb2a5c3bc375aefc7e79"
+        }
+      ]
+    },
+    {
+      "id": "aider-08",
+      "repository": "aider",
+      "question": "Where are Git diffs collected to prepare a commit message?",
+      "gold": [
+        {
+          "path": "aider/repo.py",
+          "sha256": "a49343d63d3faa684003f9e59306215e6f3d77b7b944a71b88b132e0c78c5df0"
+        }
+      ]
+    },
+    {
+      "id": "aider-09",
+      "repository": "aider",
+      "question": "Where is reasoning content separated from the final answer using tags?",
+      "gold": [
+        {
+          "path": "aider/reasoning_tags.py",
+          "sha256": "54e839c0cec94ab328e3b3b24b5145b8baebd9ca762b2bad102e3fcec52c09b6"
+        }
+      ]
+    },
+    {
+      "id": "aider-10",
+      "repository": "aider",
+      "question": "Where is the installed version checked and an upgrade offered?",
+      "gold": [
+        {
+          "path": "aider/versioncheck.py",
+          "sha256": "47d47581425880eb6653272927862ac429023b2950052899fe9fc10271c9f07e"
+        }
+      ]
+    }
+  ]
+}

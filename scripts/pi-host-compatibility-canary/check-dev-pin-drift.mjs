@@ -4,11 +4,11 @@
 // read_when:
 //   - "Changing the Pi host contract drift rules or the canary drift-guard scenario."
 // ---
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadManifest, validateManifest } from "./manifest.mjs";
 import { DEFAULT_MANIFEST_PATH } from "./paths.mjs";
+import { loadSnapshot, POLICY_PATH } from "./drift-snapshot.mjs";
+import { loadWorktree } from "./drift-worktree.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -26,39 +26,29 @@ const PIN_FIELDS = ["dependencies", "devDependencies", "optionalDependencies"];
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
 
 function parseArgs(argv) {
-  const options = { manifestPath: DEFAULT_MANIFEST_PATH, repoRoot: ROOT };
+  const options = { manifestPath: DEFAULT_MANIFEST_PATH, repoRoot: ROOT, packageRoots: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--manifest" || arg === "--repo-root") {
+    if (["--manifest", "--repo-root", "--package", "--revision"].includes(arg)) {
       const value = argv[++index];
-      if (!value) throw new Error(`${arg} requires a value`);
-      if (arg === "--manifest") options.manifestPath = path.resolve(value);
-      else options.repoRoot = path.resolve(value);
+      if (!value || value.startsWith("--")) throw new Error(`${arg} requires a value`);
+      if (arg === "--manifest") {
+        options.manifestPath = path.resolve(value);
+        options.customManifest = true;
+      } else if (arg === "--repo-root") options.repoRoot = path.resolve(value);
+      else if (arg === "--package") options.packageRoots.push(value);
+      else options.revision = value;
       continue;
     }
+    if (arg === "--json") { options.json = true; continue; }
+    if (arg === "--staged") { options.staged = true; continue; }
     throw new Error(`unknown argument: ${arg}`);
   }
-  return options;
-}
-
-function listPackageManifests(repoRoot) {
-  const found = [];
-  const packagesRoot = path.join(repoRoot, "packages");
-  walkPackageDirs(packagesRoot, found);
-  return found.sort();
-}
-
-function walkPackageDirs(dir, found) {
-  if (!fs.existsSync(dir)) return;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name === "node_modules" || entry.name.startsWith(".")) {
-      continue;
-    }
-    const next = path.join(dir, entry.name);
-    const manifestPath = path.join(next, "package.json");
-    if (fs.existsSync(manifestPath)) found.push(manifestPath);
-    walkPackageDirs(next, found);
+  if (options.staged && options.revision) throw new Error("cannot combine --staged and --revision");
+  if ((options.staged || options.revision) && (options.customManifest || options.packageRoots.length)) {
+    throw new Error("cannot combine --staged/--revision with --manifest or --package");
   }
+  return options;
 }
 
 function contractLockRole(lockKey, packageName) {
@@ -70,10 +60,6 @@ function contractLockRole(lockKey, packageName) {
   if (prefix.startsWith("node_modules/@earendil-works/")) return undefined;
   if (prefix.startsWith("node_modules/")) return "nested-float";
   return undefined;
-}
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
 function collectDeclaredPins(packageJson) {
@@ -98,7 +84,9 @@ function checkLockAlignment(relLock, pins, expected, lock, offenders) {
   let checked = 0;
   for (const pin of pins) {
     const rootSpec = root[pin.field]?.[pin.packageName];
-    if (rootSpec !== undefined) {
+    if (rootSpec === undefined) {
+      offenders.push(`${relLock}: missing packages[""].${pin.field}.${pin.packageName} (expected ${pin.declared})`);
+    } else {
       checked += 1;
       if (rootSpec !== pin.declared) {
         offenders.push(
@@ -134,21 +122,24 @@ function checkLockAlignment(relLock, pins, expected, lock, offenders) {
   return checked;
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const manifest = validateManifest(loadManifest(args.manifestPath));
-  const expected = manifest.profiles.current.host.version;
-  const offenders = [];
+function reconcile(input) {
+  const { expected, offenders, packageManifests, removedPackages = [] } = input;
   let checked = 0;
-  const packageManifests = listPackageManifests(args.repoRoot);
-  for (const manifestPath of packageManifests) {
-    const relManifest = path.relative(args.repoRoot, manifestPath);
+  for (const relManifest of packageManifests) {
     let packageJson;
     try {
-      packageJson = readJson(manifestPath);
-    } catch {
-      offenders.push(`${relManifest}: unparseable package.json`);
+      packageJson = input.readJson(relManifest);
+      if (!packageJson || typeof packageJson !== "object" || Array.isArray(packageJson)) throw new SyntaxError();
+    } catch (error) {
+      offenders.push(`${relManifest}: unparseable package.json${error instanceof SyntaxError ? "" : ` (${error.message})`}`);
       continue;
+    }
+    const metadata = packageJson["x-pi-template"]?.piHostContract;
+    if (metadata && Object.hasOwn(metadata, "devTestFloor")) {
+      checked += 1;
+      if (metadata.devTestFloor !== expected) {
+        offenders.push(`${relManifest}: x-pi-template.piHostContract.devTestFloor=${metadata.devTestFloor} (expected ${expected})`);
+      }
     }
     const pins = collectDeclaredPins(packageJson);
     for (const pin of pins) {
@@ -159,25 +150,42 @@ function main() {
         );
       }
     }
-    const lockPath = path.join(path.dirname(manifestPath), "package-lock.json");
-    if (!fs.existsSync(lockPath)) continue;
-    const relLock = path.relative(args.repoRoot, lockPath);
+    const relLock = path.join(path.dirname(relManifest), "package-lock.json");
+    if (!input.exists(relLock)) continue;
     let lock;
     try {
-      lock = readJson(lockPath);
-    } catch {
-      offenders.push(`${relLock}: unparseable package-lock.json`);
+      lock = input.readJson(relLock);
+      if (!lock || typeof lock !== "object" || Array.isArray(lock)) throw new SyntaxError();
+    } catch (error) {
+      offenders.push(`${relLock}: unparseable package-lock.json${error instanceof SyntaxError ? "" : ` (${error.message})`}`);
       continue;
     }
     checked += checkLockAlignment(relLock, pins, expected, lock, offenders);
   }
-  if (packageManifests.length === 0) {
-    console.error(
-      `Pi host contract drift check found no package manifests under ${args.repoRoot}/packages; refusing to pass vacuously.`,
-    );
-    process.exit(1);
+  if (input.fleetEmpty || (packageManifests.length === 0 && !input.skip && removedPackages.length === 0)) {
+    offenders.push(`Pi host contract drift check found no package manifests under ${input.source.repoRoot}/packages; refusing to pass vacuously.`);
   }
-  if (offenders.length > 0) {
+  return {
+    schemaVersion: 1, status: offenders.length ? "fail" : input.skip ? "skip" : "pass",
+    source: input.source, removedPackages,
+    scope: { ...input.scope, packages: packageManifests.map(name => path.dirname(name)) },
+    baseline: { version: expected, path: input.source.manifestPath ?? POLICY_PATH,
+      field: "profiles.current.host.version" },
+    offenders, counts: { packages: packageManifests.length, checks: checked, offenders: offenders.length,
+      removedPackages: removedPackages.length },
+  };
+}
+
+function printReport(report, json) {
+  if (json) { console.log(JSON.stringify(report, null, 2)); return; }
+  const { offenders, baseline: { version: expected }, counts: { checks: checked } } = report;
+  if (report.status === "skip") {
+    console.log("skip: pi host contract pins (no changed packages in index-vs-HEAD; not a full fleet check)");
+  } else if (offenders.length > 0) {
+    if (report.counts.packages === 0) {
+      for (const offender of offenders) console.error(offender);
+      return;
+    }
     console.error(
       `Pi host contract drift: ${offenders.length} pin(s) away from the canary current host version ${expected}:`,
     );
@@ -185,9 +193,35 @@ function main() {
     console.error(
       "Align package dependencies/devDependencies/optionalDependencies and matching lock entries with policy/pi-host-compatibility-canary.json profiles.current.host.version.",
     );
-    process.exit(1);
+  } else {
+    if (report.counts.packages > 0) {
+      console.log(`ok: pi host contract pins (${checked} declaration(s)/lock entries at ${expected})`);
+    }
+    if (report.removedPackages?.length) {
+      const scope = report.scope.kind === "fleet" ? "surviving fleet checked" : "not a full fleet check";
+      console.log(`ok: ${report.removedPackages.length} complete package removal(s) reviewed from index-vs-HEAD (${scope}): ${report.removedPackages.join(", ")}`);
+    }
   }
-  console.log(`ok: pi host contract pins (${checked} declaration(s)/lock entries at ${expected})`);
+}
+
+function main() {
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+    const input = args.staged || args.revision ? loadSnapshot(args) : loadWorktree(args);
+    const report = reconcile(input);
+    printReport(report, args.json);
+    if (report.status === "fail") process.exitCode = 1;
+  } catch (error) {
+    const json = args?.json ?? process.argv.slice(2).includes("--json");
+    printReport({ schemaVersion: 1, status: "fail",
+      source: { kind: args?.staged ? "index" : args?.revision ? "revision" : "worktree",
+        repoRoot: args?.repoRoot ?? ROOT },
+      scope: { kind: "unresolved", packages: [] }, baseline: { version: null }, removedPackages: [],
+      offenders: [error.message], counts: { packages: 0, checks: 0, offenders: 1, removedPackages: 0 },
+    }, json);
+    process.exitCode = 1;
+  }
 }
 
 main();

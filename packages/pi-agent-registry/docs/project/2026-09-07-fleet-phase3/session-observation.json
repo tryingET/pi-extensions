@@ -1,0 +1,140 @@
+{
+  "schema": "pi-agent-registry.dogfood-session-observation/1",
+  "authorityEffect": "none",
+  "header": {
+    "type": "session",
+    "version": 3,
+    "id": "01a079af-2ef4-762c-8bfc-228d0b411d4a",
+    "timestamp": "2026-09-07T02:25:19.092Z",
+    "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+  },
+  "modelChanges": [
+    {
+      "provider": "zai",
+      "modelId": "glm-5.3"
+    }
+  ],
+  "thinkingChanges": [
+    {
+      "thinkingLevel": "high"
+    }
+  ],
+  "userMessages": 1,
+  "calls": [
+    {
+      "id": "call_377be52c1e58476a871e74c6",
+      "name": "intercom",
+      "arguments": {
+        "action": "send",
+        "message": "PEER_ACK peer_run_id=standingagent-mtqmbq5w-aeaf6023: standing agent agent-adoption-steward started",
+        "to": "session-01a07977-431a-7e73-aea4-4258286315a9"
+      }
+    },
+    {
+      "id": "call_a936558aa80d4dc2a7e56c90",
+      "name": "read",
+      "arguments": {
+        "path": "packages/pi-agent-registry/src/visible-launch.ts"
+      }
+    },
+    {
+      "id": "call_dcda2035bc96453cbd045f6f",
+      "name": "read",
+      "arguments": {
+        "path": "packages/pi-agent-registry/src/visible-launch-compose.ts"
+      }
+    },
+    {
+      "id": "call_2f7b3a4f86e540d596df2a30",
+      "name": "read",
+      "arguments": {
+        "path": "packages/pi-agent-registry/src/visible-launch-bootstrap.ts"
+      }
+    },
+    {
+      "id": "call_a77c0e47b47a413192b8ffd4",
+      "name": "read",
+      "arguments": {
+        "path": "packages/pi-little-helpers/extensions/sidequestLaunch.ts"
+      }
+    },
+    {
+      "id": "call_b6949322568644d89b14862d",
+      "name": "bash",
+      "arguments": {
+        "command": "pwd; tty; echo \"surface=${GHOSTTY_SURFACE_ID:-unset}\"; env | grep -E '^(GHOSTTY_[A-Z_]*|TERM|TERM_PROGRAM|ANTHROPIC_MODEL|ANTHROPIC_SMALL_FAST_MODEL|PI_MODEL|PI_PROVIDER)' || true"
+      }
+    },
+    {
+      "id": "call_d62bd013ed9b46bb83e94a62",
+      "name": "bash",
+      "arguments": {
+        "command": "grep -n -E 'Admission is NOT|manifestToolsAreLaunchEligible|readAkTask|authorizeExactTask|launch_already_reserved|No automatic retry|sessionStarted|ack:|taskCompletion|never retry|read-only posture|effectDisposition: \"settled\"|transport_admitted' packages/pi-agent-registry/src/visible-launch.ts | head -40"
+      }
+    },
+    {
+      "id": "call_6d6513d0b4d94755a9cfe110",
+      "name": "bash",
+      "arguments": {
+        "command": "grep -n -E -- '--offline|--no-extensions|--no-skills|--no-prompt-templates|--system-prompt|--tools|VISIBLE_LAUNCH_ACK_TOOL|read-only posture|sessionMode|sourceSessionFile \\?|skipped automatic new-window retry|supervise before retry|Fleet Phase-3 standing agents pin|BUILTIN_PROVIDERS|matches.length !== 1|autoload === false|PI_SUBAGENT' packages/pi-agent-registry/src/visible-launch-compose.ts packages/pi-little-helpers/extensions/sidequestLaunch.ts packages/pi-agent-registry/src/visible-launch-bootstrap.ts"
+      }
+    },
+    {
+      "id": "call_d26eb5b1b6a44515a9fa95a7",
+      "name": "intercom",
+      "arguments": {
+        "action": "send",
+        "message": "PEER_FINAL peer_run_id=standingagent-mtqmbq5w-aeaf6023: AK-5133 read-only dogfood report (agent-adoption-steward). Verdict: Fleet Phase 3 preserves all four properties. Observed: cwd=/home/tryinget/ai-society/softwareco/owned/pi-extensions; tty=not-a-tty; GHOSTTY_SURFACE_ID=0x516815b20d7e09a3; provider/model=zai/glm-5.3; enabled tools=read,bash,intercom (manifest read,bash + ACK instrument — matches visible-launch-compose.ts:222).\nFINDING 1 (fact) Exact-task admission: visible-launch.ts:152-165 readAkTask + authorizeExactTask require a live claim in the origin repo; :281-291 re-reads and re-authorizes immediately before transport (\"Exact task claim changed or became unverifiable before transport\"); :267-269 durable pair reservation rejects launch_already_reserved with \"No automatic retry; explicit owner disposition required\".\nFINDING 2 (fact) Clean conversation + explicit external resource selection: sidequestLaunch.ts:240 sessionMode = sourceSessionFile ? \"fork\" : \"clean\" (clean path composes [piBin, ...modelArgs, ...extraArgs, prompt] with no --fork); visible-launch-compose.ts:223-231 pins --offline, --no-extensions, --no-skills, --no-prompt-templates, replaced --system-prompt, and least-privilege --tools; visible-launch-bootstrap.ts:22-24 admits only two owner-approved entries (intercom.ts, session-presence.ts), :30 builtin-provider gate, :65 rejects autoload:false/extension-filter settings, :70 exactly-one-match else fail closed, :18 refuses PI_SUBAGENT_EXTENSIONS ambient paths.\nFINDING 3 (fact) Truthful transport-vs-ACK/completion distinctions + no automatic retry: visible-launch.ts:44 \"Admission is NOT session-start proof, ACK evidence, task consumption/completion or claimant authentication\"; :413-416 receipt records admission=transport_admitted only when settled, with sessionStarted/ack/taskCompletion all \"unproven\"; :445 receipt_write_failed → \"never retry automatically\"; :465 launch_failed → \"No automatic retry\"; sidequestLaunch.ts:408 skips automatic new-window retry on effect_indeterminate \"to prevent a duplicate peer\", :435 \"Visible launch did not settle; supervise before retry\".\nREMAINING LIMITATION (fact): visible-launch.ts:120-123 — read-only posture is advisory, not a sandbox; the child argv carries bash, so a noncompliant child could still mutate the worktree, and the receipt boundary text (~:400-403) itself records that modify-and-restore intervals are unobserved. Enforcement is behavioral (persona + launch brief) with owner supervision, not technical confinement. Secondary coverage limit: bootstrap is hard-pinned to BUILTIN_PROVIDERS (visible-launch-bootstrap.ts:21,30), so agents on any other provider fail closed (bootstrap_unavailable) — safe but non-extensible without owner policy change.\nIntercom is transport only; this message is not durable evidence or a completion claim. Stopping per brief.",
+        "to": "session-01a07977-431a-7e73-aea4-4258286315a9"
+      }
+    }
+  ],
+  "toolResults": [
+    {
+      "toolCallId": "call_377be52c1e58476a871e74c6",
+      "toolName": "intercom",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_a936558aa80d4dc2a7e56c90",
+      "toolName": "read",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_dcda2035bc96453cbd045f6f",
+      "toolName": "read",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_2f7b3a4f86e540d596df2a30",
+      "toolName": "read",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_a77c0e47b47a413192b8ffd4",
+      "toolName": "read",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_b6949322568644d89b14862d",
+      "toolName": "bash",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_d62bd013ed9b46bb83e94a62",
+      "toolName": "bash",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_6d6513d0b4d94755a9cfe110",
+      "toolName": "bash",
+      "isError": false
+    },
+    {
+      "toolCallId": "call_d26eb5b1b6a44515a9fa95a7",
+      "toolName": "intercom",
+      "isError": false
+    }
+  ],
+  "finalStop": "stop"
+}

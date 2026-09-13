@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -302,6 +303,21 @@ for (const testCase of CASES) {
     const fixtures = buildFixtures();
     const result = testCase.run(fixtures);
     const normalized = normalize(result);
+    if (
+      testCase.name === "runAutoresearchLevel4CampaignRunner" &&
+      !process.env.AUTORESEARCH_GOLDEN_UPDATE
+    ) {
+      // AK5582 intentionally replaces Level-4's unsafe v1 projection. Freeze the
+      // complete normalized v2 output by digest; retain other historical goldens.
+      assert.equal(
+        createHash("sha256").update(normalized).digest("hex"),
+        "634058ec710fad2f66ee0ba15661c9e11acd3d266582b79e7b73b0ca0a35856b",
+      );
+      assert.equal(result.execution, "not_executed_by_orchestrator");
+      assert.equal(result.metric.status, "blocked");
+      assert.equal(result.newReceipts[0].effectStatus, "not_dispatched");
+      return;
+    }
     if (process.env.AUTORESEARCH_GOLDEN_UPDATE) {
       const outDir = process.env.AUTORESEARCH_GOLDEN_OUT ?? ".";
       mkdirSync(outDir, { recursive: true });

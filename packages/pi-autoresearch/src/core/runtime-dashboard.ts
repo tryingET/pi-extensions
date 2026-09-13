@@ -15,7 +15,6 @@ import {
   formatAutoresearchSetupGuideLines,
 } from "./runtime-dashboard-guidance.ts";
 import {
-  formatConfidenceValue,
   formatEmpiricalPosture,
   formatLastRun,
   formatMetricInterpretation,
@@ -84,7 +83,7 @@ export function formatAutoresearchDashboard(
     ...(dashboardMode === "matrix_campaign"
       ? [
           "- matrix campaign artifacts are the primary visible-progress source for this cwd.",
-          "- local single-segment runtime fields below are auxiliary and may be empty when orchestrator/candidate-wave artifacts carry the live campaign truth.",
+          "- local single-segment runtime fields below are auxiliary and may be empty when orchestrator artifacts carry separately identified plans and owner reports, not live campaign truth.",
         ]
       : ["- local runtime receipts are the primary visible-progress source for this cwd."]),
     "",
@@ -108,8 +107,8 @@ export function formatAutoresearchDashboard(
     `- checks command: ${segment.checksCommand ?? "(none)"}`,
     `- runs: ${runLine}`,
     `- baseline: ${formatMetricValue(segment.baselineMetric, segment.metricUnit)}`,
-    `- best: ${formatMetricValue(segment.bestMetric, segment.metricUnit)}`,
-    `- confidence: ${formatConfidenceValue(segment.confidence)}`,
+    "- comparison: withheld here; inspect exact measurement identities in /autoresearch export.",
+    "- uncertainty: no confidence estimate is inferred from packet counts or lifecycle dispositions.",
     `- timing interpretation: ${formatMetricInterpretation(segment.metricInterpretation, segment.metricUnit)}`,
     "",
     "## Metric readiness / trust",
@@ -152,8 +151,8 @@ export function formatAutoresearchDashboard(
     ...guidedCandidateJourneyLines,
     "",
     "## Packet inventory before owner review",
-    "- /autoresearch export is for measured packet inventory inspection: candidate-result packets, selected lanes, exported counts, and export_visibility_blockers.",
-    "- /autoresearch review is the final owner decision surface; use it only after packet inventory is complete and export_visibility_blockers=0.",
+    "- /autoresearch export supports measured packet inventory inspection: inventory presence alone is not measurement. Validated measurements, controller reports, and provenance remain separate.",
+    "- /autoresearch review is the final owner decision surface after identity and measurement review. export_visibility_blockers=0 or missing=0 is not success or permission.",
     "",
     "## Matrix campaign artifacts",
     ...matrixSummaryLines,

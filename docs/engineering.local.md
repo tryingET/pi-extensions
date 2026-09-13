@@ -35,6 +35,12 @@ Repo-local emphasis:
   - `./scripts/ci/full.sh`
 - Canonical package validation implementation:
   - `./scripts/package-quality-gate.sh`
+- Development host admission:
+  - root staged smoke checks changed-package Git index blobs against the same indexed host policy
+  - local package gates check exact working-tree package scope (including group metadata)
+  - the full root gate checks the complete workspace fleet early; unfinished packages are diagnostic blockers there, not silently excluded
+  - `scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs --json` explains scope/baseline/offenders; `--revision <ref>` checks a full immutable tracked snapshot without checkout
+  - this validates authored development contracts, not candidate compatibility or loaded runtime generation; see [the canary contract](project/pi-host-compatibility-canary.md)
 - Package validation fan-out:
   - `./scripts/ci/packages.sh` discovers top-level package roots under `packages/`
   - package-groups recurse through child packages via `scripts/package-quality-gate.sh`

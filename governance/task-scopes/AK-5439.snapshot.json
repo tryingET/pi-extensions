@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-09-05T19:40:23.272195927+00:00",
+  "task_id": 5439,
+  "entity_version": 2,
+  "commit_sha": null,
+  "scope": {
+    "allowed_paths": [
+      "diary/*sci-error*.md",
+      "governance/task-scopes/AK-*.snapshot.json",
+      "packages/pi-semantic-code-intelligence/README.md",
+      "packages/pi-semantic-code-intelligence/docs/project/*error*.md",
+      "packages/pi-semantic-code-intelligence/scripts/dogfood-composite-tools.ts",
+      "packages/pi-semantic-code-intelligence/src/error-presentation.ts",
+      "packages/pi-semantic-code-intelligence/src/explore-renderer.ts",
+      "packages/pi-semantic-code-intelligence/src/extension.ts",
+      "packages/pi-semantic-code-intelligence/src/sci-error-projection.ts",
+      "packages/pi-semantic-code-intelligence/tests/*.test.ts",
+      "packages/pi-semantic-code-intelligence/tests/*fixtures.ts"
+    ],
+    "required_paths": [
+      "packages/pi-semantic-code-intelligence/src/explore-renderer.ts"
+    ],
+    "forbidden_paths": [
+      "AGENTS.md",
+      "ontology/**",
+      "packages/pi-autonomous-session-control/**",
+      "packages/pi-limits-dashboard/**",
+      "packages/pi-semantic-code-intelligence/src/mcp-bridge.ts"
+    ]
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}

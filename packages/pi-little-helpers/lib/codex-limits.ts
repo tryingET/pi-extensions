@@ -66,7 +66,7 @@ export function parseCodexUsage(payload: unknown): CodexUsage {
         label: `${prefix}${label}`,
         primary,
         remainingPercent:
-          typeof used === "number" && Number.isFinite(used)
+          typeof used === "number" && Number.isFinite(used) && used >= 0
             ? Math.round(Math.max(0, Math.min(100, 100 - used)) * 10) / 10
             : undefined,
         resetAt: reset && Number.isFinite(reset.getTime()) ? reset.toISOString() : undefined,

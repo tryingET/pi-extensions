@@ -1,0 +1,25 @@
+{
+  "contract": "physical JSONL inventory; not automatically the active or model-visible context",
+  "header": {
+    "id": "01a079af-2ef4-762c-8bfc-228d0b411d4a",
+    "version": 3,
+    "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+    "timestamp": "2026-09-07T02:25:19.092Z",
+    "parentSession": null
+  },
+  "physical": { "lines": 19, "nonblankLines": 18, "parsedObjects": 18, "malformedLines": 0 },
+  "entryTypes": [
+    { "type": "message", "count": 15 },
+    { "type": "model_change", "count": 1 },
+    { "type": "session", "count": 1 },
+    { "type": "thinking_level_change", "count": 1 }
+  ],
+  "messageRoles": [
+    { "role": "assistant", "count": 5 },
+    { "role": "toolResult", "count": 9 },
+    { "role": "user", "count": 1 }
+  ],
+  "persistedLeafId": "3337b413",
+  "confidence": "complete",
+  "issues": []
+}

@@ -267,6 +267,7 @@ test("self query: mirror-derived continuation candidate does not override curren
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -305,8 +306,9 @@ test("self query: mirror-derived continuation candidate does not override curren
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.ok(editorText.startsWith("/scoutpeer "));
+  assert.match(result.content[0].text, /Editor unchanged/);
+  assert.equal(editorText, "");
+  assert.ok(result.details.data.text.startsWith("/scoutpeer "));
   assert.equal(result.details.data.usedPersistedContinuationCandidate, false);
   assert.equal(result.details.data.nextMove.owner, "peer-tools");
   assert.equal(result.details.data.sendUserMessage, false);
@@ -411,6 +413,7 @@ test("self query: direct operator notification gates compaction directives to ed
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -425,9 +428,10 @@ test("self query: direct operator notification gates compaction directives to ed
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /Editor unchanged/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(editorText, "please compact the session now");
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.text, "please compact the session now");
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_review_required");
 
@@ -445,6 +449,7 @@ test("self query: direct operator notification gates slash commands to operator-
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -459,12 +464,13 @@ test("self query: direct operator notification gates slash commands to operator-
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.match(result.content[0].text, /press Enter to send it through Pi's slash-command parser/);
+  assert.match(result.content[0].text, /Editor unchanged/);
+  assert.match(result.content[0].text, /Copy\/review manually/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.text, "/visible-loop --count 1 --delegate-commit");
   assert.equal(result.details.data.sendUserMessage, false);
-  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
   assert.match(
     result.details.data.boundary,
     /sendUserMessage does not invoke Pi slash-command expansion/,
@@ -484,6 +490,7 @@ test("self query: direct operator notification gates multiline slash commands to
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -499,12 +506,13 @@ test("self query: direct operator notification gates multiline slash commands to
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.match(result.content[0].text, /press Enter to send it through Pi's slash-command parser/);
+  assert.match(result.content[0].text, /Editor unchanged/);
+  assert.match(result.content[0].text, /Copy\/review manually/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(editorText, message);
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.text, message);
   assert.equal(result.details.data.sendUserMessage, false);
-  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
 
   await cleanup(tempDir);
 });
@@ -520,6 +528,7 @@ test("self query: direct operator notification gates indented multiline slash co
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -535,11 +544,12 @@ test("self query: direct operator notification gates indented multiline slash co
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /Editor unchanged/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(editorText, message);
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.text, message);
   assert.equal(result.details.data.sendUserMessage, false);
-  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
 
   await cleanup(tempDir);
 });
@@ -555,6 +565,7 @@ test("self query: direct operator notification gates context slash commands to p
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -569,11 +580,12 @@ test("self query: direct operator notification gates context slash commands to p
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /Editor unchanged/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(editorText, "/compact-handoff");
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.text, "/compact-handoff");
   assert.equal(result.details.data.sendUserMessage, false);
-  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
 
   await cleanup(tempDir);
 });
@@ -595,15 +607,14 @@ test("self query: direct operator notification reports manual slash submission w
     ctx,
   );
 
-  assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
-  assert.match(result.content[0].text, /manual operator submission required/);
+  assert.match(result.content[0].text, /No explicit editor prefill requested/);
   assert.equal(harness.sentUserMessages.length, 0);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
-  assert.equal(result.details.data.requestedDispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.prefillRequested, false);
   assert.equal(result.details.data.prefillAvailable, false);
   assert.equal(result.details.data.prefillPerformed, false);
-  assert.equal(result.details.data.prefillUnavailableReason, "no_ui");
+  assert.equal(result.details.data.editorDelivery.outcome, "shown");
 
   await cleanup(tempDir);
 });
@@ -619,6 +630,7 @@ test("self query: direct operator notification gates prose and markdown slash co
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -641,13 +653,14 @@ test("self query: direct operator notification gates prose and markdown slash co
       ctx,
     );
 
-    assert.ok(result.content[0].text.includes("Editor prefilled"));
+    assert.match(result.content[0].text, /Editor unchanged/);
     assert.equal(harness.sentUserMessages.length, 0);
-    assert.equal(editorText, message);
+    assert.equal(editorText, "");
+    assert.equal(result.details.data.text, message);
     assert.equal(result.details.data.sendUserMessage, false);
-    assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+    assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
     assert.equal(result.details.data.prefillAvailable, true);
-    assert.equal(result.details.data.prefillPerformed, true);
+    assert.equal(result.details.data.prefillPerformed, false);
   }
 
   await cleanup(tempDir);
@@ -681,8 +694,8 @@ test("self query: direct operator notification allows low-risk multiline absolut
     assert.equal(result.details.data.sendUserMessage, true);
     assert.equal(result.details.data.userMessageSent, true);
     assert.equal(result.details.data.dispatchMode, "operator_notification");
-    assert.equal(result.details.data.prefillAvailable, undefined);
-    assert.equal(result.details.data.prefillPerformed, undefined);
+    assert.equal(result.details.data.prefillAvailable, false);
+    assert.equal(result.details.data.prefillPerformed, false);
   }
 
   await cleanup(tempDir);
@@ -699,6 +712,7 @@ test("self query: direct operator notification gates risky directives to editor 
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -713,9 +727,10 @@ test("self query: direct operator notification gates risky directives to editor 
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /Editor unchanged/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(editorText, "run peer review and commit the result");
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.text, "run peer review and commit the result");
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_review_required");
 
@@ -758,6 +773,7 @@ test("self query: continue suggested next move keeps operator-gated peer move as
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -779,9 +795,10 @@ test("self query: continue suggested next move keeps operator-gated peer move as
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("prefilled"));
+  assert.match(result.content[0].text, /Editor unchanged/);
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.ok(editorText.startsWith("/scoutpeer "));
+  assert.equal(editorText, "");
+  assert.ok(result.details.data.text.startsWith("/scoutpeer "));
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_review_required");
 
@@ -833,6 +850,7 @@ test("self query: durable diagnostic record stays editor-prefilled", async () =>
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -878,6 +896,7 @@ test("self query: diagnostic record prefill JSON-quotes caller-controlled facets
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },

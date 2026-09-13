@@ -375,7 +375,7 @@ function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {
   const normalizedContext = normalizeInput(query.context);
 
   // Prefer colon syntax so command text can contain quoted arguments.
-  const colonMatch = query.query.match(/(?:prefill|suggest\s+input)\s*:\s*(.+)$/i);
+  const colonMatch = query.query.match(/(?:prefill|suggest\s+input)\s*:\s*([\s\S]+)$/i);
   const text =
     normalizeString(normalizedContext.text) ||
     normalizePrefillText(colonMatch?.[1]) ||

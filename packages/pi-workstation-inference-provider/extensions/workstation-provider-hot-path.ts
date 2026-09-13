@@ -320,14 +320,19 @@ export class EndpointHealthCache {
     if (options.signal?.aborted) return "health check cancelled by caller";
 
     const cached = this.#entries.get(key);
-    if (cached && cached.expiresAt > this.#now()) return cached.unhealthy;
+    if (cached && !cached.unhealthy && cached.expiresAt > this.#now()) return undefined;
 
     const probe = this.#probe(key);
-    if (mode === "background") {
+    if (mode === "background" && !cached?.unhealthy) {
       void probe.catch(() => {});
-      return cached?.unhealthy;
+      return undefined;
     }
 
+    // A cached failure (including a startup timeout) is not a current verdict.
+    // Revalidate once, even inside its TTL, and let this request await recovery
+    // instead of rejecting it while a background probe repairs the next one.
+    // Fresh failures still deny dispatch; only health I/O is retried, never an
+    // inference request. Concurrent waiters share the existing probe.
     return this.#awaitWithSignal(probe, options.signal);
   }
 
@@ -378,8 +383,11 @@ export class EndpointHealthCache {
       .then(() => this.#options.probe(key))
       .catch((error: unknown) => errorText(error))
       .then((result) => {
+        // Clearing invalidates waiting verdicts too: callers must not proceed
+        // without the per-lane observation that the clear discarded.
+        if (probeEpoch !== this.#epoch) return "health cache cleared during probe";
         const { unhealthy, degraded, lanes } = healthProbeOutcome(result);
-        if (probeEpoch === this.#epoch) this.mark(key, unhealthy, degraded, lanes);
+        this.mark(key, unhealthy, degraded, lanes);
         return unhealthy;
       })
       .finally(() => {

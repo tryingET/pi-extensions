@@ -30,11 +30,16 @@
 import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { formatActionDeliveryText, shapeActionDeliveryData } from "./self/action-delivery.ts";
 import { markContinuationCandidateConsumed } from "./self/continuation-candidate.ts";
+import {
+  captureEditorDraft,
+  hasEditorPrefillDirective,
+  hasExplicitEditorIntent,
+} from "./self/editor-prefill.ts";
 import { setupEventHandlers } from "./self/event-handlers.ts";
 import {
   evaluateFollowUpSend,
-  type FollowUpSendEvaluation,
   type FollowUpSendRecord,
   isAllowedOwnerBridgeSendUserMessage,
   recordFollowUpPrefill,
@@ -138,6 +143,8 @@ Examples:
 - self({ query: "cache-aware delegation: tree or fork?" })
 - self({ query: "notify operator: I finished the verified slice and need a reload" })
 
+Handoff generation returns text only. Editor writes require an explicit "prefill" query and an empty, unchanged, readable TUI draft; blocked sends never prefill automatically.
+
 This is a mirror, not a manager. You ask, you receive, you decide.`,
     promptSnippet:
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
@@ -153,6 +160,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       context: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const editorDraft = captureEditorDraft(ctx);
       await memoryLifecycle.ready;
 
       const typedParams = params as { query: string; context?: Record<string, unknown> };
@@ -194,15 +202,16 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         typeof actionData?.continuationCandidate?.id === "string"
           ? actionData.continuationCandidate.id
           : undefined;
-      const wantsPrefill = hasActionText && actionData?.prefill === true;
-      const canPrefill = ctx.hasUI && typeof ctx.ui?.setEditorText === "function";
-      const didPrefill = wantsPrefill && canPrefill;
-      const prefillUnavailable = wantsPrefill && !canPrefill;
-      if (didPrefill) recordFollowUpPrefill(state);
+      const prefillSuggested = hasActionText && actionData?.prefill === true;
+      const prefillRequested = hasActionText && hasExplicitEditorIntent(typedParams.query);
+      const wantsPrefill = prefillSuggested && prefillRequested;
 
       const sendUserMessageAvailable = typeof pi.sendUserMessage === "function";
       const wantsSendUserMessage =
-        hasActionText && !wantsPrefill && actionData?.sendUserMessage === true;
+        hasActionText &&
+        !hasEditorPrefillDirective(typedParams.query) &&
+        !prefillSuggested &&
+        actionData?.sendUserMessage === true;
       const blockedSlashPolicy =
         wantsSendUserMessage && !isAllowedOwnerBridgeSendUserMessage(actionData);
       const sendEvaluation =
@@ -250,26 +259,23 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         );
       }
 
-      const didSafetyPrefill =
-        (blockedSlashPolicy || blockedFollowUpPolicy || Boolean(sendFailedMessage)) && canPrefill;
-
-      if (didPrefill || didSafetyPrefill) {
-        ctx.ui.setEditorText(actionText);
-      }
-
-      const resultData = shapeActionDeliveryData(response.data, {
+      const editor = {
+        ...editorDraft.apply(wantsPrefill, actionText),
+        // A resolver declining editor delivery does not erase the caller's request.
+        requested: prefillRequested,
+      };
+      if (editor.outcome === "prefilled") recordFollowUpPrefill(state);
+      const delivery = {
         hasActionText,
-        wantsPrefill,
-        didPrefill,
-        prefillUnavailable,
-        canPrefill,
+        prefillSuggested,
+        editor,
         didSendUserMessage,
         blockedSlashPolicy,
         blockedFollowUpPolicy,
         sendEvaluation,
         sendFailed: Boolean(sendFailedMessage),
-        didSafetyPrefill,
-      });
+      };
+      const resultData = shapeActionDeliveryData(response.data, delivery);
 
       const shouldPersistScopedDomains =
         response.intent === "crystallization" ||
@@ -291,17 +297,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           {
             type: "text",
             text:
-              formatActionDeliveryText(response.answer, {
-                didPrefill,
-                prefillUnavailable,
-                didSendUserMessage,
-                blockedSlashPolicy,
-                blockedFollowUpPolicy,
-                sendEvaluation,
-                sendFailed: Boolean(sendFailedMessage),
-                didSafetyPrefill,
-                actionData,
-              }) +
+              formatActionDeliveryText(response.answer, delivery, actionText) +
               (response.suggestions?.length
                 ? `\n\nSuggestions: ${response.suggestions.join("; ")}`
                 : ""),
@@ -357,152 +353,7 @@ function readContextUsage(
   }
 }
 
-function shapeActionDeliveryData(
-  data: unknown,
-  delivery: {
-    hasActionText: boolean;
-    wantsPrefill: boolean;
-    didPrefill: boolean;
-    prefillUnavailable: boolean;
-    canPrefill: boolean;
-    didSendUserMessage: boolean;
-    blockedSlashPolicy: boolean;
-    blockedFollowUpPolicy: boolean;
-    sendEvaluation: FollowUpSendEvaluation | undefined;
-    sendFailed: boolean;
-    didSafetyPrefill: boolean;
-  },
-): unknown {
-  if (!delivery.hasActionText || typeof data !== "object" || data === null || Array.isArray(data)) {
-    return data;
-  }
-
-  const source = data as Record<string, unknown>;
-  const dispatchMode =
-    delivery.prefillUnavailable && source.dispatchMode === "operator_submit_required"
-      ? "operator_manual_submit_required"
-      : source.dispatchMode;
-
-  return {
-    ...source,
-    dispatchMode,
-    userMessageSent: delivery.didSendUserMessage,
-    ...(delivery.blockedSlashPolicy
-      ? {
-          userMessageBlockedReason: "unapproved_slash_command_send_user_message",
-          safetyPrefillPerformed: delivery.didSafetyPrefill,
-        }
-      : {}),
-    ...(delivery.sendFailed
-      ? {
-          userMessageSendFailed: true,
-          safetyPrefillPerformed: delivery.didSafetyPrefill,
-        }
-      : {}),
-    ...(delivery.blockedFollowUpPolicy && delivery.sendEvaluation
-      ? {
-          userMessageBlockedReason: `self_driving_${delivery.sendEvaluation.blockedReason}`,
-          followUpClass: delivery.sendEvaluation.followUpClass,
-          followUpMode: delivery.sendEvaluation.mode,
-          ...(delivery.sendEvaluation.blockedReason === "budget_exhausted"
-            ? {
-                consecutiveFollowUpSends: delivery.sendEvaluation.consecutive,
-                maxConsecutiveFollowUpSends: delivery.sendEvaluation.maxConsecutive,
-              }
-            : {}),
-          safetyPrefillPerformed: delivery.didSafetyPrefill,
-        }
-      : {}),
-    ...(delivery.wantsPrefill
-      ? {
-          requestedDispatchMode: source.dispatchMode,
-          prefillAvailable: delivery.canPrefill,
-          prefillPerformed: delivery.didPrefill,
-          ...(delivery.prefillUnavailable ? { prefillUnavailableReason: "no_ui" } : {}),
-        }
-      : {}),
-  };
-}
-
-function formatActionDeliveryText(
-  answer: string,
-  delivery: {
-    didPrefill: boolean;
-    prefillUnavailable: boolean;
-    didSendUserMessage: boolean;
-    blockedSlashPolicy: boolean;
-    blockedFollowUpPolicy: boolean;
-    sendEvaluation: FollowUpSendEvaluation | undefined;
-    sendFailed: boolean;
-    didSafetyPrefill: boolean;
-    actionData:
-      | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown; dispatchMode?: unknown }
-      | undefined;
-  },
-): string {
-  if (delivery.didPrefill) {
-    return answer.replace("Editor prefill suggested", "Editor prefilled");
-  }
-
-  if (delivery.prefillUnavailable && typeof delivery.actionData?.text === "string") {
-    const preview = formatQuotedPreview(delivery.actionData.text);
-    if (delivery.actionData.dispatchMode === "operator_submit_required") {
-      return `Editor prefill unavailable (no UI): manual operator submission required. Copy and submit this text through Pi's slash-command parser: ${preview}`;
-    }
-
-    return `Editor prefill unavailable (no UI): manual operator review required. Copy/review this text before acting: ${preview}`;
-  }
-
-  if (delivery.blockedSlashPolicy && typeof delivery.actionData?.text === "string") {
-    const preview = formatQuotedPreview(delivery.actionData.text);
-    const prefillText = delivery.didSafetyPrefill
-      ? " Editor prefilled for operator review instead."
-      : " No UI prefill is available; copy/review manually before acting.";
-    return `User-message dispatch blocked by ASC slash-command policy.${prefillText} Text: ${preview}`;
-  }
-
-  if (delivery.sendFailed && typeof delivery.actionData?.text === "string") {
-    const preview = formatQuotedPreview(delivery.actionData.text);
-    const prefillText = delivery.didSafetyPrefill
-      ? " Editor prefilled as a fallback instead."
-      : " No UI prefill is available; copy/submit manually if this continuation is still wanted.";
-    return `Follow-up user message failed at the pi.sendUserMessage seam.${prefillText} Text: ${preview}`;
-  }
-
-  if (
-    delivery.blockedFollowUpPolicy &&
-    delivery.sendEvaluation &&
-    typeof delivery.actionData?.text === "string"
-  ) {
-    const preview = formatQuotedPreview(delivery.actionData.text);
-    const prefillText = delivery.didSafetyPrefill
-      ? " Editor prefilled for operator review instead."
-      : " No UI prefill is available; copy/review manually before acting.";
-    const reason =
-      delivery.sendEvaluation.blockedReason === "budget_exhausted"
-        ? `Self-driving budget exhausted: ${delivery.sendEvaluation.consecutive}/${delivery.sendEvaluation.maxConsecutive} consecutive extension-originated follow-ups since the last operator message.`
-        : delivery.sendEvaluation.blockedReason === "dedup_suppressed"
-          ? "Identical follow-up text was already sent inside the dedup cooldown window; suppressing to avoid a silent retry loop."
-          : `Self-driving mode '${delivery.sendEvaluation.mode}' does not allow '${delivery.sendEvaluation.followUpClass}' follow-up sends.`;
-    return `${reason}${prefillText} Text: ${preview}`;
-  }
-
-  if (delivery.didSendUserMessage) {
-    return answer
-      .replace("User-message continuation suggested", "User-message continuation sent")
-      .replace("User-message dispatch suggested", "User-message dispatch sent")
-      .replace("Owner-bridge launch suggested", "Owner-bridge launch sent")
-      .replace("Diagnostic-review continuation suggested", "Diagnostic-review continuation sent");
-  }
-
-  return answer;
-}
-
 export { isAllowedOwnerBridgeSendUserMessage };
-
-function formatQuotedPreview(text: string): string {
-  return `"${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`;
-}
 
 function responseHasContinuationCandidate(data: unknown): boolean {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {

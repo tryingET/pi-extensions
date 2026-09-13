@@ -1,0 +1,41 @@
+Registry final package check
+ℹ tests 134
+ℹ pass 134
+ℹ fail 0
+
+Little-helpers final package check
+ℹ tests 430
+ℹ pass 430
+ℹ fail 0
+
+Registry full release check
+  manifest: /home/tryinget/.local/state/pi-quests/tmp/pi-agent-registry-release-agent.V9O12p/agent-registry-release-smoke/fleet/agent-release-smoke/agent.json
+release smoke done: installed @tryinget/pi-agent-registry@0.3.1 from npm:/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-agent-registry/tryinget-pi-agent-registry-0.3.1.tgz; proved packed list/show/lint, shipped fleet-lint CLI, real Pi package discovery, and the Phase-2 fail-closed dispatch contract without inherited credentials.
+== npm view @tryinget/pi-agent-registry version (pre-publish may be 404)
+[
+  "0.3.0"
+]
+npm view exit: 0
+release-check done
+
+Little-helpers full release check
+== extension-specific smoke checks (scripts/release-smoke.sh)
+SUCCESS
+== npm view @tryinget/pi-little-helpers version (pre-publish may be 404)
+[
+  "0.7.0"
+]
+npm view exit: 0
+release-check done
+
+Scoped final impact gate
+✔ AK task execution binding rejects killed readback and readiness commands (0.259484ms)
+ℹ tests 430
+ℹ suites 0
+ℹ pass 430
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14993.384213
+ok: ci smoke

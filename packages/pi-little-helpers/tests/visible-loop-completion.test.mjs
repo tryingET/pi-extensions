@@ -127,7 +127,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
       registerTools: false,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
         PI_VISIBLE_LOOP_CONTINUATION_START_TIMEOUT_MS: "25",
@@ -220,7 +220,7 @@ test("visible-loop manual completion command finalizes", async () => {
       registerTools: false,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },

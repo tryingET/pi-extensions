@@ -66,7 +66,8 @@ function validateProfileHost(profileHost, profileFieldName) {
   return result;
 }
 
-export function validateManifest(manifest, manifestPath) {
+// Schema validation and normalization only; execution paths are resolved separately.
+export function validateManifestDefinition(manifest, manifestPath) {
   if (!manifest || typeof manifest !== "object") {
     throw new Error(`Manifest at ${manifestPath} must be a JSON object`);
   }
@@ -81,6 +82,13 @@ export function validateManifest(manifest, manifestPath) {
     manifest.hostCompanionPackages,
     "hostCompanionPackages",
   ).map((entry, index) => ensureNpmPackageName(entry, `hostCompanionPackages[${index}]`));
+  // Reject ambiguous owners rather than silently deduplicating or injecting
+  // stock companions: generic and historical manifests retain their exact order.
+  const seenHostPackages = new Set([hostPackage]);
+  for (const packageName of hostCompanionPackages) {
+    if (seenHostPackages.has(packageName)) throw new Error(`Duplicate host package owner: ${packageName}`);
+    seenHostPackages.add(packageName);
+  }
   const trackedChangelog = ensureString(manifest.trackedChangelog, "trackedChangelog");
   const defaultProfile = ensureString(manifest.defaultProfile, "defaultProfile");
 
@@ -121,9 +129,6 @@ export function validateManifest(manifest, manifestPath) {
     }
 
     const cwd = ensureString(scenario.cwd, `scenarios[${index}].cwd`);
-    const cwdAbs = resolveContainedRepoPath(cwd, `scenarios[${index}].cwd`);
-    const cwdStats = statSync(cwdAbs, { bigint: true });
-    if (!cwdStats.isDirectory()) throw new Error(`scenarios[${index}].cwd must be a directory`);
     const command = ensureStringArray(scenario.command, `scenarios[${index}].command`);
 
     return {
@@ -138,8 +143,6 @@ export function validateManifest(manifest, manifestPath) {
       packages: ensureOptionalStringArray(scenario.packages, `scenarios[${index}].packages`),
       upstreamSurfaces: ensureStringArray(scenario.upstreamSurfaces, `scenarios[${index}].upstreamSurfaces`),
       cwd,
-      cwdAbs,
-      cwdIdentity: identityOf(cwdStats),
       command,
       notes: scenario.notes === undefined ? undefined : ensureString(scenario.notes, `scenarios[${index}].notes`),
     };
@@ -149,6 +152,18 @@ export function validateManifest(manifest, manifestPath) {
     schemaVersion, hostPackage, hostCompanionPackages, trackedChangelog, defaultProfile,
     profiles, scenarios, manifestPath,
   };
+}
+
+// Existing runtime callers retain canonical containment, directory checks, and identities.
+export function validateManifest(manifest, manifestPath) {
+  const definition = validateManifestDefinition(manifest, manifestPath);
+  const scenarios = definition.scenarios.map((scenario, index) => {
+    const cwdAbs = resolveContainedRepoPath(scenario.cwd, `scenarios[${index}].cwd`);
+    const cwdStats = statSync(cwdAbs, { bigint: true });
+    if (!cwdStats.isDirectory()) throw new Error(`scenarios[${index}].cwd must be a directory`);
+    return { ...scenario, cwdAbs, cwdIdentity: identityOf(cwdStats) };
+  });
+  return { ...definition, scenarios };
 }
 
 function resolveDeclaredPackageTarget(packagePath) {

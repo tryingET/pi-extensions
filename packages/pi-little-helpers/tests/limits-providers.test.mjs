@@ -5,7 +5,12 @@ import test from "node:test";
 import { collectCodexAccounts, parseLimitsAccountConfig } from "../lib/codex-accounts.ts";
 import { baseHeadroom, LimitsDashboardStore } from "../lib/limits-dashboard-store.ts";
 import { collectLimitsAccounts, LIMITS_PROVIDERS } from "../lib/limits-providers.ts";
-import { needsAttention, providerDetailLines, renderRunwayCard } from "../lib/limits-runway.ts";
+import {
+  needsAttention,
+  overviewCells,
+  providerDetailLines,
+  renderRunwayCard,
+} from "../lib/limits-runway.ts";
 import {
   fetchSubCoreLimits,
   LIMITS_USAGE_EVENT,
@@ -235,11 +240,32 @@ test("attention includes known empty money balances without manufacturing headro
   }
   assert.equal(
     needsAttention({
-      snapshot: normalizeProviderUsage("openrouter", usage("openrouter", { keyLimit: null })),
+      snapshot: normalizeProviderUsage(
+        "openrouter",
+        usage("openrouter", { keyLimit: null, creditRemaining: 12 }),
+      ),
       status: "ready",
     }),
     false,
   );
+});
+
+test("unknown money fields are partial, not healthy or manufactured zero balances", () => {
+  for (const extra of [
+    { keyLimit: 10, keyRemaining: 7 },
+    { keyLimit: null },
+    { keyLimit: 10, creditRemaining: 12 },
+    { keyLimit: 10, keyRemaining: -1, creditRemaining: 12 },
+  ]) {
+    const snapshot = normalizeProviderUsage("openrouter", usage("openrouter", extra));
+    const row = { account: account("openrouter"), status: "ready", snapshot };
+    assert.equal(needsAttention(row), true);
+    assert.equal(baseHeadroom(row), undefined);
+    const cells = overviewCells(row, false, theme, undefined, 0, 18);
+    assert.match(cells[0], /~ /);
+    assert.match(cells[1], /\?/);
+    assert.doesNotMatch(cells[1], /\$0\.00/);
+  }
 });
 
 test("bridge sends only the selected exact provider and handles synchronous reply", async () => {
@@ -354,4 +380,28 @@ test("closing bridge aborts work, removes wait and ignores late replies", async 
     fetchSubCoreLimits({ emit: () => assert.fail("no event") }, "xai", early.signal),
     { name: "AbortError" },
   );
+});
+
+// H1 proposal: an error envelope alone is not retained usable quota/balance data.
+test("failed-refresh markers retain meaningful-data semantics rather than snapshot truthiness", () => {
+  const marker = (snapshot) =>
+    overviewCells(
+      { account: account("openrouter"), status: "error", snapshot },
+      false,
+      theme,
+      undefined,
+      0,
+      18,
+    )[0];
+  for (const snapshot of [undefined, {}, { usageError: "unavailable" }]) {
+    assert.match(marker(snapshot), /! /);
+    assert.doesNotMatch(marker(snapshot), /old /);
+  }
+  for (const snapshot of [
+    { usage: { windows: [] } },
+    { credits: { availableCount: 0, credits: [] } },
+    { money: { keyLimit: null, walletRemaining: 12 } },
+  ]) {
+    assert.match(marker(snapshot), /old /);
+  }
 });

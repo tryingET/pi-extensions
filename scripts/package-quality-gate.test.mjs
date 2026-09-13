@@ -12,6 +12,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "package-quality-gate.sh");
+const HOST_POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "policy/pi-host-compatibility-canary.json"), "utf8"));
+const HOST_VERSION = HOST_POLICY.profiles.current.host.version;
+
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -190,4 +193,33 @@ test("typecheck rejects a missing local package link before invoking the compile
   assert.match(result.stderr, /missing_installed_link/);
   assert.match(result.stderr, /cd \.tmp-test\/package-gate-local-link-.*\/consumer && npm install/);
   assert.equal(fs.existsSync(compilerMarker), false);
+});
+
+for (const stage of ["pre-commit", "ci"]) {
+  test(`Given a newly admitted package with conflicting Pi pins, When ${stage} runs, Then reject before package work`, (t) => {
+    const fixture = createFixture(t, { releaseCheckQuick: true });
+    writeJson(path.join(fixture.packageDir, "package.json"), {
+      name: "fixture-package",
+      devDependencies: { "@earendil-works/pi-ai": `${HOST_VERSION}-not-the-baseline` },
+    });
+    assert.throws(() => fixture.run(stage), (error) => {
+      assert.match(String(error.stderr), /Pi host contract drift/);
+      assert.match(String(error.stderr), /expected/);
+      return true;
+    });
+    assert.deepEqual(fixture.readLog(), [], "Then no package manager work runs");
+  });
+}
+
+test("Given aligned pins but conflicting generated development metadata, When admission runs, Then reject the second baseline", (t) => {
+  const fixture = createFixture(t);
+  writeJson(path.join(fixture.packageDir, "package.json"), {
+    name: "fixture-package",
+    devDependencies: { "@earendil-works/pi-ai": HOST_VERSION },
+    "x-pi-template": { piHostContract: { devTestFloor: `${HOST_VERSION}-stale` } },
+  });
+  assert.throws(() => fixture.run("pre-commit"), (error) => {
+    assert.match(String(error.stderr), /devTestFloor/);
+    return true;
+  });
 });

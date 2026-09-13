@@ -1,31 +1,35 @@
-import { statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import path from "node:path";
-
-import { isRecord } from "./runtime-common.ts";
 import {
-  addCandidateResultMatrixChartPoint,
-  addMatrixCloseoutChartPoints,
-  buildMatrixCampaignDashboardChart,
+  cellFor,
+  createCampaign,
+  finalizeCell,
+  summarizeMatrixArtifact,
+} from "./runtime-matrix-cells.ts";
+import {
+  bindingIdentity,
+  buildComparisonGroups,
+  type DashboardPacketProjection,
+  digest,
+  projectCandidatePacket,
 } from "./runtime-matrix-chart.ts";
 import {
   collectJsonFiles,
   extractMatrixArtifactsFromJson,
-  getArrayField,
-  getNumberField,
-  getRecordField,
-  getStringArrayField,
-  getStringField,
-  inferMatrixCellIdFromPath,
+  MAX_DISCOVERY_BYTES,
+  getNumberField as num,
   readMatrixArtifactJson,
+  getRecordField as rec,
   relativeAutoresearchPath,
+  getStringField as str,
 } from "./runtime-matrix-fields.ts";
+import { projectLevel4Observation } from "./runtime-matrix-level4.ts";
 import type {
-  AutoresearchDashboardChartPoint,
   AutoresearchMatrixCampaignArtifactReference,
   AutoresearchMatrixCampaignArtifactSummary,
-  AutoresearchMatrixCampaignCellSummary,
-  AutoresearchOpenCandidateReviewPosture,
-  MetricDirection,
+  DashboardAttempt,
+  DashboardCampaign,
 } from "./runtime-matrix-model.ts";
 
 export type {
@@ -37,418 +41,372 @@ export type {
   AutoresearchMatrixCampaignDashboardChart,
   AutoresearchOpenCandidateReviewPosture,
 } from "./runtime-matrix-model.ts";
-
 export const AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_ROOTS = [
   ".autoresearch/campaigns",
   ".autoresearch/matrix-campaign",
+  ".autoresearch/dashboard/level4",
+  ".autoresearch/candidate-wave",
 ] as const;
 
-function matrixCellPostureRank(posture: string | null | undefined): number {
-  switch (posture) {
-    case "ready_for_matrix_owner_review":
-      return 50;
-    case "measurement_export_unlocked":
-      return 40;
-    case "measured_exported_selectable":
-      return 30;
-    case "locked_until_checkpoint":
-      return 20;
-    case "managed_candidate_wave_required":
-      return 10;
-    case "planned":
-      return 0;
-    default:
-      return 5;
-  }
-}
-
-function chooseMatrixCellPosture(existing: string, incoming: string | undefined): string {
-  if (!incoming) return existing;
-  return matrixCellPostureRank(incoming) >= matrixCellPostureRank(existing) ? incoming : existing;
-}
-
-function upsertMatrixCampaignCellSummary(
-  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
-  input: Partial<AutoresearchMatrixCampaignCellSummary> & { cellId: string },
-): void {
-  const existing = cells.get(input.cellId) ?? {
-    cellId: input.cellId,
-    scenario: null,
-    hypothesis: null,
-    posture: "planned",
-    laneProgress: "0/0",
-    selectedLaneId: null,
-    selectedPacketPath: null,
-    candidatePacketDirectory: null,
-    packetInventory: [],
-    nextLegalAction: "Review matrix campaign artifacts before acting.",
-  };
-  const packetInventory = Array.from(
-    new Set([...(existing.packetInventory ?? []), ...(input.packetInventory ?? [])]),
-  );
-  const posture = chooseMatrixCellPosture(existing.posture, input.posture);
-  const incomingPostureWon = posture === input.posture;
-  cells.set(input.cellId, {
-    ...existing,
-    ...input,
-    scenario: input.scenario ?? existing.scenario,
-    hypothesis: input.hypothesis ?? existing.hypothesis,
-    posture,
-    laneProgress: input.laneProgress ?? existing.laneProgress,
-    selectedLaneId: input.selectedLaneId ?? existing.selectedLaneId,
-    selectedPacketPath: input.selectedPacketPath ?? existing.selectedPacketPath,
-    candidatePacketDirectory: input.candidatePacketDirectory ?? existing.candidatePacketDirectory,
-    packetInventory,
-    nextLegalAction: incomingPostureWon
-      ? (input.nextLegalAction ?? existing.nextLegalAction)
-      : existing.nextLegalAction,
-  });
-}
-
-function summarizeMatrixPlanArtifact(
-  artifact: Record<string, unknown>,
-  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
-  nextLegalActions: Set<string>,
-): void {
-  for (const cell of getArrayField(artifact, "cells")) {
-    if (!isRecord(cell)) continue;
-    const cellId = getStringField(cell, "cellId");
-    if (!cellId) continue;
-    const packets = getStringArrayField(cell, "candidateResultPacketPaths");
-    upsertMatrixCampaignCellSummary(cells, {
-      cellId,
-      scenario: getStringField(cell, "scenario"),
-      hypothesis: getStringField(cell, "hypothesis"),
-      posture: getStringField(cell, "managedWavePosture") ?? "planned",
-      laneProgress: `0/${packets.length}`,
-      candidatePacketDirectory: getStringField(cell, "candidatePacketDirectory"),
-      packetInventory: packets,
-      nextLegalAction:
-        getStringField(cell, "planCandidateWaveCall") ??
-        getStringField(cell, "reviewCandidateWaveCall") ??
-        "Launch/review the planned matrix cell through orchestrator surfaces.",
-    });
-  }
-  const nextStep = getStringField(artifact, "nextStep");
-  if (nextStep) nextLegalActions.add(nextStep);
-}
-
-function summarizeMatrixRunnerArtifact(
-  artifact: Record<string, unknown>,
-  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
-  nextLegalActions: Set<string>,
-): void {
-  const lanesByCell = new Map<string, string[]>();
-  for (const lane of getArrayField(artifact, "lanes")) {
-    if (!isRecord(lane)) continue;
-    const cellId = getStringField(lane, "cellId");
-    const packet = getStringField(lane, "candidateResultPacketPath");
-    if (!cellId) continue;
-    const packets = lanesByCell.get(cellId) ?? [];
-    if (packet) packets.push(packet);
-    lanesByCell.set(cellId, packets);
-  }
-  for (const [cellId, packets] of lanesByCell) {
-    upsertMatrixCampaignCellSummary(cells, {
-      cellId,
-      posture: "locked_until_checkpoint",
-      laneProgress: `0/${packets.length}`,
-      packetInventory: packets,
-      nextLegalAction:
-        "Wait for visible PEER_FINAL reports, verify lineage, then checkpoint before measurement/export/review.",
-    });
-  }
-  const launchPhase = getRecordField(artifact, "launchPhase");
-  for (const call of getStringArrayField(launchPhase, "launchCalls").slice(0, 3)) {
-    nextLegalActions.add(call);
-  }
-  const nextStep = getStringField(artifact, "nextStep");
-  if (nextStep) nextLegalActions.add(nextStep);
-}
-
-function summarizeMatrixFollowupArtifact(
-  artifact: Record<string, unknown>,
-  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
-  nextLegalActions: Set<string>,
-): void {
-  for (const action of getStringArrayField(artifact, "nextLegalActions"))
-    nextLegalActions.add(action);
-  for (const lane of getArrayField(artifact, "lanePacketPaths")) {
-    if (!isRecord(lane)) continue;
-    const cellId = getStringField(lane, "cellId");
-    const packet = getStringField(lane, "packetPath");
-    if (!cellId) continue;
-    upsertMatrixCampaignCellSummary(cells, {
-      cellId,
-      posture: getStringField(lane, "state") ?? "planned",
-      packetInventory: packet ? [packet] : [],
-      nextLegalAction: "Follow the operator follow-up next legal actions for this matrix cell.",
-    });
-  }
-}
-
-function summarizeMatrixCockpitArtifact(
-  artifact: Record<string, unknown>,
-  cells: Map<string, AutoresearchMatrixCampaignCellSummary>,
-  nextLegalActions: Set<string>,
-): void {
-  for (const action of getStringArrayField(artifact, "nextLegalCampaignActions")) {
-    nextLegalActions.add(action);
-  }
-  for (const row of getArrayField(artifact, "cellRows")) {
-    if (!isRecord(row)) continue;
-    const cellId = getStringField(row, "cellId");
-    if (!cellId) continue;
-    upsertMatrixCampaignCellSummary(cells, {
-      cellId,
-      posture: getStringField(row, "posture") ?? "planned",
-      laneProgress: getStringField(row, "laneProgress") ?? "0/0",
-      selectedLaneId: getStringField(row, "selectedLaneId"),
-      selectedPacketPath: getStringField(row, "selectedPacketPath"),
-      packetInventory: getStringArrayField(row, "packetInventory"),
-      nextLegalAction:
-        getStringField(row, "nextLegalAction") ?? "Review the cockpit row before acting.",
-    });
-  }
-}
-
+/** Read-only display projection. Identity is exact task/canonical cwd/objective, never cell ID alone. */
 export function discoverAutoresearchMatrixCampaignArtifacts(
   cwdInput: string,
 ): AutoresearchMatrixCampaignArtifactSummary {
-  const cwd = path.resolve(cwdInput);
-  const artifactRoots = AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_ROOTS.map((root) =>
-    path.join(cwd, root),
-  );
+  const issues: string[] = [];
+  let cwd = path.resolve(cwdInput);
+  try {
+    cwd = realpathSync(cwd);
+  } catch (error) {
+    issues.push(`Campaign cwd unavailable; discovery cannot establish identity: ${String(error)}`);
+  }
+  const campaigns = new Map<string, DashboardCampaign>();
   const artifacts: AutoresearchMatrixCampaignArtifactReference[] = [];
-  const cells = new Map<string, AutoresearchMatrixCampaignCellSummary>();
-  const nextLegalActions = new Set<string>();
-  const exportedPackets = new Set<string>();
-  const campaignKeys = new Set<string>();
-  const blockers: string[] = [];
-  const matrixChartMetricPoints: AutoresearchDashboardChartPoint[] = [];
-  let completedCellCount = 0;
-  let selectedCellCount = 0;
-  let expectedCellCount = 0;
-  let candidateLaneCount = 0;
-  let metricName: string | null = null;
-  let metricDirection: MetricDirection | null = null;
-  let metricTarget: number | null = null;
+  const packets = new Map<string, { value: unknown; projection: DashboardPacketProjection }>();
+  const observations: DashboardCampaign[] = [];
   let latestArtifactPath: string | null = null;
-  let latestMtime = 0;
-
-  for (const root of artifactRoots) {
-    for (const filePath of collectJsonFiles(root)) {
-      const relativePath = relativeAutoresearchPath(cwd, filePath);
-      const mtime = statSync(filePath).mtimeMs;
-      if (mtime >= latestMtime) {
-        latestMtime = mtime;
-        latestArtifactPath = relativePath;
+  let latestMtime = -Infinity;
+  let bytes = 0;
+  const roots = [
+    ...AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_ROOTS,
+    ".autoresearch/candidate-result.json",
+  ];
+  for (const file of collectJsonFiles(cwd, roots, issues)) {
+    const source = relativeAutoresearchPath(cwd, file);
+    try {
+      const read = readMatrixArtifactJson(cwd, file);
+      bytes += read.bytes;
+      if (bytes > MAX_DISCOVERY_BYTES) {
+        issues.push("32 MiB discovery budget reached; inventory is incomplete.");
+        break;
       }
-      const json = readMatrixArtifactJson(filePath);
-      if (json === null) {
-        blockers.push(`unreadable JSON artifact: ${relativePath}`);
+      if (read.modifiedAt > latestMtime) {
+        latestMtime = read.modifiedAt;
+        latestArtifactPath = source;
+      }
+      const value = read.value;
+      if (source.startsWith(".autoresearch/dashboard/level4/")) {
+        const observation = projectLevel4Observation(value, cwd, source);
+        observations.push(observation);
+        artifacts.push({
+          kind: "autoresearch.level4_dashboard_observation.v1",
+          path: source,
+          source: "root",
+        });
         continue;
       }
-      const extracted = extractMatrixArtifactsFromJson(json);
-      if (extracted.length === 0) {
-        if (getStringField(json, "packetKind") === "autoresearch.candidate_result.v1") {
-          exportedPackets.add(relativePath);
-          addCandidateResultMatrixChartPoint(json, relativePath, matrixChartMetricPoints);
-          const cellId = inferMatrixCellIdFromPath(relativePath);
-          if (cellId) {
-            upsertMatrixCampaignCellSummary(cells, {
-              cellId,
-              posture: "measured_exported_selectable",
-              packetInventory: [relativePath],
-              nextLegalAction:
-                "Run review_candidate_wave/review_matrix_campaign after packet review.",
-            });
-          }
-        }
+      if (str(value, "packetKind") === "autoresearch.candidate_result.v1") {
+        const projection = projectCandidatePacket(value, source, null);
+        packets.set(source, { value, projection });
+        issues.push(...projection.issues.map((v) => `${source}: ${v}`));
         continue;
       }
-
+      const extracted = extractMatrixArtifactsFromJson(value);
+      if (!extracted.length) {
+        issues.push(`${source}: unrecognized or malformed artifact; not scoreable.`);
+        continue;
+      }
       for (const item of extracted) {
-        artifacts.push({ kind: item.kind, path: relativePath, source: item.source });
-        campaignKeys.add(
-          getStringField(item.artifact, "objective") ??
-            getStringField(item.artifact, "manifestPath") ??
-            relativePath,
-        );
-        const direction = getStringField(item.artifact, "direction");
-        if ((direction === "lower" || direction === "higher") && metricDirection === null) {
-          metricDirection = direction;
-        }
-        const followup = getRecordField(item.artifact, "operatorFollowup");
-        const primaryMetric = getRecordField(followup, "primaryMetric");
-        metricName ??= getStringField(primaryMetric, "name");
-        const followupDirection = getStringField(primaryMetric, "direction");
-        if (
-          (followupDirection === "lower" || followupDirection === "higher") &&
-          metricDirection === null
-        ) {
-          metricDirection = followupDirection;
-        }
-        metricTarget ??= getNumberField(primaryMetric, "target");
-
-        if (item.kind === "autoresearch.matrix_campaign_plan.v1") {
-          summarizeMatrixPlanArtifact(item.artifact, cells, nextLegalActions);
-        }
-        if (item.kind === "autoresearch.matrix_campaign_runner_contract.v1") {
-          summarizeMatrixRunnerArtifact(item.artifact, cells, nextLegalActions);
-        }
-        if (item.kind === "autoresearch.matrix_campaign_operator_followup.v1") {
-          summarizeMatrixFollowupArtifact(item.artifact, cells, nextLegalActions);
-        }
-        if (item.kind === "autoresearch.matrix_campaign_cockpit.v1") {
-          summarizeMatrixCockpitArtifact(item.artifact, cells, nextLegalActions);
-        }
-        if (
-          item.kind === "autoresearch.matrix_campaign_runner_checkpoint.v1" ||
-          item.kind === "autoresearch.matrix_campaign_review.v1"
-        ) {
-          summarizeMatrixFollowupArtifact(followup ?? {}, cells, nextLegalActions);
-          const closeoutMetric = addMatrixCloseoutChartPoints(
-            item.artifact,
-            relativePath,
-            matrixChartMetricPoints,
+        artifacts.push({ kind: item.kind, path: source, source: item.source });
+        const task = num(item.artifact, "taskId");
+        const taskId = task !== null && Number.isSafeInteger(task) && task > 0 ? task : null;
+        const objective = str(item.artifact, "objective");
+        const ownerCwd = str(item.artifact, "cwd");
+        const matchingCwd =
+          ownerCwd !== null && path.isAbsolute(ownerCwd) && realpathSync(ownerCwd) === cwd;
+        const resolved = !!(taskId && objective && matchingCwd);
+        const key = resolved
+          ? JSON.stringify([taskId, cwd, objective])
+          : `unresolved:${source}:${item.source}`;
+        const campaign =
+          campaigns.get(key) ?? createCampaign(key, cwd, resolved ? taskId : null, objective);
+        if (!resolved)
+          campaign.issues.push(
+            `${source}: task/cwd/objective identity unresolved; isolated, not comparable.`,
           );
-          metricName ??= closeoutMetric.name;
-          metricDirection ??= closeoutMetric.direction;
-          metricTarget ??= closeoutMetric.target;
-          const cockpit = getRecordField(item.artifact, "cockpit");
-          if (cockpit) summarizeMatrixCockpitArtifact(cockpit, cells, nextLegalActions);
-          completedCellCount = Math.max(
-            completedCellCount,
-            getNumberField(item.artifact, "completedCellCount") ??
-              getNumberField(getRecordField(cockpit, "progress"), "completedCells") ??
-              0,
-          );
-          selectedCellCount = Math.max(
-            selectedCellCount,
-            getNumberField(item.artifact, "selectedCellCount") ??
-              getNumberField(getRecordField(cockpit, "progress"), "selectedCells") ??
-              0,
-          );
-        }
-
-        expectedCellCount = Math.max(
-          expectedCellCount,
-          getArrayField(item.artifact, "cells").length,
-          getNumberField(
-            getRecordField(getRecordField(item.artifact, "cockpit"), "progress"),
-            "expectedCells",
-          ) ?? 0,
-          getNumberField(getRecordField(followup, "measurementReviewState"), "expectedCells") ?? 0,
-        );
-        candidateLaneCount = Math.max(
-          candidateLaneCount,
-          getArrayField(item.artifact, "lanes").length,
-          getArrayField(followup, "lanePacketPaths").length,
-        );
+        campaign.ownerReports.push(item.artifact);
+        summarizeMatrixArtifact(campaign, item.artifact, source);
+        campaigns.set(key, campaign);
       }
+    } catch (e) {
+      issues.push(`${source}: ${String(e)}`);
     }
   }
-
-  const cellList = [...cells.values()].sort((left, right) =>
-    left.cellId.localeCompare(right.cellId),
-  );
-  const resolvedCellCount = Math.max(expectedCellCount, cellList.length);
-  const resolvedCandidateLaneCount = Math.max(
-    candidateLaneCount,
-    cellList.reduce((total, cell) => total + cell.packetInventory.length, 0),
-  );
-  const blockerValue = blockers.length;
-  const openCandidateReview = buildAutoresearchOpenCandidateReviewPosture({
-    cells: cellList,
-    exportedPacketCount: exportedPackets.size,
+  // Latest observation is one owner snapshot, not a new authority or a merge-by-mtime winner.
+  for (const observation of observations) {
+    const previous = campaigns.get(observation.key);
+    if (previous?.declaredLevel === "Level 4 observation") {
+      previous.issues.push("Duplicate Level 4 identity; reconciliation required.");
+      previous.identityResolved = false;
+    } else if (previous) {
+      observation.ownerReports.unshift(...previous.ownerReports);
+      observation.sourcePaths.unshift(...previous.sourcePaths);
+      // Recover plan narrative without replacing the observed lane/cursor posture.
+      for (const cell of previous.cells) {
+        const target = observation.cells.find((c) => c.cellId === cell.cellId);
+        if (!target) observation.cells.push(cell);
+        else {
+          target.hypothesis = cell.hypothesis;
+          target.prediction = cell.prediction;
+          target.rejectionCriteria = cell.rejectionCriteria;
+          target.scenario = cell.scenario;
+          target.sources.push(...cell.sources);
+          target.issues.push(...cell.issues);
+          for (const lane of cell.lanes)
+            if (
+              !target.lanes.some(
+                (l) =>
+                  l.laneId === lane.laneId ||
+                  l.expectedPacketPaths.some((p) => lane.expectedPacketPaths.includes(p)),
+              )
+            )
+              target.lanes.push(lane);
+        }
+      }
+      campaigns.set(observation.key, observation);
+    } else campaigns.set(observation.key, observation);
+  }
+  const list = [...campaigns.values()];
+  const unresolvedPackets = attachPackets(list, packets, issues);
+  for (const campaign of list) for (const cell of campaign.cells) finalizeCell(cell);
+  issues.push(...list.flatMap((c) => [...c.issues, ...c.cells.flatMap((cell) => cell.issues)]));
+  const unresolvedInventory = new Map<string, DashboardAttempt[]>();
+  for (const attempt of unresolvedPackets)
+    for (const source of attempt.sources) {
+      const inventory = unresolvedInventory.get(source) ?? [];
+      inventory.push(attempt);
+      unresolvedInventory.set(source, inventory);
+    }
+  // Compatibility inventory for review/cleanup consumers. Never promote it to measured/selectable.
+  const unresolvedCells = [...unresolvedInventory].map(([source]) => {
+    const c = createCampaign(`unresolved:${source}`, cwd, null, null);
+    const cell = cellFor(c, `unresolved source: ${source}`);
+    cell.packetInventory = [source];
+    cell.sources = [source];
+    cell.posture = "unresolved_inventory";
+    cell.stageNote =
+      "Unresolved source inventory; neither planned execution nor a selectable measurement.";
+    cell.nextLegalAction =
+      "Controller: reconcile packet identity and validation before owner review.";
+    return cell;
   });
-  const chart = buildMatrixCampaignDashboardChart({
-    metricPoints: matrixChartMetricPoints,
-    completedCellCount,
-    resolvedCellCount,
-    metricName,
-    metricDirection,
-  });
-
+  const cells = [...list.flatMap((c) => c.cells), ...unresolvedCells];
+  const lanes = cells.flatMap((c) => c.lanes);
+  const validAttempts = lanes.flatMap((l) => l.attempts).filter((a) => a.validMeasurement);
+  const coverageGapLaneCount = lanes.reduce((n, l) => n + l.missingMeasurementPaths.length, 0);
+  if (coverageGapLaneCount)
+    issues.push(
+      `${coverageGapLaneCount} expected packet inventory slot(s) lack a valid measurement.`,
+    );
+  const blockers = [...new Set(issues)];
+  const reviewCells = cells.filter(
+    (c) =>
+      c.measuredPacketCount > 0 ||
+      c.selectedLaneId !== null ||
+      c.posture === "unresolved_inventory",
+  );
+  const selected = cells.filter((c) => c.selectedLaneId !== null).length;
   return {
     kind: "autoresearch.matrix_campaign_artifact_summary.v1",
     cwd,
-    artifactRoots: artifactRoots.map((root) => relativeAutoresearchPath(cwd, root)),
+    artifactRoots: roots,
     artifacts,
-    campaignCount: campaignKeys.size,
-    cellCount: resolvedCellCount,
-    completedCellCount,
-    selectedCellCount,
-    candidateLaneCount: resolvedCandidateLaneCount,
-    exportedPacketCount: exportedPackets.size,
-    openCandidateReview,
-    metricName,
-    metricDirection,
-    metricTarget,
+    campaigns: list,
+    comparisonGroups: buildComparisonGroups(list),
+    unresolvedPackets,
+    campaignCount: list.length,
+    cellCount: cells.length,
+    completedCellCount: list.reduce((n, c) => n + c.controllerCompletedCellCount, 0),
+    selectedCellCount: selected,
+    candidateLaneCount: lanes.length,
+    exportedPacketCount: packets.size,
+    openCandidateReview: {
+      kind: "autoresearch.open_candidate_review_posture.v1",
+      status: reviewCells.length ? "owner_review_required" : "no_open_candidate_review",
+      openCellCount: reviewCells.length,
+      selectedReviewCellCount: selected,
+      unselectedMeasuredCellCount: reviewCells.filter(
+        (c) => !c.selectedLaneId && c.measuredPacketCount > 0,
+      ).length,
+      packetInventoryItemCount: cells.reduce((n, c) => n + c.packetInventory.length, 0),
+      uniqueExportedPacketCount: packets.size,
+      summary:
+        "Open candidate review posture: packet counts are review inventory, not effects, independent samples, or selection authority. Unresolved inventory requires source review; it is not measured/selectable.",
+      nextLegalAction:
+        "Controller: reconcile source identity and valid measurements before owner review.",
+      boundary:
+        "Owner review, keep/discard, cleanup and evidence writes are separate gated actions.",
+    },
+    metricName: null,
+    metricDirection: null,
+    metricTarget: null,
     latestArtifactPath,
-    cells: cellList,
-    chart,
-    nextLegalActions: [...nextLegalActions].slice(0, 8),
+    cells,
+    chart: {
+      kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
+      mode: "empty",
+      metricName: "",
+      metricUnit: "",
+      direction: "lower",
+      points: [],
+      sourceDescription:
+        "Aggregate comparison withheld; consume comparisonGroups with exact identities.",
+      emptyMessage: "No global best or mixed-metric series.",
+    },
+    nextLegalActions: list.map((c) => c.nextAction),
+    observedMeasurementCount: new Set(validAttempts.map((a) => a.id)).size,
+    coverageGapLaneCount,
     exportVisibilityBlockers: {
       name: "export_visibility_blockers",
       direction: "lower",
       target: 0,
-      value: blockerValue,
-      status: blockerValue === 0 ? "target_met" : "blocked",
+      value: blockers.length,
+      status: blockers.length ? "blocked" : "target_met",
       blockers,
     },
     boundary:
-      "Matrix campaign discovery is read-only: it parses local .autoresearch artifacts and never launches peers, runs benchmarks, exports packets, writes evidence, merges, or promotes.",
+      "Matrix campaign discovery is read-only. Zero missing packets or visibility issues does not establish campaign success. No launch, benchmark, owner write, or promotion is performed.",
   };
 }
 
-function buildAutoresearchOpenCandidateReviewPosture(input: {
-  cells: AutoresearchMatrixCampaignCellSummary[];
-  exportedPacketCount: number;
-}): AutoresearchOpenCandidateReviewPosture {
-  const selectedReviewCells = input.cells.filter((cell) =>
-    isOpenCandidateReviewCell(cell, "selected"),
-  );
-  const unselectedMeasuredCells = input.cells.filter((cell) =>
-    isOpenCandidateReviewCell(cell, "unselected"),
-  );
-  const openCellCount = selectedReviewCells.length + unselectedMeasuredCells.length;
-  const packetInventoryItemCount = input.cells.reduce(
-    (total, cell) => total + cell.packetInventory.length,
-    0,
-  );
-  const status = openCellCount > 0 ? "owner_review_required" : "no_open_candidate_review";
-  const summary =
-    status === "owner_review_required"
-      ? `Open candidate review posture: ${openCellCount} cell(s) still need owner review; ${selectedReviewCells.length} selected cell(s), ${unselectedMeasuredCells.length} measured/selectable unselected cell(s), ${packetInventoryItemCount} packet inventory reference(s), ${input.exportedPacketCount} unique exported packet(s). Packet counts are review inventory, not live candidate promotion authority.`
-      : "Open candidate review posture: no measured candidate cells with packet inventory are waiting for owner review in discovered local artifacts.";
+import { matchesMatrixPacketSegment } from "./runtime-matrix-segment.ts";
 
-  return {
-    kind: "autoresearch.open_candidate_review_posture.v1",
-    status,
-    openCellCount,
-    selectedReviewCellCount: selectedReviewCells.length,
-    unselectedMeasuredCellCount: unselectedMeasuredCells.length,
-    packetInventoryItemCount,
-    uniqueExportedPacketCount: input.exportedPacketCount,
-    summary,
-    nextLegalAction:
-      status === "owner_review_required"
-        ? "Run review_candidate_wave/review_matrix_campaign through the owning review surface after packet review; do not keep, discard, finalize, merge, or record evidence from packet counts alone."
-        : "No candidate review action is suggested from discovered local matrix artifacts.",
-    boundary:
-      "Read-only candidate-review posture: local candidate-result packets and packet inventories are projections until owner review decides keep/discard/finalize/evidence.",
-  };
+function invalidate(attempt: DashboardAttempt, reason: string): void {
+  attempt.validMeasurement = false;
+  attempt.comparisonKey = null;
+  attempt.issues.push(reason);
+  attempt.comparisonWithheld.push(reason);
 }
-
-function isOpenCandidateReviewCell(
-  cell: AutoresearchMatrixCampaignCellSummary,
-  mode: "selected" | "unselected",
-): boolean {
-  if (cell.packetInventory.length === 0 && !cell.selectedPacketPath) return false;
-  if (mode === "selected") {
-    return cell.selectedLaneId !== null || cell.posture === "ready_for_matrix_owner_review";
+function attachPackets(
+  campaigns: DashboardCampaign[],
+  packets: Map<string, { value: unknown; projection: DashboardPacketProjection }>,
+  issues: string[],
+): DashboardAttempt[] {
+  const used = new Set<string>();
+  attachHistoricalPacketPaths(campaigns, packets);
+  const owners = new Map<string, Set<string>>();
+  for (const c of campaigns)
+    for (const cell of c.cells)
+      for (const lane of cell.lanes)
+        for (const p of lane.expectedPacketPaths) {
+          const refs = owners.get(p) ?? new Set<string>();
+          refs.add(`${c.key}:${cell.cellId}:${lane.laneId}`);
+          owners.set(p, refs);
+        }
+  // Identical exported packet bodies are duplicates, not additional samples.
+  const duplicates = new Map<string, string[]>();
+  for (const [p, packet] of packets) {
+    const key = packetDuplicateKey(packet.value);
+    const paths = duplicates.get(key) ?? [];
+    paths.push(p);
+    duplicates.set(key, paths);
   }
-  return cell.selectedLaneId === null && cell.posture === "measured_exported_selectable";
+  for (const c of campaigns)
+    for (const cell of c.cells)
+      for (const lane of cell.lanes) {
+        for (const p of [...lane.expectedPacketPaths, ...lane.historyPacketPaths]) {
+          const data = packets.get(p);
+          if (!data) continue;
+          used.add(p);
+          const packet = projectCandidatePacket(data.value, p, cell.scenario);
+          const reasons: string[] = [];
+          if (!c.identityResolved || packet.cwd !== c.cwd)
+            reasons.push("Campaign/packet identity unresolved or cwd mismatch.");
+          if ((owners.get(p)?.size ?? 0) > 1)
+            reasons.push("Packet path claimed by multiple campaign/cell/lane identities.");
+          if ((duplicates.get(packetDuplicateKey(data.value))?.length ?? 0) > 1)
+            reasons.push("Duplicate packet source; controller reconciliation required.");
+          if (cell.issues.length)
+            reasons.push("Conflicting cell identity; source reconciliation required.");
+          // Owner packets don't carry AK taskId: exact expected path is correlation, never authentication.
+          if (!matchesMatrixPacketSegment(c, cell, lane, data.value))
+            reasons.push(
+              "Packet segment does not match the exact declared campaign/cell/lane identity; historical source unresolved.",
+            );
+          if (
+            packet.objectiveDigest &&
+            ![c.objective, cell.objective]
+              .filter((o): o is string => o !== null)
+              .some((o) => createHash("sha256").update(o).digest("hex") === packet.objectiveDigest)
+          )
+            reasons.push("Stale/mismatched objective digest.");
+          for (const a of packet.attempts) {
+            if (
+              lane.segmentIdentity &&
+              str(rec(a.raw, "experiment"), "hypothesisId") !== lane.segmentIdentity.hypothesisId
+            ) {
+              a.packetBinding = "quarantined";
+              invalidate(
+                a,
+                "Quarantined source history: hypothesisId does not match this exact matrix lane.",
+              );
+            }
+            a.verificationReport = lane.verificationReport;
+            for (const reason of reasons) invalidate(a, reason);
+            const previous = lane.attempts.find((v) => v.id === a.id);
+            if (previous) {
+              previous.sources = [...new Set([...previous.sources, ...a.sources])];
+              if (!a.validMeasurement) for (const reason of a.issues) invalidate(previous, reason);
+            } else lane.attempts.push(a);
+          }
+          issues.push(...reasons.map((r) => `${p}: ${r}`));
+        }
+        lane.attempts.sort(
+          (a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0) || a.id.localeCompare(b.id),
+        );
+        lane.missingMeasurementPaths = lane.expectedPacketPaths.filter(
+          (p) => !lane.attempts.some((a) => a.validMeasurement && a.sources.includes(p)),
+        );
+      }
+  return [...packets]
+    .filter(([p]) => !used.has(p))
+    .flatMap(([p, data]) => {
+      issues.push(`${p}: no unambiguous planned campaign/lane binding; comparison withheld.`);
+      return data.projection.attempts.map((a) => {
+        invalidate(a, "Unresolved campaign/lane identity.");
+        return a;
+      });
+    });
+}
+
+function packetDuplicateKey(value: unknown): string {
+  // Changing report prose cannot turn the same measured run into another independent export.
+  return digest({
+    cwd: str(value, "cwd"),
+    campaign: str(value, "campaign"),
+    candidate: rec(value, "candidate"),
+    run: rec(value, "candidateRun"),
+  });
+}
+function attachHistoricalPacketPaths(
+  campaigns: DashboardCampaign[],
+  packets: Map<string, { value: unknown; projection: DashboardPacketProjection }>,
+): void {
+  const allExpected = new Set(
+    campaigns.flatMap((c) =>
+      c.cells.flatMap((cell) => cell.lanes.flatMap((lane) => lane.expectedPacketPaths)),
+    ),
+  );
+  for (const [source, packet] of packets) {
+    if (allExpected.has(source)) continue;
+    const identity = bindingIdentity(rec(packet.value, "candidate"));
+    if (!identity) continue;
+    const matches = campaigns.flatMap((c) =>
+      c.cells.flatMap((cell) =>
+        cell.lanes.filter(
+          (lane) =>
+            c.identityResolved &&
+            packet.projection.cwd === c.cwd &&
+            matchesMatrixPacketSegment(c, cell, lane, packet.value) &&
+            lane.expectedPacketPaths.some((p) => {
+              const anchor = packets.get(p);
+              return (
+                anchor?.projection.valid &&
+                bindingIdentity(rec(anchor.value, "candidate")) === identity
+              );
+            }),
+        ),
+      ),
+    );
+    if (matches.length === 1) matches[0].historyPacketPaths.push(source);
+  }
 }

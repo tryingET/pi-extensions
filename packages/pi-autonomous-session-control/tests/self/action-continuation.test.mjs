@@ -26,7 +26,7 @@ test("self query: explicit continuation candidate owns diagnostic-looking payloa
   await cleanup(tempDir);
 });
 
-test("self query: bare peer explicit continuation candidate remains prefilled on continue", async () => {
+test("self query: bare peer explicit continuation candidate remains show-only on continue", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -38,6 +38,7 @@ test("self query: bare peer explicit continuation candidate remains prefilled on
     cwd: "/repo/explicit-continuation",
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -60,15 +61,17 @@ test("self query: bare peer explicit continuation candidate remains prefilled on
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.match(editorText, /peer review this change/);
+  assert.match(result.content[0].text, /Editor unchanged/);
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.prefillPerformed, false);
+  assert.match(result.details.data.text, /peer review this change/);
   assert.equal(harness.sentUserMessages.length, 0);
   assert.equal(result.details.data.dispatchMode, "operator_review_required");
 
   await cleanup(tempDir);
 });
 
-test("self query: risky explicit continuation candidate remains prefilled on continue", async () => {
+test("self query: risky explicit continuation candidate remains show-only on continue", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -80,6 +83,7 @@ test("self query: risky explicit continuation candidate remains prefilled on con
     cwd: "/repo/explicit-continuation",
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -102,8 +106,10 @@ test("self query: risky explicit continuation candidate remains prefilled on con
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.match(editorText, /dispatch_subagent/);
+  assert.match(result.content[0].text, /Editor unchanged/);
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.prefillPerformed, false);
+  assert.match(result.details.data.text, /dispatch_subagent/);
   assert.equal(harness.sentUserMessages.length, 0);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_review_required");

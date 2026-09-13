@@ -54,6 +54,69 @@ Coverage health for the critical root canary is tracked with `critical_uncovered
 
 The `host-dev-pin-drift` scenario is a read-only fleet check. It requires exact canary-current versions in `dependencies`, `devDependencies`, and `optionalDependencies` (not `peerDependencies`), matching `package-lock.json` `packages[""]` specifiers and direct `node_modules/<contract>` versions, and rejects nested lock copies under non-contract packages. Nested copies under another `@earendil-works/*` tree are treated as that package's own closure and are not fleet pins.
 
+### Development-contract admission and reconciliation
+
+The existing drift checker also provides explicit read-only scopes:
+
+```bash
+# Workspace diagnostics: includes unfinished/untracked packages, no mutation.
+node scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs --json
+# One admitted package; repeat --package for another exact root.
+node scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs --package packages/pi-typescript-tool --json
+# Captured index blobs, selected against HEAD; no worktree bytes or write-tree.
+node scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs --staged --json
+# Entire tracked package fleet from the selected immutable Git tree.
+node scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs --revision HEAD --json
+```
+
+JSON labels the source, scope, expected baseline, counts and offenders; snapshot
+reports include the bound tree/blob identities. This is a reconciliation report,
+not an automatic repair or promotion command. Snapshot modes cannot combine with
+custom policy or package selection. Root-policy changes in the index expand to
+all indexed consumers; other staged changes check affected packages, using policy
+from the same snapshot. An unchanged index reports an explicit scoped skip, never
+a fleet pass. Unmerged entries, orphaned manifest removal, lock-only deletion and
+symlinked selected metadata fail closed. Complete package removal requires zero
+remaining indexed entries under its old directory and is reported explicitly;
+moved destinations are checked too. No-files-left fleet checks still fail. This
+is validation of supplied Git changes, not authority to retire or move a package.
+
+The root staged smoke runs index admission early. Local package gates check their
+explicit working-tree package (including package-group metadata), without scanning
+unrelated unfinished packages. This does not make the rest of package validation
+an index-only sandbox: lint/structure/test commands still operate on working files.
+The full gate retains the strict workspace fleet check and runs it before costly
+checks. Use a clean, admitted checkout for release validation; `--revision` proves
+only authored host-contract alignment, not the whole release gate. Admission validates
+policy schema and lexical cwd safety without requiring unrelated scenario
+directories to exist. Runtime canary validation separately retains canonical
+filesystem containment, directory checks and identities before execution.
+
+Generated `x-pi-template.piHostContract.devTestFloor`, when present, must match the
+root baseline too. Existing lockfiles must contain matching root specifiers and
+resolved entries for governed declarations. Intentional lockfile absence, peer
+ranges and the documented closure exceptions retain their prior meaning. Historical
+`hostBaseline` metadata is scaffold provenance, not a second development authority.
+The TypeScript package's development validator/tests consume `host-contract.mjs`;
+future package adoption should follow that seam instead of hardcoding another floor.
+
+Coverage remains bounded: direct governed lock entries without a corresponding
+manifest declaration are not independently checked. Neither a passing report nor
+exact direct pins prove a uniform transitive host stack. For example, a 0.84.3
+coding-agent installation may resolve allowed companion closures to 0.84.4;
+record actual loaded identities when claiming runtime compatibility.
+
+For a repair, review the selected report, align only authorized declarations and
+development metadata, regenerate affected locks through npm, then run scoped and
+fleet checks plus package validation. Do not hand-edit resolved lock versions.
+The canary's temporary `--no-save --package-lock=false` host alignment and recovery
+are not authored-state repair. Upgrade scenarios exclude `host-dev-pin-drift`;
+passing a candidate canary does not prove candidate-aligned authored declarations,
+fleet promotion, or activation in the currently loaded runtime. An approved fleet
+upgrade must supply those separate proofs. Automated alignment/promotion remains
+a follow-up, not functionality added by this admission repair.
+
+
 ### Runner module map
 
 AK-4714 retired the temporary runner size exception by decomposing the implementation into cohesive private modules while keeping `scripts/pi-host-compatibility-canary.mjs` as the only CLI facade:

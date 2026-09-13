@@ -25,6 +25,7 @@ The runtime is Electron-free. A Node controller retains the tested telemetry, id
 - draws itself in Ghostty's own theme and follows the desktop between light and dark
 - sits on the same gap rhythm and corner radius as tiled windows, rather than as a bar on the screen edge
 - aggregates independent publishers beneath stable terminal cards
+- shows the AK task a session is working on: read-only `ak` output is joined onto cards, clicking the task reference focuses the claiming terminal, and claims that outlive their session or deferred tasks appear as non-clickable badges
 - displays repo, phase, tool, detail, elapsed time, and freshness
 - marks the exact currently focused terminal card and prefixes hidden-tab cards with `⧉`
 - keeps monitoring-success cards beside the Activity tile, then active and settled cards
@@ -121,6 +122,7 @@ The shortcut toggles exclusive keyboard mode. On entry, the first card is select
 - **Exact focus:** card activation returns to Node, which performs existing fail-closed terminal identity resolution and Niri focus.
 - **Hidden tabs:** a Ghostty window title only names its active tab. A bound surface whose title is not visible is placed through its Ghostty host process: one host window is exact containment; several host windows use the window remembered for that tab. Memory comes from titles seen while the strip runs and from a read-only AT-SPI inventory of tab labels, and is persisted per Niri instance under `~/.pi/agent/state/pi-activity-strip/surface-bindings.json`. A tab whose window has never been observed stays unplaced rather than guessed; `status` reports that count. Activating a hidden-tab card calls the host process's `present-surface` action on the session bus, then focuses the window, and reports success only after the title proves the tab is visible.
 - **Agent tabs:** a tab is admitted as an agent when the process owning its terminal is a recognized agent CLI, never on a window title alone, so plain terminal programs are not cards. Claude Code tabs are identified exactly through the per-session scratchpad the process holds open, which yields the session id and the title Claude Code put on the terminal; that title places the tab in its window and is remembered so the tab stays placed once hidden.
+- **AK task references:** cards can show the Agent Kernel task their session is working on. The controller reads the read-only `ak` CLI (`ak task list --status claimed --format json --all --verbose` and `ak task deferred --format json --all`) on a calm 15-second clock and joins claims by exact Pi session id under the AK5700 claim semantics: only `session-<uuid>` claims count, and an expired lease is vacant custody that renders nothing. A card whose session holds a live claim shows a clickable `AK #id · title` chip that reuses the card's own activation, so clicking it focuses the exact Ghostty window of the claiming session, presenting hidden tabs first. Claims whose lease has not lapsed but whose claiming session no longer exists ("claim outlives session") and tasks carrying an active deferral are joined by task repo onto cards working inside that repo and render as inert badges, never buttons — there is no live window to focus and no AK action is ever offered. Ambiguous session matches (one logical session resumed into two terminals), a missing `ak` binary, or malformed output bind nothing: fail closed, no chip, no invented state, strip behavior unchanged. The strip never writes AK state and never touches the society database directly.
 - **Codex telemetry:** Codex keeps a thread index naming every session's rollout file, working directory and title. A process binds to its thread by an open rollout descriptor, or, before any task has run, by being the only session created in that directory after the process started; anything ambiguous binds nothing. The rollout tail then reports the running tool and its command, turn count, approval and sandbox policy, prompt and reply. Reading the index needs the runtime's built-in SQLite, and a host without it degrades to a process-only card.
 - **Claude Code telemetry:** cards read live state from the tail of the session transcript, giving the topic, current tool and its target, last prompt, latest reply, turn count and activity clock with no configuration. That format is internal to Claude Code and can change between releases, so a transcript that no longer parses degrades to a process-only card rather than inventing activity. Optional hooks add the one state a transcript cannot express, that a session is blocked waiting for you; run `claude-hooks` for the settings fragment. Only low-frequency events are hooked, so nothing runs per tool call. OpenTelemetry is deliberately not used: it reports aggregate usage and cost, not which tool a session is running now.
 - **Appearance:** the ribbon reads the same theme files Ghostty reads. It resolves the `theme` setting for the desktop's current colour scheme, including the `light:…,dark:…` form, and takes colours set directly in the config over the theme file, exactly as Ghostty layers them. State colours reuse the terminal's own meanings, so green is settled, yellow is working, red failed, and the cursor colour marks a session waiting for you. The panel derives every shade from eight named colours, so a theme change is a handful of values and one stylesheet reload rather than a restart. A theme that cannot be read falls back to a neutral palette.
@@ -136,6 +138,8 @@ The shortcut toggles exclusive keyboard mode. On entry, the first card is select
 - `PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN=/absolute/path` selects another receipted panel artifact.
 - `PI_ACTIVITY_STRIP_SOCKET_DIR` and `PI_ACTIVITY_STRIP_SOCKET_PATH` isolate broker fixtures and nested-compositor tests.
 - `PI_ACTIVITY_STRIP_TAB_INVENTORY=0` disables the read-only AT-SPI tab inventory; hidden tabs are then placed only from titles seen while the strip runs.
+- `PI_ACTIVITY_STRIP_AK_TASKS=0` disables AK task reference joining.
+- `PI_ACTIVITY_STRIP_AK_BIN=/absolute/path` selects the `ak` binary used for the read-only task queries (default `ak` on `PATH`).
 - `PI_ACTIVITY_STRIP_AGENT_TABS=0` disables discovery of non-Pi agent tabs.
 - `PI_ACTIVITY_STRIP_AGENT_KINDS_DISABLED=claude,codex` excludes named agent kinds from discovery.
 - `CODEX_HOME` selects a non-default Codex home when reading its thread index (default `~/.codex`).
@@ -180,6 +184,7 @@ Implemented:
 - pointer and keyboard card interaction
 - exact Ghostty activation, including hidden tabs via `present-surface`
 - hidden Ghostty tab placement through host process containment and learned window memory
+- clickable AK task references joined from read-only `ak` output, with claim-outlives-session and deferred badges
 - non-Pi agent tab discovery with an exact Claude Code adapter
 - live Claude Code telemetry from its transcript, with optional hooks for blocked-on-you states
 - live Codex telemetry from its thread index and rollout files
@@ -196,6 +201,7 @@ Not implemented:
 - placement of an agent other than Claude Code whose tab is hidden inside a multi-window Ghostty process, since only Claude Code exposes a per-tab title identity
 - one panel per output
 - historical timeline
+- any AK mutation from the strip (unclaim, land, reconstruct, apply); the ribbon is a read-only projection by construction
 - persisted manual ordering
 - remote observers via `pi-server`
 

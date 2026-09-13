@@ -89,6 +89,7 @@ export const ALWAYS_ACTIVE_TOOLS = [
   "self",
   "interview",
   "dispatch_subagent",
+  "session_closeout",
   "intercom",
   "vault_query",
   "vault_retrieve",

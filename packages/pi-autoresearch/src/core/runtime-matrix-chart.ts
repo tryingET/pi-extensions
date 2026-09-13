@@ -1,185 +1,241 @@
-import path from "node:path";
-
-import { isRecord } from "./runtime-common.ts";
+import { createHash } from "node:crypto";
+import { validateAutoresearchAdapterPacket } from "./runtime-adapter.ts";
 import {
-  getNumberField,
-  getRecordField,
-  getStringField,
-  inferMatrixCellIdFromPath,
+  getArrayField as arr,
+  getNumberField as num,
+  getRecordField as rec,
+  record,
+  getStringField as str,
 } from "./runtime-matrix-fields.ts";
-import type {
-  AutoresearchDashboardChartPoint,
-  AutoresearchMatrixCampaignDashboardChart,
-  MetricDirection,
+import {
+  classifyAutoresearchDashboardOutcomeClass,
+  type DashboardAttempt,
+  type DashboardCampaign,
+  type DashboardComparisonGroup,
+  type DashboardMeasurementIdentity,
 } from "./runtime-matrix-model.ts";
 
-function addMatrixCampaignChartPoint(
-  points: AutoresearchDashboardChartPoint[],
-  point: AutoresearchDashboardChartPoint,
-): void {
-  const duplicate = points.some(
-    (existing) =>
-      existing.source === point.source &&
-      existing.label === point.label &&
-      existing.metric === point.metric &&
-      existing.description === point.description,
+export function digest(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+export function bindingIdentity(binding: unknown): string | null {
+  const fields = ["source", "worktreePath", "branch", "baseRef", "diffSummary"].map((key) =>
+    str(binding, key),
   );
-  if (!duplicate) points.push(point);
+  const files = arr(binding, "filesChanged");
+  return fields.every(Boolean) && files.every((v) => typeof v === "string")
+    ? JSON.stringify([...fields, [...files].sort()])
+    : null;
 }
 
-export function addCandidateResultMatrixChartPoint(
-  json: unknown,
-  relativePath: string,
-  points: AutoresearchDashboardChartPoint[],
-): void {
-  if (
-    !isRecord(json) ||
-    getStringField(json, "packetKind") !== "autoresearch.candidate_result.v1"
-  ) {
-    return;
-  }
-  const candidateRun = getRecordField(json, "candidateRun");
-  const metric = getNumberField(candidateRun, "metric");
-  if (metric === null) return;
-  const cellId = inferMatrixCellIdFromPath(relativePath) ?? "matrix-cell";
-  const candidate = getRecordField(json, "candidate");
-  const laneId =
-    getStringField(candidate, "branch") ??
-    getStringField(candidate, "worktreePath") ??
-    path.basename(relativePath).replace(/\.candidate-result\.json$/u, "");
-  addMatrixCampaignChartPoint(points, {
-    iteration: getNumberField(candidateRun, "iteration"),
-    label: `${cellId} ${laneId}`,
-    status: getStringField(candidateRun, "status") ?? "candidate",
-    runKind: getStringField(candidateRun, "runKind") ?? "matrix_candidate_result",
-    decision: getStringField(json, "empiricalDecisionClass") ?? "candidate_result",
-    metric,
-    description:
-      getStringField(candidateRun, "description") ??
-      getStringField(json, "resultSummary") ??
-      `Candidate-result metric from ${relativePath}`,
-    source: "matrix_candidate_result",
-  });
-}
-
-export function addMatrixCloseoutChartPoints(
-  artifact: Record<string, unknown>,
-  relativePath: string,
-  points: AutoresearchDashboardChartPoint[],
-): { name: string | null; direction: MetricDirection | null; target: number | null } {
-  const closeoutMetric = getRecordField(getRecordField(artifact, "closeout"), "metric");
-  if (!closeoutMetric) return { name: null, direction: null, target: null };
-  const name = getStringField(closeoutMetric, "name");
-  const directionValue = getStringField(closeoutMetric, "direction");
-  const direction: MetricDirection | null =
-    directionValue === "lower" || directionValue === "higher" ? directionValue : null;
-  const target = getNumberField(closeoutMetric, "target");
-  const baseline = getNumberField(closeoutMetric, "baseline");
-  const final = getNumberField(closeoutMetric, "final");
-  if (baseline !== null) {
-    addMatrixCampaignChartPoint(points, {
-      iteration: 1,
-      label: "matrix baseline",
-      status: "baseline",
-      runKind: "matrix_closeout",
-      decision: "baseline",
-      metric: baseline,
-      description: `${name ?? "matrix closeout metric"} baseline from ${relativePath}`,
-      source: "matrix_closeout",
-    });
-  }
-  if (final !== null) {
-    addMatrixCampaignChartPoint(points, {
-      iteration: baseline !== null ? 2 : 1,
-      label: "matrix final",
-      status: target !== null && final === target ? "keep" : "candidate",
-      runKind: "matrix_closeout",
-      decision: target !== null && final === target ? "threshold_satisfied" : "candidate_result",
-      metric: final,
-      description: `${name ?? "matrix closeout metric"} final from ${relativePath}`,
-      source: "matrix_closeout",
-    });
-  }
-  return { name, direction, target };
-}
-
-export function buildMatrixCampaignDashboardChart(input: {
-  metricPoints: AutoresearchDashboardChartPoint[];
-  completedCellCount: number;
-  resolvedCellCount: number;
-  metricName: string | null;
-  metricDirection: MetricDirection | null;
-}): AutoresearchMatrixCampaignDashboardChart {
-  if (input.metricPoints.length > 0) {
-    return {
-      kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
-      mode: "metric",
-      metricName: input.metricName ?? "matrix_metric",
-      metricUnit: "",
-      direction: input.metricDirection ?? "lower",
-      sourceDescription:
-        "Derived from matrix closeout metrics and candidate-result packet metrics discovered in local .autoresearch artifacts.",
-      emptyMessage: "No matrix metric points were discovered yet.",
-      points: input.metricPoints.map((point, index) => ({
-        ...point,
-        iteration: point.iteration ?? index + 1,
-      })),
-    };
-  }
-
-  if (input.resolvedCellCount > 0) {
-    return {
-      kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
-      mode: "cell_progress",
-      metricName: "matrix_cells_completed",
-      metricUnit: " cell(s)",
-      direction: "higher",
-      sourceDescription:
-        "Derived from matrix plan/cockpit/review cell-progress artifacts because no metric receipt series was available.",
-      emptyMessage: "No matrix cell progress was discovered yet.",
-      points: [
-        {
-          iteration: 1,
-          label: "matrix planned",
-          status: "planned",
-          runKind: "matrix_progress",
-          decision: "planned",
-          metric: 0,
-          description: `${input.resolvedCellCount} matrix cell(s) planned`,
-          source: "matrix_progress",
-        },
-        {
-          iteration: 2,
-          label: "matrix discovered progress",
-          status:
-            input.completedCellCount >= input.resolvedCellCount
-              ? "keep"
-              : input.completedCellCount > 0
-                ? "candidate"
-                : "planned",
-          runKind: "matrix_progress",
-          decision:
-            input.completedCellCount >= input.resolvedCellCount
-              ? "threshold_satisfied"
-              : "in_progress",
-          metric: input.completedCellCount,
-          description: `${input.completedCellCount}/${input.resolvedCellCount} matrix cell(s) complete`,
-          source: "matrix_progress",
-        },
-      ],
-    };
-  }
-
+export function comparisonIdentity(
+  closeout: unknown,
+  run: unknown,
+  scenario: string | null,
+): DashboardMeasurementIdentity {
+  const candidate = rec(rec(run, "experiment"), "candidate");
+  const direction = str(closeout, "direction");
+  const base = str(candidate, "baseRef");
   return {
-    kind: "autoresearch.matrix_campaign_dashboard_chart.v1",
-    mode: "empty",
-    metricName: input.metricName ?? "matrix_progress",
-    metricUnit: "",
-    direction: input.metricDirection ?? "higher",
-    sourceDescription:
-      "No chartable matrix closeout, candidate-result, or cell-progress points were discovered.",
-    emptyMessage:
-      "No matrix chart data yet; export candidate-result packets or matrix review/cockpit artifacts to fill this graph.",
-    points: [],
+    metricName: str(closeout, "metricName"),
+    metricUnit:
+      typeof record(closeout)?.metricUnit === "string"
+        ? (record(closeout)?.metricUnit as string)
+        : null,
+    direction: direction === "lower" || direction === "higher" ? direction : null,
+    scenario,
+    subject: bindingIdentity(candidate),
+    // Mutable branch names are not pinned evaluator/base identity.
+    base: base && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(base) ? base : null,
+    // Owner closeout deliberately drops actual per-run commands. Configuration is only a default.
+    evaluator: null,
   };
+}
+export function comparisonReasons(identity: DashboardMeasurementIdentity): string[] {
+  return Object.entries(identity)
+    .filter(([, value]) => value === null)
+    .map(([key]) => `Unknown ${key}; comparison withheld.`);
+}
+
+/** Project reports without authenticating them or reimplementing the empirical evaluator. */
+export function projectAttempt(input: {
+  run: unknown;
+  closeout: unknown;
+  source: string;
+  schemaValid: boolean;
+  schemaIssues?: string[];
+  scenario: string | null;
+  requireCandidate: boolean;
+  packetCandidate?: unknown;
+  verificationReport?: string;
+}): DashboardAttempt {
+  const { run, closeout } = input;
+  const status = str(run, "status") ?? "unknown";
+  const decision = str(run, "empiricalDecisionClass");
+  const outcome = classifyAutoresearchDashboardOutcomeClass({ decision, status });
+  const candidate = rec(rec(run, "experiment"), "candidate");
+  const candidateIdentity = bindingIdentity(candidate);
+  const timestamp = num(run, "timestamp");
+  const metric = num(run, "metric");
+  const checks = str(run, "checks");
+  const issues = [...(input.schemaIssues ?? [])];
+  const lineageValid =
+    timestamp !== null && timestamp > 0 && (!input.requireCandidate || candidateIdentity !== null);
+  const packetBinding = !input.requireCandidate
+    ? ("not_required" as const)
+    : candidateIdentity !== null && candidateIdentity === bindingIdentity(input.packetCandidate)
+      ? ("matched" as const)
+      : ("quarantined" as const);
+  if (packetBinding === "quarantined")
+    issues.push(
+      "Quarantined: this closeout run is not bound to the packet's selected candidate; retained as source history, not evidence for this lane.",
+    );
+  if (!lineageValid) issues.push("Missing or mismatched run/candidate lineage.");
+  const knownStatus = ["baseline", "candidate", "keep", "discard"].includes(status);
+  const checksValid =
+    checks === "passed" ||
+    (checks === "not run" &&
+      record(rec(rec(closeout, "status"), "currentSegment"))?.checksCommand === null);
+  if (!checksValid) issues.push("Checks are failed, absent, or unverified.");
+  if (metric === null) issues.push("No finite measurement.");
+  const identity = comparisonIdentity(closeout, run, input.scenario);
+  const invalidOutcomes = ["correctness_failure", "measurement_invalid", "resource_censored"];
+  const validMeasurement =
+    input.schemaValid &&
+    lineageValid &&
+    packetBinding !== "quarantined" &&
+    knownStatus &&
+    metric !== null &&
+    checksValid &&
+    !invalidOutcomes.includes(outcome) &&
+    !!identity.metricName &&
+    identity.metricUnit !== null &&
+    identity.direction !== null;
+  const comparisonWithheld = comparisonReasons(identity);
+  comparisonWithheld.push(
+    "Actual per-run benchmark/check commands are not preserved by the owner closeout. Per-run overrides can differ from configured defaults; protocol provenance gap, comparison withheld.",
+  );
+  if (packetBinding === "quarantined")
+    comparisonWithheld.push(
+      "Quarantined source history: candidate binding differs or is absent; no lane comparison.",
+    );
+  if (!validMeasurement) comparisonWithheld.push("Not a validated measurement.");
+  return {
+    id: digest({
+      run,
+      receiptPath: str(closeout, "receiptPath"),
+      campaign: str(closeout, "campaign"),
+    }),
+    sources: [input.source],
+    timestamp,
+    iteration: num(run, "iteration"),
+    description: str(run, "description") ?? "No attempt description reported.",
+    hypothesis: str(rec(run, "experiment"), "hypothesis"),
+    prediction: str(rec(run, "experiment"), "expectedPrimaryEffect"),
+    disposition: status,
+    decision,
+    outcome,
+    metric,
+    checks,
+    schemaValid: input.schemaValid,
+    lineageValid,
+    packetBinding,
+    validMeasurement,
+    verificationReport: input.verificationReport ?? "No controller verification report.",
+    provenance: "local_unauthenticated_projection",
+    identity,
+    comparisonKey: comparisonWithheld.length ? null : digest(identity),
+    comparisonWithheld,
+    issues,
+    raw: run,
+  };
+}
+
+export interface DashboardPacketProjection {
+  path: string;
+  cwd: string | null;
+  campaign: string | null;
+  objectiveDigest: string | null;
+  attempts: DashboardAttempt[];
+  valid: boolean;
+  issues: string[];
+}
+export function projectCandidatePacket(
+  value: unknown,
+  source: string,
+  scenario: string | null,
+): DashboardPacketProjection {
+  const validation = validateAutoresearchAdapterPacket(value);
+  const issues = validation.issues.map((issue) => `${issue.path}: ${issue.message}`);
+  const closeout = rec(value, "closeout");
+  const packetRun = rec(value, "candidateRun");
+  const candidate = rec(value, "candidate");
+  if (str(value, "cwd") !== str(closeout, "cwd")) issues.push("Packet/closeout cwd mismatch.");
+  if (str(value, "campaign") !== str(closeout, "campaign"))
+    issues.push("Packet/closeout campaign mismatch.");
+  const config = rec(rec(closeout, "status"), "currentSegment");
+  for (const field of ["metricName", "metricUnit", "direction"]) {
+    if (record(closeout)?.[field] !== record(config)?.[field])
+      issues.push(`Closeout/config ${field} mismatch.`);
+  }
+  if (str(rec(closeout, "status"), "cwd") !== str(closeout, "cwd"))
+    issues.push("Closeout/status cwd mismatch.");
+  const runs = arr(closeout, "runs");
+  if (!packetRun || !runs.some((run) => digest(run) === digest(packetRun)))
+    issues.push("candidateRun is absent from closeout run lineage.");
+  if (
+    !candidate ||
+    !bindingIdentity(candidate) ||
+    bindingIdentity(candidate) !== bindingIdentity(rec(rec(packetRun, "experiment"), "candidate"))
+  )
+    issues.push("Packet candidate/run binding mismatch or missing lineage.");
+  // A packet is a whole-segment closeout, not just its latest candidate's history.
+  // Preserve unrelated candidates, unbound baselines, failures and even orphan candidateRun reports.
+  const selected = [...runs];
+  if (packetRun && !runs.some((run) => digest(run) === digest(packetRun))) selected.push(packetRun);
+  if (!selected.length) selected.push(null);
+  const valid = validation.valid && issues.length === 0;
+  const attempts = selected.map((run) =>
+    projectAttempt({
+      run,
+      closeout,
+      source,
+      schemaValid: valid,
+      schemaIssues: issues,
+      scenario,
+      requireCandidate: true,
+      packetCandidate: candidate,
+    }),
+  );
+  return {
+    path: source,
+    cwd: str(value, "cwd"),
+    campaign: str(value, "campaign"),
+    objectiveDigest: str(rec(rec(closeout, "status"), "currentSegment"), "objectiveDigest"),
+    attempts,
+    valid,
+    issues,
+  };
+}
+
+/** Independent grouping only; no global best, percentage, or workflow-count series. */
+export function buildComparisonGroups(campaigns: DashboardCampaign[]): DashboardComparisonGroup[] {
+  const groups = new Map<string, DashboardComparisonGroup>();
+  for (const campaign of campaigns)
+    for (const cell of campaign.cells)
+      for (const lane of cell.lanes)
+        for (const attempt of lane.attempts) {
+          if (!campaign.identityResolved || !attempt.validMeasurement || !attempt.comparisonKey)
+            continue;
+          const key = `${campaign.key}:${cell.cellId}:${lane.laneId}:${attempt.comparisonKey}`;
+          const group = groups.get(key) ?? {
+            key,
+            campaignKey: campaign.key,
+            identity: attempt.identity,
+            attempts: [],
+          };
+          if (!group.attempts.some((a) => a.id === attempt.id)) group.attempts.push(attempt);
+          groups.set(key, group);
+        }
+  return [...groups.values()];
 }

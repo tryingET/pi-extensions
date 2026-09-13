@@ -1,6 +1,6 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { getCrossExtensionHarnessPaths } from "./cross-extension-harness.ts";
 
 const DEFAULT_MULTI_PASS_EXTENSION = `${homedir()}/.pi/agent/git/github.com/hjanuschka/pi-multi-pass/extensions/multi-sub.ts`;
@@ -38,12 +38,21 @@ export function resolveSubagentExtensionSelection(params: {
     effectiveProvider ||
     (typeof params.ctx?.model?.provider === "string" ? params.ctx.model.provider.trim() : "");
   const aliasRequiresMultiPass = NUMERIC_PROVIDER_ALIAS_PATTERN.test(provider);
+  // Explicit fork/worktree sources must satisfy inference before falling back to a legacy path.
+  const explicitMultiPass = requested
+    .filter(looksLikePath)
+    .map((source) => normalizePathSource(source, params.ctx?.cwd))
+    .find(isMultiPassEntry);
   const extensions = new Set<string>();
   const warnings: string[] = [];
   const missingRequired: string[] = [];
 
   if (aliasRequiresMultiPass) {
-    const resolved = resolveKnownExtensionSource("pi-multi-pass", params.ctx?.cwd);
+    const resolved = resolveKnownExtensionSource(
+      "pi-multi-pass",
+      params.ctx?.cwd,
+      explicitMultiPass,
+    );
     if (resolved) {
       extensions.add(resolved);
     } else {
@@ -54,7 +63,11 @@ export function resolveSubagentExtensionSelection(params: {
   }
 
   for (const requestedExtension of requested) {
-    const resolved = resolveKnownExtensionSource(requestedExtension, params.ctx?.cwd);
+    const resolved = resolveKnownExtensionSource(
+      requestedExtension,
+      params.ctx?.cwd,
+      explicitMultiPass,
+    );
     if (resolved) {
       extensions.add(resolved);
       continue;
@@ -117,7 +130,26 @@ function normalizePathSource(value: string, cwd: string | undefined): string {
   return resolve(cwd || process.cwd(), value);
 }
 
-function resolveKnownExtensionSource(value: string, cwd: string | undefined): string | null {
+/** Recognize the package's provider entry without evaluating extension code. */
+function isMultiPassEntry(source: string): boolean {
+  try {
+    const entry = realpathSync(source);
+    if (!statSync(entry).isFile() || !["multi-sub.ts", "multi-sub.js"].includes(basename(entry))) {
+      return false;
+    }
+    if (basename(dirname(entry)) !== "extensions") return false;
+    const manifest = JSON.parse(readFileSync(join(dirname(entry), "..", "package.json"), "utf8"));
+    return manifest?.name === "pi-multi-pass";
+  } catch {
+    return false;
+  }
+}
+
+function resolveKnownExtensionSource(
+  value: string,
+  cwd: string | undefined,
+  explicitMultiPass?: string,
+): string | null {
   const normalized = value.trim();
   if (normalized.length === 0) {
     return null;
@@ -130,7 +162,7 @@ function resolveKnownExtensionSource(value: string, cwd: string | undefined): st
 
   if (DEFAULT_MULTI_PASS_NAMES.includes(normalized as (typeof DEFAULT_MULTI_PASS_NAMES)[number])) {
     const override = process.env.PI_MULTI_PASS_EXTENSION?.trim();
-    const candidate = override || DEFAULT_MULTI_PASS_EXTENSION;
+    const candidate = explicitMultiPass || override || DEFAULT_MULTI_PASS_EXTENSION;
     return existsSync(candidate) ? candidate : null;
   }
 

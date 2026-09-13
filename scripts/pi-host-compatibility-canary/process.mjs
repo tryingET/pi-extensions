@@ -4,6 +4,7 @@
 //   - "Changing canary subprocess stdio, npm environment isolation, or sandbox cleanup."
 // ---
 import { spawn } from "node:child_process";
+import { executeSdk, isSdkExecution } from "./sdk-execution.mjs";
 import { existsSync, lstatSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -16,6 +17,7 @@ import {
   removeDirectoryByHandle,
 } from "./integrity.mjs";
 import { processIdentity } from "./state-files.mjs";
+import { processGroupState, receiptCollector, wrapperCompletion } from "./completion.mjs";
 
 const COMMAND_WRAPPER = fileURLToPath(new URL("./command-wrapper.mjs", import.meta.url));
 
@@ -48,30 +50,6 @@ function createNeutralNpmEnv(baseEnv = process.env) {
   return { env, sandboxDir, sandboxIdentity };
 }
 
-function processGroupActive(processGroupId) {
-  if (process.platform === "win32") return false;
-  try { process.kill(-processGroupId, 0); return true; }
-  catch (error) {
-    if (error?.code === "ESRCH") return false;
-    return true;
-  }
-}
-
-async function stopProcessGroup(processGroupId) {
-  if (!processGroupActive(processGroupId)) return true;
-  try { process.kill(-processGroupId, "SIGTERM"); } catch {}
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    if (!processGroupActive(processGroupId)) return true;
-  }
-  try { process.kill(-processGroupId, "SIGKILL"); } catch {}
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    if (!processGroupActive(processGroupId)) return true;
-  }
-  return false;
-}
-
 function spawnCommand(command, args, options = {}) {
   return new Promise((resolve) => {
     const requestedStdio = options.stdio ?? "inherit";
@@ -90,8 +68,7 @@ function spawnCommand(command, args, options = {}) {
     );
     let stdout = "";
     let stderr = "";
-    let wrapperResult;
-    let groupStopPromise = Promise.resolve(true);
+    const receipts = receiptCollector();
     let releaseStarted = false;
     if (Array.isArray(requestedStdio)) {
       child.stdout?.setEncoding("utf8");
@@ -101,7 +78,7 @@ function spawnCommand(command, args, options = {}) {
     }
     child.on("message", async (message) => {
       if (message?.type === "result") {
-        wrapperResult = message.result;
+        receipts.add(message.result);
         return;
       }
       if (message?.type !== "ready" || releaseStarted) return;
@@ -119,27 +96,12 @@ function spawnCommand(command, args, options = {}) {
     });
     child.once("error", (error) => resolve({
       ok: false, exitCode: 1, signal: null, stdout, stderr, error: error.message,
-      wrapperLaunchFailed: true,
+      wrapperLaunchFailed: !child.pid, integrityFailure: true,
+      ...(child.pid ? { effectMayBeActive: true } : {}),
     }));
-    child.once("exit", () => {
-      if (!wrapperResult && process.platform !== "win32") {
-        groupStopPromise = stopProcessGroup(child.pid);
-      }
-    });
-    child.once("close", async (code, signal) => {
-      const effectMayBeActive = !wrapperResult && !(await groupStopPromise);
-      const result = wrapperResult ?? {
-        ok: code === 0 && !effectMayBeActive,
-        exitCode: code ?? 1,
-        signal: signal ?? null,
-        wrapperCleanupNeeded: true,
-        integrityFailure: true,
-        ...(signal ? { error: `command wrapper terminated by ${signal}` } : {}),
-        ...(effectMayBeActive ? {
-          effectMayBeActive: true,
-          error: "command process group could not be proven stopped",
-        } : {}),
-      };
+    child.once("close", (code, signal) => {
+      // Always observe the group, including with a normal receipt. Never kill it.
+      const result = wrapperCompletion(receipts, code, signal, processGroupState(child.pid));
       resolve({ ...result, stdout, stderr });
     });
   });
@@ -147,8 +109,17 @@ function spawnCommand(command, args, options = {}) {
 
 export async function spawnWithNeutralNpmEnv(command, args, options) {
   let npmEnv;
+  let sdkStarted = false;
   try {
     npmEnv = createNeutralNpmEnv(options.baseEnv ?? process.env);
+    if (options.sdkExecution) {
+      if (!isSdkExecution(options.sdkExecution)) throw new IntegrityError("unbound SDK execution");
+      sdkStarted = true; // after this point no exceptional path may clean the sandbox
+      const result = await executeSdk(options.sdkExecution, npmEnv.sandboxDir, options);
+      Object.defineProperty(result, "deferredCleanup", { value: () =>
+        removeDirectoryByHandle(npmEnv.sandboxDir, npmEnv.sandboxIdentity) });
+      return result;
+    }
     const env = {
       ...npmEnv.env,
       PI_HOST_COMPAT_RUNNER_PID: String(process.pid),
@@ -163,13 +134,15 @@ export async function spawnWithNeutralNpmEnv(command, args, options) {
       stdio: options.stdio,
       beforeRelease: options.beforeRelease,
     });
-    if ((result.wrapperLaunchFailed || result.wrapperCleanupNeeded) && existsSync(npmEnv.sandboxDir)) {
+    if (result.wrapperLaunchFailed && existsSync(npmEnv.sandboxDir)) {
       removeDirectoryByHandle(npmEnv.sandboxDir, npmEnv.sandboxIdentity);
     }
     return result.cleanupError
-      ? { ...result, integrityFailure: true }
+      ? { ...result, ok: false, integrityFailure: true }
       : result;
   } catch (error) {
+    if (sdkStarted) return { ok: false, exitCode: 125, signal: null, stdout: "", stderr: "",
+      error: errorMessage(error), integrityFailure: true, effectMayBeActive: true };
     if (npmEnv) {
       try { removeDirectoryByHandle(npmEnv.sandboxDir, npmEnv.sandboxIdentity); }
       catch (cleanupError) {

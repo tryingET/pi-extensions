@@ -344,10 +344,15 @@ run_local_package_link_validation_target() {
 }
 
 run_simple_stage() {
+  # Explicit package scope: unfinished neighbors must not contaminate admission.
   local stage_name="$1"
   local workdir="$2"
 
   printf '==> package quality gate: %s [%s]\n' "$(relative_target "$workdir")" "$stage_name"
+
+  if [[ "$stage_name" != "fix" ]]; then
+    node "$REPO_ROOT/scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs" --package "$workdir"
+  fi
 
   case "$stage_name" in
     lint)
@@ -417,6 +422,10 @@ run_package_group_stage() {
   local workdir="$2"
 
   printf '==> package-group quality gate: %s [%s]\n' "$(relative_target "$workdir")" "$stage_name"
+
+  if [[ "$stage_name" != "fix" ]]; then
+    node "$REPO_ROOT/scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs" --package "$workdir"
+  fi
 
   local child_count="0"
   local child

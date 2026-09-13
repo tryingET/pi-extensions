@@ -15,13 +15,16 @@ import {
 import {
   buildRestoreCommands,
   durablySyncHostPackageState,
-  nodeModulesState,
   resolveRestoreSnapshot,
   snapshotHostPackages,
   snapshotsMatch,
   verifyTargetIdentity,
 } from "./host-state.mjs";
 import { resolveProfileHost, resolveScenarioPackageTargets } from "./manifest.mjs";
+import { assertRecoveryChildReconciled, childClearanceRequiresReconciliation } from "./child-clearance.mjs";
+import { captureFinalRecoverySnapshots } from "./recovery-snapshots.mjs";
+import { clearRecordedChild, finishMutationCommand, verifyWithCompletionHold } from "./mutation-completion.mjs";
+import { resolvePresentPackage, verifyPresentTree, verifyRecoveryTargets } from "./recovery-verification.mjs";
 import { spawnWithNeutralNpmEnv } from "./process.mjs";
 import { CANONICAL_ROOT } from "./paths.mjs";
 import { persistRecoveredJournal, RecoveryRequiredError } from "./recovery-journal.mjs";
@@ -46,16 +49,13 @@ import {
   removeStateFile,
   sha256,
 } from "./state-files.mjs";
-
 function artifactNames(payload, target) {
   const prefix = `.node_modules.pi-host-compat-${payload.runId}-${target.index}`;
   return { stage: `${prefix}.stage`, quarantine: `${prefix}.quarantine` };
 }
-
 function safeIdentity(value) {
   return value ? { dev: String(value.dev), ino: String(value.ino) } : null;
 }
-
 function assertDirectoryArtifact(artifactPath, expectedIdentity, label) {
   const stats = lstatSync(artifactPath, { bigint: true, throwIfNoEntry: false });
   if (!stats || !stats.isDirectory() || stats.isSymbolicLink()) {
@@ -68,7 +68,6 @@ function assertDirectoryArtifact(artifactPath, expectedIdentity, label) {
   }
   return actual;
 }
-
 function assertStageMarker(stagePath, target) {
   const markerPath = path.join(stagePath, ".pi-host-compat-owner");
   const stats = lstatSync(markerPath, { bigint: true, throwIfNoEntry: false });
@@ -80,7 +79,6 @@ function assertStageMarker(stagePath, target) {
     throw new IntegrityError(`runner stage marker token mismatched for ${target.declaredPath}`);
   }
 }
-
 function assertUnmarkedStage(stagePath, target) {
   const identity = assertDirectoryArtifact(stagePath, null, "unmarked runner stage");
   if (target.state !== "stage-create-intent" || readdirSync(stagePath).length !== 0) {
@@ -88,7 +86,6 @@ function assertUnmarkedStage(stagePath, target) {
   }
   return identity;
 }
-
 function assertRecoveryFence(context) {
   context.gate.assertOwned();
   const ownedRecovery = context.recoveryLock.assertOwned();
@@ -115,14 +112,12 @@ function assertRecoveryFence(context) {
   }
   return state;
 }
-
 function persist(context) {
   assertRecoveryFence(context);
   context.journal = persistRecoveredJournal(context.journal, context.payload);
   context.journalDigest = sha256(JSON.stringify(context.payload));
   assertRecoveryFence(context);
 }
-
 function validateJournalScenario(manifest, payload) {
   const scenario = manifest.scenarios.find((entry) => entry.id === payload.scenarioId);
   if (!scenario || !scenario.profiles.includes(payload.profile)) {
@@ -154,7 +149,6 @@ function validateJournalScenario(manifest, payload) {
   });
   return { scenario, host, targets };
 }
-
 function removeArtifact(context, target, artifactPath, identity, nextState) {
   const packageAbs = verifyTargetIdentity(target);
   if (path.dirname(artifactPath) !== packageAbs) throw new IntegrityError("recovery artifact left its package root");
@@ -167,7 +161,6 @@ function removeArtifact(context, target, artifactPath, identity, nextState) {
   removeDirectoryByHandle(artifactPath, identity);
   fsyncDirectory(packageAbs);
 }
-
 function recoverAbsentTarget(context, target, packageAbs) {
   if (verifyTargetIdentity(target) !== packageAbs) throw new IntegrityError("recovery package root changed");
   validateTargetMetadata(target, packageAbs);
@@ -182,8 +175,6 @@ function recoverAbsentTarget(context, target, packageAbs) {
 
   if (target.state === "baselined") {
     if (found.length > 0) throw new IntegrityError(`unknown tree appeared before mutation at ${target.declaredPath}`);
-    target.state = "restored";
-    persist(context);
     return;
   }
 
@@ -240,11 +231,9 @@ function recoverAbsentTarget(context, target, packageAbs) {
     lstatSync(stagePath, { throwIfNoEntry: false }) ||
     lstatSync(quarantinePath, { throwIfNoEntry: false })
   ) throw new IntegrityError(`runner artifacts remain after recovery for ${target.declaredPath}`);
-  target.state = "restored";
   target.quarantineIdentity = null;
   persist(context);
 }
-
 function derivedRestoreSnapshot(target, packageAbs, host) {
   if (!target.metadata?.packageLock?.present) {
     throw new RecoveryRequiredError(`explicit recovery cannot derive restore commands without package-lock.json: ${target.declaredPath}`);
@@ -255,40 +244,19 @@ function derivedRestoreSnapshot(target, packageAbs, host) {
   }
   return derived;
 }
-
-function resolvePresentPackage(target, expectedPath) {
-  const packageAbs = verifyTargetIdentity(target);
-  if (expectedPath && packageAbs !== expectedPath) {
-    throw new IntegrityError(`canonical package root changed for ${target.declaredPath}`);
-  }
-  const stats = statSync(packageAbs, { bigint: true });
-  assertEffectiveOwner(stats, `explicit recovery package root ${target.declaredPath}`);
-  validateTargetMetadata(target, packageAbs);
-  return packageAbs;
-}
-
-function verifyPresentTree(target, packageAbs, label) {
-  const current = nodeModulesState(packageAbs);
-  if (current.kind !== "directory" || !identitiesMatch(current.identity, target.initialNodeModules.identity)) {
-    throw new IntegrityError(`${label} for ${target.declaredPath}`);
-  }
-  const stats = lstatSync(path.join(packageAbs, "node_modules"), { bigint: true });
-  assertEffectiveOwner(stats, `pre-existing node_modules ${target.declaredPath}`);
-  return current;
+function holdRecoveryCompletion(context, reason, effectMayBeActive) {
+  context.payload.completionHold ??= { reason, effectMayBeActive, recordedAt: new Date().toISOString() };
+  persist(context);
 }
 
 async function recoverPresentTarget(context, target, packageAbs, host, apply) {
   packageAbs = resolvePresentPackage(target, packageAbs);
   verifyPresentTree(target, packageAbs, "pre-existing node_modules identity drifted");
   if (target.state === "baselined") {
-    target.state = "restored";
-    persist(context);
     return;
   }
   const expected = derivedRestoreSnapshot(target, packageAbs, host);
   if (snapshotsMatch(expected, snapshotHostPackages(packageAbs, host))) {
-    target.state = "restored";
-    persist(context);
     return;
   }
   if (!apply) {
@@ -316,31 +284,29 @@ async function recoverPresentTarget(context, target, packageAbs, host, apply) {
         persist(context);
       },
     });
-    if (!result.effectMayBeActive && context.payload.child) {
-      context.payload.child = null;
-      persist(context);
-    }
-    if (result.effectMayBeActive) {
-      throw new RecoveryRequiredError(`explicit host restoration process group remains active for ${target.declaredPath}`);
-    }
+    finishMutationCommand(result, {
+      verify: () => verifyRecoveryTargets(context.payload),
+      hold: (...args) => holdRecoveryCompletion(context, ...args),
+      clear: () => clearRecordedChild(context.payload, () => persist(context)),
+      reason: "restoration-completion-unverified",
+    });
     if (!result.ok) {
       throw new RecoveryRequiredError(`explicit host restoration failed for ${target.declaredPath}: ${result.error ?? `exit ${result.exitCode}`}`);
     }
   }
-  packageAbs = resolvePresentPackage(target, packageAbs);
-  const finalState = verifyPresentTree(target, packageAbs, "explicit host restoration changed node_modules identity");
-  if (!snapshotsMatch(expected, snapshotHostPackages(packageAbs, host))) {
-    throw new IntegrityError(`explicit host restoration verification failed for ${target.declaredPath}`);
-  }
-  assertRecoveryFence(context);
-  durablySyncHostPackageState(packageAbs, host);
-  if (!identitiesMatch(finalState.identity, target.initialNodeModules.identity)) {
-    throw new IntegrityError(`explicit host restoration final identity drifted for ${target.declaredPath}`);
-  }
-  target.state = "restored";
-  persist(context);
+  verifyWithCompletionHold(() => {
+    packageAbs = resolvePresentPackage(target, packageAbs);
+    const finalState = verifyPresentTree(target, packageAbs, "explicit host restoration changed node_modules identity");
+    if (!snapshotsMatch(expected, snapshotHostPackages(packageAbs, host))) {
+      throw new IntegrityError(`explicit host restoration verification failed for ${target.declaredPath}`);
+    }
+    assertRecoveryFence(context);
+    durablySyncHostPackageState(packageAbs, host);
+    if (!identitiesMatch(finalState.identity, target.initialNodeModules.identity)) {
+      throw new IntegrityError(`explicit host restoration final identity drifted for ${target.declaredPath}`);
+    }
+  }, (...args) => holdRecoveryCompletion(context, ...args), "restoration-completion-unverified");
 }
-
 function removeCompletedState(context) {
   context.payload.phase = "clean";
   context.payload.child = null;
@@ -355,7 +321,6 @@ function removeCompletedState(context) {
   context.journalDigest = null;
   assertRecoveryFence(context);
 }
-
 function ownerIsRecoverable(state) {
   const owner = recordLiveness(state.lock ?? state.journal);
   if (owner === "active") throw new ConcurrentCanaryError("a canary mutation owner is still active");
@@ -372,6 +337,10 @@ export async function recoverInterruptedRun(manifest, options = {}) {
   const context = { gate, manifestBinding, json: options.json === true };
   try {
     const state = readCheckoutState(gate.paths, manifestBinding);
+    if (state.journal?.payload.completionHold) {
+      throw new RecoveryRequiredError("completion hold requires manual review; recovery takeover, child clearance and restoration refused");
+    }
+    assertRecoveryChildReconciled(state.journal?.payload, message => new RecoveryRequiredError(message));
     if (state.recoveryLock) {
       const liveness = recordLiveness(state.recoveryLock);
       if (liveness === "active") throw new ConcurrentCanaryError("checkout recovery is active");
@@ -418,16 +387,16 @@ export async function recoverInterruptedRun(manifest, options = {}) {
       return { status: "recovered", recovered: true, applied: false, recoveryMode: "completed-journal-cleanup" };
     }
 
-    if (context.payload.child) {
-      context.payload.child = null;
-      persist(context);
-    }
     if (["clean", "ready"].includes(context.payload.phase) && context.payload.targets.length === 0) {
       removeCompletedState(context);
       return { status: "recovered", recovered: true, applied: false, recoveryMode: "completed-run-cleanup" };
     }
 
-    const bound = validateJournalScenario(manifest, context.payload);
+    const bound = verifyWithCompletionHold(
+      () => validateJournalScenario(manifest, context.payload),
+      (...args) => holdRecoveryCompletion(context, ...args), "restoration-completion-unverified");
+    const finalSnapshots = captureFinalRecoverySnapshots(context.payload.targets,
+      target => snapshotHostPackages(resolvePresentPackage(target), bound.host));
     for (const { resolved, journalTarget } of bound.targets) {
       verifyTargetIdentity(journalTarget);
       if (journalTarget.initialNodeModules.kind === "absent") {
@@ -438,6 +407,12 @@ export async function recoverInterruptedRun(manifest, options = {}) {
         throw new IntegrityError(`unsupported initial node_modules state for ${journalTarget.declaredPath}`);
       }
     }
+    verifyWithCompletionHold(() => verifyRecoveryTargets(context.payload, true, finalSnapshots),
+      (...args) => holdRecoveryCompletion(context, ...args), "restoration-completion-unverified");
+    for (const target of context.payload.targets) {
+      if (target.state !== "baselined") target.state = "restored";
+    }
+    persist(context);
     context.payload.phase = "ready";
     context.payload.scenarioId = null;
     context.payload.targets = [];
@@ -455,7 +430,6 @@ export async function recoverInterruptedRun(manifest, options = {}) {
     finally { gate.release(); }
   }
 }
-
 function summarizeState(state) {
   if (!state.lock && !state.journal && !state.recoveryLock) {
     return { status: "clean", recoveryRequired: false };
@@ -479,6 +453,10 @@ function summarizeState(state) {
     recoveryLiveness,
     childLiveness: effectLiveness,
     phase: state.journal?.payload.phase ?? state.lock?.payload.state,
+    ownerReconciliationRequired: childClearanceRequiresReconciliation(state.journal?.payload),
+    ...(state.journal?.payload.childClearanceAttempts
+      ? { childClearanceAttempts: state.journal.payload.childClearanceAttempts } : {}),
+    ...(state.journal?.payload.completionHold ? { completionHold: state.journal.payload.completionHold } : {}),
     profile: state.journal?.payload.profile ?? null,
     scenarioId: state.journal?.payload.scenarioId ?? null,
     requiresApply: targets.some((target) =>

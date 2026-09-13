@@ -202,7 +202,7 @@ test("deferred AK task binding fails before config or Ghostty launch", async () 
   }
 });
 
-test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
+test("visible-loop writes config and launches one preselected Ghostty window with the child command", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -219,7 +219,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },
@@ -240,7 +240,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
     assert.ok(ghosttyCall);
-    assert.equal(ghosttyCall.args[0], "+new-tab");
+    assert.equal(ghosttyCall.args[0], "--working-directory=/repo");
     const piArgs = extractPiArgs(ghosttyCall.args);
     assert.equal(piArgs[0], "pi");
     assert.match(piArgs.at(-1), /^\/visible-loop-child /);
@@ -348,6 +348,7 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
             "com.tryinget.ghosttysidequest 333 ghostty user :1.44 user@1000.service - -\n",
         };
       }
+      if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
       if (command === "busctl" && args[1] === "call") {
         return { code: 0, stdout: "", stderr: "" };
       }
@@ -363,7 +364,7 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
       currentSessionGhosttyBin: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
       currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN },
       readProcessExecutable(pid) {
-        return pid === 222 ? LOCAL_GHOSTTY_ORIGIN_MAIN_BIN : undefined;
+        return pid === 111 || pid === 222 ? LOCAL_GHOSTTY_ORIGIN_MAIN_BIN : undefined;
       },
       exec: execStub.exec,
       pathExists(path) {
@@ -378,7 +379,7 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
       .handler('--count 1 --objective "target controller tab"', harness.ctx);
 
     const activation = execStub.calls.find(
-      ({ command, args }) => command === "busctl" && args[1] === "call",
+      ({ command, args }) => command === "busctl" && args.includes("Activate"),
     );
     assert.ok(activation);
     assert.equal(activation.args[2], "--expect-reply=no");
@@ -407,7 +408,7 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
     );
     assert.match(
       harness.notifications.at(-1).message,
-      /targeted Ghostty single-instance process 222/,
+      /targeted Ghostty process 222/,
     );
   } finally {
     restoreHome();
@@ -431,7 +432,7 @@ test("extension-originated sendUserMessage slash input can launch visible-loop",
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },
@@ -492,7 +493,7 @@ test("extension-originated sendUserMessage slash input can launch nexus-loop", a
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },
@@ -594,7 +595,7 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },
@@ -808,7 +809,7 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },

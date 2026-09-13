@@ -196,12 +196,18 @@ const { pathToFileURL } = require("node:url");
     ],
     "Installed sidequest/fresh-handoff runtime did not follow the expected fallback path",
   );
-  assert.equal(notifications.length, 2, "Installed launch paths did not notify exactly twice");
+  assert.equal(notifications.length, 4, "Expected two launch results and two existing fresh-handoff progress notifications");
   assert.ok(notifications.every(({ type }) => type === "info"));
   assert.match(notifications[0].message, /new Ghostty window/);
   assert.match(notifications[0].message, /does not support \+new-tab/);
-  assert.match(notifications[1].message, /clean Pi session/);
-  assert.match(notifications[1].message, /auto-submitted one generated handoff/);
+  assert.match(notifications[1].message, /capturing live Git\/AK readback/);
+  assert.match(notifications[2].message, /generating the handoff prompt/);
+  assert.match(notifications[3].message, /clean Pi session/);
+  assert.match(notifications[3].message, /auto-submitted one generated handoff/);
+  assert.equal(pkg.exports["./sidequest-launch"], "./extensions/sidequestLaunch.ts");
+  const transport = await import(pathToFileURL(path.join(packageDir, pkg.exports["./sidequest-launch"])).href);
+  assert.equal(transport.STANDING_AGENT_TRANSPORT_VERSION, 1);
+  assert.equal(typeof transport.launchPiQuestSession, "function", "packed transport and its import closure must load");
   console.log("SUCCESS");
 })().catch((error) => {
   console.error(error);

@@ -37,7 +37,7 @@ test("context_pack discovers package docs from a package subdirectory cwd", asyn
       objective: "Use package docs from a source subdirectory",
       cwd: join(root, "packages", "pkg", "src"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -83,7 +83,7 @@ test("context_pack prefers package roots over nested README docs-list markers", 
       objective: "Use package docs from nested source docs",
       cwd: join(root, "packages", "pkg", "src", "feature"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -117,7 +117,7 @@ test("context_pack still runs docs-list when unsafe seeds were omitted and no sa
       cwd: root,
       repoRoot: root,
       seeds: [{ kind: "path", value: "../unsafe.md" }],
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -139,7 +139,7 @@ test("context_pack records an omission when structured docs-list returns no rank
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -168,7 +168,7 @@ test("context_pack reports docs-list ok=false JSON as provider failure", async (
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -215,7 +215,7 @@ test("context_pack fails closed when docs-list JSON repoRoot is outside caller r
       objective: "Use docs-list output with mismatched root",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -255,7 +255,7 @@ test("context_pack reports docs-list JSON schema drift without text fallback", a
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -292,7 +292,7 @@ test("context_pack reports unsupported docs-list JSON item shapes as schema drif
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -325,7 +325,7 @@ test("context_pack reports empty docs-list JSON path values as unsafe provider o
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -381,7 +381,7 @@ test("context_pack avoids silently narrowing docs discovery to nested package fi
       objective: "Use package docs from a nested fixture package",
       cwd: join(root, "packages", "pkg", "src", "fixtures", "sample"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -425,7 +425,7 @@ test("context_pack avoids narrowing non-package repo docs to nested fixture pack
       objective: "Use repo docs from a nested fixture package",
       cwd: join(root, "fixtures", "sample"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -471,7 +471,7 @@ test("context_pack avoids narrowing standalone package docs to nested fixture pa
       objective: "Use package docs from a standalone fixture package",
       cwd: join(root, "fixtures", "sample"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -517,7 +517,7 @@ test("context_pack does not treat sample package names as fixture aliases", asyn
       objective: "Use sample package docs",
       cwd: join(root, "packages", "sample"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -563,7 +563,7 @@ test("context_pack does not treat tests path packages as fixture aliases", async
       objective: "Use docs from a tests-path nested package",
       cwd: join(root, "tests", "sample-package"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -592,7 +592,7 @@ test("context_pack preserves nested package ambiguity when docs-list is unavaila
         objective: "Use repo docs from nested fixture package without docs-list",
         cwd: join(root, "fixtures", "sample"),
         repoRoot: root,
-        providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+        providers: { agents: "off", docs: "required", git: "off" },
       },
       {
         cwd: root,
@@ -639,7 +639,7 @@ test("context_pack preserves nested package ambiguity when docs-list fails", asy
       objective: "Use package docs from a nested fixture package",
       cwd: join(root, "packages", "pkg", "fixtures", "sample"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -689,7 +689,7 @@ test("context_pack keeps legitimate nested package docs rooted at nearest packag
       objective: "Use docs from a legitimate nested package",
       cwd: join(root, "packages", "group", "pkg", "src"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -734,7 +734,7 @@ test("context_pack rebases docs-list item.path fallback from package roots", asy
       objective: "Use package docs from path-only docs-list JSON",
       cwd: join(root, "packages", "pkg"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );

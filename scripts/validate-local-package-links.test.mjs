@@ -193,7 +193,7 @@ test("terminates cyclic local dependency graphs deterministically", (t) => {
   assert.equal(result.linkCount, 2);
 });
 
-test("root full gate runs link validation before entering full validation", (t) => {
+test("root full gate runs host admission then link validation before expensive validation", (t) => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-local-link-gate-order-"));
   t.after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
   const binDir = path.join(tmpRoot, "bin");
@@ -201,7 +201,7 @@ test("root full gate runs link validation before entering full validation", (t) 
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(
     path.join(binDir, "node"),
-    `#!/bin/sh\nprintf '%s\\n' "$*" > "$FAKE_NODE_LOG"\nexit 23\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_NODE_LOG"\ncase "$1" in *check-dev-pin-drift.mjs) exit 0 ;; esac\nexit 23\n`,
     { mode: 0o755 },
   );
 
@@ -218,7 +218,10 @@ test("root full gate runs link validation before entering full validation", (t) 
   });
 
   assert.equal(result.status, 23);
-  assert.match(fs.readFileSync(logPath, "utf8"), /validate-local-package-links\.mjs/);
+  const calls = fs.readFileSync(logPath, "utf8").trim().split("\n");
+  assert.equal(calls.length, 2);
+  assert.match(calls[0], /check-dev-pin-drift\.mjs/);
+  assert.match(calls[1], /validate-local-package-links\.mjs/);
 });
 
 test("root full gate skips link validation when package validation is explicitly skipped", (t) => {
@@ -229,7 +232,7 @@ test("root full gate skips link validation when package validation is explicitly
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(
     path.join(binDir, "node"),
-    `#!/bin/sh\nprintf '%s\\n' "$*" > "$FAKE_NODE_LOG"\nexit 23\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_NODE_LOG"\ncase "$1" in *check-dev-pin-drift.mjs) exit 0 ;; esac\nexit 23\n`,
     { mode: 0o755 },
   );
 
@@ -248,7 +251,9 @@ test("root full gate skips link validation when package validation is explicitly
   });
 
   assert.equal(result.status, 23);
-  const firstNodeCall = fs.readFileSync(logPath, "utf8");
-  assert.doesNotMatch(firstNodeCall, /validate-local-package-links\.mjs/);
-  assert.match(firstNodeCall, /rocs-validation\.test\.mjs/);
+  const calls = fs.readFileSync(logPath, "utf8").trim().split("\n");
+  assert.equal(calls.length, 2);
+  assert.doesNotMatch(calls.join("\n"), /validate-local-package-links\.mjs/);
+  assert.match(calls[0], /check-dev-pin-drift\.mjs/);
+  assert.match(calls[1], /rocs-validation\.test\.mjs/);
 });

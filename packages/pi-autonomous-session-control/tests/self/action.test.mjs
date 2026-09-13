@@ -153,6 +153,7 @@ test("self query: prefill editor", async () => {
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -185,6 +186,7 @@ test("self query: prefill intent wins when text mentions follow-up", async () =>
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -217,6 +219,7 @@ test("self query: prefill visible-loop self-evolution route", async () => {
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -257,7 +260,7 @@ test("self query: prefill visible-loop self-evolution route", async () => {
   await cleanup(tempDir);
 });
 
-test("self query: continue with self-evolution routes to visible-loop prefill", async () => {
+test("self query: continue with self-evolution only suggests visible-loop text", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -268,6 +271,7 @@ test("self query: continue with self-evolution routes to visible-loop prefill", 
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -291,16 +295,18 @@ test("self query: continue with self-evolution routes to visible-loop prefill", 
     );
 
     assert.equal(result.details.intent, "action");
-    assert.ok(result.content[0].text.includes("Editor prefilled"));
+    assert.match(result.content[0].text, /No explicit editor prefill requested/);
+    assert.equal(editorText, "");
+    assert.equal(result.details.data.prefillPerformed, false);
     assert.equal(
-      editorText,
+      result.details.data.text,
       `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`,
     );
     assert.equal(result.details.data.candidateId, candidate.candidateId);
     assert.equal(harness.sentUserMessages.length, 0);
     assert.equal(result.details.data.prefill, true);
     assert.equal(result.details.data.sendUserMessage, false);
-    assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+    assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
     assert.equal(result.details.data.routeKind, "visible_loop_self_evolution");
     assert.doesNotMatch(result.content[0].text, /agent_vent/);
   }
@@ -330,8 +336,10 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
       ctx,
     );
 
-    assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
-    assert.match(result.content[0].text, /manual operator submission required/);
+    assert.match(
+      result.content[0].text,
+      index === 0 ? /Editor prefill unavailable \(no UI\)/ : /No explicit editor prefill requested/,
+    );
     assert.equal(harness.sentUserMessages.length, 0);
     assert.equal(
       result.details.data.text,
@@ -340,10 +348,13 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
     assert.equal(result.details.data.prefill, true);
     assert.equal(result.details.data.sendUserMessage, false);
     assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
-    assert.equal(result.details.data.requestedDispatchMode, "operator_submit_required");
+    assert.equal(
+      result.details.data.requestedDispatchMode,
+      index === 0 ? "operator_submit_required" : undefined,
+    );
     assert.equal(result.details.data.prefillAvailable, false);
     assert.equal(result.details.data.prefillPerformed, false);
-    assert.equal(result.details.data.prefillUnavailableReason, "no_ui");
+    assert.equal(result.details.data.prefillUnavailableReason, index === 0 ? "no_ui" : undefined);
   }
 
   await cleanup(tempDir);
@@ -368,6 +379,7 @@ test("self query: continue with self-evolution defers inside visible-loop child"
       },
     },
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -443,6 +455,7 @@ test("self query: visible-loop self-evolution prefill ignores caller overrides",
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -482,6 +495,7 @@ test("self query: prefill autoresearch campaign route", async () => {
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -533,7 +547,7 @@ test("self query: prefill autoresearch campaign route", async () => {
   await cleanup(tempDir);
 });
 
-test("self query: launch autoresearch campaign prefills slash command for operator submission", async () => {
+test("self query: launch autoresearch campaign only shows slash command for operator submission", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -544,6 +558,7 @@ test("self query: launch autoresearch campaign prefills slash command for operat
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -559,20 +574,19 @@ test("self query: launch autoresearch campaign prefills slash command for operat
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /No explicit editor prefill requested/);
+  assert.equal(editorText, "");
+  assert.equal(result.details.data.prefillPerformed, false);
   assert.equal(
-    editorText,
+    result.details.data.text,
     `/autoresearch Evaluate promoted self-evolution candidate ${candidate.candidateId} for owner pi-little-helpers; ownerArtifact=packages/pi-little-helpers/docs/project/self-evolution-owner-artifact.json`,
   );
   assert.equal(harness.sentUserMessages.length, 0);
   assert.equal(result.details.data.prefill, true);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.userMessageSent, false);
-  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
-  assert.equal(
-    result.details.data.launchMechanism,
-    "operator_reviews_prefilled_editor_then_presses_enter",
-  );
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
+  assert.equal(result.details.data.launchMechanism, "operator_reviews_returned_text_then_submits");
   assert.match(result.details.data.boundary, /only the candidate id, routed owner, and promoted/);
   assert.match(result.details.data.boundary, /must read and verify that artifact/);
 
@@ -590,6 +604,7 @@ test("self query: prefill preserves quoted command arguments", async () => {
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -612,7 +627,7 @@ test("self query: prefill preserves quoted command arguments", async () => {
   await cleanup(tempDir);
 });
 
-test("self query: creates self-contained handoff prompt and prefills editor", async () => {
+test("self query: explicitly prefills self-contained handoff prompt", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -624,6 +639,7 @@ test("self query: creates self-contained handoff prompt and prefills editor", as
     cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -647,7 +663,7 @@ test("self query: creates self-contained handoff prompt and prefills editor", as
   const result = await tool.execute(
     "tc-handoff-prompt-prefill",
     {
-      query: "create self-contained handoff prompt",
+      query: "prefill self-contained handoff prompt",
       context: {
         latestUserIntent: "Continue other autonomy-harness suggestions.",
         currentObjective: "Bridge ASC handoff cues into pi-session-compaction schema.",
@@ -734,6 +750,7 @@ test("self query: prefill suggested next move uses current handoff nextMove", as
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },

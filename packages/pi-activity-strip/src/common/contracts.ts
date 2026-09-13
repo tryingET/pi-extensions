@@ -19,6 +19,9 @@ export interface SessionSnapshot {
   publisherCount?: number;
   publisherIds?: string[];
   publisherRecordKeys?: string[];
+  publisherSessionIds?: string[];
+  akTasks?: AkTaskChip[];
+  akTaskOverflow?: number;
   windowId?: number | null;
   placement?: "title" | "host" | "binding";
   surfaceVisible?: boolean;
@@ -39,6 +42,32 @@ export interface SessionSnapshot {
   agentActive: boolean;
   lastPromptPreview: string;
   errorMessage: string;
+}
+
+export type AkTaskChipState = "active" | "deferred" | "orphaned";
+
+/** One read-only AK task reference joined onto a terminal card by the native projection. */
+export interface AkTaskChip {
+  id: number;
+  title: string;
+  state: AkTaskChipState;
+}
+
+/** A live-lease task claim parsed from read-only `ak task list` output. */
+export interface AkTaskClaim {
+  id: number;
+  title: string;
+  repo: string;
+  sessionId: string;
+  leaseExpiresAt: number;
+  claimedAt: number;
+}
+
+/** A task with an active deferral parsed from read-only `ak task deferred` output. */
+export interface AkTaskDeferred {
+  id: number;
+  title: string;
+  repo: string;
 }
 
 export interface BrokerSnapshot {
@@ -78,6 +107,12 @@ export interface ActivityStripRuntimeStatus {
   tabInventoryFrameCount?: number;
   tabInventoryTabCount?: number;
   tabInventoryProbedAt?: number | null;
+  akTaskState?: "pending" | "ok" | "unavailable" | "disabled";
+  akTaskError?: string | null;
+  akTaskClaimCount?: number;
+  akTaskDeferredCount?: number;
+  akTaskOrphanCount?: number;
+  akTaskRenderedCount?: number;
   rendererVisibilityTransitionCount?: number;
   controllerPid?: number;
   panelPid?: number | null;

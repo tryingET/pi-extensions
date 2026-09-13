@@ -575,7 +575,7 @@ test("visible-loop candidate route persists the typed envelope and prepends it t
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },
@@ -629,7 +629,7 @@ test("candidate-bound nexus-loop recognizes the prefixed governed review and fai
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },
@@ -686,7 +686,7 @@ test("candidate-bound visible-loop completion rejects missing closeout and accep
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
       },

@@ -174,7 +174,7 @@ const TOOL_CONTRACTS = [
       "intervalSeconds",
     ],
     [],
-    "e2db0783a845826a9529d67ba7e471fab4263b6693341af4ff9b08e3e4d38d69",
+    "374109312bb9c649cfe69b596aac22d0b5e1894e7561346ec0a70690637ce58f",
     "cd7b20cfcd2cfcf21d16d417ecba621ed0090169300bc48c7b5534fc84ef676b",
   ],
   [

@@ -77,13 +77,22 @@ approval, Pi runtime install/reload proof, or monorepo owner authority.
 
 - Runtime baseline: Node 22+ running TypeScript sources directly; the
   package ships TS sources and has no dist build of its own.
-- Dependency posture: ASC is a semver-exact runtime dependency (`0.5.2`)
-  resolved from the npm registry. It is deliberately not bundled: npm 12
-  refuses to pack a package whose `overrides` (the `fast-xml-parser`
-  security floor) affect a bundled subtree (EBUNDLEOVERRIDE), and ASC
-  `0.5.2` itself has zero runtime dependencies, so consumers resolve it
-  from the registry while the repo's own lock pins the integrity-checked
-  tarball. The packed manifest contains no `file:` runtime dependency.
+- Dependency posture: ASC and little-helpers are local runtime links in the
+  workspace (`file:../pi-autonomous-session-control` and
+  `file:../pi-little-helpers`), not the former npm-only ASC `0.5.2` pin.
+  The shared `pi-interaction/scripts/prepare-publish-manifest.mjs` prepack /
+  postpack hooks temporarily rewrite local runtime dependencies to the linked
+  packages' exact versions for publication and restore the workspace manifest.
+  Runtime `typebox` is pinned separately; the packed manifest must contain no
+  `file:` runtime dependency. The dependencies are not bundled; the existing
+  `fast-xml-parser` security override is retained.
+- Publish capability is separate from version rewriting: Phase 2 requires
+  ASC's execution exports; Phase 3 requires little-helpers'
+  `./sidequest-launch` export with `STANDING_AGENT_TRANSPORT_VERSION === 1`.
+  That export is in current local little-helpers `0.9.0` source; the next
+  helpers release must ship it. A packed registry with older npm helpers
+  fails closed `visible_transport_unavailable`. Do not describe local tests
+  or successful packing as a published Phase-3 feature.
 - Tests intentionally read live workspace fixtures (the real steward agent
   repo and the real engineering-core `profiles.json`) to keep the
   convention honest against the fleet, not just against synthetic data.

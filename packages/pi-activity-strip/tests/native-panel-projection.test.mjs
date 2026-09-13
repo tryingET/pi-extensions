@@ -110,3 +110,45 @@ test("native projection carries workspace placement onto display cards", () => {
   projection.updateSnapshot({ generatedAt: 101, sessions: [{ ...raw, state: "thinking" }] });
   assert.equal(published.at(-1).sessions[0].surfaceVisible, false, "placement survives updates");
 });
+
+test("native projection joins AK task chips onto cards and clears them fail-closed", () => {
+  const published = [];
+  const raw = session({
+    sessionId: "01a0993a-d336-739f-a308-cfa4c21d6332",
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:main:16",
+    terminalFamily: "main",
+    terminalSurfaceId: "16",
+    cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  });
+  const projection = createNativePanelProjection({
+    isNiriSession: () => false,
+    publish: (view) => published.push(view),
+  });
+  projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
+  assert.equal(published.at(-1).sessions[0].akTasks, undefined, "no chips before AK data");
+
+  const now = Date.now();
+  projection.setAkTasks({
+    claims: [
+      {
+        id: 5701,
+        title: "Show clickable AK-task references",
+        repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+        sessionId: "01a0993a-d336-739f-a308-cfa4c21d6332",
+        leaseExpiresAt: now + 3_600_000,
+        claimedAt: now - 60_000,
+      },
+    ],
+    deferred: [],
+  });
+  const card = published.at(-1).sessions[0];
+  assert.deepEqual(card.akTasks, [
+    { id: 5701, title: "Show clickable AK-task references", state: "active" },
+  ]);
+  assert.equal(card.publisherSessionIds?.[0], "01a0993a-d336-739f-a308-cfa4c21d6332");
+
+  // A failed AK read clears every chip instead of leaving stale references behind.
+  projection.setAkTasks({ claims: [], deferred: [] });
+  assert.equal(published.at(-1).sessions[0].akTasks, undefined);
+});

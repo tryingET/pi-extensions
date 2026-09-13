@@ -13,7 +13,7 @@ system4d:
 
 Standalone Pi extension package extracted from `contrib/pi-better-openai` for focused OpenAI capabilities:
 
-- `/fast` toggles OpenAI priority service tier injection (`service_tier: "priority"`). It defaults to every model exposed through the `openai-codex` provider (`openai-codex/*`).
+- `/fast` toggles OpenAI priority service tier injection (`service_tier: "priority"`). It defaults to `openai-codex/*`, including numbered Codex accounts such as `openai-codex-2/gpt-6-astra` when their API is `openai-codex-responses`.
 - `/pro` toggles GPT-5.6 Sol Pro request injection (`reasoning.mode: "pro"`) independently of Pi's reasoning effort. It defaults to exact `openai-codex/gpt-5.6-sol` and `openai/gpt-5.6-sol` model routes.
 - In UI modes, fast state is published through Pi footer status key `better-openai-fast` (`🐇`/`🐢`), while Pro injection eligibility is shown under `better-openai-pro` (`P+`/`P−`).
 - Fast mode also publishes a versioned inter-extension state event. When `pi-autonomous-session-control` is loaded, new `dispatch_subagent` children inherit the parent's current desired `/fast` on/off state through the package's minimal `extensions/fast-child.ts` hook; the full Pro/image surface is not loaded into the child.
@@ -43,7 +43,25 @@ When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` 
 
 Image generation uses `openai-codex` OAuth credentials from Pi's model registry or `~/.pi/agent/auth.json`; run `/login openai-codex` if credentials are missing.
 
+## Fast mode and numbered accounts
+
+Parent and child Fast hooks share the same eligibility rule. A base `openai-codex` allowlist entry
+also covers canonical positive numbered account aliases (`openai-codex-1`, `openai-codex-2`, etc.)
+only on the Codex Responses API. Exact model restrictions still apply. An account-specific entry
+such as `openai-codex-2/gpt-6-astra` does not authorize other accounts. Provider identity and
+credentials are never rewritten. Existing `supportedModels: ["openai-codex/*"]` needs no migration.
+
+Use bare `/fast` to toggle; `on`, `off`, and `status` arguments are not commands. Fast remains an
+operator-selected preference; installing this fix does not enable it or change persisted defaults.
+The badge and diagnostics describe requested priority injection, not backend confirmation or speed.
+
+The installed Pi 0.84.4 Codex transport overwrites `originator` and reuses WebSocket handshakes
+across routing-header changes. This package therefore does not claim the extra native routing
+behavior of a custom Codex transport or add only part of its header contract. See the
+[alias fix and transport evidence](docs/project/2026-09-07-fast-astra-account-aliases.md).
+
 ## GPT-5.6 Pro mode
+
 
 OpenAI documents Sol, Terra, and Luna as distinct GPT-5.6 model tiers. Pro is a separate Responses API reasoning mode, not the setting that selects among those tiers. The request shape is:
 

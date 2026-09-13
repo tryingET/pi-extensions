@@ -50,6 +50,17 @@ jobs:
           node-version: "22.22.2"
           package-manager-cache: false
 
+      - name: Check execution readiness before dependency effects
+        env:
+          WORKFLOW_PROFILE: ${{ inputs.profile || 'current' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { requireUpgradeCompletionIntegration } from './scripts/pi-host-compatibility-canary/completion-boundary.mjs';
+          const profile = process.env.WORKFLOW_PROFILE;
+          if (!['current', 'upgrade'].includes(profile)) throw new Error('Unknown canary profile');
+          requireUpgradeCompletionIntegration(profile, false);
+          NODE
+
       - name: Install governed npm client
         run: |
           mkdir -p "$RUNNER_TEMP/npm-global"
@@ -173,6 +184,20 @@ jobs:
         if: matrix.cwd == 'packages/pi-society-orchestrator'
         run: bash ./scripts/prepare-asc-source-build-owner.sh
 
+      - name: Install linked source dependencies before baseline
+        if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'
+        run: |
+          # Real file-link roots need their own dependencies. Vault keeps its
+          # declared registry dependencies; do not replace them with local links.
+          for package in packages/pi-interaction/pi-interaction-kit packages/pi-interaction/pi-trigger-adapter packages/pi-vault-client; do
+            npm --prefix "$package" ci --include=dev --no-audit --no-fund
+          done
+
+      - name: Install autoresearch sibling dependencies before baseline
+        if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'
+        working-directory: packages/pi-autoresearch
+        run: npm ci --include=dev --no-audit --no-fund
+
       - name: Install scenario dependencies
         working-directory: ${{ matrix.cwd }}
         run: |
@@ -182,6 +207,23 @@ jobs:
             npm install --package-lock-only --ignore-scripts
             npm ci
           fi
+
+      - name: Bind prepared local ASC before baseline
+        if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'
+        working-directory: packages/pi-society-orchestrator
+        run: |
+          # The source owner already ran prepare's build:runtime above. Do not
+          # rerun lifecycle hooks or save this CI-only link into source metadata.
+          npm install --no-save --package-lock=false --install-links=false --ignore-scripts --no-audit --no-fund ../pi-autonomous-session-control
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { realpathSync } from 'node:fs';
+          assert.equal(realpathSync('node_modules/@tryinget/pi-autonomous-session-control'), realpathSync('../pi-autonomous-session-control'));
+          NODE
+
+      - name: Validate prepared local source closure before baseline
+        if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'
+        run: node ./scripts/validate-local-package-links.mjs --package packages/pi-society-orchestrator --package packages/pi-autonomous-session-control
 
       - name: Run canary scenario against exact host contract
         run: |

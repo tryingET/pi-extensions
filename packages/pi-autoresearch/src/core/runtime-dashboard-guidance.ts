@@ -25,7 +25,7 @@ export function formatAutoresearchGuidedCandidateJourneyLines(cwd: string): stri
     `- export measured packet inventory: ${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "candidate_result_export", outPath: "${AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE}" })`,
     "- inspect packet inventory in /autoresearch export until exported packet counts and export_visibility_blockers are visible and complete.",
     `- final owner review handoff after complete packet inventory: autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`,
-    "- boundary: these are exact next legal calls only; export is measured inventory inspection and review is final owner decision; the dashboard does not spawn a candidate, run benchmarks, mutate worktrees, write AK/KES evidence, or promote.",
+    "- boundary: these are inert call seeds, subject to exact owner preflight; export is inventory/validation inspection and review is an owner decision; the dashboard does not spawn a candidate, run benchmarks, mutate worktrees, write AK/KES evidence, or promote.",
   ];
 }
 
@@ -53,7 +53,7 @@ export function formatAutoresearchMatrixCampaignSummaryLines(
   }
 
   return [
-    `- campaigns: ${summary.campaignCount}; cells: ${summary.completedCellCount}/${summary.cellCount}; selected: ${summary.selectedCellCount}; lanes: ${summary.candidateLaneCount}; exported packets: ${summary.exportedPacketCount}`,
+    `- campaigns: ${summary.campaignCount}; planned cells: ${summary.cellCount}; controller-reported completed cells: ${summary.completedCellCount}; selected assertions: ${summary.selectedCellCount}; lanes: ${summary.candidateLaneCount}; packet files inventoried: ${summary.exportedPacketCount}; valid measurements: ${summary.observedMeasurementCount}; expected inventory gaps: ${summary.coverageGapLaneCount} (not success)`,
     `- ${summary.openCandidateReview.summary}`,
     `- open candidate next legal action: ${summary.openCandidateReview.nextLegalAction}`,
     `- metric: ${summary.metricName ?? "(unknown)"} (${summary.metricDirection ?? "unknown"} is better; target=${summary.metricTarget ?? "none"})`,
@@ -63,7 +63,7 @@ export function formatAutoresearchMatrixCampaignSummaryLines(
       .slice(0, 12)
       .map(
         (cell) =>
-          `- ${cell.cellId}: posture=${cell.posture}; lanes=${cell.laneProgress}; selected=${cell.selectedLaneId ?? "none"}; next=${cell.nextLegalAction}`,
+          `- campaign=${cell.campaignKey}; ${cell.cellId}: ${cell.stageNote}; controller lane report=${cell.laneProgress}; selected assertion=${cell.selectedLaneId ?? "none"}; next=${cell.nextLegalAction}`,
       ),
     ...summary.nextLegalActions.slice(0, 5).map((action) => `- next legal action: ${action}`),
     `- boundary: ${summary.boundary}`,

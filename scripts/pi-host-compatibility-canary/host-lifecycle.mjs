@@ -5,6 +5,7 @@
 // ---
 import { lstatSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { requireSdkReadonlyTargets } from "./sdk-plan.mjs";
 import {
   assertEffectiveOwner,
   errorMessage,
@@ -21,7 +22,6 @@ import {
   captureAlignedTargetState,
   captureTargetLedger,
   commandToString,
-  durablySyncHostPackageState,
   nodeModulesState,
   restorationError,
   snapshotHostPackages,
@@ -32,14 +32,15 @@ import {
   verifyInitialTargetState,
   verifyScenarioCwdIdentity,
   verifyTargetIdentity,
+  verifyMutationTargetState,
 } from "./host-state.mjs";
+import { finishMutationCommand } from "./mutation-completion.mjs";
+import { finishHostRestoration } from "./host-restoration-barrier.mjs";
 import { spawnWithNeutralNpmEnv } from "./process.mjs";
 import { fsyncDirectory, fsyncFile } from "./state-files.mjs";
-
 function crashBoundary(name) {
   if (process.env.PI_HOST_COMPAT_TEST_SIGKILL_AT === name) process.kill(process.pid, "SIGKILL");
 }
-
 function privatePackagePath(entry, packageAbs) {
   Object.defineProperty(entry, "packageAbs", { value: packageAbs, enumerable: false });
   return entry;
@@ -133,6 +134,7 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
     if (isIntegrityError(error)) throw error;
     throw new IntegrityError(`Scenario target preflight failed: ${errorMessage(error)}`);
   }
+  if (options.sdkExecution) requireSdkReadonlyTargets(packagePreparations, snapshotsMatch);
   preparationTracker.packages = packagePreparations;
   mutationSession?.bindScenario(scenario, host, packagePreparations);
   crashBoundary("pre-alignment");
@@ -190,8 +192,19 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
         mutationSession.recordChild(entry, "align-host", identity);
       },
     });
-    if (!entry.install.effectMayBeActive) mutationSession.clearChild();
     entry.changed = true;
+    let capturedAlignment;
+    finishMutationCommand(entry.install, {
+      verify: () => {
+        for (const target of packagePreparations) {
+          verifyMutationTargetState(target);
+          mutationSession.validateEntryMetadata(target);
+        }
+        if (entry.install.ok) capturedAlignment = captureAlignedTargetState(entry, host);
+      },
+      hold: (...args) => mutationSession.holdCompletion(...args),
+      clear: () => mutationSession.clearChild(), reason: "command-completion-unverified",
+    });
     if (!entry.install.ok) {
       return {
         status: "failed",
@@ -203,7 +216,6 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
       };
     }
 
-    const capturedAlignment = captureAlignedTargetState(entry, host);
     entry.alignedNodeModulesIdentity = capturedAlignment.nodeModulesIdentity;
     entry.afterAlignment = capturedAlignment.alignment;
     mutationSession.transition(entry, "aligned", {
@@ -298,6 +310,8 @@ export async function restoreScenarioHost(host, hostPreparation, options, mutati
     return { status: "not-needed", changed: false, packages: [], errors: [] };
   }
 
+  mutationSession.assertNoCompletionHold();
+  const expectedTrees = new Map();
   const reversed = [...preparedPackages].reverse();
   const ordered = [
     ...reversed.filter((entry) => entry.nodeModulesBefore?.kind === "directory"),
@@ -320,6 +334,10 @@ export async function restoreScenarioHost(host, hostPreparation, options, mutati
       errors: packageErrors,
     };
     const record = (phase, operation, error, result) => {
+      if (isIntegrityError(error)) {
+        mutationSession.holdCompletion("restoration-completion-unverified", mutationSession.hasRecordedChild());
+        throw error;
+      }
       const detail = restorationError(entry, phase, operation, error, result);
       packageErrors.push(detail);
       errors.push(detail);
@@ -368,6 +386,7 @@ export async function restoreScenarioHost(host, hostPreparation, options, mutati
         throw new IntegrityError(`pre-existing node_modules identity changed: ${entry.packagePath}`);
       }
       restoreNodeModulesIdentity = nodeModulesState(packageAbs).identity;
+      expectedTrees.set(entry, { kind: "directory", identity: restoreNodeModulesIdentity });
     } catch (error) {
       record("verification", "verify-preexisting-node-modules", error);
       canRunRestore = false;
@@ -418,11 +437,21 @@ export async function restoreScenarioHost(host, hostPreparation, options, mutati
             },
           },
         );
-        if (restoreResult.effectMayBeActive) {
-          throw new IntegrityError("restore command process group could not be proven stopped");
-        }
-        mutationSession.clearChild();
+        finishMutationCommand(restoreResult, {
+          verify: () => {
+            for (const target of preparedPackages) {
+              verifyMutationTargetState(target, expectedTrees.get(target));
+              mutationSession.validateEntryMetadata(target);
+            }
+          },
+          hold: (...args) => mutationSession.holdCompletion(...args),
+          clear: () => mutationSession.clearChild(), reason: "restoration-completion-unverified",
+        });
       } catch (error) {
+        if (isIntegrityError(error) || mutationSession.hasRecordedChild() || mutationSession.hasCompletionHold()) {
+          mutationSession.holdCompletion("restoration-completion-unverified", mutationSession.hasRecordedChild());
+          throw error;
+        }
         restoreResult = { ok: false, exitCode: 1, signal: null, error: errorMessage(error) };
       }
       if (mutationSession.hasRecordedChild()) {
@@ -456,33 +485,7 @@ export async function restoreScenarioHost(host, hostPreparation, options, mutati
     restoredPackages.push(restoredPackage);
   }
 
-  for (const entry of preparedPackages) {
-    const restoredPackage = restoredPackages.find((candidate) => candidate.packagePath === entry.packagePath);
-    try {
-      const packageAbs = verifyTargetIdentity(entry);
-      const finalState = nodeModulesState(packageAbs);
-      if (entry.nodeModulesBefore.kind === "absent") {
-        if (finalState.kind !== "absent") {
-          throw new IntegrityError(`final node_modules state is not absent: ${entry.packagePath}`);
-        }
-      } else {
-        if (finalState.kind !== "directory" || !identitiesMatch(finalState.identity, entry.nodeModulesBefore.identity)) {
-          throw new IntegrityError(`final pre-existing node_modules identity changed: ${entry.packagePath}`);
-        }
-        const expected = entry.restoreSnapshot ?? entry.beforeSnapshot ?? [];
-        const actual = snapshotHostPackages(packageAbs, host);
-        if (!snapshotsMatch(expected, actual)) {
-          throw new Error(`final host snapshot expected ${summarizeSnapshot(expected)}, got ${summarizeSnapshot(actual)}`);
-        }
-        durablySyncHostPackageState(packageAbs, host);
-      }
-      if ((restoredPackage?.errors?.length ?? 0) === 0) mutationSession.markTargetRestored(entry);
-    } catch (error) {
-      const detail = restorationError(entry, "final-barrier", "verify-all-targets", error);
-      restoredPackage?.errors?.push(detail);
-      errors.push(detail);
-    }
-  }
+  finishHostRestoration(preparedPackages, restoredPackages, errors, host, mutationSession);
 
   return {
     status: errors.length > 0 ? "failed" : changed ? "restored" : "not-needed",

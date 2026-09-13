@@ -38,6 +38,32 @@ export interface SessionSnapshot {
   errorMessage: string;
 }
 
+export type AkTaskChipState = "active" | "deferred" | "orphaned";
+
+/** One read-only AK task reference joined onto a terminal card by the native projection. */
+export interface AkTaskChip {
+  id: number;
+  title: string;
+  state: AkTaskChipState;
+}
+
+/** A live-lease task claim parsed from read-only `ak task list` output. */
+export interface AkTaskClaim {
+  id: number;
+  title: string;
+  repo: string;
+  sessionId: string;
+  leaseExpiresAt: number;
+  claimedAt: number;
+}
+
+/** A task with an active deferral parsed from read-only `ak task deferred` output. */
+export interface AkTaskDeferred {
+  id: number;
+  title: string;
+  repo: string;
+}
+
 export interface BrokerSnapshot {
   generatedAt: number;
   sessions: SessionSnapshot[];

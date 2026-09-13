@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { loadCurrentHostVersion } from "../../../scripts/pi-host-compatibility-canary/host-contract.mjs";
 
+// Scaffold lineage is historical; the repository owns today's development baseline.
 const HOST_BASELINE = "0.84.3";
-const DEV_TEST_FLOOR = "0.84.4";
+const DEV_TEST_FLOOR = loadCurrentHostVersion();
 const TEMPLATE_SOURCE = "@tryinget/pi-extensions-package-template";
 const HOST_PACKAGES = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"];
 const PEER_COMPATIBILITY = Object.fromEntries(HOST_PACKAGES.map((name) => [name, "*"]));
@@ -21,7 +23,7 @@ function readPackageJson(filePath = "package.json") {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-test("Pi host contract keeps package, host, development, and peer versions distinct", () => {
+test("Given the root development baseline, When package declarations and installation are checked, Then all development pins match it without changing scaffold lineage or peers", () => {
   const pkg = readPackageJson();
   const contract = pkg["x-pi-template"]?.piHostContract;
 

@@ -1,0 +1,10 @@
+✔ standing-agent receipt matches a real clean Ghostty TUI with first-action ACK and final (17.590758ms)
+ℹ {"runId":"standingagent-mtqmbq5w-aeaf6023","sessionId":"01a079af-2ef4-762c-8bfc-228d0b411d4a","pid":189076,"tty":"/dev/pts/11","surfaceId":"0x516815b20d7e09a3","ghosttyPid":4034502,"ghosttyExecutable":"/home/tryinget/.local/opt/ghostty-origin-main/492300cad104195411d12217dd22f1cd05f31376/bin/ghostty","foregroundWindowId":null,"placement":"live_tab_foreground_not_observed","model":{"provider":"zai","modelId":"glm-5.3"},"requestedThinking":"medium","effectiveThinking":"high","toolCalls":9,"ack":1,"final":1}
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.803147

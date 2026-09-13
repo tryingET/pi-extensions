@@ -46,7 +46,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | Package | Standalone usable? | Essentially does | Notes |
 |---|---|---|---|
 | `pi-context-overlay` | yes | inspect current session context | good outsider entry point |
-| `pi-context-packer` | yes | plan bounded future context packets across source-owned providers | read-only first slice; preserves SCI/docs/AK/FCOS/etc. authority boundaries |
+| `pi-context-packer` | yes | plan bounded future context packets across source-owned providers | read-only first slice; preserves docs/AK/FCOS/etc. authority boundaries |
 | `pi-activity-strip` | yes | show live session/activity strip UI | local desktop/window-manager assumptions may apply |
 | `pi-little-helpers` | yes | add small operator helpers | general-purpose utility package |
 | `pi-eval-kernel` | yes | aggregate bounded Python/JavaScript programs behind one `eval` call | persistent logical state and explicit capability registry; does not disable Bash; not a sandbox or arbitrary Pi-tool dispatcher |

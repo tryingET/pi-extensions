@@ -13,7 +13,7 @@ import {
   registerExtension,
 } from "./sidequest-harness.mjs";
 
-function createTabCapableExecStub() {
+function createWindowExecStub() {
   return createExecStub(({ command, args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-tab\n  +new-window\n" };
@@ -21,26 +21,26 @@ function createTabCapableExecStub() {
     if (args[0] === "+version") {
       return { code: 0, stdout: "Ghostty 1.4.0\n" };
     }
-    if (args[0] === "+new-tab") {
+    if (args[0]?.startsWith("--working-directory=")) {
       return { code: 0, stdout: "" };
     }
     throw new Error(`Unexpected Ghostty args: ${command} ${args.join(" ")}`);
   });
 }
 
-function lastTabLaunchCall(execStub) {
-  const call = [...execStub.calls].reverse().find(({ args }) => args[0] === "+new-tab");
-  assert.ok(call, "expected a +new-tab launch");
+function lastWindowLaunchCall(execStub) {
+  const call = [...execStub.calls].reverse().find(({ args }) => args[0]?.startsWith("--working-directory="));
+  assert.ok(call, "expected a preselected window launch");
   return call;
 }
 
 test("sidequest carries explicit PI_COMPANY environment provenance into the visible child", async () => {
-  const execStub = createTabCapableExecStub();
+  const execStub = createWindowExecStub();
 
   const extension = createSidequestExtension({
     registerTools: true,
     env: {
-      TERM_PROGRAM: "ghostty",
+      TERM_PROGRAM: "xterm",
       GHOSTTY_BIN_DIR: "/usr/bin",
       PI_SIDEQUEST_PI_BIN: "pi",
       PI_COMPANY: "core",
@@ -56,7 +56,7 @@ test("sidequest carries explicit PI_COMPANY environment provenance into the visi
 
   await commands.get("sidequest").handler("trace this failure", harness.ctx);
 
-  assert.deepEqual(extractPiArgs(lastTabLaunchCall(execStub).args), [
+  assert.deepEqual(extractPiArgs(lastWindowLaunchCall(execStub).args), [
     "env",
     "PI_COMPANY=core",
     "PI_COMPANY_PROVENANCE=environment",
@@ -82,7 +82,7 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
     return { code: 0, stdout: "" };
   });
   const launchOptions = {
-    env: { TERM_PROGRAM: "ghostty", GHOSTTY_BIN_DIR: "/usr/bin", PI_SIDEQUEST_PI_BIN: "pi" },
+    env: { TERM_PROGRAM: "xterm", GHOSTTY_BIN_DIR: "/usr/bin", PI_SIDEQUEST_PI_BIN: "pi" },
     exec: execStub.exec,
     pathExists(path) {
       return path === "/usr/bin/ghostty";
@@ -100,7 +100,7 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
     cwd: "/home/tryinget/.local/state/pi-quests/tmp/task-x",
   });
   assert.equal(unscoped.ok, true);
-  assert.deepEqual(extractPiArgs(lastTabLaunchCall(execStub).args), [
+  assert.deepEqual(extractPiArgs(lastWindowLaunchCall(execStub).args), [
     "env",
     "PI_COMPANY=software",
     "PI_COMPANY_PROVENANCE=parent_cwd",
@@ -119,7 +119,7 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
     cwd: "/srv/ai-society/financeco/owned/book",
   });
   assert.equal(scoped.ok, true);
-  const scopedPiArgs = extractPiArgs(lastTabLaunchCall(execStub).args);
+  const scopedPiArgs = extractPiArgs(lastWindowLaunchCall(execStub).args);
   assert.equal(scopedPiArgs[0], "pi");
   assert.equal(
     scopedPiArgs.some((arg) => arg.startsWith("PI_COMPANY=")),

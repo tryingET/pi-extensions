@@ -78,6 +78,16 @@ export function bankedResetSummary(row: LimitsAccountRow, now: number) {
   return { text: `↺${facts.count} ${when}`, tone: facts.tone };
 }
 
+function hasPartialBalance(row: LimitsAccountRow): boolean {
+  const balance = row.snapshot?.money;
+  return Boolean(
+    balance &&
+      (balance.walletUnavailable ||
+        balance.walletRemaining === undefined ||
+        (balance.keyLimit !== null && balance.keyRemaining === undefined)),
+  );
+}
+
 export function needsAttention(row: LimitsAccountRow): boolean {
   return Boolean(
     row.error ||
@@ -85,7 +95,7 @@ export function needsAttention(row: LimitsAccountRow): boolean {
       row.snapshot?.usageError ||
       row.snapshot?.creditsError ||
       row.snapshot?.resetInventory?.error ||
-      row.snapshot?.money?.walletUnavailable ||
+      hasPartialBalance(row) ||
       row.snapshot?.money?.keyRemaining === 0 ||
       row.snapshot?.money?.walletRemaining === 0 ||
       ["warning", "error"].includes(bankedResetSummary(row, Date.now())?.tone ?? "") ||
@@ -136,7 +146,7 @@ function healthMarker(row: LimitsAccountRow): string {
     row.snapshot?.usageError ||
     row.snapshot?.creditsError ||
     row.snapshot?.resetInventory?.error ||
-    row.snapshot?.money?.walletUnavailable
+    hasPartialBalance(row)
   )
     return "~ ";
   if (!row.snapshot) return "? ";

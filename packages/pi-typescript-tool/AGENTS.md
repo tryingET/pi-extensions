@@ -22,8 +22,9 @@ only for intentional legacy migration, not routine validation.
 - Keep the source contract, tool description, runtime limits and tests aligned.
 - Run `PI_EXTENSIONS_TMPDIR="$TMPDIR" npm run check`; the wrapper delegates to
   the root package gate. Full/quick release checks stay private and provider-free.
-- Exact development host pins differ from the template host baseline; update
-  metadata, local validator and host-contract tests together.
+- Root `policy/pi-host-compatibility-canary.json` owns exact development host pins.
+  Local validation consumes it; align declarations, development metadata and npm
+  locks together. The template host baseline records scaffold history, not an override.
 - Preserve `.copier-answers.yml` unchanged as generated lineage. Update from a
   clean destination using pinned Copier update/recopy and reapply intentional deltas.
 - Keep implementation notes in `docs/project/`, adopted decisions in `docs/adr/`.

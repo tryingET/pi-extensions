@@ -70,7 +70,20 @@ test("extension registers agent_registry, dispatch_agent, and /agents", async ()
     await loadExtension(harness.pi);
     assert.ok(harness.tools.has("agent_registry"));
     assert.ok(harness.tools.has("dispatch_agent"));
+    assert.ok(harness.tools.has("standing_agent_spawn"));
     assert.ok(harness.commands.has("agents"));
+    const spawnTool = harness.tools.get("standing_agent_spawn");
+    assert.match(spawnTool.description, /Fleet Phase 3/);
+    assert.match(spawnTool.description, /clean visible Pi TUI session in a Ghostty tab\/window/);
+    assert.deepEqual(Object.keys(spawnTool.parameters.properties), [
+      "agent",
+      "task",
+      "objective",
+      "reportBack",
+      "parentPeerTarget",
+      "cwd",
+    ]);
+    assert.equal(spawnTool.parameters.properties.parentPeerTarget.type, "string");
     const registryTool = harness.tools.get("agent_registry");
     assert.match(registryTool.description, /ai-society\.agent\/1/);
     assert.ok(registryTool.parameters.properties.action.enum.includes("lint"));

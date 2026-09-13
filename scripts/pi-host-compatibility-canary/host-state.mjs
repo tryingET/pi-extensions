@@ -85,6 +85,19 @@ export function verifyInitialTargetState(entry) {
   return packageAbs;
 }
 
+export function verifyMutationTargetState(entry, expected = undefined) {
+  const packageAbs = verifyTargetIdentity(entry);
+  const current = nodeModulesState(packageAbs);
+  const identity = entry.nodeModulesBefore.kind === "directory"
+    ? entry.nodeModulesBefore.identity : entry.alignedNodeModulesIdentity;
+  expected ??= identity ? { kind: "directory", identity } : { kind: "absent" };
+  if (current.kind !== expected.kind ||
+      (current.kind === "directory" && (!expected.identity || !identitiesMatch(current.identity, expected.identity)))) {
+    throw new IntegrityError(`mutating command target tree identity changed: ${entry.packagePath}`);
+  }
+  return packageAbs;
+}
+
 export function captureAlignedTargetState(entry, host) {
   const packageAbs = verifyTargetIdentity(entry);
   const current = nodeModulesState(packageAbs);

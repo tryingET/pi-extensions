@@ -1,26 +1,57 @@
 ---
-summary: "Versioned standing-agent manifest, Fleet Phase-1 lint/immutable-observation contract, and Phase-0 execution quarantine."
+summary: "Versioned standing-agent manifest, Fleet Phase-1 lint, Phase-2 dispatch, and locally tested Phase-3 visible admission contracts."
 read_when:
   - "Authoring or validating a standing-agent agent.json manifest."
   - "Changing pi-agent-registry discovery, lint, immutable revision, resolution, or dispatch posture."
 type: "reference"
 ---
 
-# Agent manifest convention v1 (AK 5098/5100/5131)
+# Agent manifest convention v1 (AK 5098/5100/5131/5132/5133)
 
 A standing agent is declared by an `agent.json` at its standalone agent-repo
 root. The registry maps that declaration to read-only inspection metadata. AK,
 source-owner policy, role cards, and persona inputs retain their separate
 authority; a manifest or lint result grants none.
 
-**Fleet Phase 2 (AK 5132) is active.** `dispatch_agent` executes exactly one
-read-only standing-agent run per `(agent, exact claimed AK task)` pair through
-the ASC-owned runtime, with write-once receipts, one typed AK evidence row, and
-every unauthorized shape still failing closed with `confirmed_no_effects`.
-Readiness, lint health, and manifest existence still grant no authority;
-visible standing agents, lifecycle-v2 permit binding, and orchestrator fleet
-integration remain later fleet phases. See
-`packages/pi-agent-registry/README.md` for the full contract.
+**Fleet Phase 2 (AK 5132) remains unchanged.** `dispatch_agent` executes at
+most one settled read-only standing-agent run per `(agent, exact claimed AK task)`
+pair through ASC, with immutable attempts, at most three attempts, and one typed
+AK evidence row only on settlement.
+
+**Fleet Phase 3 (AK 5133) is locally implemented and live-dogfood verified.**
+`standing_agent_spawn { agent, task, objective, parentPeerTarget, reportBack?, cwd? }`
+composes one clean visible Pi TUI admission through little-helpers' version-1
+`sidequest-launch` export. It requires an exact origin-repo-bound claimed task
+with a live lease, bounded read-only objective, clean committed agent inputs,
+same-repo cwd, persistent per-agent/task reservation, and immediate pre-transport
+claim/input/origin rechecks. `reportBack` defaults to intercom with an exact
+`session-<UUID>` target; manual/none may omit `parentPeerTarget`.
+
+Explicit offline startup disables ambient extensions, skills and prompt
+templates (`--offline --no-extensions --no-skills --no-prompt-templates`), then
+loads approved installed intercom/presence entrypoints and explicit selected
+skills. Normal cwd-bound AGENTS context is retained. Builtin `zai` needs no
+ambient provider extension. Offline is not network isolation, and entry hashes
+do not prove settings/auth/models, transitive imports or full runtime integrity.
+Read-only `bash`/scope remain advisory, not a sandbox.
+
+Never retry Phase 3 automatically, even for no-effects, reservation failure,
+cancellation or indeterminate launch. Reservations survive until explicit owner
+disposition. Launch receipt ≠ startup/ACK/completion proof; Phase 3 writes no
+automatic AK evidence. Parent owns reality-test evidence and closeout. Readiness,
+lint health and manifest existence grant no authority; AK 5134 remains separate
+and pending.
+
+See the [package contract](../../packages/pi-agent-registry/README.md#phase-3-clean-visible-admission-ak-5133)
+and [Phase-3 dogfood evidence](../../packages/pi-agent-registry/docs/project/2026-09-07-fleet-phase3-dogfood.md).
+A real TUI driver → real child TUI produced correlated ACK/FINAL with no
+duplicates or observed file/AK writes. Ghostty was `1.3.2-main`, not literal 1.4.
+Registry tests **134/134**, helpers **430/430**, and both full release checks pass
+following an explicit unchanged-profile/fleet baseline refresh. The new live
+standing-agent assertion passes; the broad observer assertion still flags an
+unrelated session on retired Ghostty. This is not published availability: the
+version-1 export in local helpers source must ship before npm enablement can be
+claimed; older helpers make packed registry admission fail closed.
 
 ## Authoring schema (`agent.json`)
 
@@ -73,8 +104,13 @@ Rules:
 - `tools` — exact least-privilege declaration. `[]` means no model-callable
   tools; Phase 1 does not silently turn it into `read`.
 - `extensions` — optional child extension declarations; relative paths stay
-  inside the agent repo.
-- `defaults.model` — `null` delegates future selection; Phase 1 never launches.
+  inside the agent repo. Phase 3 rejects nonempty declarations and supplies only
+  its approved installed bootstrap entrypoints.
+- `defaults.model` — `null` delegates selection; Phase 1 never launches. Phase 3
+  uses the manifest model when set, otherwise the controller model.
+- `defaults.thinking` — manifest request passed to Pi, not guaranteed runtime
+  thinking. Pi clamps to supported levels; live Phase-3 `medium` requested
+  became `high` on `zai/glm-5.3`.
 - `scope` — advisory operating territory, never a sandbox or authority grant.
 - `activities` — contained recurring-work templates; lifecycle authority is not
   inferred from their presence.
@@ -169,7 +205,8 @@ Exact collision lint proves only normalized string equality. Semantic role
 pain/differentiation review, creation acceptance, lifecycle state, staleness
 disposition, consent, retirement, and activation remain owner/AK decisions.
 
-The current real-fleet baseline is intentionally unhealthy and revision-bound:
+The original Phase-1 real-fleet baseline is intentionally unhealthy and
+revision-bound (historical observations, not current external HEAD claims):
 three canonical legacy repos lack manifests; the adoption-steward manifest
 lacks `role`/`creation_task`, its prompt is not current under the trusted v2
 compiler, its extra skill is not commit-bound in the agent/EC snapshots, and
@@ -185,3 +222,5 @@ out-of-scope backfill.
 - Runtime task/evidence/decision authority: Agent Kernel.
 - Read-only manifest/fleet observation: `packages/pi-agent-registry`.
 - Bounded Phase-2 execution: ASC-owned runtime only through the pi-agent-registry exact-task read-only dispatch contract (AK 5132).
+- Bounded Phase-3 visible admission: registry composition/receipts; little-helpers
+  version-1 visible transport; parent-owned reality evidence and AK closeout (AK 5133).

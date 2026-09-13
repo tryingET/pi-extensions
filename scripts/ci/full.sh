@@ -21,6 +21,9 @@ export TMPDIR="$tmp_root"
 export TMP="$tmp_root"
 export TEMP="$tmp_root"
 
+# Cheap authored-contract failure first; full workspace coverage remains strict.
+node ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs
+
 if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
   echo "skipping local package link validation: PI_SKIP_PACKAGES=1"
 else
@@ -50,6 +53,13 @@ if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.j
 fi
 
 node --test ./scripts/root-package-install-contract.test.mjs
+node --test ./scripts/validate-package-release-contracts.test.mjs
+node --test ./scripts/pi-host-contract-admission.test.mjs
+node --test ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.test.mjs \
+  ./scripts/pi-host-compatibility-canary/check-dev-pin-drift-scoped.test.mjs \
+  ./scripts/pi-host-compatibility-canary/check-dev-pin-drift-snapshot.test.mjs \
+  ./scripts/pi-host-compatibility-canary/check-dev-pin-drift-retirement.test.mjs \
+  ./scripts/pi-host-compatibility-canary/manifest-definition.test.mjs
 
 if [ -f "./scripts/validate-package-release-contracts.mjs" ]; then
   if [ "${PI_SKIP_PACKAGE_RELEASE_CONTRACTS:-0}" = "1" ]; then

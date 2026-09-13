@@ -1,4 +1,4 @@
-// summary: "Reality-anchored assertion: every recognized Ghostty controller family resolves its own single-instance server, and the normal broker is the installed origin/main build."
+// summary: "Reality-anchored assertion: recognized controllers require independently checked originating/stub identity, and the normal broker is the installed origin/main build."
 // read_when:
 //   - "Verifying observer / sidequest tab targeting against real coexisting Ghostty brokers."
 //   - "Changing resolveControllerGhosttyDbusTarget or executable-family endpoint selection."
@@ -46,7 +46,25 @@ function busctlListRows() {
     timeout: PROBE_TIMEOUT_MS,
   });
   if (result.status !== 0) return null;
-  return result.stdout.split("\n").map((line) => line.trim().split(/\s+/));
+  const parsed = result.stdout.trim().split("\n").map((line) => line.trim().split(/\s+/));
+  const names = parsed.map((fields) => fields[0]);
+  assert.ok(result.stdout.trim(), "empty listing is not absence evidence");
+  assert.equal(new Set(names).size, names.length, "duplicate bus names invalidate the observation");
+  for (const fields of parsed) {
+    assert.ok(fields.length >= 5, "malformed bus row");
+    const [name, pid, , , connection] = fields;
+    assert.match(name, /^(?::[0-9]+\.[0-9]+|[A-Za-z_-][A-Za-z0-9_-]*(?:\.[A-Za-z_-][A-Za-z0-9_-]*)+)$/);
+    if (pid === "-" && connection === "-" && !name.startsWith(":")) continue;
+    assert.match(pid, /^[1-9][0-9]*$/);
+    assert.ok(Number.isSafeInteger(Number(pid)));
+    if (name === "org.freedesktop.DBus" && connection === "-") continue;
+    assert.match(connection, /^:[0-9]+\.[0-9]+$/);
+    if (name.startsWith(":")) assert.equal(connection, name);
+    const linked = parsed.filter((entry) => entry[0] === connection);
+    assert.equal(linked.length, 1, "connection must be present exactly once");
+    assert.equal(linked[0][1], pid, "connection and named owner must agree");
+  }
+  return parsed;
 }
 
 function wellKnownOwnerPid(rows, wellKnownName) {
@@ -59,6 +77,30 @@ function wellKnownOwnerPid(rows, wellKnownName) {
 function pidForUniqueName(rows, busName) {
   const match = rows.find((fields) => fields[0] === busName);
   return match ? Number.parseInt(match[1] || "", 10) : undefined;
+}
+
+function uniqueNamesForPid(rows, pid) {
+  return rows
+    .filter((fields) => fields[0]?.startsWith(":") && Number.parseInt(fields[1] || "", 10) === pid)
+    .map((fields) => fields[0]);
+}
+
+function expectedReceiver(rows, controller) {
+  const { pid, exe } = controller.ancestor;
+  assert.ok(Number.isSafeInteger(pid) && pid > 0);
+  assert.equal(readlinkSync(`/proc/${pid}/exe`), exe, "controller must be positively readable");
+  assert.match(controller.surfaceId, /^(?:[0-9]+|0x[0-9a-f]+)$/i);
+  const surface = BigInt(controller.surfaceId);
+  assert.ok(surface > 0n && surface <= 18446744073709551615n, "zero invokes receiver fallback, not a target");
+  const ownNames = uniqueNamesForPid(rows, pid);
+  assert.ok(ownNames.length <= 1, "ambiguous originator is not a nameless stub");
+  if (ownNames.length === 1) return { pid, busName: ownNames[0], surfaceId: surface.toString() };
+  const daemonPid = wellKnownOwnerPid(rows, controller.endpoint.wellKnownName);
+  assert.ok(daemonPid && daemonPid !== pid, "nameless stub needs a distinct positively known daemon");
+  const daemonNames = uniqueNamesForPid(rows, daemonPid);
+  assert.equal(daemonNames.length, 1);
+  assert.equal(readlinkSync(`/proc/${daemonPid}/exe`), exe, "same family alone is insufficient");
+  return { pid: daemonPid, busName: daemonNames[0], surfaceId: surface.toString() };
 }
 
 function livePiPids() {
@@ -81,13 +123,12 @@ function readEnvSurfaceId(pid) {
 }
 
 function endpointForExecutable(executable) {
-  if (executable.includes("/ghostty-sidequest")) return LEGACY_ENDPOINT;
-  if (
-    executable === "/usr/bin/ghostty" ||
-    executable.startsWith(`${homedir()}/.local/opt/ghostty-origin-main/`)
-  ) {
-    return NORMAL_ENDPOINT;
-  }
+  if (executable === "/usr/bin/ghostty") return NORMAL_ENDPOINT;
+  const prefix = `${homedir()}/.local/opt/`;
+  if (!executable.startsWith(prefix)) return undefined;
+  const relative = executable.slice(prefix.length);
+  if (/^ghostty-sidequest[^/]*\/bin\/ghostty$/.test(relative)) return LEGACY_ENDPOINT;
+  if (/^ghostty-origin-main\/[^/]+\/bin\/ghostty$/.test(relative)) return NORMAL_ENDPOINT;
   return undefined;
 }
 
@@ -120,6 +161,7 @@ test(
   async () => {
     const familyCounts = new Map();
     for (const controller of recognizedLiveControllers) {
+      const expected = expectedReceiver(rows, controller);
       const target = await resolveControllerGhosttyDbusTarget({
         execRunner: realExecRunner,
         controllerGhostty: controller.ancestor,
@@ -129,11 +171,15 @@ test(
         target,
         `pi ${controller.pid}: recognized ${controller.ancestor.exe} controller must resolve exactly`,
       );
-      const ownerPid = wellKnownOwnerPid(rows, controller.endpoint.wellKnownName);
-      assert.ok(ownerPid, `${controller.endpoint.wellKnownName} must have a live owner`);
+      assert.equal(target.busName, expected.busName);
+      assert.equal(target.surfaceId, expected.surfaceId);
+      assert.equal(readlinkSync(`/proc/${target.ownerPid}/exe`), controller.ancestor.exe);
       assert.equal(target.wellKnownName, controller.endpoint.wellKnownName);
       assert.equal(target.objectPath, controller.endpoint.objectPath);
-      assert.equal(pidForUniqueName(rows, target.busName), ownerPid);
+      assert.equal(
+        pidForUniqueName(rows, target.busName),
+        expected.pid,
+      );
       familyCounts.set(
         controller.endpoint.wellKnownName,
         (familyCounts.get(controller.endpoint.wellKnownName) ?? 0) + 1,
@@ -179,15 +225,25 @@ test(
       "at least one live origin/main Pi controller with a real surface ID is required",
     );
     const controller = normalControllers[0];
+    const expected = expectedReceiver(rows, controller);
     const target = await resolveControllerGhosttyDbusTarget({
       execRunner: realExecRunner,
       controllerGhostty: controller.ancestor,
       surfaceId: controller.surfaceId,
     });
-    assert.ok(target, "the live origin/main controller must resolve its exact normal broker");
+    assert.ok(
+      target,
+      "the live origin/main controller must resolve its originating Ghostty process",
+    );
+    assert.equal(target.busName, expected.busName);
+    assert.equal(target.surfaceId, expected.surfaceId);
+    assert.equal(readlinkSync(`/proc/${target.ownerPid}/exe`), controller.ancestor.exe);
     assert.equal(target.wellKnownName, NORMAL_ENDPOINT.wellKnownName);
     assert.equal(target.objectPath, NORMAL_ENDPOINT.objectPath);
-    assert.equal(pidForUniqueName(rows, target.busName), ownerPid);
+    assert.equal(
+      pidForUniqueName(rows, target.busName),
+      expected.pid,
+    );
 
     const describedAction = spawnSync(
       "busctl",
@@ -204,6 +260,13 @@ test(
       { encoding: "utf8", timeout: PROBE_TIMEOUT_MS },
     );
     assert.equal(describedAction.status, 0, describedAction.stderr);
-    assert.match(describedAction.stdout, /\(tas\)/);
+    assert.match(describedAction.stdout, /^\(bgav\)\s+true\s+"\(tas\)"\s+0\s*$/);
   },
 );
+
+// This file only reads identities and Describe. It does not Activate a tab, verify placement,
+// prove the supplied surface belongs to a receiver, guarantee an independent-window fixture,
+// or eliminate bus/process races. Real placement needs separate owner-authorized evidence.
+
+// Nonzero is necessary, not sufficient: a missing/stale nonzero surface can also make the
+// receiver choose a focused/new window. Describe does not query surface existence or ownership.

@@ -7,35 +7,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import toolboxDiscoveryExtension, { CATALOG } from "../extensions/toolbox.ts";
-
-const ALWAYS_ACTIVE_TOOLS = [
-  "read",
-  "bash",
-  "edit",
-  "write",
-  "self",
-  "interview",
-  "dispatch_subagent",
-  "intercom",
-  "vault_query",
-  "vault_retrieve",
-  "vault_vocabulary",
-  "vault_dispatch_check",
-  "fork_peer_spawn",
-  "scout_peer_spawn",
-  "candidate_peer_spawn",
-  "fresh_handoff_spawn",
-  "visible_loop_child_complete",
-  "context_plan",
-  "loop_execute",
-  "explore_symbol_impact",
-  "locate_confirm_definition",
-  "toolbox",
-];
+import { ALWAYS_ACTIVE_TOOLS } from "../src/toolbox-contract.ts";
 
 function catalogToolNames() {
   return CATALOG.flatMap((bundle) => bundle.profiles.flatMap((profile) => profile.tools));
 }
+
+test("Feature: session_closeout is always-active, not hotloaded", () => {
+  assert.ok(ALWAYS_ACTIVE_TOOLS.includes("session_closeout"));
+  const introspection = CATALOG.find((bundle) => bundle.id === "session-introspection");
+  assert.ok(introspection?.profiles[0]?.tools.includes("session_closeout"));
+});
 
 function createHarness(options = {}) {
   const commands = new Map();

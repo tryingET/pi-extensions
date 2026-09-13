@@ -161,6 +161,7 @@ const { pathToFileURL } = require("node:url");
   assert.equal(manifest.name, packageName);
   assert.equal(manifest.version, packageVersion);
   assert.ok(manifest.pi?.extensions?.includes("./extensions/pi-agent-registry.ts"));
+  assert.deepEqual(manifest.pi.extensions, ["./extensions/pi-agent-registry.ts"], "helper modules are not extension entrypoints");
   for (const requiredPath of [
     "extensions/pi-agent-registry.ts",
     "src/registry.ts",
@@ -170,6 +171,9 @@ const { pathToFileURL } = require("node:url");
     "src/fleet-git-snapshot.ts",
     "scripts/fleet-lint.mjs",
     "src/dispatch.ts",
+    "src/visible-launch.ts",
+    "src/visible-launch-bootstrap.ts",
+    "extensions/standing-agent-spawn.ts",
   ]) {
     assert.ok(fs.existsSync(path.join(packageRoot, requiredPath)), `packed artifact missing ${requiredPath}`);
   }
@@ -248,6 +252,17 @@ const { pathToFileURL } = require("node:url");
   assert.equal(gated.details.effectDisposition, "confirmed_no_effects");
   assert.equal(gated.details.spawnAttempted, false);
   assert.equal(handlers.has("tool_result"), false, "Phase-2 tool owns its result projection");
+  const visible = tools.get("standing_agent_spawn");
+  assert.ok(visible, "packed extension must register standing_agent_spawn");
+  assert.ok(visible.parameters.required.includes("task"));
+  const visibleGate = await visible.execute("release-visible-gate", {
+    agent: "agent-release-smoke", task: 5133, objective: "packed visible observation", reportBack: "manual",
+  }, undefined, undefined, context);
+  assert.equal(visibleGate.isError, true);
+  assert.ok(["visible_transport_unavailable", "parent_repo_unobservable"].includes(visibleGate.details.reason));
+  assert.equal(visibleGate.details.effectDisposition, "confirmed_no_effects");
+  assert.equal(visibleGate.details.spawnAttempted, false);
+  console.log("packed Phase-3 registration and fail-closed transport/origin gate OK");
   console.log("packed agent-registry read-only inspection and Phase-2 fail-closed dispatch execution OK");
 })().catch((error) => {
   console.error(error);

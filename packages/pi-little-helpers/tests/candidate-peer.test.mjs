@@ -72,7 +72,7 @@ function createCandidatePeerExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
       if (command === "/usr/bin/ghostty" && args[0] === "+version") {
         return { code: 0, stdout: "Ghostty 1.4.0\n" };
       }
-      if (command === "/usr/bin/ghostty" && args[0] === "+new-tab") {
+      if (command === "/usr/bin/ghostty" && args[0]?.startsWith("--working-directory=")) {
         return { code: 0, stdout: "" };
       }
 
@@ -88,72 +88,63 @@ function withTempDir(fn) {
     .finally(() => rmSync(dir, { recursive: true, force: true }));
 }
 
-test("candidate_peer_spawn staggers concurrent Ghostty launches", async () => {
-  await withTempDir(async (stateHome) => {
-    const baseExecStub = createCandidatePeerExecStub();
-    const launchTimes = [];
-    const extension = createSidequestExtension({
-      registerTools: true,
-      env: {
-        TERM_PROGRAM: "ghostty",
-        GHOSTTY_BIN_DIR: "/usr/bin",
-        PI_SIDEQUEST_PI_BIN: "pi",
-        PI_SIDEQUEST_LAUNCH_STAGGER_MS: "30",
-        XDG_STATE_HOME: stateHome,
-      },
-      currentSessionGhosttyBin: "/usr/bin/ghostty",
-      exec(command, args, options) {
-        if (command === "/usr/bin/ghostty" && args[0] === "+new-tab") {
-          launchTimes.push(Date.now());
+for (const mode of ["window", "tab"]) {
+  test(`candidate_peer_spawn spaces actual ${mode} dispatch despite unequal inspection latency`, { timeout: 4000 }, async () => {
+    await withTempDir(async (stateHome) => {
+      const base = createCandidatePeerExecStub(); const launches = []; const pending = [];
+      let descriptions = 0; let releaseSlow; let announceDescribe;
+      const slow = new Promise((resolve) => { releaseSlow = resolve; });
+      const described = new Promise((resolve) => { announceDescribe = resolve; });
+      const extension = createSidequestExtension({
+        registerTools: true,
+        env: { TERM_PROGRAM: mode === "tab" ? "ghostty" : "xterm", GHOSTTY_BIN_DIR: "/usr/bin",
+          GHOSTTY_SURFACE_ID: "19", PI_SIDEQUEST_PI_BIN: "pi", PI_SIDEQUEST_LAUNCH_STAGGER_MS: "30", XDG_STATE_HOME: stateHome },
+        currentSessionGhosttyBin: "/usr/bin/ghostty",
+        currentGhosttyAncestor: mode === "tab" ? { pid: 111, exe: "/usr/bin/ghostty" } : undefined,
+        readProcessExecutable: (pid) => pid === 111 ? "/usr/bin/ghostty" : undefined,
+        pathExists: (path) => path === "/usr/bin/ghostty",
+        async exec(command, args, options) {
+          if (command === "busctl" && args[1] === "list") return { code: 0, stdout: ":1.11 111 ghostty user :1.11 unit - -\n" };
+          if (command === "busctl" && args.includes("Describe")) {
+            if (++descriptions === 1) { announceDescribe(); await slow; }
+            return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+          }
+          if (command === "busctl" && args.includes("Activate")) {
+            launches.push({ at: performance.now(), args }); return { code: 0, stdout: "" };
+          }
+          if (command === "/usr/bin/ghostty" && args[0]?.startsWith("--working-directory=")) launches.push({ at: performance.now(), args });
+          return base.exec(command, args, options);
+        },
+      });
+      const { tools } = registerExtension(extension); const context = createContext({ cwd: "/repo" }).ctx;
+      const spawn = (suffix) => tools.get("candidate_peer_spawn").execute(`tool-call-${suffix}`, {
+        objective: `try candidate ${suffix}`, cwd: "/repo", parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+        branchName: `candidatepeer/stagger-${suffix}`, workspaceName: `stagger-${suffix}`,
+      }, undefined, undefined, context);
+      let timeout;
+      try {
+        pending.push(spawn("one"));
+        if (mode === "tab") await Promise.race([described, new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("first target never reached Describe")), 1500);
+        })]);
+        clearTimeout(timeout); pending.push(spawn("two"));
+        if (mode === "tab") {
+          await new Promise((resolve) => setTimeout(resolve, 80));
+          assert.equal(descriptions, 1, "second request must not overtake the first inspection slot");
+          assert.equal(launches.length, 0, "slow inspection has not admitted either dispatch");
+          releaseSlow();
         }
-        return baseExecStub.exec(command, args, options);
-      },
-      pathExists(path) {
-        return path === "/usr/bin/ghostty";
-      },
+        const results = await Promise.all(pending);
+        assert.ok(results.every((result) => result.details.ok === true));
+        assert.equal(launches.length, 2);
+        assert.ok(launches[1].at - launches[0].at >= 30, "actual transport starts must retain configured spacing");
+        assert.ok(launches[0].args.some((arg) => arg.includes("try candidate one")));
+        assert.ok(launches[1].args.some((arg) => arg.includes("try candidate two")));
+        if (mode === "tab") assert.ok(launches.every(({ args }) => args.includes("Activate") && args[3] === ":1.11" && args[11] === "19"));
+      } finally { clearTimeout(timeout); releaseSlow(); await Promise.allSettled(pending); }
     });
-    const { tools } = registerExtension(extension);
-    const candidatePeerSpawn = tools.get("candidate_peer_spawn");
-    const context = createContext({ cwd: "/repo" }).ctx;
-
-    const [first, second] = await Promise.all([
-      candidatePeerSpawn.execute(
-        "tool-call-1",
-        {
-          objective: "try candidate one",
-          cwd: "/repo",
-          parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
-          branchName: "candidatepeer/stagger-one",
-          workspaceName: "stagger-one",
-        },
-        undefined,
-        undefined,
-        context,
-      ),
-      candidatePeerSpawn.execute(
-        "tool-call-2",
-        {
-          objective: "try candidate two",
-          cwd: "/repo",
-          parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
-          branchName: "candidatepeer/stagger-two",
-          workspaceName: "stagger-two",
-        },
-        undefined,
-        undefined,
-        context,
-      ),
-    ]);
-
-    assert.equal(first.details.ok, true);
-    assert.equal(second.details.ok, true);
-    assert.equal(launchTimes.length, 2);
-    assert.ok(
-      launchTimes[1] - launchTimes[0] >= 20,
-      `expected staggered launches, got ${launchTimes.join(", ")}`,
-    );
   });
-});
+}
 
 test("/parallelquest launches a human candidate peer worktree", async () => {
   await withTempDir(async (stateHome) => {
@@ -161,7 +152,7 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
     const extension = createSidequestExtension({
       registerTools: true,
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         GHOSTTY_SURFACE_ID: "22",
         PI_SIDEQUEST_PI_BIN: "pi",
@@ -191,7 +182,7 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
     const launchCall = execStub.calls.find(
       (call) =>
         call.command === "/usr/bin/ghostty" &&
-        call.args[0] === "+new-tab" &&
+        call.args[0]?.startsWith("--working-directory=") &&
         call.args.includes("sidequest-pi"),
     );
     assert.ok(launchCall);
@@ -418,7 +409,7 @@ test("candidate_peer_spawn reportBack none makes intercom disabled explicit", as
     const extension = createSidequestExtension({
       registerTools: true,
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         GHOSTTY_SURFACE_ID: "21",
         PI_SIDEQUEST_PI_BIN: "pi",
@@ -448,7 +439,7 @@ test("candidate_peer_spawn reportBack none makes intercom disabled explicit", as
     const launchCall = execStub.calls.find(
       (call) =>
         call.command === "/usr/bin/ghostty" &&
-        call.args[0] === "+new-tab" &&
+        call.args[0]?.startsWith("--working-directory=") &&
         call.args.includes("sidequest-pi"),
     );
     assert.ok(launchCall);
@@ -688,7 +679,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     const extension = createSidequestExtension({
       registerTools: true,
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         GHOSTTY_SURFACE_ID: "21",
         PI_SIDEQUEST_PI_BIN: "pi",
@@ -735,11 +726,11 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     const launchCall = execStub.calls.find(
       (call) =>
         call.command === "/usr/bin/ghostty" &&
-        call.args[0] === "+new-tab" &&
+        call.args[0]?.startsWith("--working-directory=") &&
         call.args.includes("sidequest-pi"),
     );
     assert.ok(launchCall);
-    assert.ok(launchCall.args.includes("--surface-id=21"));
+    assert.ok(!launchCall.args.some((arg) => arg.startsWith("--surface-id=")));
     assert.ok(launchCall.args.includes(`--working-directory=${result.details.worktreePath}`));
     assert.match(
       extractShellCommand(launchCall.args),
@@ -795,7 +786,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
 
     assert.equal(result.details.ok, true);
     assert.equal(result.details.tool, "candidate_peer_spawn");
-    assert.equal(result.details.launchMode, "tab");
+    assert.equal(result.details.launchMode, "window");
     assert.equal(result.details.parentCwd, "/repo");
     assert.equal(result.details.branchName, "candidatepeer/runner-guard");
     assert.equal(result.details.baseRef, "HEAD");
@@ -852,7 +843,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.deepEqual(registry.filesInScope, ["src/runner.ts", "tests/runner.test.mjs"]);
     assert.equal(registry.launch.status, "launched");
     assert.equal(registry.launch.effectDisposition, "settled");
-    assert.equal(registry.launch.launchMode, "tab");
+    assert.equal(registry.launch.launchMode, "window");
     assert.match(
       registry.cleanupPacket.manualPreconditions.join("\n"),
       /Archive commands must complete successfully/,
@@ -977,7 +968,7 @@ test("candidate_peer_spawn clamps long safe names with hashes and records cleanu
     const extension = createSidequestExtension({
       registerTools: true,
       env: {
-        TERM_PROGRAM: "ghostty",
+        TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
         GHOSTTY_SURFACE_ID: "21",
         PI_SIDEQUEST_PI_BIN: "pi",

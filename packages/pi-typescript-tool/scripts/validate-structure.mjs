@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import { loadCurrentHostVersion } from "../../../scripts/pi-host-compatibility-canary/host-contract.mjs";
 
 let failed = false;
 const errors = [];
@@ -53,7 +54,7 @@ function validateScopedPackageName(p) {
 }
 
 const PI_HOST_BASELINE = "0.84.3";
-const PI_DEV_TEST_FLOOR = "0.84.4";
+const PI_DEV_TEST_FLOOR = loadCurrentHostVersion();
 const PI_TEMPLATE_SOURCE = "@tryinget/pi-extensions-package-template";
 const PI_HOST_PACKAGES = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"];
 const PI_DEPENDENCY_SECTIONS = [

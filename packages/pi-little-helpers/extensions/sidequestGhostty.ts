@@ -388,67 +388,78 @@ type ControllerGhosttyDbusTarget = {
 };
 
 export async function resolveControllerGhosttyDbusTarget({
-  execRunner,
-  controllerGhostty,
-  surfaceId,
-  readProcessExecutable = readProcExecutable,
+  execRunner, controllerGhostty, surfaceId, readProcessExecutable = readProcExecutable,
 }: {
   execRunner: ExecRunner;
   controllerGhostty: GhosttyAncestor | undefined;
   surfaceId: string | undefined;
   readProcessExecutable?: (pid: number) => string | undefined;
 }): Promise<ControllerGhosttyDbusTarget | undefined> {
-  if (!controllerGhostty?.exe || !surfaceId) return undefined;
-  const endpoint = resolveGhosttyDbusEndpoint(controllerGhostty.exe);
-  if (!endpoint) return undefined;
+  // Absence of a bus name is evidence only after controller identity is independently readable.
+  const pid = controllerGhostty?.pid;
+  const exe = controllerGhostty?.exe;
+  if (!Number.isSafeInteger(pid) || !pid || pid < 1 || !exe || !isAbsolute(exe)) return undefined;
+  if (!surfaceId || !/^(?:[0-9]+|0x[0-9a-f]+)$/i.test(surfaceId)) return undefined;
+  const endpoint = resolveGhosttyDbusEndpoint(exe);
   const normalizedSurfaceId = normalizeGhosttySurfaceIdUint64(surfaceId);
-  if (!normalizedSurfaceId) return undefined;
-
+  // Receiver zero means no target; even a nonzero ID can be stale (Describe cannot prove existence).
+  if (!endpoint || normalizedSurfaceId === undefined || normalizedSurfaceId === "0") return undefined;
+  const matches = (owner: number) => {
+    const actual = readProcessExecutable(owner);
+    return Boolean(actual && isAbsolute(actual) && resolve(actual) === resolve(exe));
+  };
   try {
+    if (!matches(pid)) return undefined;
     const result = await execRunner("busctl", ["--user", "list", "--no-pager", "--no-legend"], {
       timeout: GHOSTTY_PROBE_TIMEOUT_MS,
     });
-    if (result.code !== 0 || result.killed) return undefined;
-    const rows = String(result.stdout || "")
-      .split("\n")
-      .map((line) => line.trim().split(/\s+/));
-
-    // A --gtk-single-instance server owns its executable family's well-known D-Bus name and every
-    // surface/window in that family. Per-session launcher processes can expose stub windows, so the
-    // nearest Ghostty ancestor PID is not a reliable action target. Select the endpoint from the
-    // controller executable family first, then resolve only that well-known owner; never cross-fall
-    // back between the normal and transitional legacy brokers.
-    const wellKnownOwnerPid = rows
-      .filter((fields) => fields[0] === endpoint.wellKnownName)
-      .map((fields) => Number.parseInt(fields[1] || "", 10))
-      .find((pid) => Number.isInteger(pid) && pid > 0);
-    if (!wellKnownOwnerPid) return undefined;
-
-    // The well-known name must be owned by the exact controller build, not merely another
-    // executable in the same identity family. This prevents a stale packaged singleton or a
-    // same-user bus-name claimant from receiving the controller surface ID and embedded argv.
-    const ownerExecutable = readProcessExecutable(wellKnownOwnerPid);
-    if (!ownerExecutable || resolve(ownerExecutable) !== resolve(controllerGhostty.exe)) {
-      return undefined;
+    if (result.killed || result.code !== 0 || typeof result.stdout !== "string") return undefined;
+    if (!result.stdout.trim() || result.stdout.length > 1_048_576) return undefined;
+    const unique = /^:[0-9]+\.[0-9]+$/;
+    const named = /^[A-Za-z_-][A-Za-z0-9_-]*(?:\.[A-Za-z_-][A-Za-z0-9_-]*)+$/;
+    const rows = new Map<string, { pid: number | null; connection: string }>();
+    for (const line of result.stdout.trim().split("\n")) {
+      const fields = line.trim().split(/\s+/);
+      const [name, rawPid, , , connection] = fields;
+      if (fields.length < 5 || !name || !connection || rows.has(name)) return undefined;
+      if (!unique.test(name) && !named.test(name)) return undefined;
+      // Activatable, currently unowned names are not process-identity evidence.
+      if (rawPid === "-" && connection === "-" && named.test(name)) {
+        rows.set(name, { pid: null, connection });
+        continue;
+      }
+      if (!rawPid || !/^[1-9][0-9]*$/.test(rawPid)) return undefined;
+      const owner = Number(rawPid);
+      if (!Number.isSafeInteger(owner)) return undefined;
+      // The bus driver itself can lack a connection name; it is never a Ghostty target.
+      if (connection === "-" && name === "org.freedesktop.DBus") {
+        rows.set(name, { pid: owner, connection });
+        continue;
+      }
+      if (!unique.test(connection) || (unique.test(name) && connection !== name)) return undefined;
+      rows.set(name, { pid: owner, connection });
     }
-
-    const ownerUniqueNames = rows
-      .filter(
-        (fields) =>
-          fields.length >= 2 &&
-          fields[0]?.startsWith(":") &&
-          Number.parseInt(fields[1] || "", 10) === wellKnownOwnerPid,
-      )
-      .map((fields) => fields[0] as string);
-    if (ownerUniqueNames.length !== 1) return undefined;
+    for (const row of rows.values()) {
+      if (row.pid !== null && row.connection !== "-" && rows.get(row.connection)?.pid !== row.pid)
+        return undefined;
+    }
+    const namesFor = (owner: number) => [...rows].filter(([name, row]) => unique.test(name) && row.pid === owner);
+    const originating = namesFor(pid);
+    if (originating.length > 1) return undefined;
+    let ownerPid = pid;
+    if (originating.length === 0) {
+      const daemon = rows.get(endpoint.wellKnownName);
+      if (!daemon?.pid || daemon.pid === pid) return undefined;
+      ownerPid = daemon.pid;
+    }
+    const names = namesFor(ownerPid);
+    if (names.length !== 1 || !matches(ownerPid) || !matches(pid) || !matches(ownerPid)) return undefined;
     return {
-      busName: ownerUniqueNames[0] as string,
-      ownerPid: wellKnownOwnerPid,
-      surfaceId: normalizedSurfaceId,
-      wellKnownName: endpoint.wellKnownName,
-      objectPath: endpoint.objectPath,
+      busName: names[0]![0], ownerPid, surfaceId: normalizedSurfaceId,
+      wellKnownName: endpoint.wellKnownName, objectPath: endpoint.objectPath,
     };
   } catch {
+    // Failed/throwing readback is refusal, never proof of a nameless launcher stub.
     return undefined;
   }
 }

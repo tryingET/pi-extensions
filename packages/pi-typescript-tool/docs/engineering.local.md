@@ -21,9 +21,13 @@ pin matches the root's immutable commit recorded in local policy.
 - Node >=22 + npm. TypeScript source loads through Pi/jiti; no build artifact.
 - Runtime TypeScript **6.0.3** is required for submitted-code checking/transpiling.
   The structure gate checks the runtime dependency, not a dev-only compiler.
-- Template host baseline **0.84.3**, development/test floor **0.84.4**. Exact Pi
-  dev pins and host peer `*` declarations are independently tested. typebox is a
-  host peer with exact 1.3.7 dev pin. No UI dependency or custom renderer.
+- Template host baseline **0.84.3** is historical scaffold metadata. The root
+  `policy/pi-host-compatibility-canary.json` owns the current exact development
+  baseline (currently **0.84.3**). Dev validator/tests load it through the root
+  `host-contract.mjs` helper; no installed-host or literal development fallback.
+  Align `devTestFloor`, declared Pi pins and npm-generated lock together. Host
+  peers remain `*`, not universal compatibility proof. typebox is a host peer
+  with exact 1.3.7 dev pin. No UI dependency or custom renderer.
 - Local tsconfig checks extensions, src and TS tests. Tests use tsx for Node 22
   compatibility rather than relying on experimental/native TS stripping.
 - Biome and compiler gates remain enabled. No suppressions or skipped failure tests.

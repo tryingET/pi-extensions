@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "effectDisposition": "settled",
+  "launchMode": "tab",
+  "sessionMode": "clean",
+  "cwd": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  "titleBase": "Dogfood: AK5133 interactive dogfood driver",
+  "promptSummary": "AK5133 interactive dogfood driver",
+  "launchNote": "targeted Ghostty single-instance process 4034502 through :1.4731373"
+}

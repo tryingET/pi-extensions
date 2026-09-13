@@ -30,7 +30,7 @@ test("context_pack resolves relative docs-list scripts before switching to packa
       objective: "Use relative docs-list script from package cwd",
       cwd: packageRoot,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: "docs-list-relative-fake.mjs" },
   );
@@ -71,7 +71,7 @@ test("context_pack rebases package-root repoPath only when provider repoRoot dec
       objective: "Use provider-root-relative docs-list JSON repoPath",
       cwd: packageRoot,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -114,7 +114,7 @@ test("context_pack fails closed on package-root repoPath without explicit JSON r
       objective: "Do not trust ambiguous package docs-list repoPath",
       cwd: packageRoot,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -158,7 +158,7 @@ test("context_pack uses package-root path fallback when repoPath basis is ambigu
       objective: "Use package docs-list path fallback for ambiguous repoPath",
       cwd: packageRoot,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -210,7 +210,7 @@ test("context_pack screens unsafe path fallback after ambiguous package repoPath
       objective: "Reject unsafe path fallback for ambiguous repoPath",
       cwd: packageRoot,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -244,7 +244,7 @@ test("context_pack consumes JSON items fallback without rankedItems", async () =
       objective: "Use items-only docs-list JSON",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -277,7 +277,7 @@ test("context_pack preserves valid JSON items while reporting unsupported item s
       objective: "Use mixed docs-list JSON items",
       cwd: root,
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -321,7 +321,7 @@ test("context_pack screens package-local docs-list item.path whitespace before r
       objective: "Use package docs from unsafe path-only docs-list JSON",
       cwd: join(root, "packages", "pkg"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -365,7 +365,7 @@ test("context_pack screens unsafe package-local JSON path fallbacks before rebas
       objective: "Use docs with unsafe path fallbacks",
       cwd: join(root, "packages", "pkg"),
       repoRoot: root,
-      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      providers: { agents: "off", docs: "required", git: "off" },
     },
     { cwd: root, docsListScript: script },
   );
@@ -400,7 +400,7 @@ test("context_pack screens docs-list discovered paths with the shared path polic
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { docs: "required", git: "off", sci: "off" },
+      providers: { docs: "required", git: "off" },
     },
     { docsListScript: script },
   );
@@ -442,7 +442,7 @@ test("context_pack screens docs-list control-character paths without dropping sa
       objective: "Use architecture docs",
       cwd: root,
       repoRoot: root,
-      providers: { docs: "required", git: "off", sci: "off" },
+      providers: { docs: "required", git: "off" },
     },
     { docsListScript: script },
   );

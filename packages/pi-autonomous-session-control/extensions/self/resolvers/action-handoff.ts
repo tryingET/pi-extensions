@@ -6,6 +6,7 @@
  */
 
 import { normalizeInput, normalizeString, normalizeStringArray } from "../edge-contract-kernel.ts";
+import { hasExplicitEditorIntent } from "../editor-prefill.ts";
 import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 
@@ -13,7 +14,7 @@ export function handleSelfContainedHandoffPrompt(query: SelfQuery, state: SelfSt
   analyzePatterns(state.operations, state.patterns);
   const handoff = queryHandoffSummary(state.operations, state.patterns);
   const text = buildSelfContainedHandoffPrompt(query, handoff);
-  const prefill = !isShowOnlyHandoffPromptQuery(query.query.toLowerCase());
+  const prefill = hasExplicitEditorIntent(query.query);
   const answer = prefill
     ? `Editor prefill suggested for a self-contained handoff prompt. Copy/paste text:\n\n${text}`
     : `Self-contained handoff prompt (not prefilled):\n\n${text}`;
@@ -111,10 +112,6 @@ export function isSelfContainedHandoffPromptQuery(lower: string): boolean {
     lower.includes("self-contained handoff prompt") ||
     /(?:create|prefill|show)\b[\s\S]{0,60}\bhandoff prompt\b/.test(lower)
   );
-}
-
-function isShowOnlyHandoffPromptQuery(lower: string): boolean {
-  return lower.includes("show") || lower.includes("no prefill") || lower.includes("do not prefill");
 }
 
 function buildSessionCompactionHandoffCall(input: {

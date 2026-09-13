@@ -82,7 +82,7 @@ test("health checks use a bounded TTL cache and refresh after expiry", async () 
   process.env.PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS = "50";
   globalThis.fetch = async () => {
     calls += 1;
-    return { ok: true, status: 200 };
+    return Response.json({ status: "ok" });
   };
   try {
     await withInlineContract(contract(), async () => {
@@ -204,7 +204,7 @@ test("status command registers provider after contract appears post-load", async
   const providers = [];
   process.env[CONTRACT_ENV] = "/tmp/workstation-inference-provider-test-missing.json";
   delete process.env[CONTRACT_JSON_ENV];
-  globalThis.fetch = async () => ({ ok: true, status: 200 });
+  globalThis.fetch = async () => Response.json({ status: "ok" });
   try {
     await extension({
       registerCommand(name, command) {
@@ -252,7 +252,7 @@ test("refresh keeps baseline usable when optional Inkling export is unavailable"
   process.env[CONTRACT_ENV] = "/tmp/workstation-inference-provider-test-missing.json";
   process.env.PI_WORKSTATION_ROOT = "/workstation";
   delete process.env[CONTRACT_JSON_ENV];
-  globalThis.fetch = async () => ({ ok: true, status: 200 });
+  globalThis.fetch = async () => Response.json({ status: "ok" });
   try {
     await extension({
       registerCommand(name, command) {
@@ -844,7 +844,7 @@ test("audio-send consumes one external claim and completes one streamed dispatch
         headers: { "content-type": "text/event-stream" },
       });
     }
-    return { ok: true, status: 200 };
+    return Response.json({ status: "ok" });
   };
   try {
     await writeFile(audioPath, Buffer.from("RIFF0000WAVE", "ascii"));
@@ -929,7 +929,7 @@ test("retryable audio provider failure dispatches once and quarantines without r
       providerPosts += 1;
       return new Response("retryable provider failure", { status: 503 });
     }
-    return { ok: true, status: 200 };
+    return Response.json({ status: "ok" });
   };
   try {
     await writeFile(audioPath, Buffer.from("RIFF0000WAVE", "ascii"));

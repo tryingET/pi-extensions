@@ -44,6 +44,9 @@ esac
 [ $# -eq 0 ] || { usage; exit 1; }
 
 if [ "$mode" = "staged-only" ]; then
+  need_cmd node
+  # Check captured index blobs, not unstaged repairs or unfinished neighbors.
+  node ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs --staged
   changed_files="$(git diff --cached --name-only --diff-filter=ACMR)"
 else
   base_branch="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH:-}}"

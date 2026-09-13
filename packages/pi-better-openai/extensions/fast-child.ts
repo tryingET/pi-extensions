@@ -5,6 +5,7 @@ read_when:
 */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isRecord, resolveConfig, type SupportedModel } from "../src/config.ts";
+import { supportsFast } from "../src/fast-support.ts";
 
 export const BETTER_OPENAI_FAST_MODE_ENV = "PI_BETTER_OPENAI_INHERITED_FAST_MODE";
 const SERVICE_TIER = "priority";
@@ -16,14 +17,6 @@ function parseInheritedFastMode(
   if (normalized === "on") return true;
   if (normalized === "off") return false;
   return undefined;
-}
-
-function supportsFast(ctx: ExtensionContext, supportedModels: SupportedModel[]): boolean {
-  const current = ctx.model;
-  if (!current) return false;
-  return supportedModels.some(
-    (model) => model.provider === current.provider && (model.id === "*" || model.id === current.id),
-  );
 }
 
 export default function inheritedFastMode(pi: ExtensionAPI): void {

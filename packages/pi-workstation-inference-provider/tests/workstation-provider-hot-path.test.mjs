@@ -183,7 +183,7 @@ test("clearing during a health probe prevents a late verdict from repopulating t
   const pending = health.check("endpoint", { mode: "blocking" });
   health.clear();
   gate.resolve("late failure");
-  assert.equal(await pending, "late failure");
+  assert.equal(await pending, "health cache cleared during probe");
   assert.deepEqual(health.status(), []);
 });
 
@@ -251,24 +251,74 @@ test("stale healthy background health allows while one recovery probe runs", asy
   recovery.resolve(undefined);
 });
 
-test("stale unhealthy background health remains fail-closed until recovery", async () => {
-  let now = 0;
+for (const age of [0, 11]) {
+  test(`${age === 0 ? "fresh" : "stale"} negative health revalidates once for concurrent first requests`, async () => {
+    let now = 0;
+    const recovery = deferred();
+    let probes = 0;
+    const health = new EndpointHealthCache({
+      now: () => now,
+      ttlMs: 10,
+      probe: async () => {
+        probes += 1;
+        return probes === 1 ? "health timed out after 1500ms" : recovery.promise;
+      },
+    });
+    await health.prime(["endpoint"]);
+    now = age;
+    let settled = 0;
+    const requests = Array.from({ length: 100 }, () =>
+      health.check("endpoint", { mode: "background" }).then((value) => {
+        settled += 1;
+        return value;
+      }),
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(settled, 0, "do not reject on old failure or allow before fresh health");
+    assert.equal(probes, 2, "all callers share one recovery probe");
+    recovery.resolve(undefined);
+    assert.ok((await Promise.all(requests)).every((value) => value === undefined));
+    assert.equal(health.status()[0].unhealthy, undefined);
+    await health.check("endpoint", { mode: "background" });
+    assert.equal(probes, 2, "healthy cache stays on the nonblocking hot path");
+  });
+}
+
+test("failed negative revalidation returns fresh failure without looping", async () => {
+  let probes = 0;
+  const health = new EndpointHealthCache({
+    ttlMs: 1000,
+    probe: async () => {
+      probes += 1;
+      return "health returned HTTP 503";
+    },
+  });
+  health.mark("endpoint", "old timeout");
+  assert.equal(await health.check("endpoint", { mode: "background" }), "health returned HTTP 503");
+  assert.equal(probes, 1);
+  assert.equal(health.status()[0].unhealthy, "health returned HTTP 503");
+});
+
+test("cancelling a negative revalidation waiter does not cancel other callers", async () => {
   const recovery = deferred();
   let probes = 0;
   const health = new EndpointHealthCache({
-    now: () => now,
-    ttlMs: 10,
+    ttlMs: 1000,
     probe: async () => {
       probes += 1;
-      return probes === 1 ? "down" : recovery.promise;
+      return recovery.promise;
     },
   });
-  assert.equal(await health.check("endpoint", { mode: "blocking" }), "down");
-  now = 11;
-  assert.equal(await health.check("endpoint", { mode: "background" }), "down");
+  health.mark("endpoint", "old timeout");
+  const controller = new AbortController();
+  const cancelled = health.check("endpoint", { mode: "background", signal: controller.signal });
+  const survivor = health.check("endpoint", { mode: "blocking" });
+  controller.abort();
+  assert.equal(await cancelled, "health check cancelled by caller");
   recovery.resolve(undefined);
-  while (health.status()[0]?.probeInFlight) await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(await health.check("endpoint", { mode: "background" }), undefined);
+  assert.equal(await survivor, undefined);
+  assert.equal(probes, 1);
+  assert.equal(health.status()[0].unhealthy, undefined);
 });
 
 test("prime deduplicates endpoint keys", async () => {

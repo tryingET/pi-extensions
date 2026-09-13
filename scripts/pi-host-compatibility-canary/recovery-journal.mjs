@@ -3,6 +3,7 @@
 // read_when:
 //   - "Changing canary journal creation, ownership fencing, transitions, or finalization."
 // ---
+import { assertChildVacant, assertClearancePublication, clearRecordedChild } from "./child-clearance.mjs";
 import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { identitiesMatch, IntegrityError } from "./integrity.mjs";
@@ -97,7 +98,9 @@ export function persistRecoveredJournal(journalRecord, payload) {
   validateStatePayload(payload, JOURNAL_KIND);
   const current = readRawStateRecord(journalRecord.path, JOURNAL_KIND, MAX_JOURNAL_BYTES);
   validateStatePayload(current.payload, JOURNAL_KIND);
+  if (current.payload.completionHold) throw new RecoveryRequiredError("completion hold requires manual review; recovery cannot rewrite held state");
   assertJournalOwner(current, journalRecord, payload);
+  assertClearancePublication(current.payload, payload);
   payload.revision = current.payload.revision + 1;
   payload.updatedAt = new Date().toISOString();
   validateStatePayload(payload, JOURNAL_KIND);
@@ -118,6 +121,7 @@ export function persistRecoveredJournal(journalRecord, payload) {
 }
 
 export class MutationSession {
+  #completionHold;
   constructor({ paths, env, owner, manifestBinding, lockRecord, journalRecord }) {
     this.paths = paths;
     this.env = { XDG_STATE_HOME: env.XDG_STATE_HOME, HOME: env.HOME };
@@ -126,6 +130,7 @@ export class MutationSession {
     this.lockRecord = lockRecord;
     this.journalRecord = journalRecord;
     this.payload = journalRecord.payload;
+    this.#completionHold = structuredClone(this.payload.completionHold);
     this.lockDigest = sha256(JSON.stringify(lockRecord.payload));
     this.journalDigest = sha256(JSON.stringify(journalRecord.payload));
     this.entryIndexes = new WeakMap();
@@ -175,15 +180,21 @@ export class MutationSession {
   }
 
   assertOwned() {
+    this.assertNoCompletionHold();
     this.withFence();
   }
 
   persist() {
+    const held = this.#completionHold;
+    if (held && JSON.stringify(held) !== JSON.stringify(this.payload.completionHold)) {
+      throw new RecoveryRequiredError("completion hold cannot be changed or removed");
+    }
     const next = structuredClone(this.payload);
     next.revision = this.journalRecord.payload.revision + 1;
     next.updatedAt = new Date().toISOString();
     validateStatePayload(next, JOURNAL_KIND);
     this.withFence((state, gate) => {
+      assertClearancePublication(state.journal.payload, next);
       const published = atomicWriteStateRecord(
         this.journalRecord.path,
         next,
@@ -202,11 +213,28 @@ export class MutationSession {
       ) throw new ConcurrentCanaryError("published recovery journal failed its ownership fence");
       this.journalRecord = after.journal;
       this.payload = after.journal.payload;
+      this.#completionHold = structuredClone(this.payload.completionHold);
       this.journalDigest = sha256(JSON.stringify(after.journal.payload));
     });
   }
 
+  hasCompletionHold() {
+    return Boolean(this.payload.completionHold || this.#completionHold);
+  }
+
+  assertNoCompletionHold() {
+    if (this.hasCompletionHold()) throw new RecoveryRequiredError("completion hold blocks mutation or clearance");
+  }
+
+  holdCompletion(reason, effectMayBeActive = true) {
+    if (this.#completionHold) return;
+    this.payload.completionHold ??= { reason, effectMayBeActive, recordedAt: new Date().toISOString() };
+    this.persist();
+  }
+
   bindScenario(scenario, host, entries) {
+    this.assertNoCompletionHold();
+    assertChildVacant(this.payload);
     this.payload.phase = "pre-alignment";
     this.payload.scenarioId = scenario.id;
     this.payload.host = {
@@ -261,6 +289,7 @@ export class MutationSession {
   }
 
   transition(entry, state, details = {}) {
+    this.assertNoCompletionHold();
     const target = this.target(entry);
     target.state = state;
     for (const name of ["stageIdentity", "ownedNodeModulesIdentity", "quarantineIdentity"]) {
@@ -271,12 +300,15 @@ export class MutationSession {
   }
 
   recordChild(entry, effect, identity) {
+    this.assertNoCompletionHold();
+    assertChildVacant(this.payload);
     const target = this.target(entry);
     this.payload.child = { effect, targetIndex: target.index, identity };
     this.persist();
   }
 
   recordAlignmentEffectsIntent() {
+    this.assertNoCompletionHold();
     for (const target of this.payload.targets) {
       if (target.state === "baselined") target.state = "alignment-exposed";
     }
@@ -285,20 +317,22 @@ export class MutationSession {
   }
 
   recordScenarioIntent() {
+    this.assertNoCompletionHold();
     for (const target of this.payload.targets) target.state = "scenario-intent";
     this.payload.phase = "scenario-intent";
     this.persist();
   }
 
   recordScenarioChild(identity) {
+    this.assertNoCompletionHold();
+    assertChildVacant(this.payload);
     this.payload.child = { effect: "scenario", targetIndex: null, identity };
     this.persist();
   }
 
   clearChild() {
-    if (!this.payload.child) return;
-    this.payload.child = null;
-    this.persist();
+    this.assertNoCompletionHold();
+    clearRecordedChild(this.payload, () => this.persist());
   }
 
   hasRecordedChild() {
@@ -310,6 +344,8 @@ export class MutationSession {
   }
 
   completeScenario() {
+    this.assertNoCompletionHold();
+    assertChildVacant(this.payload);
     if (this.payload.targets.some((target) => !["baselined", "restored"].includes(target.state))) {
       throw new IntegrityError("cannot close a scenario with unresolved target effects");
     }
@@ -323,7 +359,7 @@ export class MutationSession {
   }
 
   canFinalize() {
-    return this.payload.phase === "ready" && this.payload.targets.length === 0 && !this.payload.child;
+    return !this.hasCompletionHold() && this.payload.phase === "ready" && this.payload.targets.length === 0 && !this.payload.child;
   }
 
   finalize() {

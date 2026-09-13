@@ -5,6 +5,25 @@ use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AkTask {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub state: String,
+}
+
+impl AkTask {
+    /// Only an `active` chip is a button: the card's own session holds a live claim, so clicking
+    /// it focuses that session's Ghostty window. Every other state is a badge and never fires.
+    pub fn is_active(&self) -> bool {
+        self.state == "active"
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Card {
     #[serde(default)]
     pub card_id: String,
@@ -43,6 +62,13 @@ pub struct Card {
     /// Set for tabs running an agent other than Pi, which publish no telemetry of their own.
     #[serde(default)]
     pub agent_label: String,
+    /// Read-only AK task references joined onto this card by the controller. `active` chips are
+    /// clickable and focus this card's terminal; the rest are inert badges.
+    #[serde(default)]
+    pub ak_tasks: Vec<AkTask>,
+    /// How many further AK references exist beyond the rendered chips.
+    #[serde(default)]
+    pub ak_task_overflow: u32,
     /// `Some(false)` marks a tab hidden behind another tab of its Ghostty window; the controller
     /// placed it through its host process, so activation presents the tab before focusing.
     #[serde(default)]
@@ -170,6 +196,12 @@ pub fn demo_view() -> ViewMessage {
                 last_event_at: now - 1_000,
                 updated_at: now,
                 agent_active: true,
+                ak_tasks: vec![AkTask {
+                    id: 5701,
+                    title: "Show clickable AK-task references on the activity ribbon".into(),
+                    state: "active".into(),
+                }],
+                ak_task_overflow: 1,
                 ..empty_card()
             },
         ],
@@ -196,6 +228,8 @@ fn empty_card() -> Card {
         agent_active: false,
         pid: 0,
         agent_label: String::new(),
+        ak_tasks: Vec::new(),
+        ak_task_overflow: 0,
         surface_visible: None,
     }
 }
@@ -215,6 +249,22 @@ mod tests {
         assert!(view.sessions[0].active());
         assert_eq!(view.sessions[0].agent_started_at, None);
         assert_eq!(view.sessions[0].pid, 4242);
+        assert!(view.sessions[0].ak_tasks.is_empty());
+        assert_eq!(view.sessions[0].ak_task_overflow, 0);
+    }
+
+    #[test]
+    fn ak_task_chips_parse_with_states() {
+        let view: ViewMessage = serde_json::from_str(
+            r#"{"protocol":1,"type":"view","revision":8,"sessions":[{"cardId":"card-a","akTasks":[{"id":5701,"title":"Show clickable AK-task references","state":"active"},{"id":5432,"title":"Preserve safe NEXUS recovery reasons","state":"orphaned"},{"id":4220,"title":"Control Decision 77 epoch admissions","state":"deferred"}],"akTaskOverflow":3}]}"#,
+        )
+        .expect("view should parse");
+        let card = &view.sessions[0];
+        assert_eq!(card.ak_tasks.len(), 3);
+        assert!(card.ak_tasks[0].is_active());
+        assert!(!card.ak_tasks[1].is_active());
+        assert!(!card.ak_tasks[2].is_active());
+        assert_eq!(card.ak_task_overflow, 3);
     }
 
     #[test]

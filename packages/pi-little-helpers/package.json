@@ -58,12 +58,19 @@
     "loop-landing-check": "npm run check"
   },
   "files": [
+    "extensions/session-closeout.ts",
+    "src/sessionCloseout.ts",
+    "src/sessionCloseoutHost.ts",
+    "src/sessionCloseoutReadback.ts",
+    "docs/project/session-closeout.md",
+    "src/sessionCloseoutPrompt.ts",
     "dist/task-session",
     "dist/task-session/pi-tool.js",
     "src/taskSessionTransport.ts",
     "skills/task-session",
     "src/ascExecutionObserver.ts",
     "src/ascExecutionObserverProtocol.ts",
+    "src/companyContextProvenance.ts",
     "extensions/code-block-picker.ts",
     "extensions/codex-reset.ts",
     "extensions/limits.ts",
@@ -85,6 +92,7 @@
     "extensions/sidequestDetachedWindow.ts",
     "extensions/sidequestGhostty.ts",
     "extensions/sidequestLaunch.ts",
+    "extensions/sidequestLaunchAdmission.ts",
     "extensions/sidequestLaunchPlacement.ts",
     "extensions/sidequestLaunchResult.ts",
     "extensions/sidequestVisibleLoopAdapter.ts",
@@ -173,6 +181,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {
+    "./extensions/session-closeout.ts": "./extensions/session-closeout.ts",
     "./task-session-core": "./dist/task-session/core.js",
     "./candidate-peer-registry": "./src/candidatePeerRegistry.ts",
     "./candidate-peer-lifecycle-v2": "./src/candidatePeerLifecycleV2.ts",
@@ -184,6 +193,7 @@
     "./capability-manifest": "./src/capabilityManifest.ts",
     "./toolbox-bundle": "./src/toolboxBundle.ts",
     "./visible-loop": "./src/visibleLoop.ts",
+    "./sidequest-launch": "./extensions/sidequestLaunch.ts",
     "./extensions/code-block-picker.ts": "./extensions/code-block-picker.ts",
     "./extensions/codex-reset.ts": "./extensions/codex-reset.ts",
     "./extensions/limits.ts": "./extensions/limits.ts",
@@ -200,6 +210,7 @@
   },
   "pi": {
     "extensions": [
+      "./extensions/session-closeout.ts",
       "./extensions/code-block-picker.ts",
       "./extensions/codex-reset.ts",
       "./extensions/limits.ts",

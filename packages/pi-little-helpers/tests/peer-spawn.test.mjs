@@ -583,7 +583,7 @@ test("scout_peer_spawn reportBack none makes intercom disabled explicit", async 
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
     }
-    if (args[0] === "+new-tab") {
+    if (args[0]?.startsWith("--working-directory=")) {
       return { code: 0, stdout: "" };
     }
     throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
@@ -592,7 +592,7 @@ test("scout_peer_spawn reportBack none makes intercom disabled explicit", async 
   const extension = createSidequestExtension({
     registerTools: true,
     env: {
-      TERM_PROGRAM: "ghostty",
+      TERM_PROGRAM: "xterm",
       GHOSTTY_BIN_DIR: "/usr/bin",
       GHOSTTY_SURFACE_ID: "19",
       PI_SIDEQUEST_PI_BIN: "pi",
@@ -619,7 +619,7 @@ test("scout_peer_spawn reportBack none makes intercom disabled explicit", async 
   const launchCall = execStub.calls.find(
     (call) =>
       call.command === "/usr/bin/ghostty" &&
-      call.args[0] === "+new-tab" &&
+      call.args[0]?.startsWith("--working-directory=") &&
       call.args.includes("sidequest-pi"),
   );
   assert.ok(launchCall);
@@ -642,7 +642,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
     }
-    if (args[0] === "+new-tab") {
+    if (args[0]?.startsWith("--working-directory=")) {
       return { code: 0, stdout: "" };
     }
     throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
@@ -651,7 +651,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
   const extension = createSidequestExtension({
     registerTools: true,
     env: {
-      TERM_PROGRAM: "ghostty",
+      TERM_PROGRAM: "xterm",
       GHOSTTY_BIN_DIR: "/usr/bin",
       GHOSTTY_SURFACE_ID: "19",
       PI_SIDEQUEST_PI_BIN: "pi",
@@ -692,7 +692,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
   const launchCall = execStub.calls.find(
     (call) =>
       call.command === "/usr/bin/ghostty" &&
-      call.args[0] === "+new-tab" &&
+      call.args[0]?.startsWith("--working-directory=") &&
       call.args.includes("sidequest-pi"),
   );
   assert.ok(launchCall);
@@ -754,7 +754,7 @@ test("scout_peer_spawn generated prompt includes read-only policy, context, boun
     /Do not implement candidate changes here; isolated mutation belongs later in `candidate_peer_spawn`/,
   );
 
-  assert.equal(result.details.launchMode, "tab");
+  assert.equal(result.details.launchMode, "window");
   assert.equal(result.details.enforcement, "prompt_contract");
   assert.equal(result.details.reportBack, "intercom");
 });

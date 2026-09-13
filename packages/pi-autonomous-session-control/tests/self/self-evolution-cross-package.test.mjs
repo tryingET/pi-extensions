@@ -64,6 +64,7 @@ test("real ASC candidate round-trips into the pi-little-helpers execution envelo
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -103,7 +104,7 @@ test("real ASC candidate round-trips into the pi-little-helpers execution envelo
 
   const route = await tool.execute(
     "cross-package-route",
-    { query: "continue self-evolution" },
+    { query: "prefill visible-loop self-evolution" },
     null,
     null,
     ctx,
@@ -126,6 +127,7 @@ test("self-evolution routing fails closed for missing, insufficient, and reflect
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },
@@ -265,6 +267,7 @@ test("incidental or negated action text cannot trigger mutating or sending route
   const ctx = createMockContext({
     hasUI: true,
     ui: {
+      getEditorText: () => editorText,
       setEditorText(text) {
         editorText = text;
       },

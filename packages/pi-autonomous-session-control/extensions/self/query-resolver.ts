@@ -10,6 +10,7 @@
  * - resolvers/action.ts (checkpoints, followups, prefills)
  */
 
+import { hasEditorPrefillDirective } from "./editor-prefill.ts";
 import {
   ACTION_KEYWORDS,
   isSelfEvolutionContinuationPrefillQuery,
@@ -329,6 +330,12 @@ function normalizeColonDirectiveContext(
 export function classifyIntent(query: string): QueryIntent {
   const lower = query.toLowerCase();
 
+  // A colon-prefill directive owns its payload regardless of write permission
+  // or continuation, handoff, and diagnostic keywords inside that payload.
+  if (hasEditorPrefillDirective(query) && /^\s*(?:please\s+)?prefill\s*:/iu.test(query)) {
+    return { domain: "action", intent: "prefill_editor" };
+  }
+
   // Check diagnostic review before broad action keywords so incidental action words in
   // self-evolution questions (for example "dogfood self: ... checkpoint ...") do not mutate
   // action state. Explicit diagnostic action follow-ups are still handled as actions.
@@ -370,6 +377,11 @@ export function classifyIntent(query: string): QueryIntent {
         continue;
       }
       const mappedIntent = mapActionIntent(lower) as ActionIntent;
+      // Plain mentions/refusals remain non-actions; anchored prefill directives
+      // retain ownership independently of whether editor writing is permitted.
+      if (mappedIntent === "prefill_editor" && !hasEditorPrefillDirective(query)) {
+        continue;
+      }
       const explicitOnlyIntents = new Set<ActionIntent>([
         "send_user_message",
         "prefill_visible_loop_self_evolution",

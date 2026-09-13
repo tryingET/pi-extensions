@@ -1,8 +1,10 @@
 // ---
-// summary: "Exercises durable canary recovery with real SIGKILL, stale-owner, and concurrency boundaries."
+// summary: "Separates crash-runtime refusal coverage from injected child-free recovery and ownership-fence fixtures."
 // read_when:
 //   - "Changing the Pi host canary recovery journal, lock, state machine, or explicit recovery CLI."
 // ---
+// SOURCE CANDIDATE: effectful crash/orphan suite, NOT the pure callback lane.
+// Execution hold remains; never reuse retained run snapshots as injected fixtures.
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
@@ -23,6 +25,10 @@ import {
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { encodeStateRecord, processIdentity, recoveryStatePaths } from "./pi-host-compatibility-canary/state-files.mjs";
+import { rootBinding } from "./pi-host-compatibility-canary/state-lock.mjs";
+import { manifestStateBinding, packageMetadataBinding, readCheckoutState } from "./pi-host-compatibility-canary/state-store.mjs";
+import { validateStatePayload } from "./pi-host-compatibility-canary/state-schema.mjs";
 import { assertEffectiveOwner } from "./pi-host-compatibility-canary/integrity.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -249,6 +255,104 @@ function replaceRecord(filePath, mutate) {
   renameSync(replacement, filePath);
 }
 
+const CHILD_REFUSAL = /child clearance requires owner reconciliation; automatic and explicit recovery refused/;
+
+function assertChildRecoveryRefused(fixture) {
+  const file = journalPath(fixture);
+  const before = readFileSync(file);
+  const lock = readFileSync(fixture.lockPath);
+  const npm = readFileSync(fixture.npmLog);
+  const payload = JSON.parse(before).payload;
+  assert.ok(payload.child || payload.childClearanceAttempts?.length, "fixture must retain child evidence");
+  assert.equal(payload.completionHold, undefined, "exercise child reconciliation, not an earlier hold refusal");
+  for (const args of [["recover", "--json"], ["recover", "--apply", "--json"]]) {
+    const result = cli(fixture, args);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, CHILD_REFUSAL);
+    assert.deepEqual(readFileSync(file), before, "refusal must not clear, hold, rebind or finalize the journal");
+    assert.deepEqual(readFileSync(fixture.lockPath), lock);
+    assert.deepEqual(readFileSync(fixture.npmLog), npm, "refusal must not start restoration npm");
+    assert.equal(existsSync(CHECKOUT_RECOVERY_LOCK), false, "no recovery takeover");
+  }
+  return payload;
+}
+
+// INJECTED-JOURNAL fixture, NOT a completed/crashed alignment run. Only accepts
+// fresh createFixture roots: validates/publishes a real baseline before injecting
+// tree state, then validates the interrupted state before any recovery CLI effect.
+// No runner/npm/scenario has executed; no recorded child/history is ever removed.
+function injectChildFreeInterruption(fixture, { absentArtifact = "node_modules", staleOwner = true } = {}) {
+  assert.ok(["node_modules", "quarantine"].includes(absentArtifact));
+  assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
+  assert.equal(existsSync(fixture.lockPath), false);
+  assert.equal(existsSync(CHECKOUT_RECOVERY_LOCK), false);
+  assert.equal(existsSync(fixture.stateDir), false, "never rewrite an existing or retained run");
+  const paths = recoveryStatePaths(fixture.env(), { create: true });
+  const binding = manifestStateBinding({ manifestPath: fixture.manifestPath });
+  const manifest = JSON.parse(readFileSync(fixture.manifestPath, "utf8"));
+  const identity = processIdentity();
+  assert.equal(identity.platform, "linux", "synthetic stale-owner fixture requires Linux identity");
+  // A deliberately different boot is a synthetic stale identity, not death proof.
+  const priorBoot = identity.bootId;
+  if (staleOwner) identity.bootId = priorBoot === "11111111-1111-4111-8111-111111111111"
+    ? "22222222-2222-4222-8222-222222222222" : "11111111-1111-4111-8111-111111111111";
+  const now = new Date().toISOString();
+  const common = { runId: randomUUID(), owner: { token: "d".repeat(64), identity },
+    root: rootBinding(), manifest: binding, createdAt: now };
+  const fsIdentity = file => {
+    const stats = lstatSync(file, { bigint: true });
+    return { dev: String(stats.dev), ino: String(stats.ino) };
+  };
+  const payload = { ...common, kind: "pi-host-compatibility-canary-recovery-journal",
+    revision: 0, updatedAt: now, profile: "current", phase: "pre-alignment",
+    scenarioId: manifest.scenarios[0].id, child: null,
+    host: { packageName: HOST_PACKAGES[0], companionPackages: HOST_PACKAGES.slice(1), version: TARGET_VERSION },
+    targets: fixture.targets.map((target, index) => {
+      const lock = JSON.parse(readFileSync(path.join(target.packageDir, "package-lock.json"), "utf8"));
+      return { index, declaredPath: target.packagePath, canonicalPackagePath: target.packagePath,
+        packageIdentity: fsIdentity(target.packageDir), metadata: packageMetadataBinding(target.packageDir),
+        initialNodeModules: { kind: target.kind === "present" ? "directory" : "absent",
+          identity: target.initialNodeModulesIdentity },
+        restoreSnapshot: HOST_PACKAGES.map(packageName => ({ packageName,
+          installedVersion: lock.packages[`node_modules/${packageName}`]?.version ?? null })),
+        state: "baselined", artifactToken: "e".repeat(64), stageIdentity: null,
+        ownedNodeModulesIdentity: null, quarantineIdentity: null };
+    }) };
+  const lock = { ...common, kind: "pi-host-compatibility-canary-mutation-lock", state: "journal-ready" };
+  const file = path.join(paths.journalsDir, `${payload.runId}.json`);
+  for (const [destination, record] of [[fixture.lockPath, lock], [file, payload]]) {
+    validateStatePayload(record, record.kind);
+    writeFileSync(destination, encodeStateRecord(record), { flag: "wx", mode: 0o600 });
+  }
+  assert.deepEqual(readCheckoutState(paths, binding).journal.payload, payload);
+  for (const [index, target] of fixture.targets.entries()) {
+    const journalTarget = payload.targets[index];
+    journalTarget.state = "alignment-exposed";
+    if (target.kind === "present") {
+      // Inject alignment-like bytes in a NEW tree without executing alignment.
+      writeInstalledVersions(target.packageDir, TARGET_VERSION);
+    } else {
+      const artifact = absentArtifact === "node_modules" ? "node_modules"
+        : `.node_modules.pi-host-compat-${payload.runId}-${index}.quarantine`;
+      const artifactPath = path.join(target.packageDir, artifact);
+      mkdirSync(artifactPath);
+      writeFileSync(path.join(artifactPath, "injected-sentinel.txt"), "synthetic child-free artifact\n");
+      journalTarget.ownedNodeModulesIdentity = fsIdentity(artifactPath);
+      if (absentArtifact === "quarantine") journalTarget.quarantineIdentity = fsIdentity(artifactPath);
+      journalTarget.state = absentArtifact === "quarantine" ? "quarantined" : "owned-node-modules";
+    }
+  }
+  payload.phase = "alignment-exposed";
+  payload.revision += 1;
+  validateStatePayload(payload, payload.kind);
+  replaceRecord(file, record => Object.assign(record, payload));
+  const state = readCheckoutState(paths, binding);
+  assert.deepEqual(state.journal.payload, payload);
+  assert.equal(state.journal.payload.child, null);
+  assert.equal("childClearanceAttempts" in state.journal.payload, false);
+  assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
+}
+
 async function waitFor(predicate, message, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   while (!predicate() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
@@ -262,7 +366,7 @@ test("effective-UID fence rejects a foreign-owned deletion candidate", () => {
   );
 });
 
-for (const boundary of ["pre-alignment", "stage-mkdir", "stage-identity", "stage-marker", "post-alignment", "post-quarantine"]) {
+for (const boundary of ["pre-alignment", "stage-mkdir", "stage-identity", "stage-marker"]) {
   test(`automatic recovery restores an initially absent tree after SIGKILL at ${boundary}`, (t) => {
     const fixture = createFixture(t, [{ kind: "absent" }], { id: `absent-${boundary}` });
     const killed = cli(
@@ -280,6 +384,40 @@ for (const boundary of ["pre-alignment", "stage-mkdir", "stage-identity", "stage
   });
 }
 
+for (const boundary of ["post-alignment", "post-quarantine"]) {
+  test(`crash-runtime: child history refuses automatic AND explicit recovery after ${boundary}`, (t) => {
+    const fixture = createFixture(t, [{ kind: "absent" }], { id: `history-${boundary}` });
+    assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: boundary }));
+    const status = jsonSuccess(cli(fixture, ["status", "--json"]));
+    assert.equal(status.status, "recovery-required");
+    assert.equal(status.ownerReconciliationRequired, true);
+    const payload = assertChildRecoveryRefused(fixture);
+    assert.equal(payload.child, null, "historical clearance alone must block recovery");
+    assert.ok(payload.childClearanceAttempts.length > 0);
+    const target = payload.targets[0];
+    const artifact = boundary === "post-quarantine"
+      ? `.node_modules.pi-host-compat-${payload.runId}-0.quarantine` : "node_modules";
+    const stats = lstatSync(path.join(fixture.targets[0].packageDir, artifact), { bigint: true });
+    assert.deepEqual({ dev: String(stats.dev), ino: String(stats.ino) },
+      target.quarantineIdentity ?? target.ownedNodeModulesIdentity);
+  });
+}
+
+for (const absentArtifact of ["node_modules", "quarantine"]) {
+  test(`injected-journal: child-free automatic recovery removes owned ${absentArtifact}`, (t) => {
+    const fixture = createFixture(t, [{ kind: "absent" }], { id: `injected-${absentArtifact}` });
+    injectChildFreeInterruption(fixture, { absentArtifact });
+    const before = jsonSuccess(cli(fixture, ["status", "--json"]));
+    assert.equal(before.ownerLiveness, "dead"); // injected prior boot, not a killed runner
+    assert.equal(before.ownerReconciliationRequired, false);
+    const recovered = jsonSuccess(cli(fixture, ["recover", "--json"]));
+    assert.equal(recovered.recoveryMode, "automatic-safe");
+    assertNoRunnerArtifacts(fixture.targets[0]);
+    assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
+    assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).status, "clean");
+  });
+}
+
 test("recovery preserves a nonempty unmarked stage after SIGKILL immediately after mkdir", (t) => {
   const fixture = createFixture(t, [{ kind: "absent" }], { id: "unmarked-stage-foreign-content" });
   assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "stage-mkdir" }));
@@ -293,7 +431,7 @@ test("recovery preserves a nonempty unmarked stage after SIGKILL immediately aft
   assert.equal(readFileSync(sentinel, "utf8"), "preserve\n");
 });
 
-test("automatic recovery waits for and restores a runner-owned tree after SIGKILL during npm", (t) => {
+test("crash-runtime: npm child evidence refuses recovery even after the child exits", (t) => {
   const fixture = createFixture(t, [{ kind: "absent" }], { id: "absent-during-npm" });
   const marker = path.join(fixture.tempDir, "npm-killed.marker");
   const killed = cli(fixture, ["run", "--json"], {
@@ -302,12 +440,13 @@ test("automatic recovery waits for and restores a runner-owned tree after SIGKIL
   });
   assertKilled(killed);
   assert.equal(readFileSync(marker, "utf8"), "killed\n");
-  const recovered = jsonSuccess(cli(fixture, ["recover", "--json"]));
-  assert.equal(recovered.recoveryMode, "automatic-safe");
-  assertNoRunnerArtifacts(fixture.targets[0]);
+  assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).childLiveness, "dead");
+  const payload = assertChildRecoveryRefused(fixture);
+  assert.equal(payload.child.effect, "align-host");
+  assert.equal(existsSync(path.join(fixture.targets[0].packageDir, "node_modules")), true);
 });
 
-test("recovery refuses an orphaned npm process until its journaled strong identity exits", async (t) => {
+test("crash-runtime: orphan child evidence refuses recovery both before and after exit", async (t) => {
   const fixture = createFixture(t, [{ kind: "absent" }], { id: "live-orphan" });
   const marker = path.join(fixture.tempDir, "orphan.marker");
   const runner = spawn(
@@ -326,12 +465,12 @@ test("recovery refuses an orphaned npm process until its journaled strong identi
   const exit = await new Promise((resolve) => runner.once("exit", (code, signal) => resolve({ code, signal })));
   assert.deepEqual(exit, { code: null, signal: "SIGKILL" });
   assert.equal(readFileSync(marker, "utf8"), "killed\n");
-  const early = cli(fixture, ["recover", "--json"]);
-  assert.notEqual(early.status, 0);
-  assert.match(early.stderr, /child process is still active/);
+  assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).childLiveness, "active");
+  const early = assertChildRecoveryRefused(fixture);
   await new Promise((resolve) => setTimeout(resolve, 1300));
-  jsonSuccess(cli(fixture, ["recover", "--json"]));
-  assertNoRunnerArtifacts(fixture.targets[0]);
+  assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).childLiveness, "dead");
+  assert.deepEqual(assertChildRecoveryRefused(fixture), early);
+  assert.equal(existsSync(path.join(fixture.targets[0].packageDir, "node_modules")), true);
 });
 
 test("cross-target npm mutation is never accepted as an untouched baseline after SIGKILL", (t) => {
@@ -351,15 +490,12 @@ test("cross-target npm mutation is never accepted as an untouched baseline after
     FAKE_NPM_KILL_MARKER: marker,
   }));
   assert.equal(JSON.parse(readFileSync(victimPackageJson)).version, "0.0.0");
-  const automatic = cli(fixture, ["recover", "--json"]);
-  assert.notEqual(automatic.status, 0);
-  assert.match(automatic.stderr, /requires explicit recovery/);
-  assertNoRunnerArtifacts(fixture.targets[0]);
-  jsonSuccess(cli(fixture, ["recover", "--apply", "--json"]));
-  assertInstalledVersions(fixture.targets[1].packageDir, LOCKED_VERSION);
+  assertChildRecoveryRefused(fixture);
+  assert.equal(existsSync(path.join(fixture.targets[0].packageDir, "node_modules")), true);
+  assert.equal(JSON.parse(readFileSync(victimPackageJson)).version, "0.0.0");
 });
 
-test("wrapper-only death terminates its process group before restoration", async (t) => {
+test("crash-runtime: wrapper-only death retains a completion hold and child evidence without restoration", async (t) => {
   const fixture = createFixture(t, [{ kind: "absent" }], { id: "wrapper-death" });
   const runner = spawn(
     process.execPath,
@@ -383,12 +519,27 @@ test("wrapper-only death terminates its process group before restoration", async
   process.kill(wrapperPid, "SIGKILL");
   const exit = await new Promise((resolve) => runner.once("close", (code, signal) => resolve({ code, signal })));
   assert.deepEqual(exit, { code: 1, signal: null }, stderr);
-  assert.equal(JSON.parse(stdout).summary.failed, 1);
-  assertNoRunnerArtifacts(fixture.targets[0]);
-  assert.equal(existsSync(CHECKOUT_LOCK), false);
+  const result = JSON.parse(stdout);
+  assert.equal(result.summary.failed, 1);
+  assert.equal(result.aborted, true);
+  assert.equal(result.abortReason, "integrity-failed");
+  const file = journalPath(fixture);
+  const heldBytes = readFileSync(file);
+  const held = JSON.parse(heldBytes).payload;
+  assert.deepEqual(held.child, journal.payload.child);
+  assert.equal(held.completionHold.reason, "command-completion-unverified");
+  assert.equal(held.completionHold.effectMayBeActive, true);
+  assert.equal(existsSync(path.join(fixture.targets[0].packageDir, "node_modules")), true);
+  assert.equal(existsSync(CHECKOUT_LOCK), true);
+  for (const args of [["recover", "--json"], ["recover", "--apply", "--json"]]) {
+    const recovery = cli(fixture, args);
+    assert.notEqual(recovery.status, 0);
+    assert.match(recovery.stderr, /completion hold requires manual review; recovery takeover, child clearance and restoration refused/);
+    assert.deepEqual(readFileSync(file), heldBytes);
+  }
 });
 
-test("pre-existing tree recovery fails closed until explicit bounded apply", (t) => {
+test("crash-runtime: pre-existing tree child history refuses even explicit apply", (t) => {
   const fixture = createFixture(t, [{ kind: "present" }], { id: "present-explicit" });
   const target = fixture.targets[0];
   const killed = cli(
@@ -403,18 +554,31 @@ test("pre-existing tree recovery fails closed until explicit bounded apply", (t)
     { dev: String(currentIdentity.dev), ino: String(currentIdentity.ino) },
     target.initialNodeModulesIdentity,
   );
+  assertChildRecoveryRefused(fixture);
+  assertInstalledVersions(target.packageDir, TARGET_VERSION);
+  assert.equal(readFileSync(path.join(target.packageDir, "node_modules", "sentinel.txt"), "utf8"), "sentinel-0\n");
+});
+
+test("injected-journal: child-free pre-existing tree requires explicit bounded apply", (t) => {
+  const fixture = createFixture(t, [{ kind: "present" }], { id: "injected-present-explicit" });
+  const target = fixture.targets[0];
+  injectChildFreeInterruption(fixture);
   const automatic = cli(fixture, ["recover", "--json"]);
   assert.notEqual(automatic.status, 0);
   assert.match(automatic.stderr, /requires explicit recovery/);
+  assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
   assertInstalledVersions(target.packageDir, TARGET_VERSION);
   const applied = jsonSuccess(cli(fixture, ["recover", "--apply", "--json"]));
   assert.equal(applied.recoveryMode, "explicit-apply");
   assertInstalledVersions(target.packageDir, LOCKED_VERSION);
   assert.equal(readFileSync(path.join(target.packageDir, "node_modules", "sentinel.txt"), "utf8"), "sentinel-0\n");
   assertNoRunnerArtifacts(target);
+  const restoredIdentity = lstatSync(path.join(target.packageDir, "node_modules"), { bigint: true });
+  assert.deepEqual({ dev: String(restoredIdentity.dev), ino: String(restoredIdentity.ino) }, target.initialNodeModulesIdentity);
+  assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).status, "clean");
 });
 
-test("multi-target recovery safely cleans absent state before explicit present-tree apply", (t) => {
+test("crash-runtime: multi-target child history refuses cleanup and explicit apply", (t) => {
   const command = [
     process.execPath,
     "-e",
@@ -426,6 +590,14 @@ test("multi-target recovery safely cleans absent state before explicit present-t
     { id: "multi-target", command },
   );
   assertKilled(cli(fixture, ["run", "--json"]));
+  assertChildRecoveryRefused(fixture);
+  assert.equal(existsSync(path.join(fixture.targets[0].packageDir, "node_modules")), true);
+  assertInstalledVersions(fixture.targets[1].packageDir, TARGET_VERSION);
+});
+
+test("injected-journal: child-free multi-target recovery cleans absent state before explicit present-tree apply", (t) => {
+  const fixture = createFixture(t, [{ kind: "absent" }, { kind: "present" }], { id: "injected-multi-target" });
+  injectChildFreeInterruption(fixture);
   const automatic = cli(fixture, ["recover", "--json"]);
   assert.notEqual(automatic.status, 0);
   assert.match(automatic.stderr, /requires explicit recovery/);
@@ -435,9 +607,10 @@ test("multi-target recovery safely cleans absent state before explicit present-t
   assertNoRunnerArtifacts(fixture.targets[0]);
   assertInstalledVersions(fixture.targets[1].packageDir, LOCKED_VERSION);
   assertNoRunnerArtifacts(fixture.targets[1]);
+  assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).status, "clean");
 });
 
-test("exclusive checkout lock rejects a concurrent mutation run with live strong identity", async (t) => {
+test("crash-runtime: exclusive checkout lock rejects a concurrent run from another state home", async (t) => {
   const fixture = createFixture(t, [{ kind: "absent" }], { id: "concurrent-run" });
   const first = spawn(process.execPath, [SCRIPT, "run", "--json", "--manifest", fixture.manifestPath], {
     cwd: ROOT,
@@ -459,11 +632,29 @@ test("exclusive checkout lock rejects a concurrent mutation run with live strong
   mkdirSync(otherStateHome, { recursive: true, mode: 0o700 });
   const second = cli(fixture, ["run", "--json"], { XDG_STATE_HOME: otherStateHome });
   assert.notEqual(second.status, 0);
-  assert.match(second.stderr, /active|concurrent/);
+  assert.match(second.stderr, /a canary mutation lock is active/);
   const exit = await new Promise((resolve) => first.once("close", (code, signal) => resolve({ code, signal })));
   assert.deepEqual(exit, { code: 0, signal: null }, stderr);
   assert.equal(JSON.parse(stdout).summary.passed, 1);
   assertNoRunnerArtifacts(fixture.targets[0]);
+});
+
+test("injected-journal: child-free active strong owner still rejects a concurrent run", (t) => {
+  const fixture = createFixture(t, [{ kind: "present" }], { id: "injected-active-owner" });
+  injectChildFreeInterruption(fixture, { staleOwner: false });
+  const status = jsonSuccess(cli(fixture, ["status", "--json"]));
+  assert.equal(status.ownerLiveness, "active"); // current test process, no synthetic death
+  assert.equal(status.ownerReconciliationRequired, false);
+  const file = journalPath(fixture);
+  const before = readFileSync(file);
+  const lock = readFileSync(fixture.lockPath);
+  const result = cli(fixture, ["run", "--json"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /a canary mutation owner is still active/);
+  assert.deepEqual(readFileSync(file), before);
+  assert.deepEqual(readFileSync(fixture.lockPath), lock);
+  assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
+  assertInstalledVersions(fixture.targets[0].packageDir, TARGET_VERSION);
 });
 
 test("malformed, oversized, symlinked, and multiple journal states fail closed", (t) => {
@@ -493,7 +684,8 @@ test("malformed, oversized, symlinked, and multiple journal states fail closed",
 
 test("identity-drifted target and unknown stale-owner identity fail without deleting replacements", (t) => {
   const drift = createFixture(t, [{ kind: "absent" }], { id: "identity-drift" });
-  assertKilled(cli(drift, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "post-alignment" }));
+  // Pre-effect crash: keep identity-drift coverage reachable without child-history refusal.
+  assertKilled(cli(drift, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "pre-alignment" }));
   const original = `${drift.targets[0].packageDir}.original`;
   renameSync(drift.targets[0].packageDir, original);
   mkdirSync(drift.targets[0].packageDir);
@@ -539,18 +731,18 @@ test("active mutation never overwrites changed checkout-lock or journal ownershi
   }
 });
 
-test("explicit recovery re-resolves the canonical package root before every npm command", async (t) => {
+test("injected-journal: child-free explicit recovery re-resolves the canonical package root before every npm command", async (t) => {
   const fixture = createFixture(t, [{ kind: "present" }], { id: "explicit-root-reresolve" });
   const target = fixture.targets[0];
   const packageLockPath = path.join(target.packageDir, "package-lock.json");
   const packageLock = JSON.parse(readFileSync(packageLockPath, "utf8"));
   delete packageLock.packages[`node_modules/${HOST_PACKAGES[2]}`];
   writeFileSync(packageLockPath, JSON.stringify(packageLock));
-  assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "post-alignment" }));
+  injectChildFreeInterruption(fixture);
   const automatic = cli(fixture, ["recover", "--json"]);
   assert.notEqual(automatic.status, 0);
   assert.match(automatic.stderr, /requires explicit recovery/);
-  writeFileSync(fixture.npmLog, "");
+  assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
   const recovery = spawn(process.execPath, [SCRIPT, "recover", "--apply", "--json", "--manifest", fixture.manifestPath], {
     cwd: ROOT,
     env: fixture.env({ FAKE_NPM_DELAY_MS: "700" }),
@@ -575,11 +767,13 @@ test("explicit recovery re-resolves the canonical package root before every npm 
   assert.equal(existsSync(fixture.lockPath), true, "failed recovery state must remain reviewable");
 });
 
-test("explicit recovery preserves state when its checkout recovery ownership changes", async (t) => {
+test("injected-journal: child-free explicit recovery preserves state when its checkout recovery ownership changes", async (t) => {
   const fixture = createFixture(t, [{ kind: "present" }], { id: "recovery-owner-fence" });
-  assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "post-alignment" }));
-  assert.notEqual(cli(fixture, ["recover", "--json"]).status, 0);
-  writeFileSync(fixture.npmLog, "");
+  injectChildFreeInterruption(fixture);
+  const automatic = cli(fixture, ["recover", "--json"]);
+  assert.notEqual(automatic.status, 0);
+  assert.match(automatic.stderr, /requires explicit recovery/);
+  assert.equal(readFileSync(fixture.npmLog, "utf8"), "");
   const recovery = spawn(process.execPath, [SCRIPT, "recover", "--apply", "--json", "--manifest", fixture.manifestPath], {
     cwd: ROOT,
     env: fixture.env({ FAKE_NPM_DELAY_MS: "700" }),

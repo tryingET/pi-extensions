@@ -205,3 +205,46 @@ window {
 .activation.error {
   color: @pi_error;
 }
+
+/*
+ * AK task references. An active chip is the one clickable element inside a card besides the card
+ * itself: it reuses the card's activation, so it carries the accent colour and a pointer cursor.
+ * Badge states (a claim that outlives its session, a deferred task) are deliberately inert pills.
+ */
+.ak-task {
+  background: alpha(@pi_foreground, 0.07);
+  border: 1px solid alpha(@pi_foreground, 0.16);
+  border-radius: 999px;
+  color: alpha(@pi_foreground, 0.68);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 8px;
+  padding: 3px 8px;
+}
+
+.ak-task.ak-active {
+  background: alpha(@pi_accent, 0.14);
+  border-color: alpha(@pi_accent, 0.42);
+  color: @pi_accent;
+}
+
+.ak-task.ak-active:hover {
+  background: alpha(@pi_accent, 0.26);
+}
+
+.ak-task.ak-orphaned {
+  background: alpha(@pi_error, 0.12);
+  border: 1px dashed alpha(@pi_error, 0.4);
+  color: alpha(@pi_error, 0.92);
+}
+
+.ak-task.ak-deferred {
+  background: alpha(@pi_tool, 0.12);
+  border: 1px dashed alpha(@pi_tool, 0.4);
+  color: alpha(@pi_tool, 0.92);
+}
+
+.ak-overflow {
+  color: alpha(@pi_foreground, 0.5);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 8px;
+}

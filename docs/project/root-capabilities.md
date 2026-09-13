@@ -71,7 +71,7 @@ system4d:
 
 ### Package-selection routing registry
 - `packages/pi-context-packer`
-  - route `context_plan`, `context_pack`, context-window packet assembly, source-selection ablation, and source-list/SCI adoption evaluation here;
+  - route `context_plan`, `context_pack`, context-window packet assembly, provider selection and packet evaluation here;
   - package owner: read-only provider planning, bounded packet assembly, consumer-side ranking/fusion, measurement, and adoption evidence;
   - read first: `packages/pi-context-packer/README.md` and `packages/pi-context-packer/docs/project/product-posture.md`;
   - boundary: Agent Scripts owns factual docs/source inventory, SCI owns structural evidence, and AK/FCOS retain canonical authority; the monorepo root owns routing and shared validation only.

@@ -90,6 +90,11 @@ test("malformed or missing usage never means 100 percent remaining", () => {
   assert.throws(() => formatCodexUsage({}), /no rate-limit data/);
   assert.match(formatCodexUsage({ rate_limit: { primary_window: {} } }), /remaining unknown/);
   assert.match(formatCodexUsage({ rate_limit: {} }), /No usage windows reported/);
+  for (const used_percent of [-1, -100, NaN, Infinity, "0"])
+    assert.match(
+      formatCodexUsage({ rate_limit: { primary_window: { used_percent } } }),
+      /remaining unknown/,
+    );
 });
 
 test("malformed JSON is reported without echoing response content", async () => {

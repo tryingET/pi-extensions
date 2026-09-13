@@ -54,7 +54,7 @@ export function comparePublisherRepresentatives(left, right) {
 /**
  * @param {SessionLike[]} [sessions]
  * @param {Set<string> | null} [allowedCardIds]
- * @returns {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]}>}
+ * @returns {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]; publisherSessionIds: string[]}>}
  */
 export function projectSessionCards(sessions = [], allowedCardIds = null) {
   /** @type {Map<string, SessionLike[]>} */
@@ -67,7 +67,7 @@ export function projectSessionCards(sessions = [], allowedCardIds = null) {
     groups.set(cardId, group);
   }
 
-  /** @type {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]}>} */
+  /** @type {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]; publisherSessionIds: string[]}>} */
   const cards = [];
   for (const [cardId, group] of groups) {
     const ordered = [...group].sort(comparePublisherRepresentatives);
@@ -79,6 +79,9 @@ export function projectSessionCards(sessions = [], allowedCardIds = null) {
       publisherCount: group.length,
       publisherIds: group.map((session) => String(session.publisherId ?? "")).filter(Boolean),
       publisherRecordKeys: group.map(sessionRecordKey),
+      publisherSessionIds: [
+        ...new Set(group.map((session) => String(session.sessionId ?? "")).filter(Boolean)),
+      ],
     });
   }
   return cards;

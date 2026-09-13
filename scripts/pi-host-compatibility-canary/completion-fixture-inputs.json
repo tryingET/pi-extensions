@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "purpose": "admitted_fixture",
+  "trust": "Candidate for a reviewed trusted fixture closure, not hostile-code sandbox. Changed inputs require independent review and deliberate pin update. Manifest authenticity requires external exact-source review; no self-approval or automatic regeneration. Execution hold remains in force. AK5597 portability split: source pins deliberately updated as a SOURCE-ONLY REVIEW CANDIDATE, not approved qualification. Existing Node identity records are unchanged; historical receipts do not qualify these changed bytes. Portable OBSERVATION inputs are separate and never written here.",
+  "copied": {
+    "completion-fixture.mjs": {
+      "sha256": "f8cb440b080def85598a6876b0aed064b8e893f9ad1c08810ea74ef6dffbe134",
+      "destinationSha256": "f8cb440b080def85598a6876b0aed064b8e893f9ad1c08810ea74ef6dffbe134",
+      "transform": "identity"
+    },
+    "completion.mjs": {
+      "sha256": "700a51503a680e75b2f6f950b6907bbb06b77f7a3ce7d461442a7c7010a6ca21",
+      "destinationSha256": "700a51503a680e75b2f6f950b6907bbb06b77f7a3ce7d461442a7c7010a6ca21",
+      "transform": "identity"
+    },
+    "completion-boundary.mjs": {
+      "sha256": "2dd78ccc3c7113e4ade7a41cca5c779af8d7234c8f1ec5744e9ce8330f239938",
+      "destinationSha256": "2dd78ccc3c7113e4ade7a41cca5c779af8d7234c8f1ec5744e9ce8330f239938",
+      "transform": "identity"
+    },
+    "manifest.mjs": {
+      "sha256": "96883c95574950c18cad4975b33df1af580279815e19b9b9bf64cff16b6c84dd",
+      "destinationSha256": "96883c95574950c18cad4975b33df1af580279815e19b9b9bf64cff16b6c84dd",
+      "transform": "identity"
+    },
+    "runner.mjs": {
+      "sha256": "d460736fd50cb93ce245c0e7320b0c3921448d3d94f5f85acafe8a2fce5570c6",
+      "destinationSha256": "d460736fd50cb93ce245c0e7320b0c3921448d3d94f5f85acafe8a2fce5570c6",
+      "transform": "identity"
+    },
+    "payloads.mjs": {
+      "sha256": "d833d69b7589642fd854f474f08393b2448994e641d546a24c34f0f25215a5fe",
+      "destinationSha256": "d833d69b7589642fd854f474f08393b2448994e641d546a24c34f0f25215a5fe",
+      "transform": "identity"
+    },
+    "host-lifecycle.mjs": {
+      "sha256": "204de482cac55bab942cf153e1d887894f8ea875a1abe7c0b782181fdf694bcd",
+      "destinationSha256": "827439caea79a48b0ad33496f69d33d7b932d4e8214109f790cd772461d1d3ed",
+      "transform": "deny-lifecycle-import-once"
+    },
+    "host-state.mjs": {
+      "sha256": "55a6117969145909aa2289b855a0b907e4bf9647d0d5a7611b63ed092723d4be",
+      "destinationSha256": "55a6117969145909aa2289b855a0b907e4bf9647d0d5a7611b63ed092723d4be",
+      "transform": "identity"
+    },
+    "process.mjs": {
+      "sha256": "aef2925d30edead2f133475c9b190fbe0fcc9f86d8e1b5a712f1a712eb90af51",
+      "destinationSha256": "aef2925d30edead2f133475c9b190fbe0fcc9f86d8e1b5a712f1a712eb90af51",
+      "transform": "identity"
+    },
+    "command-wrapper.mjs": {
+      "sha256": "236ceadc24d922f6f90f917d7894ece95bb91f5b96981feea9e925bad5780120",
+      "destinationSha256": "236ceadc24d922f6f90f917d7894ece95bb91f5b96981feea9e925bad5780120",
+      "transform": "identity"
+    },
+    "recovery.mjs": {
+      "sha256": "01179849155b24e80a5e2d068d0caf4589a55ef5636ca2a188ddddcc0a415fac",
+      "destinationSha256": "a348759dec6ef5d933280b657367bd939f904af41d66ef9c8c5c8929043474f8",
+      "transform": "deny-lifecycle-import-once"
+    },
+    "recovery-journal.mjs": {
+      "sha256": "981489ba2625f5b49d340d70a81dca798d429c269911ac3b192185df89e9cb9d",
+      "destinationSha256": "981489ba2625f5b49d340d70a81dca798d429c269911ac3b192185df89e9cb9d",
+      "transform": "identity"
+    },
+    "state-files.mjs": {
+      "sha256": "607f79ec267027ea1c57d22cdc6237ab96ac9049c16e678461a968ca76e8c252",
+      "destinationSha256": "607f79ec267027ea1c57d22cdc6237ab96ac9049c16e678461a968ca76e8c252",
+      "transform": "identity"
+    },
+    "state-lock.mjs": {
+      "sha256": "17146cef2004ff8bbdfc3e3da3414d020c6356ebdfa83482d9ce40e887880668",
+      "destinationSha256": "17146cef2004ff8bbdfc3e3da3414d020c6356ebdfa83482d9ce40e887880668",
+      "transform": "identity"
+    },
+    "state-schema.mjs": {
+      "sha256": "8a75877bf1215601edad48f212002c3e829d825f4cdc8decbee2dc936ce6ed02",
+      "destinationSha256": "8a75877bf1215601edad48f212002c3e829d825f4cdc8decbee2dc936ce6ed02",
+      "transform": "identity"
+    },
+    "state-store.mjs": {
+      "sha256": "3eb76c0b7d5ab174018b7cab0dcb39a8cd9292b02618be15c43a0b92a2f0260a",
+      "destinationSha256": "3eb76c0b7d5ab174018b7cab0dcb39a8cd9292b02618be15c43a0b92a2f0260a",
+      "transform": "identity"
+    },
+    "integrity.mjs": {
+      "sha256": "fe55c0403cb90ead14880cf9efff7b66a4a4bec7af834b6c351d3529e63fc221",
+      "destinationSha256": "fe55c0403cb90ead14880cf9efff7b66a4a4bec7af834b6c351d3529e63fc221",
+      "transform": "identity"
+    },
+    "paths.mjs": {
+      "sha256": "b3165311a6a66d66a5683db914a1d9a8e519ad6ab1fcc80d3ca07123bf42717f",
+      "destinationSha256": "b3165311a6a66d66a5683db914a1d9a8e519ad6ab1fcc80d3ca07123bf42717f",
+      "transform": "identity"
+    },
+    "completion-fixture-closure.mjs": {
+      "sha256": "57b5e2a2966931d19ad6d271d4c54c405d1d4b20a6fe006ce3748eee48eeeb33",
+      "destinationSha256": "57b5e2a2966931d19ad6d271d4c54c405d1d4b20a6fe006ce3748eee48eeeb33",
+      "transform": "identity"
+    },
+    "completion-fixture-cases.mjs": {
+      "sha256": "d529983249910a0f08dfabcc4e021e49b23f51579e85c018db7dec951bb5e3da",
+      "destinationSha256": "d529983249910a0f08dfabcc4e021e49b23f51579e85c018db7dec951bb5e3da",
+      "transform": "identity"
+    },
+    "completion-fixture-denied-lifecycle.mjs": {
+      "sha256": "6d1e6d54ec88500079fdfb5d93d0d20241e790c3eba8be936db270c9b3505a1e",
+      "destinationSha256": "6d1e6d54ec88500079fdfb5d93d0d20241e790c3eba8be936db270c9b3505a1e",
+      "transform": "identity"
+    },
+    "mutation-completion.mjs": {
+      "sha256": "04f047acbe45039291007ab7ef4b7409a9408e5f393f6a2e199e8c9df99a1845",
+      "destinationSha256": "04f047acbe45039291007ab7ef4b7409a9408e5f393f6a2e199e8c9df99a1845",
+      "transform": "identity"
+    },
+    "host-restoration-barrier.mjs": {
+      "sha256": "0a52f8d1d25b4573997a2c907d259d8cb1186fb5556507f59987840825dd64e8",
+      "destinationSha256": "0a52f8d1d25b4573997a2c907d259d8cb1186fb5556507f59987840825dd64e8",
+      "transform": "identity"
+    },
+    "recovery-verification.mjs": {
+      "sha256": "857c71ddd5173badef5875861777d0572ffe130bc2775d47d1a846e70563f6e9",
+      "destinationSha256": "857c71ddd5173badef5875861777d0572ffe130bc2775d47d1a846e70563f6e9",
+      "transform": "identity"
+    },
+    "child-clearance.mjs": {
+      "sha256": "5a6d296ee143055e3c1bbf6ac2c85acbace2c38b596816f365c08e7b8f19a872",
+      "destinationSha256": "5a6d296ee143055e3c1bbf6ac2c85acbace2c38b596816f365c08e7b8f19a872",
+      "transform": "identity"
+    },
+    "recovery-snapshots.mjs": {
+      "sha256": "fd4446a52f08779bb85bf92e84c405971f84c6a38c95503f55c17bc1bd50934e",
+      "destinationSha256": "fd4446a52f08779bb85bf92e84c405971f84c6a38c95503f55c17bc1bd50934e",
+      "transform": "identity"
+    }
+  },
+  "parentOnly": {
+    "completion.test.mjs": "88af0c02948e07d126069bc745c49aaa069eb0d587c485ce910723a4c5140d14",
+    "completion-fixture-negatives.mjs": "fbb723841ab07186443ec21639d8b94dd4a8d55d302df21ebfd6cac5bd0b74a7",
+    "mutation-completion.test.mjs": "61563950731dc9f6f6cad325b2357d20fbcc7e14c61ce8f70424def145ed0344",
+    "child-clearance.test.mjs": "d13e87be26fab85b8a282efb9e8d42183164d76fba339c2ff7aeeb881015392d",
+    "child-clearance.io.test.mjs": "891cb0276efd6a80dda604b72a61b813dee0bdaa29816eefdb7dd8d7ff58d30b",
+    "recovery-snapshots.test.mjs": "68e258877b03b18f2de77c387717836f605639acb80ffffe9399e110ef8d0625",
+    "../pi-host-compatibility-canary.recovery.test.mjs": "044a6c20143c661e20378413c41752ef3728fbc190521b8d3b2e68438764e138",
+    "completion-fixture-runner.mjs": "b996e1edd09db8a82ce20778acf8900331b85004245a27afefbdf163f0c167bc",
+    "completion-source-regression.test.mjs": "8bfd32c473261624ca4729995ebec513d736b9c17a8795ad98b0643c578eca1b",
+    "source-regression-observation.mjs": "601e79311175682b42eb188a70d200f949943c1595a804d5da9c49be1391d84e",
+    "source-regression-harness.mjs": "083cc4e0976a64f55e499f3609422b8375c9bc28b5d5249df05c13b8732e9d07",
+    "source-regression.test.mjs": "f824c26122fa04821d176d8ee5b848a12160a03051fc22be56d0b40463dfa9f9"
+  },
+  "rootWrapper": {
+    "file": "../pi-host-compatibility-canary.test.mjs",
+    "sha256": "98975512411d2a2e943c129a8d1c62cc3d58e93e46b2ddbd680a388cbe2fbdc0"
+  },
+  "nodes": [
+    {
+      "version": "v22.22.2",
+      "path": "/home/tryinget/.local/state/pi-quests/tmp/ak5597-node22.CmLeiVRU/node-v22.22.2-linux-x64/bin/node",
+      "sha256": "81925c0995b5c1427b5d538e6a90ca2fdc4daffb786b09af749beaf7369d4e90",
+      "versionEvidence": "/home/tryinget/.local/state/pi-quests/tmp/ak5597-parent-verification.srRbxvvF/v22.22.2/consumption-calibration.mjs.json",
+      "qualification": "Current binary read/hash only; version from preserved earlier receipt. Future gate must match process.version and /proc/self/exe; no launch performed to create this pin."
+    },
+    {
+      "version": "v26.8.1",
+      "path": "/usr/bin/node",
+      "sha256": "20003adecf3985e53e4a7c21d94ab671ce9f97ee7bace265171665781e0fc6bf",
+      "versionEvidence": "/home/tryinget/.local/state/pi-quests/tmp/ak5597-parent-verification.srRbxvvF/v26.8.1/consumption-calibration.mjs.json",
+      "qualification": "Current binary read/hash only; version from preserved earlier receipt. Future gate must match process.version and /proc/self/exe; no launch performed to create this pin."
+    }
+  ]
+}

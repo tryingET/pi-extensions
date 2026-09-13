@@ -59,11 +59,12 @@ Refreshed on 2026-08-01 after recovering `packages/pi-eval-kernel` onto the curr
 Refreshed on 2026-08-03 after adding `packages/pi-session-insights`, which raised the audited package count to `34`.
 Refreshed on 2026-08-15 after adding `packages/pi-telemetry`, which raised the audited package count to `36`.
 Refreshed on 2026-08-27 after adding `packages/pi-context-corpus` and `packages/pi-agent-registry`, which raised the audited package count to `38`.
+Refreshed on 2026-09-09 for the already committed `packages/pi-typescript-tool` (AK5508), which raised the audited package count to `39` and the legacy-full count to `30`. This refresh records the existing surface; it does not authorize a package-local reduction.
 
 Snapshot summary:
 
-- package entries audited: `38`
-- legacy-full: `29`
+- package entries audited: `39`
+- legacy-full: `30`
 - reduced-form: `1`
 - policy-only: `0`
 - no local surface: `8`
@@ -97,6 +98,7 @@ Snapshot summary:
 - `packages/pi-society-startup-context`
 - `packages/pi-telemetry`
 - `packages/pi-toolbox-discovery`
+- `packages/pi-typescript-tool`
 - `packages/pi-vault-client`
 - `packages/pi-workstation-inference-provider`
 
@@ -123,7 +125,7 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the current twenty-nine `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
+- the current thirty `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
   - `packages/pi-agent-interaction-canary`
   - `packages/pi-agent-registry`
   - `packages/pi-agent-vent`
@@ -151,6 +153,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
   - `packages/pi-society-startup-context`
   - `packages/pi-telemetry`
   - `packages/pi-toolbox-discovery`
+  - `packages/pi-typescript-tool`
   - `packages/pi-vault-client`
   - `packages/pi-workstation-inference-provider`
 - `#634` proved the simple-package `none` path in `packages/pi-activity-strip`, and `#635` proved the matching monorepo-package `none` path in `packages/pi-autonomous-session-control`, so neither package still appears in the `legacy-full` bucket.

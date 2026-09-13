@@ -3,7 +3,8 @@
   "hostPackage": "@earendil-works/pi-coding-agent",
   "hostCompanionPackages": [
     "@earendil-works/pi-ai",
-    "@earendil-works/pi-tui"
+    "@earendil-works/pi-tui",
+    "@earendil-works/pi-agent-core"
   ],
   "trackedChangelog": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/CHANGELOG.md",
   "defaultProfile": "current",
@@ -242,14 +243,19 @@
       "cwd": "packages/pi-autoresearch",
       "command": [
         "node",
+        "../../scripts/pi-host-compatibility-canary/selected-tests.mjs",
+        "--cwd",
+        ".",
         "--import",
         "tsx",
-        "--test",
-        "--test-name-pattern",
-        "segment closeout summarizes empirical decisions and candidate bindings|autoresearch_runtime_status can request closeout, setup, and finalize packets",
-        "tests/runtime.test.ts"
+        "--case",
+        "tests/runtime-closeout-adapters.test.ts",
+        "segment closeout summarizes empirical decisions and candidate bindings",
+        "--case",
+        "tests/runtime-status-actions.test.ts",
+        "autoresearch_runtime_status can request closeout, setup, and finalize packets"
       ],
-      "notes": "Focused direct runtime packet/export canary: receipt parsing/status projection, closeout packet generation, candidate-result export, and learning export boundaries. It does not launch peers, write AK/KES evidence, or promote candidates."
+      "notes": "Requires exactly two passing top-level bodies through structured selection proof on a supported Node version; zero selection or a missing/duplicate/skipped body fails. Uses the authored closeout-adapters and status-actions files, not the obsolete runtime.test.ts location. Tests write temporary packet exports and invoke a Node example consumer; they do not launch peers, write AK/KES authority, or promote candidates. Provision tsx/dependencies before candidate alignment; selection proof alone is not SDK-consumption or isolation proof."
     },
     {
       "id": "orchestrator-autoresearch-supervision-contract",
@@ -273,11 +279,21 @@
       ],
       "cwd": "packages/pi-society-orchestrator",
       "command": [
-        "bash",
-        "-lc",
-        "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves' tests/live-control-plane/*.test.mjs"
+        "node",
+        "../../scripts/pi-host-compatibility-canary/selected-tests.mjs",
+        "--cwd",
+        ".",
+        "--case",
+        "tests/live-control-plane/sessions-and-start-campaign.test.mjs",
+        "autoresearch_live_supervision start/status/stop manages a live running session",
+        "--case",
+        "tests/live-control-plane/sessions-and-start-campaign.test.mjs",
+        "autoresearch_live_supervision start_campaign delegates execution then supervises",
+        "--case",
+        "tests/live-control-plane/matrix-campaign-review.test.mjs",
+        "autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves"
       ],
-      "notes": "Focused orchestrator supervision canary for live start/status/session management and dashboard-first matrix closeout reporting. The declared package set includes pi-autoresearch because the command hydrates its runtime dependencies before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules. It does not launch peers, run benchmarks, merge candidates, or write AK/KES evidence."
+      "notes": "Requires exactly three passing top-level bodies through structured selection proof on a supported Node version; zero selection or a missing/duplicate/skipped body fails. Provision all dependencies, including pi-autoresearch and local ASC, independently before baseline capture and candidate alignment. Missing dependencies fail; never install in the scenario. Local ASC avoids raw Node stripping published TypeScript under node_modules; these mjs entries need no tsx import. Scheduling and observation use mocks, but start_campaign launches real synthetic benchmark and check scripts through pi-autoresearch and writes temporary receipts; matrix review writes temporary packets. Extension registration can mkdir under HOME: use synthetic HOME/TMPDIR. Selection proof is not SDK-consumption, isolation, peer-launch, authority-write, or promotion qualification."
     },
     {
       "id": "orchestrator-autoresearch-matrix-closeout",
@@ -300,11 +316,27 @@
       ],
       "cwd": "packages/pi-society-orchestrator",
       "command": [
-        "bash",
-        "-lc",
-        "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares' tests/live-control-plane/*.test.mjs"
+        "node",
+        "../../scripts/pi-host-compatibility-canary/selected-tests.mjs",
+        "--cwd",
+        ".",
+        "--case",
+        "tests/live-control-plane/matrix-campaign.test.mjs",
+        "autoresearch_live_supervision plan_matrix_campaign makes matrix cells the implementation-wave substrate",
+        "--case",
+        "tests/live-control-plane/matrix-campaign.test.mjs",
+        "autoresearch_live_supervision plan_matrix_campaign fails closed against level-2 packet-only narrowing",
+        "--case",
+        "tests/live-control-plane/matrix-campaign-review.test.mjs",
+        "autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves",
+        "--case",
+        "tests/live-control-plane/matrix-campaign-review.test.mjs",
+        "autoresearch_live_supervision review_matrix_campaign blocks proof-only review packet closure without downgrade",
+        "--case",
+        "tests/live-control-plane/candidate-wave-review.test.mjs",
+        "autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection"
       ],
-      "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers. The declared package set includes pi-autoresearch because the command hydrates its runtime dependencies before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules."
+      "notes": "Requires exactly five passing top-level bodies through structured selection proof on a supported Node version; preserves all five bodies selected by the former plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares regex, including both fail-closed cases. Provision all dependencies, including pi-autoresearch and local ASC, independently before baseline capture and candidate alignment. Missing dependencies fail; never install in the scenario. Local ASC avoids raw Node stripping published TypeScript under node_modules; these mjs entries need no tsx import. Packet planning/review uses mocked registration and synthetic candidate data; matrix reviews write temporary packets and extension registration can mkdir under HOME: use synthetic HOME/TMPDIR. Selection proof is not SDK-consumption, isolation, benchmark, peer-launch, authority-write, or promotion qualification."
     },
     {
       "id": "host-dev-pin-drift",
