@@ -19,6 +19,7 @@ import { focusNiriSession, readNiriWindows, readNiriWorkspaces } from "../common
 import { haveSameRecordMembership } from "../common/session-cards.mjs";
 import { resolveFocusedWorkspaceView } from "../common/workspace-view.mjs";
 import { discoverAgentTabs } from "./agent-discovery.mjs";
+import { startAkTaskProjection } from "./ak-runtime.mjs";
 import { createHeightRepair } from "./height-repair.mjs";
 import { createNativePanelProjection } from "./panel-projection.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
@@ -172,9 +173,17 @@ const projection = createNativePanelProjection({
     runtimeStatus.rendererHiddenTabCardCount = view.sessions.filter(
       (session) => session.surfaceVisible === false,
     ).length;
+    runtimeStatus.akTaskRenderedCount = view.sessions.reduce(
+      (total, session) => total + (Array.isArray(session.akTasks) ? session.akTasks.length : 0),
+      0,
+    );
     writePanel(view);
   },
 });
+
+// AK task references are a read-only projection of claims held by live sessions; the strip
+// never writes AK state and renders nothing when the read fails.
+startAkTaskProjection({ execFileAsync, env: process.env, runtimeStatus, projection });
 
 /** @param {string} targetId @returns {Promise<{ok: boolean; error?: string; windowId?: number; presented?: boolean; verified?: boolean}>} */
 async function focusSession(targetId) {

@@ -104,3 +104,14 @@ test("record and card membership comparisons are reflexive with duplicate logica
     "a publisher moving between terminal surfaces changes workspace membership",
   );
 });
+
+test("cards carry the distinct session ids of every aggregated publisher", () => {
+  const resumedSessionId = "01a0993a-d336-739f-a308-cfa4c21d6332";
+  const [card] = projectSessionCards([
+    publisher({ publisherId: "a" }),
+    publisher({ publisherId: "b" }),
+    publisher({ publisherId: "c", sessionId: resumedSessionId }),
+  ]);
+  assert.equal(card.publisherCount, 3);
+  assert.deepEqual(card.publisherSessionIds, [logicalSessionId, resumedSessionId]);
+});
