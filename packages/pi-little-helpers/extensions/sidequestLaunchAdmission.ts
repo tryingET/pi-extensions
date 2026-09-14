@@ -29,10 +29,11 @@ export type LaunchContext = {
   promptSummary: string;
   launchNote?: string;
 };
-export type SidequestLaunchOutcome = LaunchContext & (
-  | { ok: true; effectDisposition: "settled" }
-  | { ok: false; failure: string; effectDisposition: LaunchResult["effectDisposition"] }
-);
+export type SidequestLaunchOutcome = LaunchContext &
+  (
+    | { ok: true; effectDisposition: "settled" }
+    | { ok: false; failure: string; effectDisposition: LaunchResult["effectDisposition"] }
+  );
 
 class LaunchValidationError extends Error {
   constructor() {
@@ -45,11 +46,12 @@ export function assertBoundedLaunchArgv(argv: readonly string[]): void {
   if (
     !Array.isArray(argv) ||
     argv.length > 1024 ||
-    argv.some((arg) =>
-      typeof arg !== "string" ||
-      arg.includes("\0") ||
-      Buffer.from(arg, "utf8").toString("utf8") !== arg ||
-      Buffer.byteLength(arg, "utf8") >= 131_071,
+    argv.some(
+      (arg) =>
+        typeof arg !== "string" ||
+        arg.includes("\0") ||
+        Buffer.from(arg, "utf8").toString("utf8") !== arg ||
+        Buffer.byteLength(arg, "utf8") >= 131_071,
     ) ||
     argv.reduce((bytes, arg) => bytes + Buffer.byteLength(arg, "utf8") + 1, 0) > 256 * 1024
   ) {
@@ -100,37 +102,46 @@ export function invalidLaunchOutcome(fork: boolean): SidequestLaunchOutcome {
   };
 }
 
-export function prepareLaunchArguments(input: LaunchDispatchGuard & {
-  env: NodeJS.ProcessEnv;
-  parentCwd?: string;
-  model?: ModelLike;
-  thinkingLevel: string;
-  defaultPiBin: string;
-  prompt: string;
-  titlePrompt: string;
-  titlePrefix: string;
-  cwd: string;
-  sourceSessionFile?: string;
-  command?: { command: string; args: string[] };
-  modelArgs?: string[];
-  extraPiArgs?: string[];
-  childProvenanceEnv?: Record<string, string>;
-}): { ok: true; title: string; piArgs: string[] } | { ok: false } {
+export function prepareLaunchArguments(
+  input: LaunchDispatchGuard & {
+    env: NodeJS.ProcessEnv;
+    parentCwd?: string;
+    model?: ModelLike;
+    thinkingLevel: string;
+    defaultPiBin: string;
+    prompt: string;
+    titlePrompt: string;
+    titlePrefix: string;
+    cwd: string;
+    sourceSessionFile?: string;
+    command?: { command: string; args: string[] };
+    modelArgs?: string[];
+    extraPiArgs?: string[];
+    childProvenanceEnv?: Record<string, string>;
+  },
+): { ok: true; title: string; piArgs: string[] } | { ok: false } {
   try {
     assertGuardShape(input);
     assertBoundedLaunchArgv(input.modelArgs ?? []);
     assertBoundedLaunchArgv(input.extraPiArgs ?? []);
     if (input.command) assertBoundedLaunchArgv(input.command.args);
     const provenance = Object.entries(input.childProvenanceEnv ?? {});
-    if (provenance.some(([key, value]) =>
-      !/^PI_PROVENANCE_[A-Z0-9_]+$/u.test(key) || typeof value !== "string",
-    )) {
+    if (
+      provenance.some(
+        ([key, value]) => !/^PI_PROVENANCE_[A-Z0-9_]+$/u.test(key) || typeof value !== "string",
+      )
+    ) {
       throw new LaunchValidationError();
     }
     assertBoundedLaunchArgv([
-      input.defaultPiBin, input.prompt, input.titlePrompt, input.titlePrefix, input.cwd,
+      input.defaultPiBin,
+      input.prompt,
+      input.titlePrompt,
+      input.titlePrefix,
+      input.cwd,
       ...(input.sourceSessionFile === undefined ? [] : [input.sourceSessionFile]),
-      ...(input.modelArgs ?? []), ...(input.extraPiArgs ?? []),
+      ...(input.modelArgs ?? []),
+      ...(input.extraPiArgs ?? []),
       ...provenance.map(([key, value]) => `${key}=${value}`),
       ...(input.command ? [input.command.command, ...input.command.args] : []),
     ]);
@@ -142,13 +153,17 @@ export function prepareLaunchArguments(input: LaunchDispatchGuard & {
       : input.sourceSessionFile
         ? [piBin, "--fork", input.sourceSessionFile, ...modelArgs, input.prompt]
         : [piBin, ...modelArgs, ...extraArgs, input.prompt];
-    const company = input.command ? undefined : resolveChildCompanyContext({
-      env: input.env,
-      targetCwd: input.cwd,
-      parentCwd: input.parentCwd,
-    });
-    const companyArgs = company && company.source !== "target_cwd"
-      ? prefixPiArgsWithCompanyContext(raw, company) : raw;
+    const company = input.command
+      ? undefined
+      : resolveChildCompanyContext({
+          env: input.env,
+          targetCwd: input.cwd,
+          parentCwd: input.parentCwd,
+        });
+    const companyArgs =
+      company && company.source !== "target_cwd"
+        ? prefixPiArgsWithCompanyContext(raw, company)
+        : raw;
     const piArgs = provenance.length
       ? ["env", ...provenance.map(([key, value]) => `${key}=${value}`), ...companyArgs]
       : companyArgs;
@@ -182,11 +197,13 @@ function indeterminate(): LaunchResult {
 }
 
 /** Caller holds the FIFO slot through this final owner read. Never await after the deadline check. */
-export async function runAdmittedLaunch(options: LaunchDispatchGuard & {
-  argv: readonly string[];
-  invoke: () => Promise<LaunchResult>;
-  onInvoked?: () => void;
-}): Promise<LaunchResult> {
+export async function runAdmittedLaunch(
+  options: LaunchDispatchGuard & {
+    argv: readonly string[];
+    invoke: () => Promise<LaunchResult>;
+    onInvoked?: () => void;
+  },
+): Promise<LaunchResult> {
   try {
     assertBoundedLaunchArgv(options.argv);
     assertDispatchWindow(options);

@@ -29,7 +29,9 @@ function createWindowExecStub() {
 }
 
 function lastWindowLaunchCall(execStub) {
-  const call = [...execStub.calls].reverse().find(({ args }) => args[0]?.startsWith("--working-directory="));
+  const call = [...execStub.calls]
+    .reverse()
+    .find(({ args }) => args[0]?.startsWith("--working-directory="));
   assert.ok(call, "expected a preselected window launch");
   return call;
 }

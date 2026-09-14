@@ -7,8 +7,8 @@ import test from "node:test";
 import {
   assertBoundedLaunchArgv,
   launchPiQuestSession,
-  STANDING_AGENT_TRANSPORT_VERSION,
   STANDING_AGENT_DISPATCH_GUARD_VERSION,
+  STANDING_AGENT_TRANSPORT_VERSION,
 } from "../extensions/sidequestLaunch.ts";
 import { buildCandidatePeerSpawnPrompt } from "../extensions/sidequestPeerPrompts.ts";
 import { createExecStub, extractPiArgs } from "./sidequest-harness.mjs";
@@ -263,14 +263,15 @@ test("detached transport receives validated complete final argv and both provena
   assert.ok(piArgs.some((arg) => arg.startsWith("PI_PROVENANCE_STANDING_AGENT_VISIBLE_LAUNCH=")));
 });
 
-
 function assertRefused(result) {
   assert.equal(result.ok, false);
   assert.equal(result.effectDisposition, "confirmed_no_effects");
 }
 function deferred() {
   let resolve;
-  const promise = new Promise((done) => { resolve = done; });
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -282,9 +283,12 @@ function tabHarness({ describe = async () => {}, list = () => {} } = {}) {
     assert.equal(command, "busctl");
     if (args[1] === "list") {
       list();
-      return { code: 0, stdout:
-        ":1.99 111 ghostty user :1.99 unit - -\n" +
-        "com.mitchellh.ghostty 111 ghostty user :1.99 unit - -\n" };
+      return {
+        code: 0,
+        stdout:
+          ":1.99 111 ghostty user :1.99 unit - -\n" +
+          "com.mitchellh.ghostty 111 ghostty user :1.99 unit - -\n",
+      };
     }
     if (args.includes("Describe")) {
       await describe();
@@ -294,30 +298,49 @@ function tabHarness({ describe = async () => {}, list = () => {} } = {}) {
     return { code: 0, stdout: "" };
   };
   const env = {
-    TERM_PROGRAM: "ghostty", GHOSTTY_SURFACE_ID: "1", PI_SIDEQUEST_LAUNCH_STAGGER_MS: "1",
+    TERM_PROGRAM: "ghostty",
+    GHOSTTY_SURFACE_ID: "1",
+    PI_SIDEQUEST_LAUNCH_STAGGER_MS: "1",
   };
   const options = {
-    exec, env, pathExists: () => true,
+    exec,
+    env,
+    pathExists: () => true,
     currentGhosttyAncestor: { pid: 111, exe: "/usr/bin/ghostty" },
-    readProcessExecutable: (pid) => pid === 111 ? "/usr/bin/ghostty" : undefined,
+    readProcessExecutable: (pid) => (pid === 111 ? "/usr/bin/ghostty" : undefined),
   };
   return {
     calls,
     effects: () => calls.filter(({ args }) => args.includes("Activate")),
-    launch: (patch = {}) => launchPiQuestSession({
-      pi: { getThinkingLevel: () => "low" }, ctx: { cwd: "/repo" }, options,
-      defaultPiBin: "pi", cwd: "/repo", prompt: "# bounded", titlePrompt: "fixture",
-      ...patch,
-    }),
+    launch: (patch = {}) =>
+      launchPiQuestSession({
+        pi: { getThinkingLevel: () => "low" },
+        ctx: { cwd: "/repo" },
+        options,
+        defaultPiBin: "pi",
+        cwd: "/repo",
+        prompt: "# bounded",
+        titlePrompt: "fixture",
+        ...patch,
+      }),
   };
 }
 
 test("oversized candidate constraint returns through the ordinary caller failure branch", async () => {
   const h = createLaunchHarness();
-  const worktree = { parentCwd: "/parent", worktreePath: "/worktree", branchName: "candidate/test", baseRef: "HEAD" };
-  const request = { constraints: ["SECRET" + "x".repeat(131071)] };
+  const worktree = {
+    parentCwd: "/parent",
+    worktreePath: "/worktree",
+    branchName: "candidate/test",
+    baseRef: "HEAD",
+  };
+  const request = { constraints: [`SECRET${"x".repeat(131071)}`] };
   const prompt = buildCandidatePeerSpawnPrompt({
-    objective: "Bounded candidate", request, worktree, reportBack: "manual", questId: "fixture",
+    objective: "Bounded candidate",
+    request,
+    worktree,
+    reportBack: "manual",
+    questId: "fixture",
   });
   // Model the unchanged reserve/create/bind -> await launch -> returned-failure projection seam.
   const events = ["reserved", "worktree-created", "bound"];
@@ -342,29 +365,49 @@ test("oversized final shell framing refuses before transport and releases FIFO",
 test("lease expiry during Describe refuses dispatch without a fallback, then follower runs", async (t) => {
   let clock = 100;
   t.mock.method(Date, "now", () => clock);
-  const entered = deferred(), release = deferred();
+  const entered = deferred(),
+    release = deferred();
   let first = true;
-  const h = tabHarness({ describe: async () => {
-    if (first) { first = false; entered.resolve(); await release.promise; }
-  } });
+  const h = tabHarness({
+    describe: async () => {
+      if (first) {
+        first = false;
+        entered.resolve();
+        await release.promise;
+      }
+    },
+  });
   const pending = h.launch({ beforeDispatch: async () => true, dispatchDeadlineMs: 150 });
   await entered.promise;
   clock = 200;
   release.resolve();
   assertRefused(await pending);
   assert.equal(h.effects().length, 0);
-  assert.equal((await h.launch({ beforeDispatch: async () => true, dispatchDeadlineMs: 300 })).ok, true);
+  assert.equal(
+    (await h.launch({ beforeDispatch: async () => true, dispatchDeadlineMs: 300 })).ok,
+    true,
+  );
   assert.equal(h.effects().length, 1);
 });
 
 test("lease expiry while queued cannot reuse pre-queue authorization; follower still runs", async (t) => {
   let clock = 100;
   t.mock.method(Date, "now", () => clock);
-  const entered = deferred(), release = deferred(), secondListed = deferred();
+  const entered = deferred(),
+    release = deferred(),
+    secondListed = deferred();
   let lists = 0;
-  const h = tabHarness({ list: () => { if (++lists === 3) secondListed.resolve(); } });
+  const h = tabHarness({
+    list: () => {
+      if (++lists === 3) secondListed.resolve();
+    },
+  });
   const first = h.launch({
-    beforeDispatch: async () => { entered.resolve(); await release.promise; return true; },
+    beforeDispatch: async () => {
+      entered.resolve();
+      await release.promise;
+      return true;
+    },
     dispatchDeadlineMs: 1000,
   });
   await entered.promise; // Slot stays held across the final owner read.
@@ -383,12 +426,15 @@ test("guard runs after final identity read and synchronous deadline catches expi
   let clock = 100;
   t.mock.method(Date, "now", () => clock);
   const h = tabHarness();
-  const result = await h.launch({ beforeDispatch: async () => {
-    assert.equal(h.calls.at(-1).args[1], "list");
-    assert.equal(h.calls.filter(({ args }) => args.includes("Describe")).length, 1);
-    clock = 200;
-    return true; // A stale successful async read cannot override the original deadline.
-  }, dispatchDeadlineMs: 150 });
+  const result = await h.launch({
+    beforeDispatch: async () => {
+      assert.equal(h.calls.at(-1).args[1], "list");
+      assert.equal(h.calls.filter(({ args }) => args.includes("Describe")).length, 1);
+      clock = 200;
+      return true; // A stale successful async read cannot override the original deadline.
+    },
+    dispatchDeadlineMs: 150,
+  });
   assertRefused(result);
   assert.equal(h.effects().length, 0);
 });
@@ -398,7 +444,8 @@ test("guard refusal, throwing guard and cancellation release slot without leakin
   for (const action of ["deny", "throw", "cancel"]) {
     const controller = new AbortController();
     const result = await h.launch({
-      dispatchDeadlineMs: Date.now() + 60000, signal: controller.signal,
+      dispatchDeadlineMs: Date.now() + 60000,
+      signal: controller.signal,
       beforeDispatch: async () => {
         if (action === "throw") throw Error("SECRET owner failure");
         if (action === "cancel") controller.abort();
@@ -416,9 +463,21 @@ test("guard refusal, throwing guard and cancellation release slot without leakin
 test("guarded detached invocation throws remain indeterminate, never reclassified as refusal", async () => {
   const h = createLaunchHarness();
   let attempts = 0;
-  const result = await launchPiQuestSession(requestFor(h, {
-    beforeDispatch: async () => true, dispatchDeadlineMs: Date.now() + 60000,
-  }, { detachedGhosttyWindowLaunch: () => { attempts++; throw Error("SECRET after invocation"); } }));
+  const result = await launchPiQuestSession(
+    requestFor(
+      h,
+      {
+        beforeDispatch: async () => true,
+        dispatchDeadlineMs: Date.now() + 60000,
+      },
+      {
+        detachedGhosttyWindowLaunch: () => {
+          attempts++;
+          throw Error("SECRET after invocation");
+        },
+      },
+    ),
+  );
   assert.equal(result.ok, false);
   assert.equal(result.effectDisposition, "effect_indeterminate");
   assert.equal(attempts, 1);

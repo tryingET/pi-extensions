@@ -46,14 +46,20 @@ function busctlListRows() {
     timeout: PROBE_TIMEOUT_MS,
   });
   if (result.status !== 0) return null;
-  const parsed = result.stdout.trim().split("\n").map((line) => line.trim().split(/\s+/));
+  const parsed = result.stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/));
   const names = parsed.map((fields) => fields[0]);
   assert.ok(result.stdout.trim(), "empty listing is not absence evidence");
   assert.equal(new Set(names).size, names.length, "duplicate bus names invalidate the observation");
   for (const fields of parsed) {
     assert.ok(fields.length >= 5, "malformed bus row");
     const [name, pid, , , connection] = fields;
-    assert.match(name, /^(?::[0-9]+\.[0-9]+|[A-Za-z_-][A-Za-z0-9_-]*(?:\.[A-Za-z_-][A-Za-z0-9_-]*)+)$/);
+    assert.match(
+      name,
+      /^(?::[0-9]+\.[0-9]+|[A-Za-z_-][A-Za-z0-9_-]*(?:\.[A-Za-z_-][A-Za-z0-9_-]*)+)$/,
+    );
     if (pid === "-" && connection === "-" && !name.startsWith(":")) continue;
     assert.match(pid, /^[1-9][0-9]*$/);
     assert.ok(Number.isSafeInteger(Number(pid)));
@@ -91,12 +97,18 @@ function expectedReceiver(rows, controller) {
   assert.equal(readlinkSync(`/proc/${pid}/exe`), exe, "controller must be positively readable");
   assert.match(controller.surfaceId, /^(?:[0-9]+|0x[0-9a-f]+)$/i);
   const surface = BigInt(controller.surfaceId);
-  assert.ok(surface > 0n && surface <= 18446744073709551615n, "zero invokes receiver fallback, not a target");
+  assert.ok(
+    surface > 0n && surface <= 18446744073709551615n,
+    "zero invokes receiver fallback, not a target",
+  );
   const ownNames = uniqueNamesForPid(rows, pid);
   assert.ok(ownNames.length <= 1, "ambiguous originator is not a nameless stub");
   if (ownNames.length === 1) return { pid, busName: ownNames[0], surfaceId: surface.toString() };
   const daemonPid = wellKnownOwnerPid(rows, controller.endpoint.wellKnownName);
-  assert.ok(daemonPid && daemonPid !== pid, "nameless stub needs a distinct positively known daemon");
+  assert.ok(
+    daemonPid && daemonPid !== pid,
+    "nameless stub needs a distinct positively known daemon",
+  );
   const daemonNames = uniqueNamesForPid(rows, daemonPid);
   assert.equal(daemonNames.length, 1);
   assert.equal(readlinkSync(`/proc/${daemonPid}/exe`), exe, "same family alone is insufficient");
@@ -176,10 +188,7 @@ test(
       assert.equal(readlinkSync(`/proc/${target.ownerPid}/exe`), controller.ancestor.exe);
       assert.equal(target.wellKnownName, controller.endpoint.wellKnownName);
       assert.equal(target.objectPath, controller.endpoint.objectPath);
-      assert.equal(
-        pidForUniqueName(rows, target.busName),
-        expected.pid,
-      );
+      assert.equal(pidForUniqueName(rows, target.busName), expected.pid);
       familyCounts.set(
         controller.endpoint.wellKnownName,
         (familyCounts.get(controller.endpoint.wellKnownName) ?? 0) + 1,
@@ -240,10 +249,7 @@ test(
     assert.equal(readlinkSync(`/proc/${target.ownerPid}/exe`), controller.ancestor.exe);
     assert.equal(target.wellKnownName, NORMAL_ENDPOINT.wellKnownName);
     assert.equal(target.objectPath, NORMAL_ENDPOINT.objectPath);
-    assert.equal(
-      pidForUniqueName(rows, target.busName),
-      expected.pid,
-    );
+    assert.equal(pidForUniqueName(rows, target.busName), expected.pid);
 
     const describedAction = spawnSync(
       "busctl",

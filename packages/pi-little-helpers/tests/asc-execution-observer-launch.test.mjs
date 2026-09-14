@@ -112,8 +112,9 @@ for (const scenario of [
           if (command === LOCAL_GHOSTTY_BIN && args[0] === "+version") {
             return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
           }
-          if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
-        if (command === "busctl" && args[1] === "list") {
+          if (command === "busctl" && args.includes("Describe"))
+            return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+          if (command === "busctl" && args[1] === "list") {
             return {
               code: 0,
               stdout:
@@ -142,7 +143,9 @@ for (const scenario of [
       );
       await new Promise((resolve) => setTimeout(resolve, 30));
 
-      const launches = calls.filter((call) => call.command === "busctl" && call.args.includes("Activate"));
+      const launches = calls.filter(
+        (call) => call.command === "busctl" && call.args.includes("Activate"),
+      );
       assert.equal(launches.length, 1);
       const args = launches[0].args;
       assert.equal(args[2], "--expect-reply=no");
@@ -208,7 +211,8 @@ test("automatic ASC observer targets the normal origin/main broker exactly", asy
         if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+version") {
           return { code: 0, stdout: "Ghostty 1.4.0-origin-main-9d8fbd15b3b4\n" };
         }
-        if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+        if (command === "busctl" && args.includes("Describe"))
+          return { code: 0, stdout: '(bgav) true "(tas)" 0' };
         if (command === "busctl" && args[1] === "list") {
           return {
             code: 0,
@@ -348,7 +352,8 @@ test("automatic ASC observer rejects an ambiguous controller D-Bus target withou
         if (command === LOCAL_GHOSTTY_BIN && args[0] === "+version") {
           return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
         }
-        if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+        if (command === "busctl" && args.includes("Describe"))
+          return { code: 0, stdout: '(bgav) true "(tas)" 0' };
         if (command === "busctl" && args[1] === "list") {
           return {
             code: 0,
@@ -420,7 +425,8 @@ test("automatic ASC observer does not open another window after exact activation
         if (command === LOCAL_GHOSTTY_BIN && args[0] === "+version") {
           return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
         }
-        if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+        if (command === "busctl" && args.includes("Describe"))
+          return { code: 0, stdout: '(bgav) true "(tas)" 0' };
         if (command === "busctl" && args[1] === "list") {
           return {
             code: 0,
@@ -548,11 +554,16 @@ for (const refused of ["unreadable", "duplicate", "disappearing"]) {
     let lists = 0;
     try {
       const extension = createSidequestExtension({
-        env: { TERM_PROGRAM: "ghostty", GHOSTTY_SURFACE_ID: "19", PI_SIDEQUEST_LAUNCH_STAGGER_MS: "0" },
+        env: {
+          TERM_PROGRAM: "ghostty",
+          GHOSTTY_SURFACE_ID: "19",
+          PI_SIDEQUEST_LAUNCH_STAGGER_MS: "0",
+        },
         ascObserverStateRoot: root,
         currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
         currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
-        readProcessExecutable: (pid) => refused === "unreadable" || pid !== 111 ? undefined : LOCAL_GHOSTTY_BIN,
+        readProcessExecutable: (pid) =>
+          refused === "unreadable" || pid !== 111 ? undefined : LOCAL_GHOSTTY_BIN,
         pathExists: (path) => path === LOCAL_GHOSTTY_BIN,
         async exec(command, args) {
           calls.push({ command, args });
@@ -560,47 +571,107 @@ for (const refused of ["unreadable", "duplicate", "disappearing"]) {
           if (command === "busctl" && args[1] === "list") {
             lists += 1;
             const row = ":1.11 111 ghostty user :1.11 unit - -\n";
-            return { code: 0, stdout: refused === "duplicate" ? row + row : refused === "disappearing" && lists > 1 ? "" : row };
+            return {
+              code: 0,
+              stdout:
+                refused === "duplicate"
+                  ? row + row
+                  : refused === "disappearing" && lists > 1
+                    ? ""
+                    : row,
+            };
           }
-          if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+          if (command === "busctl" && args.includes("Describe"))
+            return { code: 0, stdout: '(bgav) true "(tas)" 0' };
           throw new Error("refused observer must never dispatch any command payload");
         },
       });
       // Capture outbound events without giving the extension a cancellation implementation.
-      const events = new Map(); const bus = new Map();
+      const events = new Map();
+      const bus = new Map();
       extension({
-        getThinkingLevel: () => "off", registerCommand() {}, registerTool() {},
-        on(name, handler) { const handlers = events.get(name) ?? []; handlers.push(handler); events.set(name, handlers); },
+        getThinkingLevel: () => "off",
+        registerCommand() {},
+        registerTool() {},
+        on(name, handler) {
+          const handlers = events.get(name) ?? [];
+          handlers.push(handler);
+          events.set(name, handlers);
+        },
         events: {
-          on(name, handler) { const handlers = bus.get(name) ?? []; handlers.push(handler); bus.set(name, handlers); return () => {}; },
-          emit(name, payload) { outgoingEvents.push({ name, payload }); },
+          on(name, handler) {
+            const handlers = bus.get(name) ?? [];
+            handlers.push(handler);
+            bus.set(name, handlers);
+            return () => {};
+          },
+          emit(name, payload) {
+            outgoingEvents.push({ name, payload });
+          },
         },
       });
-      const { ctx, notifications } = createContext({ cwd: "/repo", sessionId: `refused-${refused}` });
-      for (const handler of events.get("session_start") ?? []) await handler({ type: "session_start", reason: "startup" }, ctx);
-      const deliver = (value) => { for (const handler of bus.get(ASC_EXECUTION_OBSERVATION_EVENT) ?? []) handler(value); };
+      const { ctx, notifications } = createContext({
+        cwd: "/repo",
+        sessionId: `refused-${refused}`,
+      });
+      for (const handler of events.get("session_start") ?? [])
+        await handler({ type: "session_start", reason: "startup" }, ctx);
+      const deliver = (value) => {
+        for (const handler of bus.get(ASC_EXECUTION_OBSERVATION_EVENT) ?? []) handler(value);
+      };
       deliver(observation(1, "dispatch_subagent"));
       await waitFor(() => notifications.length === 1);
       const afterRefusalCalls = calls.length;
       deliver(observation(3, "dispatch_subagent"));
-      await waitFor(() => JSON.parse(readFileSync(observerStatePath(root), "utf8")).activeDispatch?.sequence === 3);
+      await waitFor(
+        () =>
+          JSON.parse(readFileSync(observerStatePath(root), "utf8")).activeDispatch?.sequence === 3,
+      );
       const terminal = observation(4, "dispatch_subagent");
       delete terminal.progress;
       terminal.event = "dispatch_terminal";
-      terminal.terminal = { ok: false, status: "timed_out", effectDisposition: "effect_indeterminate" };
+      terminal.terminal = {
+        ok: false,
+        status: "timed_out",
+        effectDisposition: "effect_indeterminate",
+      };
       deliver(terminal);
-      await waitFor(() => JSON.parse(readFileSync(observerStatePath(root), "utf8")).terminal?.status === "timed_out");
+      await waitFor(
+        () =>
+          JSON.parse(readFileSync(observerStatePath(root), "utf8")).terminal?.status ===
+          "timed_out",
+      );
       const state = JSON.parse(readFileSync(observerStatePath(root), "utf8"));
       assert.equal(state.observer.launchStatus, "failed");
       assert.equal(state.terminal.effectDisposition, "effect_indeterminate");
       assert.match(state.notice, /closing this tab does not cancel work/i);
       assert.match(notifications[0].message, /execution continues headlessly/i);
       assert.equal(notifications.length, 1);
-      assert.equal(calls.length, afterRefusalCalls, "progress/terminal must not retry the observer");
-      assert.ok(calls.every(({ command, args }) => args[0] === "+help" ||
-        (command === "busctl" && (args[1] === "list" || args.includes("Describe")))));
-      assert.ok(calls.every(({ args }) => !args.includes("Activate") && !args.includes("--state") && args[0] !== "+new-tab"));
-      assert.deepEqual(outgoingEvents, [], "observer must not request ASC cancellation or dispatch");
-    } finally { rmSync(root, { recursive: true, force: true }); }
+      assert.equal(
+        calls.length,
+        afterRefusalCalls,
+        "progress/terminal must not retry the observer",
+      );
+      assert.ok(
+        calls.every(
+          ({ command, args }) =>
+            args[0] === "+help" ||
+            (command === "busctl" && (args[1] === "list" || args.includes("Describe"))),
+        ),
+      );
+      assert.ok(
+        calls.every(
+          ({ args }) =>
+            !args.includes("Activate") && !args.includes("--state") && args[0] !== "+new-tab",
+        ),
+      );
+      assert.deepEqual(
+        outgoingEvents,
+        [],
+        "observer must not request ASC cancellation or dispatch",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 }

@@ -6,6 +6,7 @@ import { existsSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { GhosttyWindowLaunchHandshake } from "./sidequestDetachedWindow.ts";
+import type { ControllerGhosttyDbusTarget } from "./sidequestGhosttyTargetTypes.ts";
 
 export const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
 
@@ -379,16 +380,11 @@ function normalizeGhosttySurfaceIdUint64(surfaceId: string): string | undefined 
   }
 }
 
-type ControllerGhosttyDbusTarget = {
-  busName: string;
-  ownerPid: number;
-  surfaceId: string;
-  wellKnownName: string;
-  objectPath: string;
-};
-
 export async function resolveControllerGhosttyDbusTarget({
-  execRunner, controllerGhostty, surfaceId, readProcessExecutable = readProcExecutable,
+  execRunner,
+  controllerGhostty,
+  surfaceId,
+  readProcessExecutable = readProcExecutable,
 }: {
   execRunner: ExecRunner;
   controllerGhostty: GhosttyAncestor | undefined;
@@ -403,7 +399,8 @@ export async function resolveControllerGhosttyDbusTarget({
   const endpoint = resolveGhosttyDbusEndpoint(exe);
   const normalizedSurfaceId = normalizeGhosttySurfaceIdUint64(surfaceId);
   // Receiver zero means no target; even a nonzero ID can be stale (Describe cannot prove existence).
-  if (!endpoint || normalizedSurfaceId === undefined || normalizedSurfaceId === "0") return undefined;
+  if (!endpoint || normalizedSurfaceId === undefined || normalizedSurfaceId === "0")
+    return undefined;
   const matches = (owner: number) => {
     const actual = readProcessExecutable(owner);
     return Boolean(actual && isAbsolute(actual) && resolve(actual) === resolve(exe));
@@ -443,7 +440,8 @@ export async function resolveControllerGhosttyDbusTarget({
       if (row.pid !== null && row.connection !== "-" && rows.get(row.connection)?.pid !== row.pid)
         return undefined;
     }
-    const namesFor = (owner: number) => [...rows].filter(([name, row]) => unique.test(name) && row.pid === owner);
+    const namesFor = (owner: number) =>
+      [...rows].filter(([name, row]) => unique.test(name) && row.pid === owner);
     const originating = namesFor(pid);
     if (originating.length > 1) return undefined;
     let ownerPid = pid;
@@ -453,10 +451,14 @@ export async function resolveControllerGhosttyDbusTarget({
       ownerPid = daemon.pid;
     }
     const names = namesFor(ownerPid);
-    if (names.length !== 1 || !matches(ownerPid) || !matches(pid) || !matches(ownerPid)) return undefined;
+    if (names.length !== 1 || !matches(ownerPid) || !matches(pid) || !matches(ownerPid))
+      return undefined;
     return {
-      busName: names[0]![0], ownerPid, surfaceId: normalizedSurfaceId,
-      wellKnownName: endpoint.wellKnownName, objectPath: endpoint.objectPath,
+      busName: names[0]![0],
+      ownerPid,
+      surfaceId: normalizedSurfaceId,
+      wellKnownName: endpoint.wellKnownName,
+      objectPath: endpoint.objectPath,
     };
   } catch {
     // Failed/throwing readback is refusal, never proof of a nameless launcher stub.

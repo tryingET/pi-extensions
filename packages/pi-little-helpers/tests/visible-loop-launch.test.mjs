@@ -348,7 +348,8 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
             "com.tryinget.ghosttysidequest 333 ghostty user :1.44 user@1000.service - -\n",
         };
       }
-      if (command === "busctl" && args.includes("Describe")) return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+      if (command === "busctl" && args.includes("Describe"))
+        return { code: 0, stdout: '(bgav) true "(tas)" 0' };
       if (command === "busctl" && args[1] === "call") {
         return { code: 0, stdout: "", stderr: "" };
       }
@@ -406,10 +407,7 @@ test("visible-loop targets the normal origin/main Ghostty single-instance server
           args.includes("sidequest-pi"),
       ),
     );
-    assert.match(
-      harness.notifications.at(-1).message,
-      /targeted Ghostty process 222/,
-    );
+    assert.match(harness.notifications.at(-1).message, /targeted Ghostty process 222/);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });

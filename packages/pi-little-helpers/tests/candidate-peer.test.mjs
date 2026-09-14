@@ -89,61 +89,121 @@ function withTempDir(fn) {
 }
 
 for (const mode of ["window", "tab"]) {
-  test(`candidate_peer_spawn spaces actual ${mode} dispatch despite unequal inspection latency`, { timeout: 4000 }, async () => {
-    await withTempDir(async (stateHome) => {
-      const base = createCandidatePeerExecStub(); const launches = []; const pending = [];
-      let descriptions = 0; let releaseSlow; let announceDescribe;
-      const slow = new Promise((resolve) => { releaseSlow = resolve; });
-      const described = new Promise((resolve) => { announceDescribe = resolve; });
-      const extension = createSidequestExtension({
-        registerTools: true,
-        env: { TERM_PROGRAM: mode === "tab" ? "ghostty" : "xterm", GHOSTTY_BIN_DIR: "/usr/bin",
-          GHOSTTY_SURFACE_ID: "19", PI_SIDEQUEST_PI_BIN: "pi", PI_SIDEQUEST_LAUNCH_STAGGER_MS: "30", XDG_STATE_HOME: stateHome },
-        currentSessionGhosttyBin: "/usr/bin/ghostty",
-        currentGhosttyAncestor: mode === "tab" ? { pid: 111, exe: "/usr/bin/ghostty" } : undefined,
-        readProcessExecutable: (pid) => pid === 111 ? "/usr/bin/ghostty" : undefined,
-        pathExists: (path) => path === "/usr/bin/ghostty",
-        async exec(command, args, options) {
-          if (command === "busctl" && args[1] === "list") return { code: 0, stdout: ":1.11 111 ghostty user :1.11 unit - -\n" };
-          if (command === "busctl" && args.includes("Describe")) {
-            if (++descriptions === 1) { announceDescribe(); await slow; }
-            return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+  test(
+    `candidate_peer_spawn spaces actual ${mode} dispatch despite unequal inspection latency`,
+    { timeout: 4000 },
+    async () => {
+      await withTempDir(async (stateHome) => {
+        const base = createCandidatePeerExecStub();
+        const launches = [];
+        const pending = [];
+        let descriptions = 0;
+        let releaseSlow;
+        let announceDescribe;
+        const slow = new Promise((resolve) => {
+          releaseSlow = resolve;
+        });
+        const described = new Promise((resolve) => {
+          announceDescribe = resolve;
+        });
+        const extension = createSidequestExtension({
+          registerTools: true,
+          env: {
+            TERM_PROGRAM: mode === "tab" ? "ghostty" : "xterm",
+            GHOSTTY_BIN_DIR: "/usr/bin",
+            GHOSTTY_SURFACE_ID: "19",
+            PI_SIDEQUEST_PI_BIN: "pi",
+            PI_SIDEQUEST_LAUNCH_STAGGER_MS: "30",
+            XDG_STATE_HOME: stateHome,
+          },
+          currentSessionGhosttyBin: "/usr/bin/ghostty",
+          currentGhosttyAncestor:
+            mode === "tab" ? { pid: 111, exe: "/usr/bin/ghostty" } : undefined,
+          readProcessExecutable: (pid) => (pid === 111 ? "/usr/bin/ghostty" : undefined),
+          pathExists: (path) => path === "/usr/bin/ghostty",
+          async exec(command, args, options) {
+            if (command === "busctl" && args[1] === "list")
+              return { code: 0, stdout: ":1.11 111 ghostty user :1.11 unit - -\n" };
+            if (command === "busctl" && args.includes("Describe")) {
+              if (++descriptions === 1) {
+                announceDescribe();
+                await slow;
+              }
+              return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+            }
+            if (command === "busctl" && args.includes("Activate")) {
+              launches.push({ at: performance.now(), args });
+              return { code: 0, stdout: "" };
+            }
+            if (command === "/usr/bin/ghostty" && args[0]?.startsWith("--working-directory="))
+              launches.push({ at: performance.now(), args });
+            return base.exec(command, args, options);
+          },
+        });
+        const { tools } = registerExtension(extension);
+        const context = createContext({ cwd: "/repo" }).ctx;
+        const spawn = (suffix) =>
+          tools.get("candidate_peer_spawn").execute(
+            `tool-call-${suffix}`,
+            {
+              objective: `try candidate ${suffix}`,
+              cwd: "/repo",
+              parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+              branchName: `candidatepeer/stagger-${suffix}`,
+              workspaceName: `stagger-${suffix}`,
+            },
+            undefined,
+            undefined,
+            context,
+          );
+        let timeout;
+        try {
+          pending.push(spawn("one"));
+          if (mode === "tab")
+            await Promise.race([
+              described,
+              new Promise((_, reject) => {
+                timeout = setTimeout(
+                  () => reject(new Error("first target never reached Describe")),
+                  1500,
+                );
+              }),
+            ]);
+          clearTimeout(timeout);
+          pending.push(spawn("two"));
+          if (mode === "tab") {
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            assert.equal(
+              descriptions,
+              1,
+              "second request must not overtake the first inspection slot",
+            );
+            assert.equal(launches.length, 0, "slow inspection has not admitted either dispatch");
+            releaseSlow();
           }
-          if (command === "busctl" && args.includes("Activate")) {
-            launches.push({ at: performance.now(), args }); return { code: 0, stdout: "" };
-          }
-          if (command === "/usr/bin/ghostty" && args[0]?.startsWith("--working-directory=")) launches.push({ at: performance.now(), args });
-          return base.exec(command, args, options);
-        },
-      });
-      const { tools } = registerExtension(extension); const context = createContext({ cwd: "/repo" }).ctx;
-      const spawn = (suffix) => tools.get("candidate_peer_spawn").execute(`tool-call-${suffix}`, {
-        objective: `try candidate ${suffix}`, cwd: "/repo", parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
-        branchName: `candidatepeer/stagger-${suffix}`, workspaceName: `stagger-${suffix}`,
-      }, undefined, undefined, context);
-      let timeout;
-      try {
-        pending.push(spawn("one"));
-        if (mode === "tab") await Promise.race([described, new Promise((_, reject) => {
-          timeout = setTimeout(() => reject(new Error("first target never reached Describe")), 1500);
-        })]);
-        clearTimeout(timeout); pending.push(spawn("two"));
-        if (mode === "tab") {
-          await new Promise((resolve) => setTimeout(resolve, 80));
-          assert.equal(descriptions, 1, "second request must not overtake the first inspection slot");
-          assert.equal(launches.length, 0, "slow inspection has not admitted either dispatch");
+          const results = await Promise.all(pending);
+          assert.ok(results.every((result) => result.details.ok === true));
+          assert.equal(launches.length, 2);
+          assert.ok(
+            launches[1].at - launches[0].at >= 30,
+            "actual transport starts must retain configured spacing",
+          );
+          assert.ok(launches[0].args.some((arg) => arg.includes("try candidate one")));
+          assert.ok(launches[1].args.some((arg) => arg.includes("try candidate two")));
+          if (mode === "tab")
+            assert.ok(
+              launches.every(
+                ({ args }) => args.includes("Activate") && args[3] === ":1.11" && args[11] === "19",
+              ),
+            );
+        } finally {
+          clearTimeout(timeout);
           releaseSlow();
+          await Promise.allSettled(pending);
         }
-        const results = await Promise.all(pending);
-        assert.ok(results.every((result) => result.details.ok === true));
-        assert.equal(launches.length, 2);
-        assert.ok(launches[1].at - launches[0].at >= 30, "actual transport starts must retain configured spacing");
-        assert.ok(launches[0].args.some((arg) => arg.includes("try candidate one")));
-        assert.ok(launches[1].args.some((arg) => arg.includes("try candidate two")));
-        if (mode === "tab") assert.ok(launches.every(({ args }) => args.includes("Activate") && args[3] === ":1.11" && args[11] === "19"));
-      } finally { clearTimeout(timeout); releaseSlow(); await Promise.allSettled(pending); }
-    });
-  });
+      });
+    },
+  );
 }
 
 test("/parallelquest launches a human candidate peer worktree", async () => {
