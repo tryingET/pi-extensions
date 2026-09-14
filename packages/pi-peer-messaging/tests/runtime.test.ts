@@ -21,6 +21,9 @@ import { PeerMessagingBroker } from "../src/broker.ts";
 import { PeerMessagingClient } from "../src/client.ts";
 import { resolvePeerMessagingPaths } from "../src/paths.ts";
 
+// Compact mkdtemp prefixes keep real broker.sock paths within Linux sun_path
+// under managed-job TMPDIR; each test still owns a distinct private directory.
+
 async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -81,7 +84,7 @@ async function disconnectAll(runtimes: ManagedPeerMessagingRuntime[]): Promise<v
 }
 
 test("createPeerMessagingRuntime auto-spawns the broker and exposes self presence", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-runtime-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const runtime = await createPeerMessagingRuntime({
@@ -110,7 +113,7 @@ test("createPeerMessagingRuntime auto-spawns the broker and exposes self presenc
 });
 
 test("registered clients retain transport error handling through close and reconnect", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-reset-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
   const broker = new PeerMessagingBroker({
     runtimeDir,
     idleShutdownMs: 60_000,
@@ -179,7 +182,7 @@ test("registered clients retain transport error handling through close and recon
 });
 
 test("runtime can reuse a stable requested session id across reconnects", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-runtime-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const runtime = await createPeerMessagingRuntime({
@@ -209,7 +212,7 @@ test("runtime can reuse a stable requested session id across reconnects", async 
 });
 
 test("unnamed sessions keep a runtime-only fallback alias until presence is updated", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-fallback-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -255,7 +258,7 @@ test("unnamed sessions keep a runtime-only fallback alias until presence is upda
 });
 
 test("runtime operations reconnect after the broker is terminated", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-reconnect-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
   const paths = resolvePeerMessagingPaths({ runtimeDir });
 
   try {
@@ -288,9 +291,7 @@ test("runtime operations reconnect after the broker is terminated", async () => 
 });
 
 test("updatePresence also reconnects after the broker is terminated", async () => {
-  const runtimeDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "pi-peer-messaging-reconnect-presence-"),
-  );
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
   const paths = resolvePeerMessagingPaths({ runtimeDir });
 
   try {
@@ -322,7 +323,7 @@ test("updatePresence also reconnects after the broker is terminated", async () =
 });
 
 test("send fails closed for duplicate names while exact session id targeting still works", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-duplicate-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -389,7 +390,7 @@ test("send fails closed for duplicate names while exact session id targeting sti
 });
 
 test("ask resolves from an explicit correlated reply", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-ask-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -433,7 +434,7 @@ test("ask resolves from an explicit correlated reply", async () => {
 });
 
 test("ask times out when no correlated reply arrives", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-ask-timeout-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -468,7 +469,7 @@ test("ask times out when no correlated reply arrives", async () => {
 });
 
 test("only one in-flight ask is allowed per local session", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-ask-guard-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -512,7 +513,7 @@ test("only one in-flight ask is allowed per local session", async () => {
 });
 
 test("ask rejects when the target disconnects before replying", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-ask-disconnect-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -552,9 +553,7 @@ test("ask rejects when the target disconnects before replying", async () => {
 });
 
 test("ask rejects when the caller disconnects before a reply arrives", async () => {
-  const runtimeDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "pi-peer-messaging-ask-local-disconnect-"),
-  );
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
@@ -595,7 +594,7 @@ test("ask rejects when the caller disconnects before a reply arrives", async () 
 });
 
 test("ask fails closed when a matching replyTo arrives from the wrong peer", async () => {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-ask-ambiguous-"));
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
 
   try {
     const planner = await createPeerMessagingRuntime({
