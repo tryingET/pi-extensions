@@ -3,7 +3,7 @@
 //   - Changing the external Pi editor bridge or its safety protocol.
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,7 @@ import {
   normalizeEditorText,
   sha256Text,
 } from "../src/editor-refine-bridge.js";
+import { socketPathFor } from "../src/editor-refine-identity.js";
 
 const SESSION_ID = "019fe323-e3ee-72ba-93ca-ba88e19182cf";
 const PUBLISHER_ID = "11111111-2222-4333-8444-555555555555";
@@ -170,6 +171,8 @@ test("isUniqueSessionPresence rejects duplicate logical-session publishers", asy
 
 describe("createEditorRefineBridge", () => {
   let root;
+  let fixtureRoot;
+  let directoryHandle;
   let bridge;
   let editorText;
   let setCount;
@@ -187,7 +190,20 @@ describe("createEditorRefineBridge", () => {
   let statuses;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "er-"));
+    bridge = undefined;
+    directoryHandle = undefined;
+    fixtureRoot = await mkdtemp(join(tmpdir(), "er-"));
+    root = fixtureRoot;
+    if (
+      process.platform === "linux" &&
+      Buffer.byteLength(socketPathFor(root, SESSION_ID, PUBLISHER_ID)) >= 108
+    ) {
+      // These clients share this process. A directory-fd alias shortens sun_path
+      // without moving any socket/descriptor outside the owned TMPDIR fixture.
+      directoryHandle = await open(fixtureRoot, "r");
+      root = `/proc/self/fd/${directoryHandle.fd}`;
+      assert.equal(await realpath(root), fixtureRoot);
+    }
     editorText = "this is the whole editor";
     setCount = 0;
     focusProof = {
@@ -239,7 +255,8 @@ describe("createEditorRefineBridge", () => {
 
   afterEach(async () => {
     await bridge?.stop();
-    await rm(root, { recursive: true, force: true });
+    await directoryHandle?.close();
+    await rm(fixtureRoot, { recursive: true, force: true });
   });
 
   it("snapshots and commits exactly once with hash-only outcome recovery", async () => {
