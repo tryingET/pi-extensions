@@ -135,9 +135,10 @@ test("broker delegates keyboard entry to the native strip controller", async () 
 });
 
 test("broker restricts its control socket to the current user", async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-activity-strip-broker-"));
+  // Compact private fixtures retain real filesystem socket/permission coverage in CI.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "as-"));
   const socketDir = path.join(root, "state");
-  const socketPath = path.join(socketDir, "activity-strip.sock");
+  const socketPath = path.join(socketDir, "s");
   const broker = new ActivityStripBroker({ socketDir, socketPath });
   t.after(async () => {
     await broker.stop();
@@ -155,11 +156,12 @@ function delay(ms) {
 
 test("remove messages scope to one publisher when publisherId is present", async () => {
   const store = new SessionStore({ staleAfterMs: 60_000 });
-  const socketPath = path.join(os.tmpdir(), `strip-remove-${Date.now()}.sock`);
-  const broker = new ActivityStripBroker({ store, socketDir: os.tmpdir(), socketPath });
-  await broker.start();
+  const socketDir = fs.mkdtempSync(path.join(os.tmpdir(), "as-"));
+  const socketPath = path.join(socketDir, "s");
+  const broker = new ActivityStripBroker({ store, socketDir, socketPath });
   const clientOptions = { socketPath };
   try {
+    await broker.start();
     const base = { sessionId: "019fa4d0-7142-7fb4-8d30-f98e951f0513", updatedAt: Date.now() };
     await publishSessionSnapshot(
       { ...base, publisherId: "pub-a", publisherSequence: 2, state: "success" },
@@ -186,5 +188,6 @@ test("remove messages scope to one publisher when publisherId is present", async
     assert.equal(sessions[0].publisherId, "pub-b");
   } finally {
     await broker.stop();
+    fs.rmSync(socketDir, { recursive: true, force: true });
   }
 });

@@ -13,8 +13,9 @@ import { makeMessage } from "../src/common/protocol.mjs";
 import { createInitialSnapshot } from "../src/common/telemetry.mjs";
 
 test("broker accepts upsert and answers ping", async () => {
-  const socketDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-activity-strip-test-"));
-  const socketPath = path.join(socketDir, "activity-strip.sock");
+  // Keep the Unix socket below sun_path's limit even under the managed job TMPDIR.
+  const socketDir = fs.mkdtempSync(path.join(os.tmpdir(), "as-"));
+  const socketPath = path.join(socketDir, "s");
   const broker = new ActivityStripBroker({
     socketDir,
     socketPath,
