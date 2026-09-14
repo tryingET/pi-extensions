@@ -4,7 +4,6 @@
 //   - "Changing scenario execution, lifecycle error projection, abort behavior, or run summaries."
 // ---
 import { errorMessage, isIntegrityError } from "./integrity.mjs";
-import { prepareSdkExecution } from "./sdk-execution.mjs";
 import { ensureScenarioHost, restoreScenarioHost } from "./host-lifecycle.mjs";
 import {
   commandToString,
@@ -21,7 +20,7 @@ import { spawnWithNeutralNpmEnv } from "./process.mjs";
 import { recoverInterruptedRun, recoveryStatus } from "./recovery.mjs";
 import { beginMutationSession, RecoveryRequiredError } from "./recovery-journal.mjs";
 import { ConcurrentCanaryError } from "./state-store.mjs";
-import { finishScenarioCommand, requireUpgradeCompletionIntegration } from "./completion-boundary.mjs";
+import { finishScenarioCommand } from "./completion-boundary.mjs";
 
 function buildDryRunResult(scenario, host, hostPreparation) {
   const restoration = { status: "not-run", changed: false, packages: [] };
@@ -66,8 +65,6 @@ async function spawnScenario(scenario, host, options, mutationSession) {
         scenario.command.slice(1),
         {
           cwd: scenarioCwd,
-          ...(options.sdkExecution ? { sdkExecution: options.sdkExecution,
-            runId: mutationSession.payload.runId, evidenceDirectory: mutationSession.paths.checkoutDir } : {}),
           baseEnv: {
             ...process.env,
             PI_HOST_COMPAT_PROFILE: options.profile,
@@ -88,7 +85,7 @@ async function spawnScenario(scenario, host, options, mutationSession) {
           },
         },
       );
-      execution = finishScenarioCommand(execution, preparationTracker.packages, host, mutationSession, undefined, options.sdkExecution);
+      execution = finishScenarioCommand(execution, preparationTracker.packages, host, mutationSession);
       integrityFailure ||= execution.integrityFailure === true;
     }
   } catch (error) {
@@ -191,8 +188,6 @@ async function spawnScenario(scenario, host, options, mutationSession) {
 export async function runPayload(manifest, options) {
   const selection = selectScenarios(manifest, options);
   const host = resolveProfileHost(manifest, selection.profile);
-  const sdkExecution = prepareSdkExecution(options, selection, host, manifest);
-  requireUpgradeCompletionIntegration(selection.profile, options.dryRun, sdkExecution);
   const results = [];
   let aborted = false;
   let abortReason;
@@ -227,7 +222,6 @@ export async function runPayload(manifest, options) {
           dryRun: options.dryRun,
           json: options.json,
           profile: selection.profile,
-          sdkExecution,
         },
         mutationSession,
       );

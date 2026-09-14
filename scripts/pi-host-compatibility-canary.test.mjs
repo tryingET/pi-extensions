@@ -1147,32 +1147,31 @@ test("compatibility canary root validation executes all 21 four-owner alignment 
   assert.doesNotMatch(result.stdout, /^not ok |^(?:not )?ok .*# (?:SKIP|TODO)\b/im);
   t.diagnostic("four-owner child: tests=21 pass=21 fail=0 skipped=0 cancelled=0 todo=0");
 });
-test("compatibility canary root validation executes cold consumption fixtures and hook calibration", () => {
-  // A bounded API regression gate, NOT a stock scenario or SDK qualification.
-  // Children receive only synthetic HOME/TMPDIR from the fixture invocation.
-  const receipts = ["consumption.test.mjs", "consumption-calibration.mjs"].map((file) => {
-    const result = spawnSync(process.execPath, [
-      path.join(ROOT, "scripts/pi-host-compatibility-canary", file),
-    ], { cwd: ROOT, env: { HOME: process.env.HOME, TMPDIR: process.env.TMPDIR },
-      encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024 });
+test("compatibility canary rejects retired SDK flags before host resolution or effects", () => {
+  for (const flag of ["--sdk-plan", "--sdk-plan-sha256"]) for (const values of [[], ["unused"]]) {
+    const result = spawnSync(process.execPath, [SCRIPT, "run", "--profile", "upgrade", flag, ...values],
+      { cwd: ROOT, encoding: "utf8", timeout: 10000 });
     assert.equal(result.error, undefined, result.error?.message);
-    assert.equal(result.signal, null);
-    assert.equal(result.status, 0, result.stderr + "\n" + result.stdout);
-    const receipt = JSON.parse(result.stdout);
-    assert.equal(receipt.version, process.version);
-    assert.equal(receipt.passed, true);
-    return receipt;
-  });
-  const [fixtures, calibration] = receipts;
-  assert.equal(fixtures.results.length, 46);
-  assert.equal(new Set(fixtures.results.map((entry) => entry.scenario)).size, 46);
-  assert.ok(fixtures.results.every((entry) => entry.passed === true));
-  for (const name of ["static", "delayed", "detached-delayed", "caught-rejection", "missing-finalize",
-    "version-absent", "version-number", "version-empty", "resolve-only", "warm-root", "warm-edge"]) {
-    assert.ok(fixtures.results.some((entry) => entry.scenario === name && entry.passed === true));
+    assert.equal(result.signal, null); assert.equal(result.status, 1);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr.trim(), `error: Unknown argument: ${flag}`);
   }
-  assert.equal(calibration.capability, "hook-ordering-calibration-only");
-  assert.ok(calibration.events.some((entry) => entry.hook === "outer-load" && entry.format === "module"));
+});
+test("compatibility canary root validation executes all 31 selected-tests regressions", async (t) => {
+  // Trusted builtin fixtures, including real abort/lifetime-pipe checks; not package qualification.
+  const { assertCompleteTap, createSourceScratch, syntheticEnvironment } =
+    await import("./pi-host-compatibility-canary/source-regression-harness.mjs");
+  const scratch = createSourceScratch();
+  const env = syntheticEnvironment(scratch);
+  t.diagnostic(`selected-tests retained scratch: ${scratch}`);
+  const result = spawnSync(process.execPath, ["--test-reporter=tap",
+    path.join(ROOT, "scripts/pi-host-compatibility-canary/selected-tests.test.mjs")],
+    { cwd: ROOT, env, encoding: "utf8", timeout: 120000, maxBuffer: 1024 * 1024 });
+  writeFileSync(path.join(scratch, "selected-tests.receipt.json"), JSON.stringify({
+    status: result.status, signal: result.signal, error: result.error?.message,
+    stdout: result.stdout, stderr: result.stderr,
+  }, null, 2), { flag: "wx", mode: 0o600 });
+  assertCompleteTap(result, 31);
 });
 test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
@@ -1208,13 +1207,15 @@ test("compatibility canary dry-run can target a single scenario with package-set
   assert.equal(result.results[0].host.restoration.status, "not-run");
 });
 
-test("compatibility workflow prepares orchestrator siblings before baseline and gates upgrade effects", () => {
+test("compatibility workflow prepares orchestrator siblings before baseline and validates profiles", () => {
   // Source wiring only: no workflow, package manager or actual scenario runs.
   const workflow = readFileSync(path.join(ROOT, ".github/workflows/compatibility-canary.yml"), "utf8");
-  const readiness = workflow.indexOf("name: Check execution readiness before dependency effects");
+  const profileCheck = workflow.indexOf("name: Validate profile before dependency effects");
   const npmClient = workflow.indexOf("name: Install governed npm client");
-  assert.ok(readiness >= 0 && readiness < npmClient);
-  assert.match(workflow.slice(readiness, npmClient), /requireUpgradeCompletionIntegration\(profile, false\)/);
+  assert.ok(profileCheck >= 0 && profileCheck < npmClient);
+  assert.ok(workflow.slice(profileCheck, npmClient).includes(
+    "if (!['current', 'upgrade'].includes(profile)) throw new Error('Unknown canary profile');"));
+  assert.doesNotMatch(workflow, /requireUpgradeCompletionIntegration|sdk-plan/);
   const build = workflow.indexOf("name: Prepare linked ASC source runtime");
   const linked = workflow.indexOf("name: Install linked source dependencies before baseline");
   const sibling = workflow.indexOf("name: Install autoresearch sibling dependencies before baseline");

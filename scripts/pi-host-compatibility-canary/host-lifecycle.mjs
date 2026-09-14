@@ -5,7 +5,6 @@
 // ---
 import { lstatSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { requireSdkReadonlyTargets } from "./sdk-plan.mjs";
 import {
   assertEffectiveOwner,
   errorMessage,
@@ -134,7 +133,6 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
     if (isIntegrityError(error)) throw error;
     throw new IntegrityError(`Scenario target preflight failed: ${errorMessage(error)}`);
   }
-  if (options.sdkExecution) requireSdkReadonlyTargets(packagePreparations, snapshotsMatch);
   preparationTracker.packages = packagePreparations;
   mutationSession?.bindScenario(scenario, host, packagePreparations);
   crashBoundary("pre-alignment");

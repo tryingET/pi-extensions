@@ -3,7 +3,6 @@ import { readFileSync, realpathSync, statSync, writeSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Socket } from 'node:net';
-import { selectedExecArgv } from './sdk-wiring.mjs';
 import { exactPattern, reconcileEvents, assertSupportedNode } from './selected-tests-protocol.mjs';
 export { exactPattern, reconcileEvents, assertSupportedNode };
 
@@ -221,7 +220,7 @@ async function worker() {
     let seq = 0;
     // Do not use --eval: Node 26 can replay the controller eval in the test child.
     for await (const event of run({ files: [config.file], concurrency: 1, isolation: 'process',
-      execArgv: selectedExecArgv(config),
+      execArgv: config.imports.flatMap(specifier => ['--import', specifier]),
       testNamePatterns: [new RegExp(exactPattern(config.names))] })) {
       send({ kind: 'event', seq: seq++, event });
     }

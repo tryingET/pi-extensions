@@ -4,7 +4,6 @@
 //   - "Changing canary subprocess stdio, npm environment isolation, or sandbox cleanup."
 // ---
 import { spawn } from "node:child_process";
-import { executeSdk, isSdkExecution } from "./sdk-execution.mjs";
 import { existsSync, lstatSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -109,17 +108,8 @@ function spawnCommand(command, args, options = {}) {
 
 export async function spawnWithNeutralNpmEnv(command, args, options) {
   let npmEnv;
-  let sdkStarted = false;
   try {
     npmEnv = createNeutralNpmEnv(options.baseEnv ?? process.env);
-    if (options.sdkExecution) {
-      if (!isSdkExecution(options.sdkExecution)) throw new IntegrityError("unbound SDK execution");
-      sdkStarted = true; // after this point no exceptional path may clean the sandbox
-      const result = await executeSdk(options.sdkExecution, npmEnv.sandboxDir, options);
-      Object.defineProperty(result, "deferredCleanup", { value: () =>
-        removeDirectoryByHandle(npmEnv.sandboxDir, npmEnv.sandboxIdentity) });
-      return result;
-    }
     const env = {
       ...npmEnv.env,
       PI_HOST_COMPAT_RUNNER_PID: String(process.pid),
@@ -141,8 +131,6 @@ export async function spawnWithNeutralNpmEnv(command, args, options) {
       ? { ...result, ok: false, integrityFailure: true }
       : result;
   } catch (error) {
-    if (sdkStarted) return { ok: false, exitCode: 125, signal: null, stdout: "", stderr: "",
-      error: errorMessage(error), integrityFailure: true, effectMayBeActive: true };
     if (npmEnv) {
       try { removeDirectoryByHandle(npmEnv.sandboxDir, npmEnv.sandboxIdentity); }
       catch (cleanupError) {

@@ -4,7 +4,7 @@ import path from "node:path";
 import { checkedChild, canonicalPath } from "./completion-fixture-closure.mjs";
 export const EXISTING_CASES = Object.freeze([
   "receipt-proxy", "group-proxy", "boundary-proxy", "journal-hold-proxy", "journal-ready-hold-proxy",
-  "upgrade-guard", "ordinary-success", "ordinary-failure", "metadata-success", "metadata-failure",
+  "ordinary-upgrade", "ordinary-success", "ordinary-failure", "metadata-success", "metadata-failure",
   "alignment-success", "alignment-failure",
 ]);
 export const DIRECT_DENIAL_CASES = Object.freeze([
@@ -43,13 +43,11 @@ export function assertFiniteCommand(root, name, command, executable) {
 export function assertRunEnvelope(manifest, options, root, name, executable) {
   assertCase(name);
   assert.ok(EXISTING_CASES.includes(name), "denial cases cannot use the scenario process route");
-  assert.deepEqual(options, name === "upgrade-guard"
+  assert.deepEqual(options, name === "ordinary-upgrade"
     ? { profile: "upgrade", json: true, ...(options.dryRun === true ? { dryRun: true } : {}) }
     : { profile: "current", json: true }, "unreviewed run options");
   const manifestPath = checkedChild(root, `manifest-${name}.json`);
-  assert.ok(manifest.manifestPath === manifestPath || (name === "upgrade-guard" &&
-    options.dryRun !== true && manifest.manifestPath === checkedChild(root, "does-not-exist", { absent: true })),
-  "unreviewed manifest path");
+  assert.equal(manifest.manifestPath, manifestPath, "unreviewed manifest path");
   assert.equal(manifest.hostPackage, "synthetic-host");
   assert.deepEqual(manifest.hostCompanionPackages, []);
   assert.deepEqual(Object.keys(manifest.profiles).sort(), ["current", "upgrade"]);

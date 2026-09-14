@@ -28,6 +28,13 @@ That relay also maintains a contrib-side evidence index (`scripts/pi-mono-compat
 This is an **addition**, not a reset of package-local testing.
 Package tests remain where they belong; the root canary binds them into one upgrade-oriented lane.
 
+The bespoke M3 SDK harness is retired: no SDK plans, custom artifact provisioning,
+consumption hooks, or SDK supervisor route remain in the canary. `--sdk-plan` and
+`--sdk-plan-sha256` are unknown arguments. Ordinary Pi dependencies and public Pi
+APIs remain in use; retiring that harness neither removes those dependencies nor
+establishes SDK qualification. Historical qualification packets, archives and
+frozen admission inputs remain evidence, not current execution prerequisites.
+
 ## Source of truth
 
 - Manifest: `policy/pi-host-compatibility-canary.json`
@@ -127,6 +134,9 @@ AK-4714 retired the temporary runner size exception by decomposing the implement
 - `host-state.mjs` — target ledgers, host snapshots, identity barriers, and npm command construction
 - `process.mjs` — subprocess capture and isolated npm environment handling
 - `command-wrapper.mjs` — process-group effect gate that waits until child identity is durably journaled
+- `completion.mjs` / `completion-boundary.mjs` — wrapper receipt/group checks and target/metadata verification on both zero and nonzero completion
+- `child-clearance.mjs` / `mutation-completion.mjs` — verified journal clearance and durable completion holds
+- `selected-tests.mjs` / `selected-tests-protocol.mjs` — exact top-level test selection with structured event proof and ordinary declared `--import` loaders
 - `host-lifecycle.mjs` — all-target preparation, alignment, restoration ordering, and final barriers
 - `state-files.mjs` — owner-only checksummed records, atomic replace/fsync, and Linux process identity
 - `state-schema.mjs` — exhaustive gate, lock, journal, target-state, and identity schema validation
@@ -165,7 +175,7 @@ Recursive deletion opens the selected directory without following symlinks and v
 
 Before every npm, scenario-command, or target-tree mutation, the runner durably writes intent. Before the first alignment subprocess, all declared targets become `alignment-exposed`, so a lifecycle script cannot mutate a later target that recovery would misclassify as untouched. Initially absent staging uses an exact run-ID/index path and a journaled 256-bit owner marker. After `mkdir`, the runner journals the stage inode before writing the marker. A `SIGKILL` in the narrower mkdir-to-inode-record window is recoverable only when that exact stage is effective-user-owned and still empty; any unmarked nonempty stage is preserved and fails closed. The marker and directories are fsynced before promotion.
 
-Mutating subprocesses start behind a Node wrapper gate. The wrapper reports its identity, waits while the parent journals that identity, then releases the command. On POSIX hosts the journal also records the wrapper-led process-group ID. If the parent dies first, the wrapper exits without starting the effect. If the parent dies after release, recovery refuses while either the wrapper or its process group is live. If only the wrapper dies while the parent survives, the parent terminates and proves the process group stopped before restoration.
+Mutating subprocesses start behind a Node wrapper gate. The wrapper reports its identity, waits while the parent journals that identity, then releases the command. On POSIX hosts the journal also records the wrapper-led process-group ID. If the parent dies first, the wrapper exits without starting the effect. If the parent dies after release, recovery refuses while either the wrapper or its process group is live. If wrapper completion or group inactivity is unverified, the parent holds completion and refuses restoration; it does not kill an unknown group to manufacture clearance. On both zero and nonzero scenario exits, target state and bound metadata must verify before exact-child clearance. Clearance or state-publication failure also holds completion, blocking restoration, later scenarios and automatic recovery.
 
 For ordinary alignment and restoration, both the canonical package root and the selected `node_modules` directory must be owned by the effective UID during preflight and again inside the wrapper's pre-release callback. Device/inode equality alone does not authorize npm execution.
 
@@ -219,6 +229,12 @@ Run against the root-owned pinned host contract recorded in `policy/pi-host-comp
 Run against an explicit candidate Pi host release supplied via:
 - `PI_HOST_COMPAT_HOST_VERSION`
 - `PI_HOST_COMPAT_CHANGELOG_REF`
+
+Both profiles use the ordinary wrapper, host alignment/restoration and recovery
+barriers. An effectful upgrade no longer requires the retired bespoke SDK route.
+It still requires an exact host contract, valid targets, and verified completion;
+a successful dry-run or synthetic regression is not a real package compatibility
+pass or permission to mutate an unadmitted checkout.
 
 ## Host/package upgrade boundary
 
@@ -351,7 +367,9 @@ Current command:
 
 ```bash
 cd packages/pi-autoresearch
-node --import tsx --test --test-name-pattern "segment closeout summarizes empirical decisions and candidate bindings|autoresearch_runtime_status can request closeout, setup, and finalize packets" tests/runtime.test.ts
+node ../../scripts/pi-host-compatibility-canary/selected-tests.mjs --cwd . --import tsx \
+  --case tests/runtime-closeout-adapters.test.ts 'segment closeout summarizes empirical decisions and candidate bindings' \
+  --case tests/runtime-status-actions.test.ts 'autoresearch_runtime_status can request closeout, setup, and finalize packets'
 ```
 
 Protected host surfaces:
@@ -360,7 +378,12 @@ Protected host surfaces:
 - candidate-result packet export seam
 - learning packet export seam
 
-This is the direct pi-autoresearch runtime/status/export scenario. It proves packet construction, local export paths, suggested owner handoff calls, and non-authority side-effect flags without launching peers or writing AK/KES/evidence.
+This selects exactly **two** existing top-level bodies. They exercise packet
+construction, local export paths, suggested owner handoffs and non-authority
+side-effect flags. They write temporary packet exports and invoke a Node example
+consumer, without launching peers or writing AK/KES authority. Install ordinary
+`tsx` and package dependencies before candidate alignment; the selector does not
+install them.
 
 ### `orchestrator-autoresearch-supervision-contract`
 Anchors the `pi-society-orchestrator` supervision/report choreography around `pi-autoresearch`: start a supervised campaign plan, report status for the exact session identity, and render the closeout path for owner review.
@@ -369,9 +392,10 @@ Current command:
 
 ```bash
 cd packages/pi-society-orchestrator
-npm --prefix ../pi-autoresearch ci >/dev/null
-npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null
-node --test --test-name-pattern "autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves" tests/autoresearch-live-control-plane.test.mjs
+node ../../scripts/pi-host-compatibility-canary/selected-tests.mjs --cwd . \
+  --case tests/live-control-plane/sessions-and-start-campaign.test.mjs 'autoresearch_live_supervision start/status/stop manages a live running session' \
+  --case tests/live-control-plane/sessions-and-start-campaign.test.mjs 'autoresearch_live_supervision start_campaign delegates execution then supervises' \
+  --case tests/live-control-plane/matrix-campaign-review.test.mjs 'autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves'
 ```
 
 Protected host surfaces:
@@ -380,7 +404,13 @@ Protected host surfaces:
 - registered tool execution result details
 - supervision report rendering for pi-autoresearch packet handoffs
 
-This scenario proves the orchestrator supervision scenario covers start_campaign/status/closeout seam while keeping package ownership truthful: `pi-autoresearch` owns runtime packets/receipts, and `pi-society-orchestrator` owns supervision/report choreography. Its declared package set includes `pi-autoresearch` because the command hydrates that package before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from `node_modules`.
+This selects exactly **three** existing top-level bodies. `pi-autoresearch` owns
+runtime packets/receipts; `pi-society-orchestrator` owns supervision/report
+choreography. Scheduling and observation use mocks, but `start_campaign` launches
+real synthetic benchmark/check scripts through pi-autoresearch and writes temporary
+receipts; matrix review writes temporary packets. Registration can create directories
+under HOME, so use synthetic HOME/TMPDIR. This is not a peer-launch, authority-write
+or promotion qualification.
 
 ### `orchestrator-autoresearch-matrix-closeout`
 Anchors the highest-stack supervised campaign path currently proven inside `pi-society-orchestrator`: matrix campaign planning, managed candidate-wave packet review, dashboard-first owner routing, and the matrix closeout evidence handoff.
@@ -389,9 +419,12 @@ Current command:
 
 ```bash
 cd packages/pi-society-orchestrator
-npm --prefix ../pi-autoresearch ci >/dev/null
-npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null
-node --test --test-name-pattern "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares" tests/autoresearch-live-control-plane.test.mjs
+node ../../scripts/pi-host-compatibility-canary/selected-tests.mjs --cwd . \
+  --case tests/live-control-plane/matrix-campaign.test.mjs 'autoresearch_live_supervision plan_matrix_campaign makes matrix cells the implementation-wave substrate' \
+  --case tests/live-control-plane/matrix-campaign.test.mjs 'autoresearch_live_supervision plan_matrix_campaign fails closed against level-2 packet-only narrowing' \
+  --case tests/live-control-plane/matrix-campaign-review.test.mjs 'autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves' \
+  --case tests/live-control-plane/matrix-campaign-review.test.mjs 'autoresearch_live_supervision review_matrix_campaign blocks proof-only review packet closure without downgrade' \
+  --case tests/live-control-plane/candidate-wave-review.test.mjs 'autoresearch_live_supervision review_candidate_wave compares measured lanes for owner selection'
 ```
 
 Protected host surfaces:
@@ -399,7 +432,33 @@ Protected host surfaces:
 - registered tool execution result details
 - extension report rendering for nested owner-route payloads
 
-This scenario intentionally does not run benchmarks, launch peers, merge candidates, or write AK/KES evidence. Its declared package set includes `pi-autoresearch` because the command hydrates that package before testing, and includes local ASC because the test installs that source package before loading the orchestration path. It protects the operator-visible choreography surface that tells the user which lower owner seam to use next.
+This selects exactly **five** existing top-level bodies, including both fail-closed
+cases. Planning/review uses mocked registration and synthetic candidate data; reviews
+write temporary packets and registration can create directories under HOME. Use
+synthetic HOME/TMPDIR. These bodies do not run benchmarks, launch peers, merge
+candidates or write AK/KES authority.
+
+For both orchestrator scenarios, prepare all dependencies, the pi-autoresearch
+sibling and the local ASC source build/link **before baseline capture and candidate
+alignment**. The workflow carries those preparation steps separately. Local ASC
+avoids raw Node stripping published TypeScript under `node_modules`; these `.mjs`
+entries need no `tsx` loader. The scenario commands never install dependencies;
+missing dependencies fail instead.
+
+### Exact-selection limits
+
+The retained selector requires exactly the declared **2 / 3 / 5** passing bodies,
+with structured per-file lifecycle events, counts and identities—not exit 0 or
+console TAP alone. Missing, extra, duplicate, skipped, todo, cancelled or failed
+selected bodies fail. Suites, nesting and imported registrations are unsupported;
+this does not replace the suite-nested session-compaction command above.
+
+Only Node **22.22.2** and **26.8.1** event dialects are supported; other versions fail
+before execution. Ordinary declared imports become Node `--import` arguments.
+File evaluation, hooks and imports can have effects: this is trusted-test selection,
+not a sandbox, SDK-consumption proof or assertion-quality proof. Abort handling and
+the parent-lifetime pipe remain; their process-group bounds do not contain escaped
+descendants or simultaneous adapter/worker hard death.
 
 ## How to run
 
@@ -471,6 +530,16 @@ node --test scripts/pi-host-compatibility-canary.recovery.test.mjs
 ```
 
 The normal root CI path now invokes both suites sequentially through `scripts/ci/full.sh`; the root `just test` surface mirrors the same ordering. Keep them sequential because both intentionally exercise the canonical-checkout lock. The dedicated scenario workflow remains a separate host-scenario matrix and does not replace either root runner suite.
+
+The root runner suite calls the retained 31-test selection regression suite and
+bounded completion source regressions, including a finite ordinary upgrade fixture;
+it also checks that retired SDK flags are rejected. Selection regressions create
+builtin-only fixtures and exercise real process interruption, retaining scratch.
+Completion source regressions use finite synthetic commands and a denied lifecycle
+executor, not package installs. Neither is real host qualification.
+`completion-fixture-inputs.json` remains frozen historical strict admission: changed
+source must not be admitted by silently refreshing its pins. The separate
+source-regression entry observes current trusted source without claiming approval.
 
 ### Manual workflow dispatch
 

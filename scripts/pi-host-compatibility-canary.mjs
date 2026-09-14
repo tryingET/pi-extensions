@@ -32,7 +32,7 @@ function usage() {
   node ./scripts/pi-host-compatibility-canary.mjs list [--manifest <path>] [--profile <name>] [--json]
   node ./scripts/pi-host-compatibility-canary.mjs status [--manifest <path>] [--json]
   node ./scripts/pi-host-compatibility-canary.mjs recover [--manifest <path>] [--apply] [--json]
-  node ./scripts/pi-host-compatibility-canary.mjs run [--manifest <path>] [--profile <name>] [--scenario <id>] [--fail-fast] [--dry-run] [--sdk-plan <path> --sdk-plan-sha256 <digest>] [--json]`);
+  node ./scripts/pi-host-compatibility-canary.mjs run [--manifest <path>] [--profile <name>] [--scenario <id>] [--fail-fast] [--dry-run] [--json]`);
 }
 
 function parseArgs(argv) {
@@ -50,16 +50,12 @@ function parseArgs(argv) {
 
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
-    if (["--manifest", "--profile", "--scenario", "--sdk-plan", "--sdk-plan-sha256"].includes(arg)) {
+    if (["--manifest", "--profile", "--scenario"].includes(arg)) {
       const value = rest[++index];
       if (!value) throw new Error(`${arg} requires a value`);
       if (arg === "--manifest") options.manifestPath = path.resolve(ROOT, value);
       else if (arg === "--profile") options.profile = value;
-      else if (arg === "--sdk-plan" || arg === "--sdk-plan-sha256") {
-        const key = arg === "--sdk-plan" ? "sdkPlan" : "sdkPlanSha256";
-        if (options[key]) throw new Error(`duplicate ${arg}`);
-        options[key] = value;
-      } else options.scenarioIds.push(value);
+      else options.scenarioIds.push(value);
       continue;
     }
     const flagName = {
@@ -74,8 +70,6 @@ function parseArgs(argv) {
   }
 
   if (options.apply && options.command !== "recover") throw new Error("--apply is only valid with recover");
-  if ((options.sdkPlan || options.sdkPlanSha256) && options.command !== "run")
-    throw new Error("SDK plan options are only valid with run");
   return options;
 }
 

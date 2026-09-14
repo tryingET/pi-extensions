@@ -134,19 +134,27 @@ if (name === "receipt-proxy") {
   assert.equal(session.finalize(), false);
   assert.throws(() => session.clearChild(), /completion hold/i);
   assert.deepEqual(readFileSync(session.journalRecord.path), heldBytes);
-} else if (name === "upgrade-guard") {
+} else if (name === "ordinary-upgrade") {
   const manifest = manifestFor([process.execPath, "-e", "void 0"]);
-  // Missing binding makes a late guard fail with ENOENT: ordering before recovery/alignment/state effects.
-  // The synthetic manifest has already been written by this fixture.
-  await assert.rejects(runPayload({ ...manifest, manifestPath: path.join(root, "does-not-exist") },
-    { ...options, profile: "upgrade" }), /required approved consumption.*outer completion integration.*unavailable/i);
-  await assert.rejects(runPayload(manifest, { ...options, profile: "upgrade" }), /integration.*unavailable/i);
-  assert.deepEqual(readdirSync(process.env.XDG_STATE_HOME), []);
   assert.equal(listPayload(manifest, { profile: "upgrade" }).scenarios.length, 2);
   assert.equal(resolveHostPayload(manifest, { profile: "upgrade" }).host.version, "0.84.3");
   assert.equal(resolveHostPayload(manifest, { profile: "current" }).host.version, "0.84.3");
   const dry = await runPayload(manifest, { ...options, profile: "upgrade", dryRun: true });
   assert.equal(dry.summary.dryRun, 2); assert.deepEqual(readdirSync(process.env.XDG_STATE_HOME), []);
+  // Finite zero-package commands use the ordinary wrapper/journal, never npm.
+  // Repetition requires verified clearance/finalization, not just command exit 0.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const run = await runPayload(manifest, { ...options, profile: "upgrade" });
+    assert.equal(run.profile, "upgrade");
+    assert.deepEqual(run.summary, { selected: 2, passed: 2, failed: 0, dryRun: 0 });
+    assert.equal(run.aborted, false);
+    for (const result of run.results) {
+      assert.equal(result.exitCode, 0); assert.equal(result.signal, null);
+      assert.equal(result.integrityFailed, undefined);
+      assert.equal(result.host.restoration.status, "skipped");
+    }
+    assert.equal(recoveryStatus(manifest).status, "clean");
+  }
 } else if (DIRECT_DENIAL_CASES.includes(name)) {
   const { spawnWithNeutralNpmEnv, DENIAL_CODE } = await import("./completion-fixture-denied-lifecycle.mjs");
   const command = denialCommand(name, process.execPath);

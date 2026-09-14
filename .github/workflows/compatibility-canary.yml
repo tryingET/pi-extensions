@@ -50,15 +50,13 @@ jobs:
           node-version: "22.22.2"
           package-manager-cache: false
 
-      - name: Check execution readiness before dependency effects
+      - name: Validate profile before dependency effects
         env:
           WORKFLOW_PROFILE: ${{ inputs.profile || 'current' }}
         run: |
           node --input-type=module <<'NODE'
-          import { requireUpgradeCompletionIntegration } from './scripts/pi-host-compatibility-canary/completion-boundary.mjs';
           const profile = process.env.WORKFLOW_PROFILE;
           if (!['current', 'upgrade'].includes(profile)) throw new Error('Unknown canary profile');
-          requireUpgradeCompletionIntegration(profile, false);
           NODE
 
       - name: Install governed npm client
