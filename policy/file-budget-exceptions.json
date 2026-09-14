@@ -656,12 +656,6 @@
       "reopen_trigger": "file grows past 1453 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "scripts/pi-host-compatibility-canary.test.mjs",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "(root) suite at 102% of the test budget (1022/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
-      "reopen_trigger": "suite grows past 1125 LOC or its package adopts a per-concern split pass"
-    },
-    {
       "path": "scripts/release-artifact.mjs",
       "owner": "softwareco/owned/pi-extensions",
       "reason": "Root release-artifact script at 121% of the code budget; sequential verification/release narrative over shared subprocess plumbing, split deferred to its next contract change.",
