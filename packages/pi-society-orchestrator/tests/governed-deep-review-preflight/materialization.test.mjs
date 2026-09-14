@@ -102,7 +102,8 @@ test("published package closures bind locks, filesystem entries, symlinks, and l
     assert.equal(nodeModulesLayout.paths.length, GOVERNED_RUNTIME_PACKAGES.length + 1);
     assert.equal(nodeModulesLayout.generation.root, realpathSync(staged.stagingRoot));
     const originalRootMode = nodeModulesLayout.rootMode;
-    chmodSync(nodeModulesLayout.root, 0o700);
+    // A restrictive caller umask may already have created mode 0700.
+    chmodSync(nodeModulesLayout.root, originalRootMode === 0o700 ? 0o750 : 0o700);
     assert.notEqual(verifyGovernedRuntimeNodeModulesLayout(root).rootMode, originalRootMode);
     chmodSync(nodeModulesLayout.root, originalRootMode);
 
@@ -168,7 +169,7 @@ test("published package closures bind locks, filesystem entries, symlinks, and l
     assert.equal(proof[firstPackage].publication.target, realpathSync(firstModules));
     assert.equal(proof[firstPackage].publication.generationRoot, realpathSync(staged.stagingRoot));
     const originalTargetMode = proof[firstPackage].publication.targetMode;
-    chmodSync(firstModules, 0o700);
+    chmodSync(firstModules, originalTargetMode === 0o700 ? 0o750 : 0o700);
     assert.notEqual(
       verifyGovernedRuntimePackageClosures(root)[firstPackage].publication.targetMode,
       originalTargetMode,

@@ -291,7 +291,8 @@ test("peer closure proof rejects links outside the materialized closure", () => 
     assert.deepEqual(proof.lockedPackagePaths, ["node_modules/example"]);
     assert.deepEqual(proof.physicalPackagePaths, ["node_modules/example"]);
     const originalNodeModulesMode = proof.nodeModulesMode;
-    chmodSync(nodeModules, 0o700);
+    // Keep the drift probe non-vacuous under both ordinary and private umasks.
+    chmodSync(nodeModules, originalNodeModulesMode === 0o700 ? 0o750 : 0o700);
     assert.notEqual(
       verifyGovernedRuntimePeerClosure(root).nodeModulesMode,
       originalNodeModulesMode,
