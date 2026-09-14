@@ -66,7 +66,9 @@ export function createVisibleLaunchDispatchGuard(
     async beforeDispatch(): Promise<boolean> {
       try {
         const latest = await readAkTask(task.id, { akBinary });
-        return canonicalJsonString(latest) === expected && authorizeExactTask(latest, parentRoot).ok;
+        return (
+          canonicalJsonString(latest) === expected && authorizeExactTask(latest, parentRoot).ok
+        );
       } catch {
         return false;
       }

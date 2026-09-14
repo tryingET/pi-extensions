@@ -5,6 +5,7 @@ import { chmodSync, existsSync, readdirSync, readFileSync, statSync, writeFileSy
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { launchPiQuestSession as launchSharedTransport } from "../../pi-little-helpers/extensions/sidequestLaunch.ts";
 import { registerStandingAgentSpawnTool } from "../extensions/standing-agent-spawn.ts";
 import { sha256Hex } from "../src/dispatch-receipt.ts";
 import { reserveVisibleLaunchPair } from "../src/visible-launch-admission.ts";
@@ -20,8 +21,10 @@ import {
   visibleLaunchReceiptFileName,
   writeImmutableVisibleLaunchReceipt,
 } from "../src/visible-launch-receipt.ts";
-import { launchPiQuestSession as launchSharedTransport } from "../../pi-little-helpers/extensions/sidequestLaunch.ts";
-import { createVisibleLaunchDispatchGuard, hasVisibleLaunchTransportCapability } from "../src/visible-launch-transport.ts";
+import {
+  createVisibleLaunchDispatchGuard,
+  hasVisibleLaunchTransportCapability,
+} from "../src/visible-launch-transport.ts";
 import { PARENT_SESSION, setupWorld, transportResult } from "./visible-launch-fixtures.mjs";
 
 function assertNoEffects(outcome, reason) {
@@ -452,7 +455,11 @@ test("capability loader requires exact version; argv redaction never mistakes va
     { STANDING_AGENT_TRANSPORT_VERSION: 2, launchPiQuestSession: fn },
     { STANDING_AGENT_TRANSPORT_VERSION: 1 },
     { STANDING_AGENT_TRANSPORT_VERSION: 1, launchPiQuestSession: fn },
-    { STANDING_AGENT_TRANSPORT_VERSION: 1, STANDING_AGENT_DISPATCH_GUARD_VERSION: 0, launchPiQuestSession: fn },
+    {
+      STANDING_AGENT_TRANSPORT_VERSION: 1,
+      STANDING_AGENT_DISPATCH_GUARD_VERSION: 0,
+      launchPiQuestSession: fn,
+    },
   ]) {
     assert.equal(hasVisibleLaunchTransportCapability(mod), false);
   }
@@ -604,42 +611,52 @@ test("malformed/contradictory transport returns cannot prove no effects or sessi
   }
 });
 
-
 function guardedSharedTransport(onDescribe = async () => {}) {
   const calls = [];
   return {
     calls,
     transport: {
-      launchPiQuestSession: (request) => launchSharedTransport({
-        ...request,
-        pi: { getThinkingLevel: () => "low" },
-        options: {
-          env: { TERM_PROGRAM: "ghostty", GHOSTTY_SURFACE_ID: "1", PI_SIDEQUEST_LAUNCH_STAGGER_MS: "1" },
-          pathExists: () => true,
-          currentGhosttyAncestor: { pid: 111, exe: "/usr/bin/ghostty" },
-          readProcessExecutable: (pid) => pid === 111 ? "/usr/bin/ghostty" : undefined,
-          exec: async (command, args) => {
-            calls.push({ command, args });
-            if (args[0] === "+help") return { code: 0, stdout: "+new-tab\n+new-window" };
-            assert.equal(command, "busctl");
-            if (args[1] === "list") return { code: 0, stdout:
-              ":1.99 111 ghostty user :1.99 unit - -\ncom.mitchellh.ghostty 111 ghostty user :1.99 unit - -\n" };
-            if (args.includes("Describe")) {
-              await onDescribe();
-              return { code: 0, stdout: '(bgav) true "(tas)" 0' };
-            }
-            assert.ok(args.includes("Activate"));
-            return { code: 0, stdout: "" };
+      launchPiQuestSession: (request) =>
+        launchSharedTransport({
+          ...request,
+          pi: { getThinkingLevel: () => "low" },
+          options: {
+            env: {
+              TERM_PROGRAM: "ghostty",
+              GHOSTTY_SURFACE_ID: "1",
+              PI_SIDEQUEST_LAUNCH_STAGGER_MS: "1",
+            },
+            pathExists: () => true,
+            currentGhosttyAncestor: { pid: 111, exe: "/usr/bin/ghostty" },
+            readProcessExecutable: (pid) => (pid === 111 ? "/usr/bin/ghostty" : undefined),
+            exec: async (command, args) => {
+              calls.push({ command, args });
+              if (args[0] === "+help") return { code: 0, stdout: "+new-tab\n+new-window" };
+              assert.equal(command, "busctl");
+              if (args[1] === "list")
+                return {
+                  code: 0,
+                  stdout:
+                    ":1.99 111 ghostty user :1.99 unit - -\ncom.mitchellh.ghostty 111 ghostty user :1.99 unit - -\n",
+                };
+              if (args.includes("Describe")) {
+                await onDescribe();
+                return { code: 0, stdout: '(bgav) true "(tas)" 0' };
+              }
+              assert.ok(args.includes("Activate"));
+              return { code: 0, stdout: "" };
+            },
           },
-        },
-      }),
+        }),
     },
   };
 }
 
 test("real shared seam rereads task after Describe; changed owner returns a retained not-admitted receipt", async (t) => {
   const w = await setupWorld(t);
-  const h = guardedSharedTransport(async () => { w.patchTask({ claimed_by: "different-owner" }); });
+  const h = guardedSharedTransport(async () => {
+    w.patchTask({ claimed_by: "different-owner" });
+  });
   const result = await w.run({}, { transport: h.transport });
   assert.equal(result.ok, false);
   assert.equal(result.reason, "launch_failed");
@@ -661,7 +678,9 @@ test("real shared seam refuses lease expiry during identity wait and preserves r
   const expiry = clock + 60000;
   w.task.lease_expires_at = new Date(expiry).toISOString();
   w.patchTask({});
-  const h = guardedSharedTransport(async () => { clock = expiry; });
+  const h = guardedSharedTransport(async () => {
+    clock = expiry;
+  });
   const result = await w.run({}, { transport: h.transport });
   assert.equal(result.ok, false);
   assert.equal(result.reason, "launch_failed");
@@ -689,14 +708,21 @@ test("final owner guard rejects expired, changed, unreadable and malformed task 
   assert.equal(guard.dispatchDeadlineMs, Date.parse(w.task.lease_expires_at));
   assert.equal(await guard.beforeDispatch(), true);
   for (const patch of [
-    { status: "done" }, { claimed_by: "different-owner" }, { repo: w.agentRoot },
-    { lease_expires_at: "2000-01-01T00:00:00Z" }, { lease_expires_at: "invalid" },
+    { status: "done" },
+    { claimed_by: "different-owner" },
+    { repo: w.agentRoot },
+    { lease_expires_at: "2000-01-01T00:00:00Z" },
+    { lease_expires_at: "invalid" },
   ]) {
     w.patchTask(patch);
     assert.equal(await guard.beforeDispatch(), false);
   }
   writeFileSync(w.taskFile, "SECRET invalid JSON");
   assert.equal(await guard.beforeDispatch(), false);
-  const missing = createVisibleLaunchDispatchGuard(w.task, w.parentRoot, join(w.scratch, "missing-ak"));
+  const missing = createVisibleLaunchDispatchGuard(
+    w.task,
+    w.parentRoot,
+    join(w.scratch, "missing-ak"),
+  );
   assert.equal(await missing.beforeDispatch(), false);
 });
