@@ -242,12 +242,6 @@
       "reopen_trigger": "suite grows past 1138 LOC or its package adopts a per-concern split pass"
     },
     {
-      "path": "packages/pi-little-helpers/tests/sidequest.test.mjs",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "Sidequest launch/ghostty characterization suite at 106% of the test budget; surface-id capability probing added launch-vs-probe call selection coverage that belongs with the adjacent launch contract tests, and extraction needs a dedicated characterization pass not yet scheduled.",
-      "reopen_trigger": "file grows past 1166 LOC or the next owner-approved sidequest test-suite refactor"
-    },
-    {
       "path": "packages/pi-little-helpers/tests/visible-loop-child-checkpoint.test.mjs",
       "owner": "softwareco/owned/pi-extensions",
       "reason": "pi-little-helpers suite at 104% of the test budget (1039/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
