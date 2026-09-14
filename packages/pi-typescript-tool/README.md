@@ -121,7 +121,7 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Private, unpublished `0.1.0`; `releaseConfigMode: none`. No release map or
 publishing approval is implied by inherited publishConfig metadata. Host baseline
 remains template Pi 0.84.3 as scaffold history. Development pins follow the root
-compatibility policy (currently 0.84.3); package validation reads that policy rather
+compatibility policy (currently 0.84.4); package validation reads that policy rather
 than choosing a version from the installed Pi. The original port was tested on
 0.84.4; that historical observation is not a minimum-version requirement.
 Host peers use `*` as Pi requires, not a universal

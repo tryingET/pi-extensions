@@ -23,7 +23,7 @@ pin matches the root's immutable commit recorded in local policy.
   The structure gate checks the runtime dependency, not a dev-only compiler.
 - Template host baseline **0.84.3** is historical scaffold metadata. The root
   `policy/pi-host-compatibility-canary.json` owns the current exact development
-  baseline (currently **0.84.3**). Dev validator/tests load it through the root
+  baseline (currently **0.84.4**). Dev validator/tests load it through the root
   `host-contract.mjs` helper; no installed-host or literal development fallback.
   Align `devTestFloor`, declared Pi pins and npm-generated lock together. Host
   peers remain `*`, not universal compatibility proof. typebox is a host peer

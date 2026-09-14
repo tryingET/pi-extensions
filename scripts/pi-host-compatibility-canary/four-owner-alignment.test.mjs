@@ -24,7 +24,7 @@ const OWNERS = [
   "@earendil-works/pi-agent-core",
 ];
 const AGENT_CORE = OWNERS[3];
-const CURRENT = "0.84.3";
+const CURRENT = "0.84.4";
 const rawStock = () => loadManifest(DEFAULT_MANIFEST_PATH);
 const stock = () => validateManifest(rawStock(), DEFAULT_MANIFEST_PATH);
 const stockHost = () => resolveProfileHost(stock(), "current");
@@ -84,7 +84,7 @@ for (const companions of [undefined, [], ["@fixture/z", "@fixture/a"]]) {
     const host = resolveProfileHost(manifest, "current");
     assert.deepEqual(host.companionPackages, companions ?? []);
     assert.deepEqual(buildInstallCommand(host), install([
-      "@fixture/host@0.84.3", ...(companions ?? []).map((name) => `${name}@0.84.3`),
+      `@fixture/host@${CURRENT}`, ...(companions ?? []).map((name) => `${name}@${CURRENT}`),
     ]));
   });
 }

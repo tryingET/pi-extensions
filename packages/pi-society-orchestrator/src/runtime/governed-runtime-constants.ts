@@ -24,7 +24,7 @@ export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.3.7";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
 
-export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.3";
+export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.4";
 
 export const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
   "@earendil-works/pi-agent-core",
@@ -68,7 +68,7 @@ export const GOVERNED_RUNTIME_ASC_COMPILER = {
 export const GOVERNED_RUNTIME_HOST_PEERS = {
   "@earendil-works/pi-ai": {
     integrity:
-      "sha512-M0YUV8vNO3y2WwWSyY8ijKJV5W4gkSUixuvk+Z00ZBjsyMfsdXfITsHEwP1UIf09YRWXT6oGn0GlCamt+P32XQ==",
+      "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -84,12 +84,12 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-agent-core": {
     integrity:
-      "sha512-VURr+xBRl3RxYcw3kT9Pn3yfi6LbRoCJgHF7h1mAblMjtLNV/MfG/RyF0uJizBAM886AEakSiw3j9c/aSngppg==",
+      "sha512-HyUnjaOXj6oN/6SNcr8A1J/ElRQA50FtIE0XUTSKAQVqmdlb9qdojOyUQwF/jULE5+yOEtGuVgi/N1RnBiNG+g==",
     consumers: [],
   },
   "@earendil-works/pi-coding-agent": {
     integrity:
-      "sha512-Yr2p9PubrbFZmYEPYI+C8KmZP9xlFuLDnAG64RtU0ZDgrdiXYWa+y7WGyJO5OlqPliOkVCMd9IzVszO3/t0D0w==",
+      "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -106,7 +106,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-tui": {
     integrity:
-      "sha512-fS6OEQKEEALnKa6Uw8LcgZZ+9CWck7f3MQSCETQp6leUgIFwMEDtKmOUnL9nsYm+RIPmy7OmplVxYRbV6hiaFg==",
+      "sha512-nPUnwDkLtupPXnZQYrCwPFcuTydCDqTY6ZbFqhsL4S4kVq0AT418kPa/6uXwtaCD+MjBNBltb7ScTYX65yeE1w==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-society-orchestrator",
@@ -122,27 +122,27 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
 export const GOVERNED_RUNTIME_HOST_CACHE_TARBALLS = {
   "@earendil-works/pi-ai": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.3.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.4.tgz",
     integrity:
-      "sha512-M0YUV8vNO3y2WwWSyY8ijKJV5W4gkSUixuvk+Z00ZBjsyMfsdXfITsHEwP1UIf09YRWXT6oGn0GlCamt+P32XQ==",
+      "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==",
   },
   "@earendil-works/pi-agent-core": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.84.3.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.84.4.tgz",
     integrity:
-      "sha512-VURr+xBRl3RxYcw3kT9Pn3yfi6LbRoCJgHF7h1mAblMjtLNV/MfG/RyF0uJizBAM886AEakSiw3j9c/aSngppg==",
+      "sha512-HyUnjaOXj6oN/6SNcr8A1J/ElRQA50FtIE0XUTSKAQVqmdlb9qdojOyUQwF/jULE5+yOEtGuVgi/N1RnBiNG+g==",
   },
   "@earendil-works/pi-coding-agent": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.3.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.4.tgz",
     integrity:
-      "sha512-Yr2p9PubrbFZmYEPYI+C8KmZP9xlFuLDnAG64RtU0ZDgrdiXYWa+y7WGyJO5OlqPliOkVCMd9IzVszO3/t0D0w==",
+      "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==",
   },
   "@earendil-works/pi-tui": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.84.3.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.84.4.tgz",
     integrity:
-      "sha512-fS6OEQKEEALnKa6Uw8LcgZZ+9CWck7f3MQSCETQp6leUgIFwMEDtKmOUnL9nsYm+RIPmy7OmplVxYRbV6hiaFg==",
+      "sha512-nPUnwDkLtupPXnZQYrCwPFcuTydCDqTY6ZbFqhsL4S4kVq0AT418kPa/6uXwtaCD+MjBNBltb7ScTYX65yeE1w==",
   },
 } as const;
 

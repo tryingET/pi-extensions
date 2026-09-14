@@ -37,7 +37,8 @@ remains available when discovery is unavailable or insufficient.
 
 **Supported acquisition platform: Linux.** macOS and Windows currently refuse code
 acquisition; installing on those systems does not remove that boundary. Tested Pi
-host line: `0.84.3`. Automatic provider selection remains off.
+host line: `0.84.3` (historical). The `0.84.4` development baseline is not yet tested.
+Automatic provider selection remains off.
 
 From an updated `pi-extensions` checkout, install the package into an existing Pi:
 
