@@ -53,6 +53,9 @@ async function executableRuntime(script: string): Promise<{
   await mkdir(path.join(root, "rocs_cli"), { mode: 0o755 });
   const source = Buffer.from("# source\n");
   await writeFile(path.join(root, "rocs_cli", "__init__.py"), source, { mode: 0o644 });
+  // The manifest binds exact mode bits; writeFile's mode is filtered by the caller's umask.
+  await chmod(path.join(root, "rocs_cli", "__init__.py"), 0o644);
+  assert.equal((await lstat(path.join(root, "rocs_cli", "__init__.py"))).mode & 0o777, 0o644);
   const lock = Buffer.from("lock\n");
   const entrypoint = Buffer.from("entry\n");
   const interpreter = Buffer.from(script);
@@ -257,6 +260,7 @@ test("complete immediate reverification detects content and inode replacement be
     const source = path.join(second.location.root, "rocs_cli", "__init__.py");
     const replacement = path.join(second.location.root, "replacement.py");
     await writeFile(replacement, "# source\n", { mode: 0o644 });
+    await chmod(replacement, 0o644); // Isolate inode replacement from mode drift.
     await rename(replacement, source);
     await assert.rejects(() => lease.reverifyInodes(), /inode drift/);
   } finally {
