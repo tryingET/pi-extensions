@@ -41,7 +41,8 @@ function walkPackageRoots(rootDir) {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name === "node_modules") continue;
+      // Distribution manifests describe emitted artifacts, not authored package surfaces.
+      if (entry.name === "node_modules" || entry.name === "dist") continue;
       if (entry.name.startsWith(".")) continue;
       visit(path.join(dirPath, entry.name));
     }

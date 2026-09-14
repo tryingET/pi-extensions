@@ -40,7 +40,12 @@ JSON form:
 node ./scripts/engineering-review-surfaces.mjs --json
 ```
 
-The script enumerates every package root under `packages/` and reports whether it still carries:
+The script enumerates authored package roots under `packages/`, excluding `node_modules`,
+hidden directories and generated `dist` trees. Emitted manifests such as
+`packages/pi-little-helpers/dist/task-session/package.json` do not create another
+package-local engineering surface or turn their owner into a package group. Private
+and nested authored packages remain included; artifact/release validation is separate.
+It reports whether each authored package still carries:
 
 - package-local `docs/engineering.local.md`
 - package-local `policy/engineering-lane.json`

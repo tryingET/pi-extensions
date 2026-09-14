@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -127,6 +128,39 @@ test("root capabilities points operators to the live inventory and audit helpers
     "scripts/engineering-review-surfaces.mjs",
     "root-capabilities.md should reference the live engineering audit helper",
   );
+});
+
+test("engineering audit ignores generated dist without losing authored nested or private packages", () => {
+  const fixture = fs.mkdtempSync(path.join(tmpdir(), "engineering-audit-"));
+  const script = path.join(fixture, "scripts", "engineering-review-surfaces.mjs");
+  const addPackage = (relative, manifest = { private: true }) => {
+    const root = path.join(fixture, relative);
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "package.json"), JSON.stringify(manifest));
+  };
+  const audit = () => JSON.parse(execFileSync(process.execPath, [script, "--json"], {
+    cwd: fixture, encoding: "utf8",
+  }));
+  try {
+    fs.mkdirSync(path.dirname(script), { recursive: true });
+    fs.copyFileSync(path.join(ROOT, "scripts", "engineering-review-surfaces.mjs"), script);
+    for (const name of ["helpers", "group", "group/private-child", "distribution-tools"]) {
+      addPackage(`packages/${name}`);
+    }
+    const before = audit();
+    assert.equal(before.summary.packageCount, 4);
+    assert.equal(before.packages.find(entry => entry.path === "packages/helpers").packageRole, "package-root");
+    assert.equal(before.packages.find(entry => entry.path === "packages/group").packageRole, "package-group-root");
+    for (const name of ["helpers/dist/task-session", "group/private-child/dist/nested/artifact",
+      "helpers/node_modules/dependency", "helpers/.cache/artifact"]) {
+      addPackage(`packages/${name}`, { name: "generated-artifact", private: false });
+    }
+    assert.deepEqual(audit(), before, "building distribution artifacts must not change authored engineering surfaces");
+    fs.rmSync(path.join(fixture, "packages", "helpers", "dist"), { recursive: true });
+    assert.deepEqual(audit(), before, "artifact removal must not change authored engineering surfaces");
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test("engineering review doc snapshot matches the live audit summary and package buckets", () => {
