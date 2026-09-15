@@ -1,0 +1,42 @@
+name: Export pinned current context-packer runtime
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-current-runtime-export.yml]
+permissions:
+  contents: read
+jobs:
+  provision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: e54cc3a396250590f6b74ca6f900bd4f012f9c5d
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.22.2'
+          package-manager-cache: false
+      - name: Install locked dependencies without source lifecycle scripts
+        working-directory: packages/pi-context-packer
+        env:
+          NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
+        run: npm ci --ignore-scripts
+      - name: Export only package runtime and pinned Node
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/export"
+          cp -a packages/pi-context-packer/node_modules "$RUNNER_TEMP/runtime/"
+          cp packages/pi-context-packer/package-lock.json "$RUNNER_TEMP/runtime/"
+          cp "$(command -v node)" "$RUNNER_TEMP/runtime/node"
+          node --version > "$RUNNER_TEMP/runtime/node-version.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/runtime/source-sha.txt"
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/export/current-runtime.tgz" runtime
+          sha256sum "$RUNNER_TEMP/export/current-runtime.tgz" > "$RUNNER_TEMP/export/runtime.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ripwire-current-pinned-runtime
+          path: ${{ runner.temp }}/export
+          retention-days: 14
