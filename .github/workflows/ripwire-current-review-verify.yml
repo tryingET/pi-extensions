@@ -1,0 +1,102 @@
+name: Verify current-main ripwire compatibility fixes
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-current-review-verify.yml]
+permissions:
+  contents: read
+jobs:
+  import:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Import only the exact reviewed commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ripwire-stack/current-main-20260915-{0,1,2}.b64 | base64 --decode > "$RUNNER_TEMP/candidate.bundle"
+          printf '0e56b593a3e8ae5cfb56a3cf5509bb43e9ee630bbd20056d6fb355a820c1c5e2  %s\n' "$RUNNER_TEMP/candidate.bundle" | sha256sum --check
+          git bundle verify "$RUNNER_TEMP/candidate.bundle"
+          git fetch "$RUNNER_TEMP/candidate.bundle" HEAD
+          test "$(git rev-parse FETCH_HEAD)" = a62a83e627f828b78d3be6dfa5d89c22f4bf50b3
+          test "$(git rev-parse FETCH_HEAD^{tree})" = 941c5164d5cb9c05a05a1a1e0e4315df27104f9f
+          test "$(git rev-parse FETCH_HEAD^)" = e54cc3a396250590f6b74ca6f900bd4f012f9c5d
+          ref=refs/heads/fix/context-packer-current-main
+          current=$(git ls-remote --heads origin "$ref" | cut -f1)
+          if test -n "$current"; then test "$current" = a62a83e627f828b78d3be6dfa5d89c22f4bf50b3; else git push origin "a62a83e627f828b78d3be6dfa5d89c22f4bf50b3:$ref"; fi
+  verify:
+    needs: import
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: a62a83e627f828b78d3be6dfa5d89c22f4bf50b3
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.22.2'
+          package-manager-cache: false
+      - name: Verify candidate and isolate runtime locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a62a83e627f828b78d3be6dfa5d89c22f4bf50b3
+          test "$(git rev-parse HEAD^{tree})" = 941c5164d5cb9c05a05a1a1e0e4315df27104f9f
+          git merge-base --is-ancestor 555fb3ab6ba51adfa3b837836e6c743dff57a0fa HEAD
+          mkdir -p "$RUNNER_TEMP/review-evidence" "$RUNNER_TEMP/review-tmp" "$RUNNER_TEMP/review-npm"
+          echo "PI_EXTENSIONS_TMPDIR=$RUNNER_TEMP/review-tmp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$RUNNER_TEMP/review-tmp" >> "$GITHUB_ENV"
+          echo "NPM_CONFIG_CACHE=$RUNNER_TEMP/review-npm" >> "$GITHUB_ENV"
+          echo "TERM=xterm" >> "$GITHUB_ENV"
+          npm install --global --prefix "$RUNNER_TEMP/npm-tools" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-tools/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/packages/pi-context-packer/node_modules/.bin" >> "$GITHUB_PATH"
+          git rev-parse HEAD HEAD^{tree} HEAD^ > "$RUNNER_TEMP/review-evidence/candidate.txt"
+      - name: Install current locked package and Pi dependencies
+        working-directory: packages/pi-context-packer
+        run: npm ci --ignore-scripts
+      - name: Build pinned ripwire without installer or agent skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/redhat-et/ripwire.git "$RUNNER_TEMP/ripwire-source"
+          git -C "$RUNNER_TEMP/ripwire-source" checkout --detach 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          test "$(git -C "$RUNNER_TEMP/ripwire-source" rev-parse HEAD)" = 93c8edaafdb5499e89939cc2cebd0429e278e86f
+          cmake -S "$RUNNER_TEMP/ripwire-source" -B "$RUNNER_TEMP/ripwire-build" -DCMAKE_BUILD_TYPE=Release -DRIPWIRE_TESTS=OFF > "$RUNNER_TEMP/review-evidence/ripwire-build.log" 2>&1
+          cmake --build "$RUNNER_TEMP/ripwire-build" --target ripwire -j2 >> "$RUNNER_TEMP/review-evidence/ripwire-build.log" 2>&1
+          "$RUNNER_TEMP/ripwire-build/ripwire" --version > "$RUNNER_TEMP/review-evidence/ripwire-version.txt"
+          sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" > "$RUNNER_TEMP/review-evidence/ripwire-binary.sha256"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_BIN=$RUNNER_TEMP/ripwire-build/ripwire" >> "$GITHUB_ENV"
+          echo "PI_CONTEXT_PACKER_RIPWIRE_SHA256=$(sha256sum "$RUNNER_TEMP/ripwire-build/ripwire" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+      - name: Full networked release check and isolated Pi installation
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run release:check 2>&1 | tee "$RUNNER_TEMP/review-evidence/full-release-check.log"
+      - name: Cumulative exact-candidate packed and registered Pi dogfood
+        working-directory: packages/pi-context-packer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dogfood:gate -- --gate RW-10 --candidate-sha a62a83e627f828b78d3be6dfa5d89c22f4bf50b3 --output-dir "$RUNNER_TEMP/review-evidence/gates" 2>&1 | tee "$RUNNER_TEMP/review-evidence/dogfood.log"
+      - name: Downstream compaction contract and current package source coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test packages/pi-session-compaction/tests/p1-continuity-recall.test.mjs 2>&1 | tee "$RUNNER_TEMP/review-evidence/compaction-consumer.log"
+          node packages/pi-context-packer/scripts/dogfood-monorepo.mjs --repo "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/review-evidence/monorepo.json"
+          test -z "$(git status --porcelain)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ripwire-current-main-compatibility-evidence
+          path: ${{ runner.temp }}/review-evidence
+          retention-days: 30
