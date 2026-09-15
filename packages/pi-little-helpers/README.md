@@ -53,6 +53,13 @@ Use `pi-task-session profiles` to discover existing profile hashes and exact req
 It reports profile preflight only, not producer/task readiness, and does not publish or activate anything.
 Build with `npm run task-session:build`; focused isolated tests: `npm run task-session:test`.
 Linux x64 N-API support is built at package build time, never on runtime fallback.
+A C compiler and pre-provisioned Node-API headers are required. Builds first check
+`include/node` beside the active Node installation (including version-managed Node),
+then system include directories. For a custom toolchain, set `NODE_INCLUDE_DIR` to
+an absolute directory containing the Node-API headers. An invalid explicit path
+fails closed; the build never downloads headers or installs a compiler.
+The producer adapter is built by its owning `pi-society-orchestrator` package;
+that package also builds its declared export in `prepack`, independently of this one.
 
 ## Automatic ASC execution observer
 

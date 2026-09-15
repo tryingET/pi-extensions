@@ -63,3 +63,22 @@ Receipts identify the exact tested candidate, artifact and host. GitHub clean-in
 verification is separate from local reexecution with provisioned dependencies. The
 runtime marker is `ripwire-context-v3`. Automatic selection remains off. No package
 publication, new tool authority, or operator installation is part of this PR.
+
+## Release-matrix follow-up
+
+The full current-main release matrix exposed two existing task-session packaging
+failures outside context-packer: the native helper hardcoded `/usr/include/node`
+(absent under setup-node/version-managed Node), and the orchestrator declared a
+`dist/task-session` export that only a sibling build happened to produce.
+
+The narrow follow-up resolves already-provisioned headers beside the actual Node
+executable before system fallbacks, with an explicit validated `NODE_INCLUDE_DIR`
+override and no downloads. The orchestrator now owns a build/prepack step for its
+adapter; little-helpers calls the same owner builder instead of duplicating it.
+Protocol/deployment JSON bytes remain unchanged after TypeScript compilation.
+
+Focused tests cover header selection, missing/incomplete headers, a real native
+compile/load/lock cycle, and building/importing the adapter from an isolated source
+package without siblings or preexisting output. These tests do not claim live AK,
+Ghostty, credentials, or task-launch admission. Full clean release checks remain
+required for all affected packages and their dependent release jobs.

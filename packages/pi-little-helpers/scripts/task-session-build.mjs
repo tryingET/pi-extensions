@@ -7,11 +7,17 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { buildTaskSessionAdapter } from "../../pi-society-orchestrator/scripts/task-session-build.mjs";
+import { resolveNodeHeaders } from "./task-session-node-headers.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 process.chdir(root);
+if (process.platform !== "linux" || process.arch !== "x64")
+  throw new Error("native_platform_unsupported");
+const nodeHeaders = resolveNodeHeaders();
 function run(command, args) {
   const r = spawnSync(command, args, { stdio: "inherit" });
   if (r.status !== 0) process.exit(r.status ?? 1);
@@ -43,23 +49,10 @@ run(process.execPath, [
   "src/task-session/viewer-entry.ts",
   "src/task-session/launch.ts",
 ]);
-run(process.execPath, [
-  "node_modules/typescript/bin/tsc",
-  "--target",
-  "ES2023",
-  "--lib",
-  "ES2024,DOM",
-  "--module",
-  "NodeNext",
-  "--moduleResolution",
-  "NodeNext",
-  "--strict",
-  "--skipLibCheck",
-  "--resolveJsonModule",
-  "--outDir",
-  "../pi-society-orchestrator/dist/task-session",
-  "../pi-society-orchestrator/src/runtime/task-session-adapter.ts",
-]);
+buildTaskSessionAdapter({
+  compilerPath: resolve(root, "node_modules/typescript/bin/tsc"),
+  compilerCwd: root,
+});
 run(process.execPath, [
   "node_modules/typescript/bin/tsc",
   "--noEmit",
@@ -91,8 +84,6 @@ writeFileSync(
     compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext },
   }).outputText,
 );
-if (process.platform !== "linux" || process.arch !== "x64")
-  throw new Error("native_platform_unsupported");
 // Build-time only. No install scripts/download/compiler fallback in emitted runtime.
 run("/usr/bin/cc", [
   "-shared",
@@ -102,7 +93,8 @@ run("/usr/bin/cc", [
   "-Wextra",
   "-Werror",
   "-Wno-misleading-indentation",
-  "-I/usr/include/node",
+  "-I",
+  nodeHeaders,
   "-DNAPI_VERSION=8",
   "-o",
   "dist/task-session/custody-linux-x64.node",
@@ -113,12 +105,6 @@ copyFileSync(
   "../pi-society-orchestrator/dist/task-session/task-session-adapter.js",
   "dist/task-session/producer-adapter.js",
 );
-// TypeScript reformats imported JSON. Restore owner contract bytes before hashing/packing.
-for (const name of ["protocol", "deployment"])
-  copyFileSync(
-    `../pi-society-orchestrator/src/runtime/task-session-${name}-v1.json`,
-    `../pi-society-orchestrator/dist/task-session/task-session-${name}-v1.json`,
-  );
 copyFileSync(
   "../pi-society-orchestrator/dist/task-session/task-session-protocol-v1.json",
   "dist/task-session/task-session-protocol-v1.json",
