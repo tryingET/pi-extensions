@@ -12,7 +12,7 @@ import { digest, stableRead } from "./ripwire-corpus.js";
 const MAX_ENTRY = 3 * 1024 * 1024;
 const inside = (root, path) => {
   const rel = relative(root, path);
-  return !rel || (!rel.startsWith("..") && !isAbsolute(rel));
+  return !rel || (rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel));
 };
 async function cacheDirectory(cacheRoot, sourceRoot) {
   if (process.platform !== "linux" || typeof cacheRoot !== "string" || !isAbsolute(cacheRoot))

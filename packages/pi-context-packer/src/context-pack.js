@@ -5,7 +5,7 @@ read_when:
 */
 
 import { execFile } from "node:child_process";
-import { open, realpath, stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { publicOmissionDetail, subprocessFailureDetail } from "./context-intake-safety.js";
@@ -26,6 +26,7 @@ import {
   buildSessionSection,
   shouldShowSessionSection,
 } from "./session-measurement.js";
+import { stableRead } from "./stable-source-read.js";
 
 const execFileAsync = promisify(execFile);
 const ESTIMATED_BYTES_PER_TOKEN = 4;
@@ -133,7 +134,7 @@ const readBoundedFile = async ({
 
   let fileStat;
   try {
-    fileStat = await stat(resolved.path);
+    fileStat = await stat(resolved.path, { bigint: true });
   } catch {
     return {
       item: undefined,
@@ -159,48 +160,29 @@ const readBoundedFile = async ({
   }
 
   let content;
-  let afterReadStat;
-  let handle;
-  let blockedDetail;
   try {
-    handle = await open(resolved.path, "r");
-    const openedStat = await handle.stat();
-    if (
-      openedStat.dev !== fileStat.dev ||
-      openedStat.ino !== fileStat.ino ||
-      openedStat.size !== fileStat.size
-    ) {
-      blockedDetail = `${pathSeed}: changed before read`;
-    } else {
-      content = await handle.readFile("utf8");
-      afterReadStat = await handle.stat();
-    }
+    content = (
+      await stableRead(resolved.path, Math.min(budgetBytes, MAX_ITEM_BYTES), {
+        expected: fileStat,
+        // Preserve non-code support on hosts without POSIX no-follow. The code
+        // provider still requires it; all hosts retain bounded reads and identity checks.
+        requireNoFollow: false,
+      })
+    ).toString("utf8");
   } catch {
-    blockedDetail = `${pathSeed}: read failed; raw filesystem error output omitted`;
-  }
-
-  try {
-    await handle?.close();
-  } catch {
-    blockedDetail = `${pathSeed}: close failed; raw filesystem error output omitted`;
-  }
-
-  if (blockedDetail) {
     return {
       item: undefined,
-      omission: { provider, reason: "blocked", detail: blockedDetail },
+      omission: {
+        provider,
+        reason: "blocked",
+        detail: `${pathSeed}: stable bounded read failed; raw filesystem error output omitted`,
+      },
     };
   }
-
-  if (
-    afterReadStat.dev !== fileStat.dev ||
-    afterReadStat.ino !== fileStat.ino ||
-    afterReadStat.size !== fileStat.size ||
-    Buffer.byteLength(content) !== fileStat.size
-  ) {
+  if (BigInt(Buffer.byteLength(content)) !== fileStat.size) {
     return {
       item: undefined,
-      omission: { provider, reason: "blocked", detail: `${pathSeed}: changed during read` },
+      omission: { provider, reason: "blocked", detail: `${pathSeed}: source encoding changed` },
     };
   }
   if (contentAlreadyLoaded(loadedSystemPrompt, content)) {
