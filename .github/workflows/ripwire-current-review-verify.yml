@@ -80,8 +80,8 @@ jobs:
           node --test packages/pi-little-helpers/tests/task-session-build.test.mjs 2>&1 | tee "$RUNNER_TEMP/review-evidence/native-header-build.log"
           node packages/pi-little-helpers/scripts/task-session-build.mjs 2>&1 | tee "$RUNNER_TEMP/review-evidence/helper-build.log"
           node --test packages/pi-little-helpers/tests/task-session-producer.test.mjs 2>&1 | tee "$RUNNER_TEMP/review-evidence/producer-contract.log"
-          packages/pi-little-helpers/node_modules/.bin/biome check --config-path packages/pi-little-helpers/biome.jsonc packages/pi-little-helpers/scripts/task-session-build.mjs packages/pi-little-helpers/scripts/task-session-node-headers.mjs packages/pi-little-helpers/tests/task-session-build.test.mjs
-          packages/pi-society-orchestrator/node_modules/.bin/biome check --config-path packages/pi-society-orchestrator/biome.jsonc packages/pi-society-orchestrator/scripts/task-session-build.mjs packages/pi-society-orchestrator/tests/task-session-build.test.mjs
+          (cd packages/pi-little-helpers && node_modules/.bin/biome check scripts/task-session-build.mjs scripts/task-session-node-headers.mjs tests/task-session-build.test.mjs)
+          (cd packages/pi-society-orchestrator && node_modules/.bin/biome check scripts/task-session-build.mjs tests/task-session-build.test.mjs)
           test -z "$(git status --porcelain)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
