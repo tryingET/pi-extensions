@@ -60,7 +60,12 @@ function busctlListRows() {
       name,
       /^(?::[0-9]+\.[0-9]+|[A-Za-z_-][A-Za-z0-9_-]*(?:\.[A-Za-z_-][A-Za-z0-9_-]*)+)$/,
     );
-    if (pid === "-" && connection === "-" && !name.startsWith(":")) continue;
+    if (
+      pid === "-" &&
+      (connection === "-" || connection === "(activatable)") &&
+      !name.startsWith(":")
+    )
+      continue;
     assert.match(pid, /^[1-9][0-9]*$/);
     assert.ok(Number.isSafeInteger(Number(pid)));
     if (name === "org.freedesktop.DBus" && connection === "-") continue;

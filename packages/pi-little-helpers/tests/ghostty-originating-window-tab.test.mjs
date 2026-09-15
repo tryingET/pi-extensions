@@ -110,6 +110,25 @@ const daemonRows =
 const originRow = ":1.99 111 ghostty user :1.99 unit - -\n";
 const readableBuild = (pid) => (pid === 111 || pid === 222 ? ORIGIN_EXE : undefined);
 
+for (const marker of ["-", "(activatable)"]) {
+  test(`inactive well-known ${marker} rows are absence, never a Ghostty process identity`, async () => {
+    const inactive = `com.mitchellh.ghostty - - - ${marker} - - -\n`;
+    const resolveRows = (rows) =>
+      resolveControllerGhosttyDbusTarget({
+        controllerGhostty: { pid: 111, exe: ORIGIN_EXE },
+        surfaceId: "1",
+        readProcessExecutable: readableBuild,
+        execRunner: busctlList(rows),
+      });
+    assert.equal((await resolveRows(originRow + inactive))?.ownerPid, 111);
+    assert.equal(
+      await resolveRows(inactive),
+      undefined,
+      "an activatable daemon cannot back a nameless stub",
+    );
+  });
+}
+
 for (const surfaceId of ["1", "18446744073709551615", "0x1234"]) {
   test(`independent originator needs no daemon and preserves uint64 ${surfaceId}`, async () => {
     const target = await resolveControllerGhosttyDbusTarget({
@@ -165,6 +184,18 @@ const refusalCases = [
     surfaceId,
   })),
   { name: "empty listing", rows: "" },
+  {
+    name: "unique name cannot be activatable",
+    rows: `${originRow}:1.88 - - - (activatable) - - -\n`,
+  },
+  {
+    name: "owned name cannot use activatable marker",
+    rows: `${originRow}com.example.Other 222 ghostty user (activatable) - - -\n`,
+  },
+  {
+    name: "unknown inactive marker",
+    rows: `${originRow}com.example.Other - - - (inactive) - - -\n`,
+  },
   { name: "malformed row", rows: `not a bus row\n${daemonRows}` },
   { name: "internal blank row", rows: `${originRow}\n${daemonRows}` },
   { name: "duplicate unique row", rows: originRow + originRow + daemonRows },

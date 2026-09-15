@@ -421,7 +421,11 @@ export async function resolveControllerGhosttyDbusTarget({
       if (fields.length < 5 || !name || !connection || rows.has(name)) return undefined;
       if (!unique.test(name) && !named.test(name)) return undefined;
       // Activatable, currently unowned names are not process-identity evidence.
-      if (rawPid === "-" && connection === "-" && named.test(name)) {
+      if (
+        rawPid === "-" &&
+        (connection === "-" || connection === "(activatable)") &&
+        named.test(name)
+      ) {
         rows.set(name, { pid: null, connection });
         continue;
       }
