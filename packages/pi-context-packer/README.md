@@ -37,7 +37,7 @@ remains available when discovery is unavailable or insufficient.
 
 **Supported acquisition platform: Linux.** macOS and Windows currently refuse code
 acquisition; installing on those systems does not remove that boundary. Tested Pi
-host line: `0.84.3` (historical). The `0.84.4` development baseline is not yet tested.
+host line: `0.84.4` (installed registered-tool checks; not a live-model task pilot).
 Automatic provider selection remains off.
 
 From an updated `pi-extensions` checkout, install the package into an existing Pi:
@@ -121,8 +121,9 @@ The package does not apply edits, run validation commands, install tools, or mov
 
 After discovery, call `context_pack` with `providers.ripwire: "required"` and
 `code: { mode: "expand", selection: { path, name, line, contentSha256 } }`.
-Copy the repo-relative path, literal symbol, line and source SHA-256 from the discovery
-packet. The adapter rechecks source content and requires exactly one matching body;
+Copy the exact `code.selection.json` object from discovery, not the human-readable
+display labels. It preserves literal operator names and long paths. The fields are
+repo-relative path, literal name, line and source SHA-256. The adapter rechecks source content and requires exactly one matching body;
 a stale hash, mismatched line or ambiguous definition refuses instead of guessing.
 Body and ancillary-context omissions are explicit. Redacted output is not editable source.
 

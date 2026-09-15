@@ -30,7 +30,7 @@ import { runRegisteredToolSmoke } from "../src/runtime-smoke.ts";
 export const CONTEXT_PACKER_REGISTERED_TOOL_CONTRACT = Object.freeze({
   package: "@tryinget/pi-context-packer",
   registeredToolContract: "context-packer-registered-tools-v1",
-  runtimeBuild: "ripwire-context-v2",
+  runtimeBuild: "ripwire-context-v3",
   requiresCompactContextPlanDetails: true,
 });
 
