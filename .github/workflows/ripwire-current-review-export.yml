@@ -1,0 +1,34 @@
+name: Export current main for ripwire compatibility review
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-current-review-export.yml]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: e54cc3a396250590f6b74ca6f900bd4f012f9c5d
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact current source and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = e54cc3a396250590f6b74ca6f900bd4f012f9c5d
+          git merge-base --is-ancestor 555fb3ab6ba51adfa3b837836e6c743dff57a0fa HEAD
+          mkdir -p "$RUNNER_TEMP/review-export"
+          git update-ref refs/heads/review-current-main HEAD
+          git bundle create "$RUNNER_TEMP/review-export/current-main.bundle" refs/heads/review-current-main
+          git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/review-export/source-identity.txt"
+          sha256sum "$RUNNER_TEMP/review-export/current-main.bundle" > "$RUNNER_TEMP/review-export/bundle.sha256"
+          git diff --name-status 555fb3ab6ba51adfa3b837836e6c743dff57a0fa HEAD > "$RUNNER_TEMP/review-export/changes-since-ripwire.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ripwire-current-main-review-source
+          path: ${{ runner.temp }}/review-export
+          retention-days: 14
