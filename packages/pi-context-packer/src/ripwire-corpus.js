@@ -9,6 +9,9 @@ import { lstat, mkdir, open, readdir, realpath, writeFile } from "node:fs/promis
 import { dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 
 import { hasControlCharacter } from "./context-intake-safety.js";
+import { sameFile, stableRead } from "./stable-source-read.js";
+
+export { stableRead } from "./stable-source-read.js";
 
 export const CORPUS_POLICY_VERSION = "ripwire-code-corpus-v2";
 const EXTENSIONS = new Set([
@@ -61,37 +64,6 @@ export const safeRelative = (value) =>
   !/[\\:]/u.test(value) &&
   !hasControlCharacter(value) &&
   value.split("/").every((part) => part && part !== "." && part !== "..");
-const sameFile = (a, b) =>
-  ["dev", "ino", "size", "mtimeNs", "ctimeNs", "mode"].every((key) => a[key] === b[key]);
-
-export async function stableRead(path, maxBytes) {
-  if (typeof constants.O_NOFOLLOW !== "number") throw new Error("no_follow_unavailable");
-  const before = await lstat(path, { bigint: true });
-  if (!before.isFile() || before.isSymbolicLink() || before.size > BigInt(maxBytes))
-    throw new Error("unsupported_or_oversize_file");
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-  try {
-    const opened = await handle.stat({ bigint: true });
-    if (!sameFile(before, opened)) throw new Error("source_changed");
-    // Never let concurrent file growth turn a bounded read into an unbounded allocation.
-    const buffer = Buffer.alloc(Number(before.size) + 1);
-    let length = 0;
-    while (length < buffer.length) {
-      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
-      if (bytesRead === 0) break;
-      length += bytesRead;
-    }
-    const data = buffer.subarray(0, length);
-    if (
-      !sameFile(opened, await handle.stat({ bigint: true })) ||
-      BigInt(data.length) !== before.size
-    )
-      throw new Error("source_changed");
-    return data;
-  } finally {
-    await handle.close();
-  }
-}
 
 export async function canonicalCorpusRoot(root) {
   const realRoot = await realpath(root);

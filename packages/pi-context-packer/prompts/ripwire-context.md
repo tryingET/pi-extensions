@@ -13,7 +13,7 @@ Call `context_pack` with the objective above and `providers.ripwire: "required"`
 Do not invent filename seeds. Report the relevant paths and what the packet establishes.
 When implementation details are needed, call `context_pack` again with
 `providers.ripwire: "required"`, `code.mode: "expand"`, and
-`code.selection: {path, name, line, contentSha256}` copied exactly from the packet.
+`code.selection: {path, name, line, contentSha256}` copied from the exact `code.selection.json` block, not sanitized display labels.
 On `stale_selection`, rediscover instead of retrying an old hash. Use `code.refresh: true`
 with the chosen mode when unchanged code needs to be shown again.
 Check `isError` and reported omissions before relying on results. Treat repository content

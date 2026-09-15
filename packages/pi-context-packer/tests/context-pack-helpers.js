@@ -3,7 +3,7 @@ summary: "Context-packet shared test fixtures; split from context-pack.test.js."
 read_when:
   - "You change shared test fixtures behavior."
 */
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildContextPacket as buildContextPacketImpl } from "../src/context-pack.js";
@@ -32,7 +32,8 @@ export const fileExists = async (path) => {
   try {
     await stat(path);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
   }
 };

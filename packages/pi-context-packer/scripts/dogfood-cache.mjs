@@ -48,9 +48,12 @@ export async function cacheScenario() {
     assert.equal(corrupt.state.cache, "corrupt_miss");
     assert.deepEqual(corrupt.items, edited.items);
     const afterChanges = await fixtureDigest(root);
-    const refused = await collectRipwire(input, { cacheRoot: join(root, "badcache") });
-    assert.equal(refused.ok, false);
-    assert.equal(await fixtureDigest(root), afterChanges);
+    for (const name of ["badcache", "..cache"]) {
+      const refused = await collectRipwire(input, { cacheRoot: join(root, name) });
+      assert.equal(refused.ok, false);
+      assert.equal(refused.omissions[0].reason, "invalid_cache_root");
+      assert.equal(await fixtureDigest(root), afterChanges);
+    }
     return {
       gate: "RW-06",
       realBinary: true,
