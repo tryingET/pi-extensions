@@ -1,0 +1,31 @@
+name: Preserve reviewed release-build follow-up
+on:
+  push:
+    branches: [work/context-packer-ripwire-bootstrap]
+    paths: [.github/workflows/ripwire-release-followup-import.yml]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply readable patch and enforce complete tree and commit identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_INDEX_FILE="$RUNNER_TEMP/release-review.index"
+          git read-tree a62a83e627f828b78d3be6dfa5d89c22f4bf50b3
+          git apply --cached --recount .ripwire-stack/current-main-release-followup.patch
+          tree=$(git write-tree)
+          echo "Reviewed tree: $tree"
+          test "$tree" = 14885e93fe2edac76661489b9bea81cf13ac3773
+          printf 'tree %s\nparent a62a83e627f828b78d3be6dfa5d89c22f4bf50b3\nauthor OpenAI <noreply@openai.com> 1789501135 +0000\ncommitter OpenAI <noreply@openai.com> 1789501135 +0000\n\nfix(packaging): build task-session exports with the provisioned Node toolchain\n' "$tree" > "$RUNNER_TEMP/commit.txt"
+          commit=$(git hash-object -t commit -w "$RUNNER_TEMP/commit.txt")
+          test "$commit" = 6e4a4a2dc3625404cd83074852b09d80096bc803
+          ref=refs/heads/work/ripwire-release-followup-candidate
+          current=$(git ls-remote --heads origin "$ref" | cut -f1)
+          if test -n "$current"; then test "$current" = "$commit"; else git push origin "$commit:$ref"; fi
