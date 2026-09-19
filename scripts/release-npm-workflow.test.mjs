@@ -85,6 +85,23 @@ test("task-session build outputs exist before the package quality gate validates
   assert.ok(workflow.indexOf(build) < workflow.indexOf(gate));
 });
 
+test("helpers source peer runtime is installed before tagged-source and package checks", () => {
+  const workflow = fs.readFileSync(PUBLISH, "utf8");
+  const local = step(workflow, "Install local file dependency dependencies without lock repair");
+  const peer = step(workflow, "Install little-helpers source-test peer runtime dependencies");
+  const restored = step(workflow, "Verify dependency installation did not rewrite tagged source");
+  const gate = step(workflow, "Run package quality gate");
+  // The helpers fixture imports sibling source, not the optional npm peer copy.
+  // Its real broker launcher needs that sibling's locked development dependencies.
+  assert.match(peer, /^        if: env\.RELEASE_COMPONENT == 'pi-little-helpers'$/mu);
+  assert.match(peer, /^        working-directory: packages\/pi-peer-messaging$/mu);
+  assert.match(peer, /run: npm ci\s*$/u);
+  assert.doesNotMatch(peer, /continue-on-error|--omit|--production|--ignore-scripts/u);
+  assert.ok(workflow.indexOf(local) < workflow.indexOf(peer));
+  assert.ok(workflow.indexOf(peer) < workflow.indexOf(restored));
+  assert.ok(workflow.indexOf(restored) < workflow.indexOf(gate));
+});
+
 test("root quality gate executes npm state and workflow regression tests", () => {
   const full = fs.readFileSync(FULL, "utf8");
   assert.match(full, /node --test \.\/scripts\/release-npm-state\.test\.mjs/u);
