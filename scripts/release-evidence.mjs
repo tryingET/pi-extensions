@@ -4,7 +4,7 @@
  *
  * capture (VHS tapes under tapes/<package>/) -> publish (gh --attach) -> record (AK evidence).
  * Conventions: tapes/CONVENTIONS.md
- * Enforcement: .github/workflows/release-check.yml (require-release-evidence job).
+ * Enforcement: .github/workflows/release-evidence.yml (render-and-attach, final step).
  *
  * Usage:
  *   node scripts/release-evidence.mjs --pr 180 [--package pi-agent-registry]...

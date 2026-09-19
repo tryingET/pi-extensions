@@ -30,10 +30,35 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      # Evidence is about the PR head on both paths. A manual dispatch would otherwise
+      # check out the dispatching branch and overwrite the PR's comment with its tapes.
+      # Same-repo only, as on the pull_request path: the render step holds a user token.
+      - name: Resolve PR head commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$EVENT_HEAD_SHA" ]; then
+            # pull_request: this job's check is attached to the event's head; the job
+            # condition already requires a same-repo head.
+            echo "sha=${EVENT_HEAD_SHA}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          read -r sha cross < <(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" \
+            --json headRefOid,isCrossRepository --jq '"\(.headRefOid) \(.isCrossRepository)"')
+          if [ "$cross" != "false" ]; then
+            echo "::error::PR ${PR_NUMBER} comes from another repository; release evidence renders same-repo PRs only."
+            exit 1
+          fi
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout PR head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ steps.pr.outputs.sha }}
           fetch-depth: 1
 
       - name: Setup Node.js
@@ -94,3 +119,27 @@ jobs:
           GH_TOKEN: ${{ secrets.EVIDENCE_GH_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
         run: node ./scripts/release-evidence.mjs --pr "$PR_NUMBER" --edit-last
+
+      # The release-PR evidence gate. It runs after production in this job, so it cannot
+      # race the renderer, and it accepts only a comment naming this exact head commit,
+      # so an evidence comment left over from an earlier PR head never passes.
+      - name: Verify evidence comment for this exact head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse --short HEAD)"
+          comments="$RUNNER_TEMP/evidence-comments.json"
+          gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=100" > "$comments"
+          for_head=$(jq -s --arg head "(${head})\`" \
+            '[.[][].body | select(contains("<!-- release-evidence -->") and contains($head))]' "$comments")
+          if [ "$(jq 'length' <<<"$for_head")" -eq 0 ]; then
+            echo "::error::PR ${PR_NUMBER} has no release-evidence comment naming head ${head}. The render step above did not publish evidence for this commit; fix it and re-run this job (tapes/CONVENTIONS.md)."
+            exit 1
+          fi
+          if [ "$(jq '[.[] | select(contains("user-attachments"))] | length' <<<"$for_head")" -eq 0 ]; then
+            echo "::error::The release-evidence comment for head ${head} carries no uploaded attachments; re-run this job."
+            exit 1
+          fi
+          echo "release-evidence comment with attachments present for head ${head} on PR ${PR_NUMBER}"
