@@ -475,3 +475,41 @@ The operator asked for the ribbon to be more opaque, for inactive windows to car
 
 The two dials are independent: window opacity controls how much ground shows through, and the ground colour controls what shows.
 
+## Window ids on cards on 2026-09-19
+
+The operator asked to see each card's Niri window id on the ribbon. Agents and tools name windows by that id: `claude-window` prints `{"window_id": 43, ...}`, continuity receipts carry it, and sessions say "window 36". The ribbon showed one card per Ghostty terminal but no id, so there was no way to tell which card was window 43.
+
+### What already existed
+
+- **Observed:** the controller already put `windowId` on every card it sent the panel, because exact activation focuses that window. For a hidden tab it is the id of the window hosting the tab, since placement resolves a hidden tab to its host window. The panel ignored the field.
+- **Observed:** the workspace number the operator sees is Niri's workspace `idx`. The controller only used the internal workspace `id` for membership, and sent neither.
+
+### Protocol decision
+
+No written protocol rule existed. Every earlier card field (`processId`, `agentLabel`, `akTasks`, `surfaceVisible`) was added as an optional field under protocol 1. The panel reads every card field with a default and ignores unknown ones, and it drops any view that does not carry version 1. `workspaceIdx` follows the same pattern, so an older panel ignores it and a newer panel paired with an older controller draws no workspace number. Bumping the version would have made every mismatched pair drop all views. The README now states this rule.
+
+### The change
+
+- The controller adds `workspaceIdx` to each projected card, taken from the focused workspace's `idx`. A workspace without an integer `idx` reports none rather than an invented one.
+- The card footer starts with a `#43` chip: mono, a foreground tint with no border and no vertical padding, so it reads as a chip without making the footer line taller. It sits at the same place on every card and takes no room from the title. A first attempt placed it in the header next to the state pill, where it cut an AK-chip card's title down to six characters.
+- The detail gains a `window` row: `#43 · workspace 2`, or `host #43 · workspace 2` for a hidden tab. The row is a single line, because a wrapping label reserves a second line of height.
+- Tooltip and accessible label add `window 43`, or `host window 43` for a hidden tab.
+- The panel reads both new fields leniently: a value that is not an integer drops that one field instead of rejecting the whole view. Before this change the panel ignored `windowId`, so a strictly typed field would have added a way for one malformed card to blank the ribbon.
+- Niri's `WorkspacesChanged` event now triggers reconciliation. Reordering or removing a workspace renumbers the focused one without activating anything, and would otherwise only have shown after the 1.5 s fallback poll.
+
+### Evidence
+
+- Test-first: the controller tests failed on the missing `workspaceIdx` (3 failures), and the panel tests failed to compile on the missing fields and helpers, before either was implemented.
+- `npm run check` passed with 161 tests, lint, typecheck, structure, packaging and the file-budget gate.
+- `npm run native:build` restaged the receipted artifact under Rust 1.98.0 with 15 Rust tests, including optional-field parsing for present, `null`, absent and malformed ids, and the chip and row text for visible, hidden, unindexed and unplaced cards.
+- The panel was previewed in a nested Niri with fixture cards, driven over the child protocol with the operator's resolved Everforest Dark Hard and Everforest Light Med palettes. The operator's live ribbon was not restarted for the preview. On the shared session bus, GTK hands a second instance with the same application id over to the running live panel, which ignores that activation because it only shows on the controller's instruction. The preview therefore ran under a private session bus.
+- **Hazard found:** a private session bus with GTK accessibility enabled starts its own AT-SPI bus launcher. That launcher rebinds the desktop's `$XDG_RUNTIME_DIR/at-spi/bus_0`, and when the preview exits it leaves a dead socket at that path. The desktop's real accessibility bus keeps running on an unlinked socket that no new client can reach. Measured: the path's socket was created at the instant a preview panel started, `ss` showed the real `dbus-broker` still listening on its original inode, and the tab inventory helper aborted with `Connection refused`. The inventory had been `ready` before the first private-bus preview. Clients already connected are unaffected; new ones, including the ribbon's tab inventory, fail until the accessibility bus is restarted. A future preview must not start accessibility on a private bus (for example `GTK_A11Y=none` for the preview panel); that mitigation is untested. Here the accessibility bus was restarted with `systemctl --user restart at-spi-dbus-bus.service`, after which the inventory helper connected again. It then reported 0 Ghostty windows, because Ghostty processes still hold connections to the old bus and rejoin only when restarted; hidden tabs stay placed from remembered windows meanwhile.
+- Live proof after the operator's ribbon was restarted: workspace 2 showed 8 cards, one a hidden tab, and every chip checked against `niri msg -j windows` named a real window on that workspace. `#44` was the Claude Code session doing this work, `#52` a Pi tab, and `#34` the window hosting the hidden `dspx` tab, whose visible title belonged to another tab.
+- Measured on the captures: the compact band's bottom edge sits at y=91 before and after the change, so the chip adds no height. An expanded card grew by exactly the one new row, 22px (351 → 373 for a card with two-line rows, 320 → 342 for the hidden tab).
+
+### Boundaries
+
+- Hover detail was already taller than the documented 276px whenever the prompt, path or task rows wrap to two lines. With the preview fixture, the unchanged panel's expanded band already reached y=351, about 343px tall below its 8px margin. The exclusive zone is still 84px, so the detail overlays windows and never resizes them. This change adds one line to that height and leaves the existing overflow as it was.
+- Niri's `idx` counts workspaces per output. The ribbon's surface is not bound to an output, and multi-output behaviour is unimplemented, so with several outputs the number names the focused workspace on its own output without saying which output that is.
+- A named workspace still shows its `idx`, as the operator asked for the number, not the name.
+- Off Niri no window id exists, so no chip is drawn and the row reads `—`.

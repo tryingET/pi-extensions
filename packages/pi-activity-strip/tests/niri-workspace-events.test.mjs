@@ -124,3 +124,32 @@ test("window open, change, close, and focus events are forwarded alongside works
   assert.deepEqual(focused, [44, null]);
   watcher.stop();
 });
+
+test("workspace list changes are forwarded, since reordering renumbers the focused workspace", () => {
+  const stdout = new EventEmitter();
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.kill = () => {};
+  let workspaceChanges = 0;
+  const watcher = createNiriWorkspaceEventWatcher({
+    spawn: () => child,
+    env: { NIRI_SOCKET: "socket" },
+    onFocusedWorkspace: () => {},
+    onFallback: () => {},
+    onWorkspacesChanged: () => {
+      workspaceChanges += 1;
+    },
+    fallbackMs: 1500,
+    setIntervalFn: () => ({ unref() {} }),
+    clearIntervalFn: () => {},
+  });
+  stdout.emit(
+    "data",
+    `${[
+      '{"WorkspacesChanged":{"workspaces":[{"id":76,"idx":2,"is_focused":true}]}}',
+      '{"WindowsChanged":{"windows":[]}}',
+    ].join("\n")}\n`,
+  );
+  assert.equal(workspaceChanges, 1);
+  watcher.stop();
+});

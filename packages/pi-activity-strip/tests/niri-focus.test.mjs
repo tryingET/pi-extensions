@@ -11,6 +11,7 @@ import {
 import {
   resolveFocusedNiriWorkspace,
   resolveFocusedWorkspaceView,
+  resolveWorkspaceView,
 } from "../src/common/workspace-view.mjs";
 
 const sessionId = "019fa4d0-7142-7fb4-8d30-f98e951f0513";
@@ -473,6 +474,11 @@ test("focused workspace view places hidden Ghostty tabs through their host proce
   assert.equal(byId.get(hiddenSessionId).windowId, 44, "two tabs may share one window");
   assert.equal(byId.get(soloSessionId).placement, "host");
   assert.equal(byId.get(soloSessionId).windowId, 46);
+  assert.deepEqual(
+    [...byId.values()].map((session) => session.workspaceIdx),
+    [2, 2, 2],
+    "every card carries the workspace number the operator sees, not the workspace id",
+  );
   assert.equal(view.focusedCardId, "terminal:ghostty:main:16");
   assert.equal(view.focusedSessionId, sessionId);
 
@@ -502,6 +508,21 @@ test("focused workspace view places hidden Ghostty tabs through their host proce
       [orphanSessionId, "binding"],
     ],
     "remembered windows follow their workspace",
+  );
+  assert.deepEqual(
+    otherWorkspace.sessions.map((session) => [session.windowId, session.workspaceIdx]),
+    [
+      [47, 3],
+      [47, 3],
+    ],
+    "hidden tabs report their host window and its workspace number",
+  );
+
+  const unindexed = resolveWorkspaceView(windows, { id: 76, is_focused: true }, sessions, options);
+  assert.equal(unindexed.sessions.length, 3);
+  assert.ok(
+    unindexed.sessions.every((session) => session.workspaceIdx === null),
+    "a workspace without an index reports none rather than one invented",
   );
 });
 

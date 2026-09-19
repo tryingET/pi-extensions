@@ -73,6 +73,22 @@ pub struct Card {
     /// placed it through its host process, so activation presents the tab before focusing.
     #[serde(default)]
     pub surface_visible: Option<bool>,
+    /// Niri window id, so a window an agent or tool names by id can be found on the ribbon. A
+    /// hidden tab has no window of its own and carries the id of the window hosting it.
+    #[serde(default, deserialize_with = "lenient_integer")]
+    pub window_id: Option<i64>,
+    /// Niri workspace `idx`: the number the operator sees, not the internal workspace id.
+    #[serde(default, deserialize_with = "lenient_integer")]
+    pub workspace_idx: Option<i64>,
+}
+
+/// An optional label is not worth a view: a value that is not an integer drops the field rather
+/// than failing the whole message and every card in it.
+fn lenient_integer<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Value::deserialize(deserializer)?.as_i64())
 }
 
 impl Card {
@@ -177,6 +193,8 @@ pub fn demo_view() -> ViewMessage {
                 started_at: now - 135_000,
                 last_event_at: now - 4_000,
                 updated_at: now,
+                window_id: Some(36),
+                workspace_idx: Some(2),
                 ..empty_card()
             },
             Card {
@@ -202,6 +220,26 @@ pub fn demo_view() -> ViewMessage {
                     state: "active".into(),
                 }],
                 ak_task_overflow: 1,
+                window_id: Some(43),
+                workspace_idx: Some(2),
+                ..empty_card()
+            },
+            Card {
+                card_id: "demo-hidden".into(),
+                session_id: "demo-hidden".into(),
+                repo_label: "pi-extensions".into(),
+                phase: "Waiting behind another tab".into(),
+                state: "idle".into(),
+                detail: "Hidden tab placed through its Ghostty host window".into(),
+                cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions".into(),
+                started_at: now - 610_000,
+                last_event_at: now - 95_000,
+                updated_at: now,
+                pid: 48213,
+                agent_label: "Claude Code".into(),
+                surface_visible: Some(false),
+                window_id: Some(43),
+                workspace_idx: Some(2),
                 ..empty_card()
             },
         ],
@@ -231,6 +269,8 @@ fn empty_card() -> Card {
         ak_tasks: Vec::new(),
         ak_task_overflow: 0,
         surface_visible: None,
+        window_id: None,
+        workspace_idx: None,
     }
 }
 
@@ -251,6 +291,36 @@ mod tests {
         assert_eq!(view.sessions[0].pid, 4242);
         assert!(view.sessions[0].ak_tasks.is_empty());
         assert_eq!(view.sessions[0].ak_task_overflow, 0);
+    }
+
+    #[test]
+    fn window_and_workspace_numbers_are_optional_card_fields() {
+        let view: ViewMessage = serde_json::from_str(
+            r#"{"protocol":1,"type":"view","revision":9,"sessions":[{"cardId":"card-a","windowId":43,"workspaceIdx":2},{"cardId":"card-b","windowId":null,"workspaceIdx":null},{"cardId":"card-c"}]}"#,
+        )
+        .expect("view should parse");
+        assert_eq!(view.sessions[0].window_id, Some(43));
+        assert_eq!(view.sessions[0].workspace_idx, Some(2));
+        assert_eq!(view.sessions[1].window_id, None);
+        assert_eq!(view.sessions[1].workspace_idx, None);
+        assert_eq!(
+            view.sessions[2].window_id, None,
+            "controllers that send no window id still parse"
+        );
+        assert_eq!(view.sessions[2].workspace_idx, None);
+    }
+
+    #[test]
+    fn a_malformed_window_or_workspace_number_drops_only_that_field() {
+        let view: ViewMessage = serde_json::from_str(
+            r#"{"protocol":1,"type":"view","revision":10,"sessions":[{"cardId":"card-a","windowId":"43","workspaceIdx":2.5},{"cardId":"card-b","windowId":44,"workspaceIdx":3}]}"#,
+        )
+        .expect("a bad optional field must not reject the whole view");
+        assert_eq!(view.sessions.len(), 2);
+        assert_eq!(view.sessions[0].window_id, None);
+        assert_eq!(view.sessions[0].workspace_idx, None);
+        assert_eq!(view.sessions[1].window_id, Some(44));
+        assert_eq!(view.sessions[1].workspace_idx, Some(3));
     }
 
     #[test]

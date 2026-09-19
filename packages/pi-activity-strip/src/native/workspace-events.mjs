@@ -9,6 +9,8 @@
  * stream while retaining the slower poll as a fail-closed fallback. Window
  * open/change/close and focus events are forwarded so title changes that reveal
  * a Ghostty tab, or windows moving between workspaces, are seen between polls.
+ * Workspace list changes are forwarded too, because reordering or removing a
+ * workspace renumbers the focused one without activating anything.
  * @param {{
  *   spawn: typeof import("node:child_process").spawn;
  *   env: NodeJS.ProcessEnv;
@@ -17,6 +19,7 @@
  *   onWindowChanged?: (window: Record<string, unknown>) => void;
  *   onWindowClosed?: (windowId: number) => void;
  *   onWindowFocusChanged?: (windowId: number | null) => void;
+ *   onWorkspacesChanged?: () => void;
  *   fallbackMs: number;
  *   setIntervalFn?: typeof setInterval;
  *   clearIntervalFn?: typeof clearInterval;
@@ -56,6 +59,9 @@ export function createNiriWorkspaceEventWatcher(options) {
           ) {
             lastFocusedWorkspaceId = activation.id;
             options.onFocusedWorkspace(activation.id);
+          }
+          if (event && typeof event === "object" && "WorkspacesChanged" in event) {
+            options.onWorkspacesChanged?.();
           }
           const changedWindow = event?.WindowOpenedOrChanged?.window;
           if (changedWindow && typeof changedWindow === "object") {

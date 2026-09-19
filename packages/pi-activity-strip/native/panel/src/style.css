@@ -30,6 +30,7 @@ window {
 .brand-eyebrow,
 .meta,
 .card-state,
+.card-window,
 .card-tool,
 .card-elapsed,
 .inspector-key {
@@ -182,6 +183,18 @@ window {
 .inspector-key {
   color: alpha(@pi_foreground, 0.55);
   font-size: 8px;
+}
+
+/*
+ * The Niri window id, for finding a window an agent or tool names by id. A tint rather than a
+ * border and no vertical padding, so it reads as a chip without growing the footer line.
+ */
+.card-window {
+  background: alpha(@pi_foreground, 0.09);
+  border-radius: 999px;
+  color: alpha(@pi_foreground, 0.7);
+  font-size: 8px;
+  padding: 0 5px;
 }
 
 .inspector {

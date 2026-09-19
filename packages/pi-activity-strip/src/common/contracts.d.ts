@@ -19,6 +19,15 @@ export interface SessionSnapshot {
   publisherCount?: number;
   publisherIds?: string[];
   publisherRecordKeys?: string[];
+  publisherSessionIds?: string[];
+  akTasks?: AkTaskChip[];
+  akTaskOverflow?: number;
+  /** Niri window id; for a hidden tab, the window hosting it. */
+  windowId?: number | null;
+  /** Niri workspace `idx`, the number the operator sees, never the internal workspace id. */
+  workspaceIdx?: number | null;
+  placement?: "title" | "host" | "binding";
+  surfaceVisible?: boolean;
   cwd: string;
   repoLabel: string;
   sessionName: string;

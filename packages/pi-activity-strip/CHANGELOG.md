@@ -17,6 +17,7 @@ All notable changes to this project should be documented here.
 
 ### Features
 
+- Show each card's Niri window id as a quiet `#43` chip, so a window an agent or tool names by id can be found on the ribbon; a hidden tab shows the window hosting it. The card detail adds the window and the workspace number the operator sees (`idx`, not the internal workspace id). The workspace number travels as a new optional card field under child protocol 1, so older panels ignore it.
 - Draw the ribbon in Ghostty's own theme and follow the desktop between light and dark. The `theme` setting is resolved per colour scheme from the same files Ghostty reads, state colours reuse the terminal's meanings, and a change reloads one stylesheet rather than restarting the panel. `PI_ACTIVITY_STRIP_COLOR_SCHEME` pins one scheme.
 - Draw the ribbon's surface fully opaque, so it stays the one fixed ground while inactive windows are dimmed by the compositor.
 - Inset the surface by the compositor's own window gap on three sides and round it to the same radius as tiled windows, so the ribbon reads as a peer of them instead of a bar fused to the screen edge. The reservation grows from 84px to 92px accordingly.

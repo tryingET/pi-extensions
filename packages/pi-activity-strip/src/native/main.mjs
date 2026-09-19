@@ -475,6 +475,7 @@ async function main() {
         if (placement.forgetWindow(windowId)) reconcileRunner.request();
       },
       onWindowFocusChanged: () => reconcileRunner.request(),
+      onWorkspacesChanged: () => reconcileRunner.request(),
       fallbackMs: ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
     });
   }

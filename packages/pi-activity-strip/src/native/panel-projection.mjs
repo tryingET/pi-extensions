@@ -11,7 +11,7 @@ import { projectSessionCards, sessionRecordKey } from "../common/session-cards.m
 /** @typedef {Record<string, unknown>} SessionRecord */
 /** @typedef {{generatedAt: number; sessions: SessionRecord[]}} Snapshot */
 /** @typedef {{workspace: Record<string, unknown> | null; sessions: SessionRecord[]; focusedSessionId: string | null; focusedCardId?: string | null}} WorkspaceView */
-/** @typedef {{placement: string; surfaceVisible: boolean; windowId: number | null}} CardPlacement */
+/** @typedef {{placement: string; surfaceVisible: boolean; windowId: number | null; workspaceIdx: number | null}} CardPlacement */
 /** @typedef {{isNiriSession: () => boolean; publish: (view: Record<string, unknown> & {type: string; sessions: SessionRecord[]}) => void}} NativePanelProjectionOptions */
 
 /** @param {NativePanelProjectionOptions} options */
@@ -137,6 +137,9 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
             placement: String(session.placement ?? "title"),
             surfaceVisible: session.surfaceVisible !== false,
             windowId: Number.isInteger(session.windowId) ? Number(session.windowId) : null,
+            workspaceIdx: Number.isInteger(session.workspaceIdx)
+              ? Number(session.workspaceIdx)
+              : null,
           },
         ]),
       );

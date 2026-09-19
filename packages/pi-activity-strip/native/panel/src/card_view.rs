@@ -16,6 +16,7 @@ pub struct CardView {
     phase: gtk::Label,
     repo: gtk::Label,
     state: gtk::Label,
+    window: gtk::Label,
     tool: gtk::Label,
     elapsed: gtk::Label,
     detail: gtk::Label,
@@ -23,6 +24,7 @@ pub struct CardView {
     reply: gtk::Label,
     path: gtk::Label,
     pid: gtk::Label,
+    window_detail: gtk::Label,
     agent: gtk::Label,
     task: gtk::Label,
     activation: gtk::Label,
@@ -60,9 +62,14 @@ impl CardView {
 
         let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         footer.set_margin_top(5);
+        // The Niri window id, so a window an agent or tool names by id can be found on the ribbon.
+        // It leads the footer so it sits at the same place on every card and costs the title nothing.
+        let window = label("card-window", gtk::Align::Start);
+        window.set_visible(false);
         let tool = label("card-tool", gtk::Align::Start);
         tool.set_hexpand(true);
         let elapsed = label("card-elapsed", gtk::Align::End);
+        footer.append(&window);
         footer.append(&tool);
         footer.append(&elapsed);
 
@@ -77,11 +84,15 @@ impl CardView {
         let reply = inspector_row(&inspector, 2, "reply");
         let path = inspector_row(&inspector, 3, "path");
         let pid = inspector_row(&inspector, 4, "pid");
-        let agent = inspector_row(&inspector, 5, "agent");
-        let task = inspector_row(&inspector, 6, "task");
+        let window_detail = inspector_row(&inspector, 5, "window");
+        // Always one short line; a wrapping label would reserve a second line of height for it.
+        window_detail.set_wrap(false);
+        window_detail.set_lines(-1);
+        let agent = inspector_row(&inspector, 6, "agent");
+        let task = inspector_row(&inspector, 7, "task");
         let activation = label("activation", gtk::Align::Start);
         activation.set_visible(false);
-        inspector.attach(&activation, 0, 7, 2, 1);
+        inspector.attach(&activation, 0, 8, 2, 1);
 
         content.append(&header);
         content.append(&footer);
@@ -177,6 +188,7 @@ impl CardView {
             phase,
             repo,
             state,
+            window,
             tool,
             elapsed,
             detail,
@@ -184,6 +196,7 @@ impl CardView {
             reply,
             path,
             pid,
+            window_detail,
             agent,
             task,
             activation,
@@ -229,6 +242,14 @@ impl CardView {
         self.reply.set_text(text_or(&card.assistant_preview, "—"));
         self.path.set_text(text_or(&card.cwd, "—"));
         self.pid.set_text(&pid_row(card, hidden_tab));
+        match window_chip_text(card) {
+            Some(text) => {
+                self.window.set_text(&text);
+                self.window.set_visible(true);
+            }
+            None => self.window.set_visible(false),
+        }
+        self.window_detail.set_text(&window_row(card));
         self.agent
             .set_text(text_or(&card.agent_label, "Pi session"));
         self.task
@@ -271,17 +292,20 @@ impl CardView {
             "no pid".to_owned()
         };
         let ak_note = ak_accessible_note(&card.ak_tasks);
+        let window_note = window_note(card);
         self.root.set_tooltip_text(Some(&format!(
-            "{} {} ({}{}){}",
+            "{} {} ({}{}{}){}",
             if hidden_tab { "Present" } else { "Focus" },
             text_or(&card.repo_label, "Pi session"),
             pid_note,
+            window_note,
             if hidden_tab { ", hidden tab" } else { "" },
             ak_note
         )));
         let accessible_label = format!(
-            "{}, {}, {}{}",
+            "{}{}, {}, {}{}",
             text_or(&card.repo_label, "Pi session"),
+            window_note,
             if stalled {
                 "stalled"
             } else {
@@ -407,6 +431,37 @@ fn pid_row(card: &Card, hidden_tab: bool) -> String {
         format!("{pid} · hidden tab")
     } else {
         pid
+    }
+}
+
+/// Compact chip text: the bare Niri window id, as agents and tools print it.
+fn window_chip_text(card: &Card) -> Option<String> {
+    card.window_id.map(|id| format!("#{id}"))
+}
+
+/// Inspector row: the window id and the workspace number the operator sees. A hidden tab has no
+/// window of its own, so its id is marked as the window hosting it.
+fn window_row(card: &Card) -> String {
+    let Some(window_id) = card.window_id else {
+        return "—".to_owned();
+    };
+    let window = if card.hidden_tab() {
+        format!("host #{window_id}")
+    } else {
+        format!("#{window_id}")
+    };
+    match card.workspace_idx {
+        Some(workspace) => format!("{window} · workspace {workspace}"),
+        None => window,
+    }
+}
+
+/// Appended to the card's tooltip and accessible label when the window is known.
+fn window_note(card: &Card) -> String {
+    match card.window_id {
+        Some(id) if card.hidden_tab() => format!(", host window {id}"),
+        Some(id) => format!(", window {id}"),
+        None => String::new(),
     }
 }
 
@@ -545,6 +600,39 @@ mod tests {
             !legacy.hidden_tab(),
             "controllers without placement never mark tabs hidden"
         );
+    }
+
+    #[test]
+    fn window_chip_names_the_niri_window_and_the_detail_adds_its_workspace() {
+        let visible = card(serde_json::json!({
+            "repoLabel": "dspx", "windowId": 43, "workspaceIdx": 2, "surfaceVisible": true
+        }));
+        assert_eq!(window_chip_text(&visible).as_deref(), Some("#43"));
+        assert_eq!(window_row(&visible), "#43 · workspace 2");
+        assert_eq!(window_note(&visible), ", window 43");
+
+        let hidden = card(serde_json::json!({
+            "repoLabel": "dspx", "windowId": 43, "workspaceIdx": 2, "surfaceVisible": false
+        }));
+        assert_eq!(
+            window_chip_text(&hidden).as_deref(),
+            Some("#43"),
+            "a hidden tab shows the window hosting it"
+        );
+        assert_eq!(window_row(&hidden), "host #43 · workspace 2");
+        assert_eq!(window_note(&hidden), ", host window 43");
+
+        let unindexed = card(serde_json::json!({ "windowId": 43 }));
+        assert_eq!(window_row(&unindexed), "#43");
+
+        let unplaced = card(serde_json::json!({ "repoLabel": "dspx" }));
+        assert_eq!(
+            window_chip_text(&unplaced),
+            None,
+            "no chip without a window"
+        );
+        assert_eq!(window_row(&unplaced), "—");
+        assert_eq!(window_note(&unplaced), "");
     }
 
     #[test]

@@ -96,6 +96,8 @@ export function resolveWorkspaceView(windows, workspace, sessions, options = {})
     groups.set(candidate.cardId, group);
   }
 
+  // The number the operator sees in the workspace list, not Niri's internal workspace id.
+  const workspaceIdx = Number.isInteger(workspace.idx) ? Number(workspace.idx) : null;
   const projectedSessions = [];
   for (const [cardId, group] of groups) {
     const windowIds = new Set(group.map((candidate) => candidate.window.id));
@@ -115,7 +117,9 @@ export function resolveWorkspaceView(windows, workspace, sessions, options = {})
     projectedSessions.push({
       ...card,
       cardId,
+      // A hidden tab has no window of its own, so this is the window hosting it.
       windowId: window?.id,
+      workspaceIdx,
       placement,
       // Only a tab proven to sit behind another one is marked hidden.
       surfaceVisible: visibility !== "hidden",

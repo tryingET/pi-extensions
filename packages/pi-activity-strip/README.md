@@ -28,6 +28,7 @@ The runtime is Electron-free. A Node controller retains the tested telemetry, id
 - shows the AK task a session is working on: read-only `ak` output is joined onto cards, clicking the task reference focuses the claiming terminal, and claims that outlive their session or deferred tasks appear as non-clickable badges
 - displays repo, phase, tool, detail, elapsed time, and freshness
 - marks the exact currently focused terminal card and prefixes hidden-tab cards with `⧉`
+- labels each card with its Niri window id (`#43`), so a window an agent or tool names by id can be found on the ribbon
 - keeps monitoring-success cards beside the Activity tile, then active and settled cards
 - expands rich details on hover or keyboard focus
 - supports Left/Right navigation and Shift+Left/Right manual movement
@@ -45,6 +46,8 @@ Pi publisher streams
   -> Rust / Relm4 / GTK4 panel
   -> wlr-layer-shell top surface with an 84px exclusive zone
 ```
+
+Every child-protocol message carries `protocol: 1`, and the panel drops any view carrying another version. A new card field is therefore added as an optional field: a panel that does not know it ignores it, and a panel talking to a controller that does not send it falls back to a default. The version changes only for a change an existing panel would misread.
 
 Layer-shell replaces the old floating Electron window and dynamic Niri-config strut helper. The package no longer edits `~/.config/niri/config.kdl`, resets tiled heights, or requires Electron.
 
@@ -116,11 +119,12 @@ The shortcut toggles exclusive keyboard mode. On entry, the first card is select
 
 ## Interaction contract
 
-- **Workspace locality:** Niri focus events trigger immediate reprojection; bounded polling remains a fallback.
+- **Workspace locality:** Niri focus events and workspace list changes trigger immediate reprojection; bounded polling remains a fallback.
 - **Hide/reclaim:** zero cards unmaps the layer surface. Niri then removes its exclusive zone as part of normal Wayland surface lifecycle.
 - **Crash behavior:** panel lifetime is bound to the Node controller through Linux parent-death signaling and stdin EOF. Unexpected panel exits are restarted with bounded backoff; a dead surface cannot retain an exclusive zone.
 - **Exact focus:** card activation returns to Node, which performs existing fail-closed terminal identity resolution and Niri focus.
 - **Hidden tabs:** a Ghostty window title only names its active tab. A bound surface whose title is not visible is placed through its Ghostty host process: one host window is exact containment; several host windows use the window remembered for that tab. Memory comes from titles seen while the strip runs and from a read-only AT-SPI inventory of tab labels, and is persisted per Niri instance under `~/.pi/agent/state/pi-activity-strip/surface-bindings.json`. A tab whose window has never been observed stays unplaced rather than guessed; `status` reports that count. Activating a hidden-tab card calls the host process's `present-surface` action on the session bus, then focuses the window, and reports success only after the title proves the tab is visible.
+- **Window ids:** agents and tools name windows by their Niri window id (`claude-window` prints `window_id`, continuity receipts carry it). Each card shows that id as a quiet `#43` chip at the start of its footer; a hidden tab has no window of its own, so its chip shows the window hosting it. Hover or keyboard detail adds a `window` row with the workspace number the operator sees, Niri's workspace `idx` and never its internal workspace id, for example `#43 · workspace 2` or `host #43 · workspace 2` for a hidden tab. The tooltip and accessible label name the window too. Off Niri there is no window id, so no chip is drawn.
 - **Agent tabs:** a tab is admitted as an agent when the process owning its terminal is a recognized agent CLI, never on a window title alone, so plain terminal programs are not cards. Claude Code tabs are identified exactly through the per-session scratchpad the process holds open, which yields the session id and the title Claude Code put on the terminal; that title places the tab in its window and is remembered so the tab stays placed once hidden.
 - **AK task references:** cards can show the Agent Kernel task their session is working on. The controller reads the read-only `ak` CLI (`ak task list --status claimed --format json --all --verbose` and `ak task deferred --format json --all`) on a calm 15-second clock and joins claims by exact Pi session id under the AK5700 claim semantics: only `session-<uuid>` claims count, and an expired lease is vacant custody that renders nothing. A card whose session holds a live claim shows a clickable `AK #id · title` chip that reuses the card's own activation, so clicking it focuses the exact Ghostty window of the claiming session, presenting hidden tabs first. Claims whose lease has not lapsed but whose claiming session no longer exists ("claim outlives session") and tasks carrying an active deferral are joined by task repo onto cards working inside that repo and render as inert badges, never buttons — there is no live window to focus and no AK action is ever offered. Ambiguous session matches (one logical session resumed into two terminals), a missing `ak` binary, or malformed output bind nothing: fail closed, no chip, no invented state, strip behavior unchanged. The strip never writes AK state and never touches the society database directly.
 - **Codex telemetry:** Codex keeps a thread index naming every session's rollout file, working directory and title. A process binds to its thread by an open rollout descriptor, or, before any task has run, by being the only session created in that directory after the process started; anything ambiguous binds nothing. The rollout tail then reports the running tool and its command, turn count, approval and sandbox policy, prompt and reply. Reading the index needs the runtime's built-in SQLite, and a host without it degrades to a process-only card.
@@ -185,6 +189,7 @@ Implemented:
 - exact Ghostty activation, including hidden tabs via `present-surface`
 - hidden Ghostty tab placement through host process containment and learned window memory
 - clickable AK task references joined from read-only `ak` output, with claim-outlives-session and deferred badges
+- Niri window id on every card, and its workspace number in the detail
 - non-Pi agent tab discovery with an exact Claude Code adapter
 - live Claude Code telemetry from its transcript, with optional hooks for blocked-on-you states
 - live Codex telemetry from its thread index and rollout files

@@ -96,6 +96,7 @@ test("native projection carries workspace placement onto display cards", () => {
         placement: "binding",
         surfaceVisible: false,
         windowId: 44,
+        workspaceIdx: 2,
       },
     ],
     focusedSessionId: null,
@@ -105,10 +106,45 @@ test("native projection carries workspace placement onto display cards", () => {
   assert.equal(card.placement, "binding");
   assert.equal(card.surfaceVisible, false);
   assert.equal(card.windowId, 44);
+  assert.equal(card.workspaceIdx, 2);
   assert.equal(projection.resolveTarget("terminal:ghostty:main:16")?.surfaceVisible, false);
 
   projection.updateSnapshot({ generatedAt: 101, sessions: [{ ...raw, state: "thinking" }] });
   assert.equal(published.at(-1).sessions[0].surfaceVisible, false, "placement survives updates");
+  assert.equal(published.at(-1).sessions[0].windowId, 44, "window id survives updates");
+  assert.equal(published.at(-1).sessions[0].workspaceIdx, 2, "workspace number survives updates");
+});
+
+test("native projection drops a workspace number that is not an integer", () => {
+  const published = [];
+  const raw = session({
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:main:16",
+    terminalFamily: "main",
+    terminalSurfaceId: "16",
+  });
+  const projection = createNativePanelProjection({
+    isNiriSession: () => true,
+    publish: (view) => published.push(view),
+  });
+  projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
+  projection.publishWorkspaceView({
+    workspace: { id: 7, is_focused: true },
+    sessions: [
+      {
+        ...raw,
+        cardId: "terminal:ghostty:main:16",
+        publisherRecordKeys: [sessionRecordKey(raw)],
+        windowId: 44,
+        workspaceIdx: "2",
+      },
+    ],
+    focusedSessionId: null,
+    focusedCardId: null,
+  });
+  const card = published.at(-1).sessions[0];
+  assert.equal(card.windowId, 44);
+  assert.equal(card.workspaceIdx, null, "a non-integer index is dropped, not coerced");
 });
 
 test("native projection joins AK task chips onto cards and clears them fail-closed", () => {
