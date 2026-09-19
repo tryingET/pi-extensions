@@ -65,6 +65,11 @@ export function fixture(t, snapshot = false) {
   put(root, "packages/b/package.json", pkg());
   if (snapshot) {
     git(root, "init", "-q");
+    // Commits may launch detached maintenance that races the exhaustive no-write
+    // fingerprint. Keep disposable fixtures quiescent before the first commit;
+    // never exclude Git state or swallow filesystem errors in the assertion.
+    git(root, "config", "--local", "maintenance.auto", "false");
+    git(root, "config", "--local", "gc.auto", "0");
     git(root, "add", ".");
     git(root, "-c", "core.hooksPath=/dev/null", "commit", "-qm", "fixture baseline");
   }
