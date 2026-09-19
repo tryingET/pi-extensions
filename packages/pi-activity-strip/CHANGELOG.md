@@ -57,6 +57,19 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.6.0...pi-activity-strip-v0.7.0) (2026-09-19)
+
+
+### Features
+
+* **activity-strip:** show each card's niri window id ([250f503](https://github.com/tryingET/pi-extensions/commit/250f503fce261e75c375430f8dc709251b7e7bc8))
+
+
+### Bug Fixes
+
+* **activity-strip:** make Pi's stop commands wait for the runtime to exit ([dafd674](https://github.com/tryingET/pi-extensions/commit/dafd67490e4a1a188225ca63379bdaeea6437100))
+* **activity-strip:** restart cleanly and keep demo panels off the live ribbon ([2f5ee3c](https://github.com/tryingET/pi-extensions/commit/2f5ee3cda3f84dcf099643acfdca252a76a7e729))
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.5.0...pi-activity-strip-v0.6.0) (2026-09-19)
 
 
