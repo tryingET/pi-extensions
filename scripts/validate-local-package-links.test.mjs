@@ -201,7 +201,7 @@ test("root full gate runs host admission then link validation before expensive v
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(
     path.join(binDir, "node"),
-    `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_NODE_LOG"\ncase "$1" in *check-dev-pin-drift.mjs) exit 0 ;; esac\nexit 23\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_NODE_LOG"\ncase "$1" in *check-gate-toolchain.mjs|*check-dev-pin-drift.mjs|*validate-package-installs.mjs) exit 0 ;; esac\nexit 23\n`,
     { mode: 0o755 },
   );
 
@@ -219,9 +219,11 @@ test("root full gate runs host admission then link validation before expensive v
 
   assert.equal(result.status, 23);
   const calls = fs.readFileSync(logPath, "utf8").trim().split("\n");
-  assert.equal(calls.length, 2);
-  assert.match(calls[0], /check-dev-pin-drift\.mjs/);
-  assert.match(calls[1], /validate-local-package-links\.mjs/);
+  assert.equal(calls.length, 4);
+  assert.match(calls[0], /check-gate-toolchain\.mjs/);
+  assert.match(calls[1], /check-dev-pin-drift\.mjs/);
+  assert.match(calls[2], /validate-package-installs\.mjs/);
+  assert.match(calls[3], /validate-local-package-links\.mjs/);
 });
 
 test("root full gate skips link validation when package validation is explicitly skipped", (t) => {
@@ -232,7 +234,7 @@ test("root full gate skips link validation when package validation is explicitly
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(
     path.join(binDir, "node"),
-    `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_NODE_LOG"\ncase "$1" in *check-dev-pin-drift.mjs) exit 0 ;; esac\nexit 23\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_NODE_LOG"\ncase "$1" in *check-gate-toolchain.mjs|*check-dev-pin-drift.mjs) exit 0 ;; esac\nexit 23\n`,
     { mode: 0o755 },
   );
 
@@ -252,8 +254,9 @@ test("root full gate skips link validation when package validation is explicitly
 
   assert.equal(result.status, 23);
   const calls = fs.readFileSync(logPath, "utf8").trim().split("\n");
-  assert.equal(calls.length, 2);
-  assert.doesNotMatch(calls.join("\n"), /validate-local-package-links\.mjs/);
-  assert.match(calls[0], /check-dev-pin-drift\.mjs/);
-  assert.match(calls[1], /rocs-validation\.test\.mjs/);
+  assert.equal(calls.length, 3);
+  assert.doesNotMatch(calls.join("\n"), /validate-local-package-links\.mjs|validate-package-installs\.mjs/);
+  assert.match(calls[0], /check-gate-toolchain\.mjs/);
+  assert.match(calls[1], /check-dev-pin-drift\.mjs/);
+  assert.match(calls[2], /rocs-validation\.test\.mjs/);
 });

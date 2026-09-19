@@ -9,8 +9,13 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "error: not a git repo" >&2; exit 1; }
 cd "$repo_root"
 
+# Environment admission precedes tests, builds, and authored-contract validation.
+node ./scripts/check-gate-toolchain.mjs
+
 if [ -n "${PI_EXTENSIONS_TMPDIR:-}" ]; then
   tmp_root="$PI_EXTENSIONS_TMPDIR"
+elif [ -n "${TMPDIR:-}" ]; then
+  tmp_root="$TMPDIR"
 elif [ -n "${HOME:-}" ]; then
   tmp_root="$HOME/.pi/tmp/pi-extensions"
 else
@@ -27,6 +32,7 @@ node ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs
 if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
   echo "skipping local package link validation: PI_SKIP_PACKAGES=1"
 else
+  node ./scripts/validate-package-installs.mjs
   node ./scripts/validate-local-package-links.mjs
 fi
 
@@ -37,7 +43,7 @@ node --test "$script_dir/rocs-validation.test.mjs"
 # Repo-wide readability-budget ratchet: every over-budget file must be split or
 # carry a validated owner-scoped exception (policy/file-budget-exceptions.json).
 if [ -f "./scripts/file-budget-audit.mjs" ]; then
-  node ./scripts/file-budget-audit.mjs --fail --max-warnings "${PI_FILE_BUDGET_MAX_WARNINGS:-12}"
+  node ./scripts/file-budget-audit.mjs --tracked --fail --max-warnings "${PI_FILE_BUDGET_MAX_WARNINGS:-12}"
 fi
 
 if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
@@ -53,6 +59,7 @@ if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.j
 fi
 
 node --test ./scripts/root-package-install-contract.test.mjs
+node --test ./scripts/gate-inputs.test.mjs ./scripts/file-budget-audit.test.mjs
 node --test ./scripts/validate-package-release-contracts.test.mjs
 node --test ./scripts/pi-host-contract-admission.test.mjs
 node --test ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.test.mjs \

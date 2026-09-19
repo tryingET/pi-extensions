@@ -7,6 +7,7 @@ read_when:
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { trackedFiles, assertNoSymlinkParents } from "./tracked-files.mjs";
 import {
   discoverExceptionsPolicyPath,
   exceptionsPolicyRepoRoot,
@@ -64,7 +65,7 @@ const EXCLUDED_DIRS = new Set(FILE_BUDGET_POLICY.excludedDirs);
 const EXCLUDED_FILE_SUFFIXES = FILE_BUDGET_POLICY.excludedFileSuffixes;
 
 function usage() {
-  console.error(`Usage: node ./scripts/file-budget-audit.mjs [--root <path>] [--warn-only|--fail] [--max-warnings N] [--exceptions <path>]
+  console.error(`Usage: node ./scripts/file-budget-audit.mjs [--root <path>] [--warn-only|--fail] [--max-warnings N] [--exceptions <path>] [--tracked]
 
 Default budgets:
   code:     ${DEFAULT_THRESHOLDS.code.lines} LOC / ${DEFAULT_THRESHOLDS.code.bytes} bytes
@@ -97,6 +98,8 @@ function parseArgs(argv) {
       args.warnOnly = true;
     } else if (arg === "--fail") {
       args.warnOnly = false;
+    } else if (arg === "--tracked") {
+      args.tracked = true;
     } else if (arg === "--max-warnings") {
       const value = argv[++i];
       if (!value) throw new Error("--max-warnings requires a number");
@@ -276,7 +279,7 @@ export function auditFileBudgets(input = {}) {
   const errors = [];
   const policyErrors = [];
 
-  for (const filePath of collectFiles(root, errors)) {
+  for (const filePath of input.tracked ? trackedFiles(root) : collectFiles(root, errors)) {
     const relativePath = normalizeRelative(path.relative(root, filePath));
     const kind = classifyFileBudgetPath(relativePath);
     if (!kind) continue;
@@ -286,7 +289,10 @@ export function auditFileBudgets(input = {}) {
     let stats;
     let lines;
     try {
-      stats = fs.statSync(filePath);
+      if (input.tracked) assertNoSymlinkParents(root, filePath);
+      stats = fs.lstatSync(filePath);
+      if (stats.isSymbolicLink()) continue; // Audit source files, never external symlink targets.
+      if (!stats.isFile()) throw new Error("tracked path is not a regular file");
       lines = lineCountFile(filePath);
     } catch (error) {
       errors.push({
@@ -463,6 +469,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const args = parseArgs(process.argv.slice(2));
     const result = auditFileBudgets({
       root: args.root,
+      tracked: args.tracked,
       exceptionsPath: args.exceptionsPath ?? null,
     });
     printReport(result, args);

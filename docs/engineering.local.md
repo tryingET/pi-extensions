@@ -33,6 +33,8 @@ Repo-local emphasis:
   - `./scripts/quality-gate.sh`
 - Single implementation of full root validation:
   - `./scripts/ci/full.sh`
+  - early toolchain admission uses `policy/ci-toolchain-lock.json`; tracked-install consistency is read-only
+  - push/CI file budgets select tracked paths; explicit generated-output preparation and shared-checkout limits: [pre-push inputs](project/pre-push-inputs.md)
 - Canonical package validation implementation:
   - `./scripts/package-quality-gate.sh`
 - Development host admission:

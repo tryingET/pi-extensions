@@ -7,6 +7,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -n "${PI_EXTENSIONS_TMPDIR:-}" ]]; then
   TMP_ROOT="$PI_EXTENSIONS_TMPDIR"
+elif [[ -n "${TMPDIR:-}" ]]; then
+  TMP_ROOT="$TMPDIR"
 elif [[ -n "${HOME:-}" ]]; then
   TMP_ROOT="$HOME/.pi/tmp/pi-extensions"
 else
@@ -301,7 +303,9 @@ run_file_budget_audit_target() {
     audit_mode=("--fail")
   fi
 
-  node "$audit_script" --root "$workdir" "${audit_mode[@]}"
+  local selection=()
+  case "$stage" in pre-push|ci) selection=(--tracked) ;; esac
+  node "$audit_script" --root "$workdir" "${audit_mode[@]}" "${selection[@]}"
 }
 
 has_npm_script() {

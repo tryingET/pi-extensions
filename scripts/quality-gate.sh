@@ -11,6 +11,8 @@ cd "$ROOT_DIR"
 
 if [[ -n "${PI_EXTENSIONS_TMPDIR:-}" ]]; then
   TMP_ROOT="$PI_EXTENSIONS_TMPDIR"
+elif [[ -n "${TMPDIR:-}" ]]; then
+  TMP_ROOT="$TMPDIR"
 elif [[ -n "${HOME:-}" ]]; then
   TMP_ROOT="$HOME/.pi/tmp/pi-extensions"
 else

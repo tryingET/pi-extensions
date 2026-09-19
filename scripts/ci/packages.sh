@@ -52,6 +52,8 @@ fi
 
 if [ -n "${PI_EXTENSIONS_TMPDIR:-}" ]; then
   tmp_root="$PI_EXTENSIONS_TMPDIR"
+elif [ -n "${TMPDIR:-}" ]; then
+  tmp_root="$TMPDIR"
 elif [ -n "${HOME:-}" ]; then
   tmp_root="$HOME/.pi/tmp/pi-extensions"
 else

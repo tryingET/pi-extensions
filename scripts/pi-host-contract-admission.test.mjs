@@ -14,6 +14,10 @@ import { fixture, pkg, pass, fail } from "./pi-host-compatibility-canary/drift-t
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function gateFixture(t) {
   const f = fixture(t, true);
+  // This fixture isolates host-pin admission, not the separate toolchain contract.
+  f.put("scripts/check-gate-toolchain.mjs", fs.readFileSync(path.join(ROOT, "scripts/check-gate-toolchain.mjs"), "utf8"));
+  f.put("policy/ci-toolchain-lock.json", { schemaVersion: 1, nodeVersion: process.versions.node,
+    npmVersion: spawnSync("npm", ["--version"], { encoding: "utf8" }).stdout.trim() });
   for (const name of ["check-dev-pin-drift.mjs", "drift-snapshot.mjs", "drift-worktree.mjs", "host-contract.mjs", "manifest.mjs", "paths.mjs", "integrity.mjs"]) {
     f.put(`scripts/pi-host-compatibility-canary/${name}`, fs.readFileSync(path.join(ROOT, "scripts/pi-host-compatibility-canary", name), "utf8"));
   }
