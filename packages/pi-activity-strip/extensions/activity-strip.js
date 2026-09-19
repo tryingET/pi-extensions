@@ -14,8 +14,9 @@ import { promisify } from "node:util";
 /** @typedef {import("../src/common/contracts.ts").SessionStartContextLike} SessionStartContextLike */
 /** @typedef {import("../src/common/contracts.ts").ToolExecutionEventLike} ToolExecutionEventLike */
 /** @typedef {import("../src/common/contracts.ts").TurnStartEventLike} TurnStartEventLike */
-import { getBrokerStatus, requestBrokerShutdown } from "../src/client/broker-client.mjs";
+import { getBrokerStatus } from "../src/client/broker-client.mjs";
 import { ensureActivityStripRunning } from "../src/client/launcher.mjs";
+import { stopRuntime } from "../src/client/runtime-lock.mjs";
 import { createSessionTelemetry } from "../src/client/session-telemetry.mjs";
 import {
   formatBrokerRuntimeStatus,
@@ -33,6 +34,13 @@ const execFileAsync = promisify(execFile);
 function wantsAutostart() {
   return process.env.PI_ACTIVITY_STRIP_AUTO_START !== "0";
 }
+
+/** @type {Record<string, [string, "info" | "warning" | "error"]>} */
+const STOP_NOTICES = {
+  stopped: ["Activity strip stopped", "info"],
+  "not-running": ["Activity strip is not running", "warning"],
+  "still-stopping": ["Activity strip is still shutting down", "warning"],
+};
 
 /** @param {ExtensionAPI} pi */
 export default function activityStripExtension(pi) {
@@ -55,6 +63,20 @@ export default function activityStripExtension(pi) {
       "info",
     );
     return result;
+  }
+
+  /**
+   * Returns once the runtime has exited, so an open right after it cannot race a runtime that is
+   * still shutting down and leave no ribbon running.
+   * @param {UiContextLike} ctx
+   */
+  async function stopStrip(ctx) {
+    const result = await stopRuntime();
+    if (!ctx.hasUI) return;
+    /** @type {[string, "info" | "warning" | "error"]} */
+    const [message, level] =
+      result.outcome === "error" ? [result.error, "error"] : STOP_NOTICES[result.outcome];
+    ctx.ui?.notify?.(message, level);
   }
 
   pi.registerCommand("activity-strip", {
@@ -122,16 +144,7 @@ export default function activityStripExtension(pi) {
       }
 
       if (action === "stop") {
-        try {
-          const result = await requestBrokerShutdown();
-          if (ctx.hasUI)
-            ctx.ui?.notify?.(
-              result?.ok ? "Stopping activity strip" : "Activity strip is not running",
-              result?.ok ? "info" : "warning",
-            );
-        } catch {
-          if (ctx.hasUI) ctx.ui?.notify?.("Activity strip is not running", "warning");
-        }
+        await stopStrip(ctx);
         return;
       }
 
@@ -143,16 +156,7 @@ export default function activityStripExtension(pi) {
     description: "Stop the running activity strip broker/window",
     /** @param {string} _args @param {UiContextLike} ctx */
     handler: async (_args, ctx) => {
-      try {
-        const result = await requestBrokerShutdown();
-        if (ctx.hasUI)
-          ctx.ui?.notify?.(
-            result?.ok ? "Stopping activity strip" : "Activity strip is not running",
-            result?.ok ? "info" : "warning",
-          );
-      } catch {
-        if (ctx.hasUI) ctx.ui?.notify?.("Activity strip is not running", "warning");
-      }
+      await stopStrip(ctx);
     },
   });
 

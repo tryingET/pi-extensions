@@ -11,6 +11,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   RUNTIME_LOCK_CONFLICT_EXIT_CODE,
+  stopRuntime,
   waitForRuntimeExit,
   waitForStartedRuntime,
 } from "../src/client/runtime-lock.mjs";
@@ -124,4 +125,51 @@ test("a controller that never becomes ready times out as itself, not as a held l
   const run = scripted({ states: ["starting"], exitCodes: [undefined] });
   const result = await waitForStartedRuntime(run.options);
   assert.deepEqual({ ok: result.ok, reason: result.reason }, { ok: false, reason: "timeout" });
+});
+
+/** Scripted shutdown reply and lock observation for stopRuntime. */
+function stopScript({ accepted, exit }) {
+  const calls = [];
+  return {
+    calls,
+    options: {
+      requestShutdown: async () => {
+        calls.push("shutdown");
+        if (accepted === "throws") throw new Error("socket gone");
+        return { ok: accepted };
+      },
+      waitForExit: async (lockPath, { timeoutMs }) => {
+        calls.push(`wait:${lockPath}:${timeoutMs}`);
+        return exit;
+      },
+      lockPath: "/state/runtime.lock",
+      timeoutMs: 15000,
+    },
+  };
+}
+
+test("stopping a running runtime waits for its lock and reports it stopped", async () => {
+  const run = stopScript({ accepted: true, exit: { released: true, waited: true } });
+  assert.deepEqual(await stopRuntime(run.options), { outcome: "stopped" });
+  assert.deepEqual(run.calls, ["shutdown", "wait:/state/runtime.lock:15000"]);
+});
+
+test("a runtime whose broker already closed is still waited out before stop returns", async () => {
+  const run = stopScript({ accepted: "throws", exit: { released: true, waited: true } });
+  assert.deepEqual(await stopRuntime(run.options), { outcome: "stopped" });
+});
+
+test("nothing to stop is reported as not running", async () => {
+  const run = stopScript({ accepted: false, exit: { released: true, waited: false } });
+  assert.deepEqual(await stopRuntime(run.options), { outcome: "not-running" });
+});
+
+test("a runtime still holding its lock at the deadline is reported as still stopping", async () => {
+  const run = stopScript({ accepted: true, exit: { released: false, waited: true } });
+  assert.deepEqual(await stopRuntime(run.options), { outcome: "still-stopping" });
+});
+
+test("a lock that cannot be checked is reported as an error", async () => {
+  const run = stopScript({ accepted: true, exit: { released: false, error: "no flock" } });
+  assert.deepEqual(await stopRuntime(run.options), { outcome: "error", error: "no flock" });
 });

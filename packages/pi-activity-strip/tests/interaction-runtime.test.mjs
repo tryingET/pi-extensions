@@ -10,6 +10,10 @@ import test from "node:test";
 
 const cli = fs.readFileSync(new URL("../bin/pi-activity-strip.mjs", import.meta.url), "utf8");
 const controller = fs.readFileSync(new URL("../src/native/main.mjs", import.meta.url), "utf8");
+const extension = fs.readFileSync(
+  new URL("../extensions/activity-strip.js", import.meta.url),
+  "utf8",
+);
 const panelBinary = fs.readFileSync(
   new URL("../src/native/panel-binary.mjs", import.meta.url),
   "utf8",
@@ -36,6 +40,14 @@ test("CLI launches only the native controller and routes keyboard entry through 
   assert.match(cli, /makeMessage\("focus-strip"\)/);
   assert.match(cli, /layer-shell placement is compositor-owned/);
   assert.doesNotMatch(cli, /electron|BrowserWindow|focusNiriStrip|move-floating-window/i);
+});
+
+test("every stop path waits for the runtime to exit, so a following open cannot race it", () => {
+  assert.match(cli, /stopRuntime\(\)/);
+  assert.equal(extension.match(/stopRuntime\(\)/g)?.length, 1, "one shared stop in the extension");
+  assert.match(extension, /registerCommand\("activity-strip-stop"[\s\S]*?stopStrip\(ctx\)/);
+  assert.match(extension, /action === "stop"\) \{\s*await stopStrip\(ctx\);/);
+  assert.doesNotMatch(extension, /requestBrokerShutdown/);
 });
 
 test("native controller supervises a receipt-verified panel and coalesces backpressure", () => {

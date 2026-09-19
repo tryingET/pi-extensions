@@ -5,9 +5,15 @@
 // ---
 
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
-import { ACTIVITY_STRIP_START_TIMEOUT_MS } from "../common/constants.mjs";
+import {
+  ACTIVITY_STRIP_SOCKET_DIR,
+  ACTIVITY_STRIP_START_TIMEOUT_MS,
+  ACTIVITY_STRIP_STOP_TIMEOUT_MS,
+} from "../common/constants.mjs";
+import { requestBrokerShutdown } from "./broker-client.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -16,6 +22,9 @@ const execFileAsync = promisify(execFile);
  * `flock` itself can return, so a held lock is never confused with a failure to check it.
  */
 export const RUNTIME_LOCK_CONFLICT_EXIT_CODE = 75;
+
+/** The controller holds this lock for its whole lifetime. */
+export const RUNTIME_LOCK_PATH = path.join(ACTIVITY_STRIP_SOCKET_DIR, "runtime.lock");
 
 /** @typedef {import("../common/contracts.ts").BrokerResponse} BrokerResponse */
 /** @typedef {{exitCode: number | null | undefined}} ControllerHandle */
@@ -56,6 +65,36 @@ export async function waitForRuntimeExit(lockPath, { timeoutMs }) {
   if (later === "free") return { released: true, waited: true };
   if (later === "held") return { released: false, waited: true };
   return { released: false, error: later.error };
+}
+
+/**
+ * Stop the runtime and return once it has exited. Every stop path, the CLI and Pi's commands, goes
+ * through here, so a following open can never race a runtime that is still shutting down. The lock
+ * is waited on even when no broker answers: a runtime whose broker has closed still holds it.
+ * @param {{
+ *   requestShutdown?: () => Promise<{ok?: boolean} | null | undefined>;
+ *   waitForExit?: typeof waitForRuntimeExit;
+ *   lockPath?: string;
+ *   timeoutMs?: number;
+ * }} [options]
+ * @returns {Promise<{outcome: "stopped" | "not-running" | "still-stopping"} | {outcome: "error"; error: string}>}
+ */
+export async function stopRuntime({
+  requestShutdown = requestBrokerShutdown,
+  waitForExit = waitForRuntimeExit,
+  lockPath = RUNTIME_LOCK_PATH,
+  timeoutMs = ACTIVITY_STRIP_STOP_TIMEOUT_MS,
+} = {}) {
+  let accepted = false;
+  try {
+    accepted = (await requestShutdown())?.ok === true;
+  } catch {
+    accepted = false;
+  }
+  const exit = await waitForExit(lockPath, { timeoutMs });
+  if (exit.error) return { outcome: "error", error: exit.error };
+  if (!exit.released) return { outcome: "still-stopping" };
+  return { outcome: accepted || exit.waited ? "stopped" : "not-running" };
 }
 
 /**

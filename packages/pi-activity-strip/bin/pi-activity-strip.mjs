@@ -17,6 +17,8 @@ import {
 } from "../src/client/broker-client.mjs";
 import {
   RUNTIME_LOCK_CONFLICT_EXIT_CODE,
+  RUNTIME_LOCK_PATH as runtimeLockPath,
+  stopRuntime,
   waitForRuntimeExit,
   waitForStartedRuntime,
 } from "../src/client/runtime-lock.mjs";
@@ -35,7 +37,11 @@ import { formatBrokerRuntimeStatus } from "../src/common/status-report.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const nativeEntry = path.resolve(__dirname, "..", "src", "native", "main.mjs");
-const runtimeLockPath = path.join(ACTIVITY_STRIP_SOCKET_DIR, "runtime.lock");
+const STOP_MESSAGES = {
+  stopped: "stopped",
+  "not-running": "not-running",
+  "still-stopping": "stopping (still shutting down)",
+};
 
 function usage() {
   console.log(
@@ -245,30 +251,10 @@ async function main() {
       process.exitCode = 0;
       return;
     case "stop": {
-      let accepted = false;
-      try {
-        accepted = (await requestBrokerShutdown())?.ok === true;
-      } catch {
-        accepted = false;
-      }
-      // Wait on the lock even when no broker answered: a runtime whose broker has already closed
-      // still holds it until it exits, and `stop && open` must not race that.
-      const exit = await waitForRuntimeExit(runtimeLockPath, {
-        timeoutMs: ACTIVITY_STRIP_STOP_TIMEOUT_MS,
-      });
-      if (exit.error) {
-        console.error(exit.error);
-        process.exitCode = 1;
-      } else if (!exit.released) {
-        console.log("stopping (still shutting down)");
-        process.exitCode = 1;
-      } else if (accepted || exit.waited) {
-        console.log("stopped");
-        process.exitCode = 0;
-      } else {
-        console.log("not-running");
-        process.exitCode = 1;
-      }
+      const result = await stopRuntime();
+      if (result.outcome === "error") console.error(result.error);
+      else console.log(STOP_MESSAGES[result.outcome]);
+      process.exitCode = result.outcome === "stopped" ? 0 : 1;
       return;
     }
     case "-h":

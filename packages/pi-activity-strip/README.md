@@ -103,7 +103,7 @@ node ./bin/pi-activity-strip.mjs claude-hooks
 node ./bin/pi-activity-strip.mjs stop
 ```
 
-`stop` returns once the runtime has exited and released its lock, waiting up to 15 seconds and exiting non-zero if it has not, so `npm run strip:stop && npm run strip:open` restarts cleanly. An `open` that finds the lock still held by a runtime that never answers says so instead of timing out silently.
+`stop` returns once the runtime has exited and released its lock, waiting up to 15 seconds and exiting non-zero if it has not, so `npm run strip:stop && npm run strip:open` restarts cleanly. Pi's `/activity-strip stop` and `/activity-strip-stop` wait the same way. An `open` that finds the lock still held by a runtime that never answers says so instead of timing out silently.
 
 `fix-top` is now a compatibility no-op: layer-shell placement is compositor-owned.
 
