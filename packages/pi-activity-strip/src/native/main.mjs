@@ -6,10 +6,6 @@
 // ---
 
 import { execFile, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createActivityStripBroker } from "../broker/server.mjs";
 import { createLatestOnlyRunner } from "../common/alignment-controller.mjs";
@@ -21,6 +17,7 @@ import { resolveFocusedWorkspaceView } from "../common/workspace-view.mjs";
 import { discoverAgentTabs } from "./agent-discovery.mjs";
 import { startAkTaskProjection } from "./ak-runtime.mjs";
 import { createHeightRepair } from "./height-repair.mjs";
+import { resolvePanelBinary } from "./panel-binary.mjs";
 import { createNativePanelProjection } from "./panel-projection.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
 import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
@@ -30,8 +27,6 @@ import { createNiriWorkspaceEventWatcher } from "./workspace-events.mjs";
 /** @typedef {import("node:child_process").ChildProcessWithoutNullStreams & {_activityBuffer?: string; _readyTimer?: NodeJS.Timeout; _stableTimer?: NodeJS.Timeout}} PanelChild */
 /** @typedef {{type: string; protocol?: number; revision?: number; visible?: boolean; sessions?: Array<Record<string, unknown>>; [key: string]: unknown}} PanelMessage */
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const packageRoot = path.resolve(__dirname, "..", "..");
 const execFileAsync = promisify(execFile);
 
 /** @type {import("../broker/server.mjs").ActivityStripBroker | null} */
@@ -93,49 +88,6 @@ const placement = createPlacementRuntime({
   execFileAsync,
   onBindingsLearned: () => reconcileRunner.request(),
 });
-
-function panelBinaryPath() {
-  const override = process.env.PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN?.trim();
-  const allowUnverified = process.env.PI_ACTIVITY_STRIP_ALLOW_UNVERIFIED_PANEL === "1";
-  const candidates = [
-    ...(override ? [override] : []),
-    path.join(packageRoot, "native", "bin", "linux-x64-gnu", "pi-activity-strip-panel"),
-    ...(allowUnverified
-      ? [path.join(packageRoot, "native", "panel", "target", "release", "pi-activity-strip-panel")]
-      : []),
-  ].filter(Boolean);
-  const binary = candidates.find((candidate) => {
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-  if (!binary) {
-    throw new Error(`Native panel binary is unavailable. Checked: ${candidates.join(", ")}`);
-  }
-  if (allowUnverified) return binary;
-  if (process.platform !== "linux" || process.arch !== "x64") {
-    throw new Error(`Native panel requires Linux x64, got ${process.platform} ${process.arch}.`);
-  }
-  const artifactPath = path.join(path.dirname(binary), "artifact.json");
-  let artifact;
-  try {
-    artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
-  } catch {
-    throw new Error(`Native panel receipt is unavailable: ${artifactPath}`);
-  }
-  const digest = createHash("sha256").update(fs.readFileSync(binary)).digest("hex");
-  if (
-    artifact.schema !== "pi-activity-strip-native-artifact.v1" ||
-    artifact.target !== "x86_64-unknown-linux-gnu" ||
-    artifact.sha256 !== digest
-  ) {
-    throw new Error("Native panel binary does not match its reviewed artifact receipt.");
-  }
-  return binary;
-}
 
 /** @param {PanelMessage} message */
 function writePanel(message) {
@@ -297,9 +249,8 @@ function consumePanelEvents(child, chunk) {
 
 function startPanel() {
   if (shuttingDown) return;
-  const binary = panelBinaryPath();
   /** @type {PanelChild} */
-  const child = spawn(binary, [], {
+  const child = spawn(resolvePanelBinary(process.env), [], {
     env: process.env,
     stdio: ["pipe", "pipe", "pipe"],
   });

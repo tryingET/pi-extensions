@@ -25,5 +25,7 @@ export const ACTIVITY_STRIP_BROADCAST_TICK_MS = 1000;
 export const ACTIVITY_STRIP_SEND_THROTTLE_MS = 120;
 export const ACTIVITY_STRIP_CONNECT_TIMEOUT_MS = 450;
 export const ACTIVITY_STRIP_START_TIMEOUT_MS = 5000;
+/** How long `stop` waits for the runtime to exit; an in-flight read-only `ak` query can take 8 s. */
+export const ACTIVITY_STRIP_STOP_TIMEOUT_MS = 15_000;
 export const ACTIVITY_STRIP_EVENT_STALL_MS = 15 * 60_000;
 export const ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS = [250, 750];

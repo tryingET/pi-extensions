@@ -4,11 +4,7 @@
 //   - "changing workspace card membership, card visibility, or focused-card selection"
 // ---
 
-import {
-  canVerifyTabVisibility,
-  placeSessionWindow,
-  resolvePiSessionIdentity,
-} from "./niri-focus.mjs";
+import { canVerifyTabVisibility, placeSessionWindow } from "./niri-focus.mjs";
 import { projectSessionCards, sessionCardId } from "./session-cards.mjs";
 import { parseTerminalTitleBinding } from "./surface-bindings.mjs";
 import { canonicalGhosttyTerminalKey } from "./terminal-identity.mjs";

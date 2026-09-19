@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::io::{self, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -146,6 +147,7 @@ fn protocol_version() -> u8 {
 }
 
 static OUTPUT: OnceLock<Mutex<io::Stdout>> = OnceLock::new();
+static READY: AtomicBool = AtomicBool::new(false);
 
 pub fn emit(event: Value) {
     let stdout = OUTPUT.get_or_init(|| Mutex::new(io::stdout()));
@@ -156,7 +158,14 @@ pub fn emit(event: Value) {
     }
 }
 
+/// Whether this panel ever came up. GTK returns from `run` without building anything when it hands
+/// the activation to another panel on the same display.
+pub fn was_ready() -> bool {
+    READY.load(Ordering::SeqCst)
+}
+
 pub fn emit_ready() {
+    READY.store(true, Ordering::SeqCst);
     emit(json!({
         "protocol": 1,
         "type": "ready",

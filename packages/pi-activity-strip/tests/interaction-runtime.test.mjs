@@ -10,6 +10,10 @@ import test from "node:test";
 
 const cli = fs.readFileSync(new URL("../bin/pi-activity-strip.mjs", import.meta.url), "utf8");
 const controller = fs.readFileSync(new URL("../src/native/main.mjs", import.meta.url), "utf8");
+const panelBinary = fs.readFileSync(
+  new URL("../src/native/panel-binary.mjs", import.meta.url),
+  "utf8",
+);
 const app = fs.readFileSync(new URL("../native/panel/src/app.rs", import.meta.url), "utf8");
 const cardView = fs.readFileSync(
   new URL("../native/panel/src/card_view.rs", import.meta.url),
@@ -19,15 +23,25 @@ const panelMain = fs.readFileSync(new URL("../native/panel/src/main.rs", import.
 const cargo = fs.readFileSync(new URL("../native/panel/Cargo.toml", import.meta.url), "utf8");
 
 test("CLI launches only the native controller and routes keyboard entry through the broker", () => {
-  assert.match(cli, /spawn\("flock", \["--nonblock", runtimeLockPath/);
+  assert.match(
+    cli,
+    /spawn\(\s*"flock",\s*\[\s*"--nonblock",\s*"--conflict-exit-code",\s*String\(RUNTIME_LOCK_CONFLICT_EXIT_CODE\),\s*runtimeLockPath/,
+  );
+  assert.match(cli, /waitForStartedRuntime\(/, "open names a held lock instead of timing out");
+  assert.match(
+    cli,
+    /waitForRuntimeExit\(runtimeLockPath/,
+    "stop returns once the runtime has exited",
+  );
   assert.match(cli, /makeMessage\("focus-strip"\)/);
   assert.match(cli, /layer-shell placement is compositor-owned/);
   assert.doesNotMatch(cli, /electron|BrowserWindow|focusNiriStrip|move-floating-window/i);
 });
 
 test("native controller supervises a receipt-verified panel and coalesces backpressure", () => {
-  assert.match(controller, /pi-activity-strip-native-artifact\.v1/);
-  assert.match(controller, /artifact\.sha256 !== digest/);
+  assert.match(controller, /spawn\(resolvePanelBinary\(process\.env\)/);
+  assert.match(panelBinary, /pi-activity-strip-native-artifact\.v1/);
+  assert.match(panelBinary, /artifact\.sha256 !== digest/);
   assert.match(controller, /panelWriteReady = false/);
   assert.match(controller, /panelRestartCount < 3/);
   assert.match(controller, /child\.stdin\.on\("error"/);

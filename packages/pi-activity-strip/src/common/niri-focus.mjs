@@ -7,8 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { presentGhosttySurface } from "./ghostty-present.mjs";
-import { projectSessionCards, sessionCardId } from "./session-cards.mjs";
-import { parseTerminalTitleBinding } from "./surface-bindings.mjs";
+import { sessionCardId } from "./session-cards.mjs";
 import {
   appIdForGhosttyFamily,
   canonicalGhosttyTerminalKey,

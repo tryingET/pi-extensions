@@ -513,3 +513,43 @@ No written protocol rule existed. Every earlier card field (`processId`, `agentL
 - Niri's `idx` counts workspaces per output. The ribbon's surface is not bound to an output, and multi-output behaviour is unimplemented, so with several outputs the number names the focused workspace on its own output without saying which output that is.
 - A named workspace still shows its `idx`, as the operator asked for the number, not the name.
 - Off Niri no window id exists, so no chip is drawn and the row reads `—`.
+
+## Restart race, demo hand-off, and workspace reorder on 2026-09-19
+
+Three findings from the window-id work, each verified before and after the fix. Rejected designs are recorded because the obvious fixes fail in the same ways.
+
+### `stop && open` left no ribbon running
+
+**Observed:** `npm run strip:stop && npm run strip:open` printed `stopping`, then `stopped` and `Timeout: 5000ms`, and no controller or panel was left. `stop` returned as soon as the broker accepted the shutdown request. The exiting controller had already closed its broker but still held `runtime.lock`, so the new `flock --nonblock` lost the race and exited, and `open` waited out its readiness timeout.
+
+**Two designs rejected in review.** The first had `stop` and `open` poll the lock with a `flock --nonblock … true` probe. The probe takes the lock itself, so a concurrent probe can make the real start fail. `open` could not tell an exiting controller from one another `open` was starting. And any flock failure read as a held lock. The second added a `stopping` runtime state, a forced controller exit, a retrying `open` and a launcher that respawned on `stopping`. Review found each layer opened a new window: the panel's `ready` event could overwrite `stopping`, the forced exit could cut off the height repair that runs on every hide, a startup failure's real error was replaced by `stopping` before anyone could read it, and the launcher and `open` disagreed on timeouts. Both were withdrawn.
+
+**Fix:** keep the controller and `open` as they were, and change only what the race needs:
+
+- `stop` returns once the runtime has exited: one blocking `flock --wait`, up to 15 s, which covers an in-flight read-only `ak` query (8 s), and a non-zero exit if the runtime is still there. It waits even when no broker answers, because a runtime whose broker has closed still holds the lock until it exits.
+- When `open` replaces a runtime in the error state, it waits for that runtime's lock the same way before starting, instead of only for its broker to disappear.
+- `open` takes the lock with `--conflict-exit-code 75`, so a held lock is told apart from a failure to check it. It still waits for readiness as before, since the holder may be a controller another `open` is starting. If nothing becomes ready it now names the held lock, and it reports a controller that exits during startup, or cannot be launched at all, instead of a bare timeout or an unhandled spawn error.
+
+**Evidence:** tests hold the lock through a real `flock --no-fork` owner and check that `stop`'s wait returns once the owner exits, reports a lock still held at its deadline without calling it an error, and reports an uncheckable lock as an error. Scripted-clock tests cover `open`'s wait: its own controller becoming ready, another `open`'s controller becoming ready, a lock held past the deadline, a controller exiting during startup, one reporting an error, and one timing out. Wiring tests check that the CLI uses both.
+
+**Known limits, left as they are:** a third review listed these; each is pre-existing or needs a concurrent second command.
+
+- Pi's own `/activity-strip stop` still returns as soon as the broker accepts, so an immediate `/activity-strip open` from Pi can still race. The CLI is fixed; the extension is not.
+- `stop` observes the lock by briefly taking it once the runtime has gone. A second `open` started at that exact instant can lose the lock and report it held; a new runtime started during the wait makes `stop` wait its full 15 s.
+- A controller's broker answers `ready` until it closes, so an `open` running during someone else's `stop` can still report "already running".
+- Shutdown stops only the workspace watcher. The AK, theme and inventory timers keep running, so in rare cases the exit can outlast `stop`'s 15 s, which `stop` then reports.
+- The controller's own stderr is discarded when `open` detaches it, so a startup failure is reported by exit code rather than by its message.
+
+### The demo panel silently handed itself to the live one
+
+**Observed:** the panel registered one GTK application id for every display. Any second panel, whether the built-in demo (`PI_ACTIVITY_STRIP_PANEL_DEMO=1`) or a nested-compositor test, passed an activation to the live panel over the session bus and exited 0, drawing nothing. Working around that with a private session bus is what broke the desktop's accessibility bus (see the previous section).
+
+**First fix, rejected in review:** dropping uniqueness entirely (`G_APPLICATION_NON_UNIQUE`) would also have let a stray panel on the live display map a second layer surface and reserve a second band.
+
+**Fix:** the application id carries the Wayland display, so uniqueness holds per compositor. The display is named the way GTK connects to it: an unset variable is `wayland-0`, and a socket path is its file name, so every spelling of one compositor gives one id. A panel whose `run` returns without ever announcing `ready`, almost always because it was handed off, now emits an error naming that likely cause and exits 1.
+
+**Evidence:** in a nested Niri on the normal session bus, with the live ribbon running, the old panel's demo exited 0 within two seconds and drew nothing. With the fix, a first demo panel on the nested display printed `ready` and `visibility-applied` and drew its cards. A second panel on that same display exited 1 with `The panel returned without starting; another activity-strip panel probably already runs on this Wayland display.` A first attempt that registered the application before `run` hung both panels, because registration emits GTK's startup signal before relm4 connects its handler; the check now happens after `run` returns. The AT-SPI socket kept its inode across every run.
+
+### Workspace reorder events
+
+**Observed** in a nested Niri with two named workspaces: `move-workspace-down` renumbered workspace `one` from idx 1 to 2 and emitted `WorkspacesChanged`, with no `WorkspaceActivated`. The watcher's `WorkspacesChanged` hook is therefore what refreshes the number immediately, rather than the 1.5 s fallback poll.

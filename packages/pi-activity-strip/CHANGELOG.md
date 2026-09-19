@@ -41,6 +41,8 @@ All notable changes to this project should be documented here.
 
 ### Changes
 
+- `stop` now returns only once the runtime has exited and released its lock, so `strip:stop && strip:open` no longer loses the lock race and leaves no ribbon running. `open` names a lock still held by another runtime, and a controller that cannot be launched at all, instead of printing `stopped` and a timeout.
+- Scope the native panel's GTK uniqueness to its Wayland display. A panel in a nested compositor, such as the built-in demo, now runs beside the live ribbon instead of handing itself to it and exiting 0 having drawn nothing, and a second panel on the same display fails with an error.
 - Split transport liveness (`updatedAt`) from real activity (`lastEventAt`); heartbeat republishes no longer mask a frozen event stream, and cards with no lifecycle events for 15 minutes render as dimmed `stalled` instead of live activity.
 - Classify provider-level run failures (`turn_end` with `stopReason: "error"`) as `error`/`Needs attention` instead of settling as `done`, and settle aborted runs as `Stopped`.
 - Key broker publisher records by `(sessionId, publisherId)` while projecting one stable card per admitted Ghostty terminal surface; unbound duplicate publishers collapse to one logical-session containment card.

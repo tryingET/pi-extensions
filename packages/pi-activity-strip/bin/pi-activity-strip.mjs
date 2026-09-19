@@ -8,7 +8,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import {
   getBrokerStatus,
@@ -17,12 +16,18 @@ import {
   sendBrokerMessage,
 } from "../src/client/broker-client.mjs";
 import {
+  RUNTIME_LOCK_CONFLICT_EXIT_CODE,
+  waitForRuntimeExit,
+  waitForStartedRuntime,
+} from "../src/client/runtime-lock.mjs";
+import {
   assessActivityStripCompatibility,
   formatCompatibilityReport,
 } from "../src/common/compatibility.mjs";
 import {
   ACTIVITY_STRIP_SOCKET_DIR,
   ACTIVITY_STRIP_START_TIMEOUT_MS,
+  ACTIVITY_STRIP_STOP_TIMEOUT_MS,
 } from "../src/common/constants.mjs";
 import { makeMessage } from "../src/common/protocol.mjs";
 import { formatBrokerRuntimeStatus } from "../src/common/status-report.mjs";
@@ -38,37 +43,6 @@ function usage() {
   );
 }
 
-async function waitForBrokerReady(timeoutMs = ACTIVITY_STRIP_START_TIMEOUT_MS) {
-  const timeoutAt = Date.now() + timeoutMs;
-  /** @type {import("../src/common/contracts.ts").BrokerResponse | null} */
-  let latestStatus = null;
-
-  while (Date.now() < timeoutAt) {
-    try {
-      latestStatus = await getBrokerStatus();
-    } catch {
-      latestStatus = null;
-    }
-
-    if (
-      latestStatus?.ok &&
-      (!latestStatus.runtimeStatus || latestStatus.runtimeStatus.state === "ready")
-    ) {
-      return { ok: true };
-    }
-    if (latestStatus?.runtimeStatus?.state === "error") {
-      return { ok: false, error: formatBrokerRuntimeStatus(latestStatus) };
-    }
-
-    await delay(125);
-  }
-
-  return {
-    ok: false,
-    error: `${formatBrokerRuntimeStatus(latestStatus || { ok: false })}\nTimeout: ${timeoutMs}ms`,
-  };
-}
-
 /** @param {{ detached?: boolean }} [options] @returns {Promise<number>} */
 async function openStrip({ detached = true } = {}) {
   if (await isBrokerAlive()) {
@@ -78,11 +52,12 @@ async function openStrip({ detached = true } = {}) {
       return 0;
     }
     await requestBrokerShutdown().catch(() => null);
-    for (let attempt = 0; attempt < 20 && (await isBrokerAlive()); attempt += 1) {
-      await delay(50);
-    }
-    if (await isBrokerAlive()) {
-      console.error(formatBrokerRuntimeStatus(status));
+    // Its broker closes before it exits; starting before the lock is released would lose it.
+    const exit = await waitForRuntimeExit(runtimeLockPath, {
+      timeoutMs: ACTIVITY_STRIP_STOP_TIMEOUT_MS,
+    });
+    if (!exit.released) {
+      console.error(exit.error ?? formatBrokerRuntimeStatus(status));
       return 1;
     }
   }
@@ -94,26 +69,62 @@ async function openStrip({ detached = true } = {}) {
   }
 
   fs.mkdirSync(ACTIVITY_STRIP_SOCKET_DIR, { recursive: true, mode: 0o700 });
-  const child = spawn("flock", ["--nonblock", runtimeLockPath, process.execPath, nativeEntry], {
-    detached,
-    stdio: detached ? "ignore" : "inherit",
-    env: { ...process.env, PI_ACTIVITY_STRIP_RUNTIME_LOCK_HELD: "1" },
-  });
-
-  if (detached) {
-    child.unref();
-    const ready = await waitForBrokerReady();
-    if (!ready.ok) {
-      console.error(ready.error || "Activity strip did not become ready.");
-      return 1;
-    }
-    console.log("Started activity strip.");
-    return 0;
+  const child = spawn(
+    "flock",
+    [
+      "--nonblock",
+      "--conflict-exit-code",
+      String(RUNTIME_LOCK_CONFLICT_EXIT_CODE),
+      runtimeLockPath,
+      process.execPath,
+      nativeEntry,
+    ],
+    {
+      detached,
+      stdio: detached ? "ignore" : "inherit",
+      env: { ...process.env, PI_ACTIVITY_STRIP_RUNTIME_LOCK_HELD: "1" },
+    },
+  );
+  if (!detached) {
+    return await new Promise((resolve) => {
+      child.on("exit", (code) => resolve(typeof code === "number" ? code : 0));
+    });
   }
 
-  return await new Promise((resolve) => {
-    child.on("exit", (code) => resolve(typeof code === "number" ? code : 0));
+  /** @type {{exitCode: number | null | undefined; error?: string}} */
+  const controller = { exitCode: undefined };
+  child.once("exit", (code) => {
+    controller.exitCode = code;
   });
+  child.once("error", (error) => {
+    controller.exitCode = null;
+    controller.error = error.message;
+  });
+  child.unref();
+  const result = await waitForStartedRuntime({
+    controller,
+    getStatus: () => getBrokerStatus().catch(() => null),
+  });
+  if (result.ok) {
+    console.log(result.started ? "Started activity strip." : "Activity strip is already running.");
+    return 0;
+  }
+  if (result.reason === "lock-held") {
+    console.error(
+      "Another activity-strip runtime still holds the runtime lock, probably one that is shutting down; nothing was started. `stop` waits for it to exit.",
+    );
+  } else if (result.reason === "exited") {
+    console.error(
+      controller.error
+        ? `The activity-strip runtime could not be started: ${controller.error}`
+        : `The activity-strip runtime exited during startup (code ${result.exitCode}).`,
+    );
+  } else {
+    const timeout =
+      result.reason === "timeout" ? `\nTimeout: ${ACTIVITY_STRIP_START_TIMEOUT_MS}ms` : "";
+    console.error(`${formatBrokerRuntimeStatus(result.status ?? { ok: false })}${timeout}`);
+  }
+  return 1;
 }
 
 async function main() {
@@ -234,11 +245,27 @@ async function main() {
       process.exitCode = 0;
       return;
     case "stop": {
+      let accepted = false;
       try {
-        const result = await requestBrokerShutdown();
-        console.log(result?.ok ? "stopping" : "not-running");
-        process.exitCode = result?.ok ? 0 : 1;
+        accepted = (await requestBrokerShutdown())?.ok === true;
       } catch {
+        accepted = false;
+      }
+      // Wait on the lock even when no broker answered: a runtime whose broker has already closed
+      // still holds it until it exits, and `stop && open` must not race that.
+      const exit = await waitForRuntimeExit(runtimeLockPath, {
+        timeoutMs: ACTIVITY_STRIP_STOP_TIMEOUT_MS,
+      });
+      if (exit.error) {
+        console.error(exit.error);
+        process.exitCode = 1;
+      } else if (!exit.released) {
+        console.log("stopping (still shutting down)");
+        process.exitCode = 1;
+      } else if (accepted || exit.waited) {
+        console.log("stopped");
+        process.exitCode = 0;
+      } else {
         console.log("not-running");
         process.exitCode = 1;
       }

@@ -46,7 +46,7 @@ export function claudeEventPath(sessionId, directory = CLAUDE_EVENT_DIR) {
  */
 export function describeHookToolTarget(toolInput) {
   for (const key of ["description", "command", "file_path", "path", "pattern", "query", "url"]) {
-    const value = /** @type {any} */ (toolInput ?? {})[key];
+    const value = /** @type {any} */ (toolInput)?.[key];
     if (typeof value === "string" && value.trim()) return preview(value);
   }
   return "";

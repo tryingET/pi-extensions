@@ -51,7 +51,7 @@ Every child-protocol message carries `protocol: 1`, and the panel drops any view
 
 Layer-shell replaces the old floating Electron window and dynamic Niri-config strut helper. The package no longer edits `~/.config/niri/config.kdl`, resets tiled heights, or requires Electron.
 
-The compact surface is 84px tall and sits inset by an 8px margin on the top, left and right, matching the compositor's window gaps, with the same 12px corner radius as tiled windows. It therefore reserves 92px in total. One engaged card expands the surface to 276px while the reservation is unchanged, so detail overlays content without repeatedly resizing tiled windows.
+The compact surface is 84px tall and sits inset by an 8px margin on the top, left and right, matching the compositor's window gaps, with the same 12px corner radius as tiled windows. It therefore reserves 92px in total. One engaged card expands the surface to at least 276px, taller when its detail rows wrap, while the reservation is unchanged, so detail overlays content without repeatedly resizing tiled windows.
 
 ## Supported host
 
@@ -102,6 +102,8 @@ node ./bin/pi-activity-strip.mjs snapshot
 node ./bin/pi-activity-strip.mjs claude-hooks
 node ./bin/pi-activity-strip.mjs stop
 ```
+
+`stop` returns once the runtime has exited and released its lock, waiting up to 15 seconds and exiting non-zero if it has not, so `npm run strip:stop && npm run strip:open` restarts cleanly. An `open` that finds the lock still held by a runtime that never answers says so instead of timing out silently.
 
 `fix-top` is now a compatibility no-op: layer-shell placement is compositor-owned.
 
@@ -170,6 +172,16 @@ The staged artifact receipt binds:
 - Rust compiler version
 - glibc symbol floor
 - required shared libraries
+
+To see the panel without touching the live ribbon, run its built-in demo cards in a nested Niri with a config that spawns nothing:
+
+```bash
+printf 'prefer-no-csd\nhotkey-overlay {\n    skip-at-startup\n}\n' >/tmp/pi-activity-preview.kdl
+niri -c /tmp/pi-activity-preview.kdl -- env PI_ACTIVITY_STRIP_PANEL_DEMO=1 \
+  "$PWD/native/bin/linux-x64-gnu/pi-activity-strip-panel"
+```
+
+The panel is unique per Wayland display: this demo runs beside the live ribbon, while a second panel on the live display is refused with an error rather than reserving a second band. Never run the panel under a private session bus such as `dbus-run-session`: GTK then starts a second accessibility bus that takes over the desktop's AT-SPI socket and leaves it dead when it exits.
 
 Live verification must inspect Niri layers rather than regular windows:
 
