@@ -1,5 +1,5 @@
 ---
-summary: "Continued the same day: steps 1-2 done (wave 41a7d378 fully on npm, PRs 215 and 216 merged, follow-up AK5770); read the continuation banner first. Original: handoff from a non-resumable session on 2026-09-19 (pre-reboot): AK5597 closed as failed (goal dropped by the operator), release-check and release-please repaired (AK5761 done, PR 213), evidence-gate race fix in open PR 215 (AK5762 deferred). Exact next steps and uncommitted paths."
+summary: "SUPERSEDED as a work plan the same day: all five steps are done and AK5762 is closed; keep as a historical record and read the continuation banner first. Original: handoff from a non-resumable session on 2026-09-19 (pre-reboot): AK5597 closed as failed (goal dropped by the operator), release-check and release-please repaired (AK5761 done, PR 213), evidence-gate race fix in open PR 215 (AK5762 deferred). Exact next steps and uncommitted paths."
 read_when:
   - "Continuing work after the 2026-09-19 reboot in pi-extensions."
   - "PR 215, AK5762, release-evidence or the release PR check."
@@ -10,7 +10,8 @@ task_id: 5762
 # Handoff — 2026-09-19, before reboot
 
 > **Continued 2026-09-19 by `session-7f86cb2f-3550-4a77-b523-44bed1534b54`.
-> Steps 1 and 2 are done; do not redo them.**
+> All five steps are done; this is a historical record. Do not follow the steps
+> below.**
 >
 > - **Step 1:** #214's wave `41a7d378` is fully on npm: 7/7 packages at the
 >   wave version, with provenance and GitHub release evidence (evidence 10055).
@@ -28,8 +29,16 @@ task_id: 5762
 >      Until AK5770 widens the poll, every automatic wave stops after its first
 >      package.
 > - **Step 2:** #215 merged as `6e7fc1b`, and main is green. Its worktree and
->   branch are removed. AK5762 has evidence 10039; the new gate's first live run
->   is still the next release-please PR.
+>   branch are removed. AK5762 is closed `done` (evidence 10039); the new gate's
+>   first live run is still the next release-please PR.
+> - **Step 3:** the four AK5597 docs landed in `7496d0b1b`, with review
+>   corrections to the reconciliation note.
+> - **Step 4:** local main was rebased and pushed through `3ac629343`. That
+>   required archiving and removing the untracked `main-convergence/` (AK5779)
+>   and re-pinning the real-fleet baseline (AK5783). The pre-push hermeticity
+>   follow-ups are AK5787–5790.
+> - **Step 5:** the operator authorized closing 14 stale or orphaned tasks
+>   (evidence 10067–10080).
 
 Written by controller `session-146ca35d-5fa1-4aad-bdde-bbb0712515e3`, which cannot
 be resumed. Everything needed to continue is here. AK is the authority; verify
