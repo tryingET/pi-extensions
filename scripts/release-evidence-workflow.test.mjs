@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLISH = path.join(ROOT, ".github", "workflows", "publish.yml");
 const RELEASE_CHECK = path.join(ROOT, ".github", "workflows", "release-check.yml");
+const RELEASE_EVIDENCE = path.join(ROOT, ".github", "workflows", "release-evidence.yml");
 const LOCK = path.join(ROOT, "policy", "ci-toolchain-lock.json");
 const FULL = path.join(ROOT, "scripts", "ci", "full.sh");
 const ATTEST_SHA = "1e69f48acb82d1966a394da916b4c1698aa569d6";
@@ -104,6 +105,27 @@ test("release-check exercises deterministic evidence for every component without
   assert.doesNotMatch(generate, /if: matrix\.component/u);
   assert.doesNotMatch(verify, /if: matrix\.component/u);
   assert.doesNotMatch(workflow, /actions\/attest@/u);
+});
+
+test("release-PR tape evidence is verified after it is produced, for the exact PR head", () => {
+  const render = job(fs.readFileSync(RELEASE_EVIDENCE, "utf8"), "render-and-attach");
+  const produce = step(render, "Render tapes and attach evidence comment");
+  const verify = step(render, "Verify evidence comment for this exact head");
+  assert.ok(render.indexOf(produce) < render.indexOf(verify), "verification must follow production");
+  assert.match(verify, /<!-- release-evidence -->/u);
+  assert.match(verify, /user-attachments/u);
+  assert.match(verify, /git rev-parse --short HEAD/u);
+  // Manual dispatch renders the PR head too, never the dispatching branch (github.sha).
+  const resolve = step(render, "Resolve PR head commit");
+  assert.match(resolve, /headRefOid/u);
+  assert.match(resolve, /isCrossRepository/u);
+  assert.match(step(render, "Checkout PR head"), /ref: \$\{\{ steps\.pr\.outputs\.sha \}\}/u);
+  assert.doesNotMatch(render, /github\.sha/u);
+  // A sibling job triggered by the same event has no ordering against the producer.
+  assert.doesNotMatch(
+    fs.readFileSync(RELEASE_CHECK, "utf8"),
+    /require-release-evidence|<!-- release-evidence -->/u,
+  );
 });
 
 test("root quality gate executes the evidence unit and topology tests", () => {

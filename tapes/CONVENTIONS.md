@@ -12,11 +12,17 @@ just evidence <pr-number>
   └─ record    ak evidence record -c gh-attachment --details '{"url": …}'   (publication is evidence)
 ```
 
-Enforcement lives in `.github/workflows/release-check.yml`
-(`require-release-evidence` job): release-please PRs fail the check until a
-comment containing the marker `<!-- release-evidence -->` **with uploaded
-attachments** exists. The failure message names the exact command — a fresh
-session with zero context self-corrects from the error alone.
+Enforcement is the final step of the `render-and-attach` job in
+`.github/workflows/release-evidence.yml`. The job renders the tapes, attaches
+the evidence comment, then fails unless a comment carrying the marker
+`<!-- release-evidence -->` names **this exact PR head commit** and holds
+uploaded attachments. The check runs after production, so it cannot race the
+renderer, and evidence from an earlier head never satisfies it. A manual
+`workflow_dispatch` run with a PR number renders that PR's head as well
+(same-repo PRs only). To recover, fix what the job reports and re-run that
+job; a local `just evidence` posts a comment but does not turn the check
+green. The failure message says what to do, so a fresh session with zero
+context can correct it from the error alone.
 
 ## Tape rules
 

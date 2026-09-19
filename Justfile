@@ -66,7 +66,7 @@ ghostty-tui-smoke:
 
 # Release-PR visual evidence: render VHS tapes, attach via gh --attach, record AK receipt.
 # Extra flags (--base/--dry-run/--record): node scripts/release-evidence.mjs --pr <n> ...
-# Conventions: tapes/CONVENTIONS.md — gate: release-check.yml require-release-evidence.
+# Conventions: tapes/CONVENTIONS.md — gate: release-evidence.yml render-and-attach.
 evidence PR:
     node ./scripts/release-evidence.mjs --pr {{PR}}
 
