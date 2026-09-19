@@ -13,6 +13,19 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.5.0...pi-workstation-inference-provider-v0.6.0) (2026-09-19)
+
+
+### Features
+
+* **workstation-inference:** repair parser-leaked newlines in tool arguments ([3ffa9a5](https://github.com/tryingET/pi-extensions/commit/3ffa9a5e5965324b3c8f4a35ea00773cffcaf98c))
+
+
+### Bug Fixes
+
+* **pi-workstation-inference-provider:** revalidate cached negative health on first request ([2664130](https://github.com/tryingET/pi-extensions/commit/26641308958144e9870655a6ac98944a8fd6d5f9))
+* **pi-workstation-inference-provider:** route baseline-text requests through adapter aliases ([2b80570](https://github.com/tryingET/pi-extensions/commit/2b805707c7d5630687b8d6e6fc1c64a275ac9355))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.4.0...pi-workstation-inference-provider-v0.5.0) (2026-08-29)
 
 

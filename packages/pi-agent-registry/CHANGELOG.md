@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.1...pi-agent-registry-v0.3.2) (2026-09-19)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-little-helpers bumped from file:../pi-little-helpers to 0.10.0
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.0...pi-agent-registry-v0.3.1) (2026-09-02)
 
 

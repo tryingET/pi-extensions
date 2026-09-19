@@ -13,6 +13,19 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.4.1...pi-toolbox-discovery-v0.5.0) (2026-09-19)
+
+
+### Features
+
+* **pi-toolbox-discovery:** expose subscription-resets read bundle ([63fad17](https://github.com/tryingET/pi-extensions/commit/63fad17a6a375f386e2afd5ccc506be7183d43c6))
+* **pi-toolbox-discovery:** expose subscription-resets read bundle ([d4f02ab](https://github.com/tryingET/pi-extensions/commit/d4f02ab2461bf692d28b36d3c532544b5187967a))
+
+
+### Bug Fixes
+
+* **closeout:** keep session_closeout always-active ([0717b4e](https://github.com/tryingET/pi-extensions/commit/0717b4e8877fcc4c72e4cdb706cd3afe3f1c98f3))
+
 ## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.4.0...pi-toolbox-discovery-v0.4.1) (2026-09-01)
 
 
