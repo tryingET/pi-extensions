@@ -32,6 +32,38 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.10.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.9.0...pi-little-helpers-v0.10.0) (2026-09-19)
+
+
+### Features
+
+* add fail-closed task-session core and synthetic host custody ([58a9040](https://github.com/tryingET/pi-extensions/commit/58a904001762498c176ba3a4f2851f77015f1188))
+* bind task-session aliases to private owner model metadata ([026b607](https://github.com/tryingET/pi-extensions/commit/026b607874818cb382334a9df36a63fc4c453e18))
+* compose sealed task-session bootstrap and cross-process viewer custody ([26384be](https://github.com/tryingET/pi-extensions/commit/26384bed89e1af081a5e931278dbc23db40f86e9))
+* expose account-bound DB-free task-session identity for lane5481 ([6b90412](https://github.com/tryingET/pi-extensions/commit/6b90412bc8a848cf72e89419f6dc71cf9e9f6b87))
+* expose DB-free task-session profile discovery ([4ed4eca](https://github.com/tryingET/pi-extensions/commit/4ed4eca3bd1596f748ef6ad9ee601c2f429092f8))
+* **limits:** add subscription quota cockpit ([#199](https://github.com/tryingET/pi-extensions/issues/199)) ([f50a6ee](https://github.com/tryingET/pi-extensions/commit/f50a6eee974c0b319ef621ef10dc2a48e3bd7f63))
+* **little-helpers:** emit fresh-handoff stage notifications so slow handoff generation is visible ([2513b07](https://github.com/tryingET/pi-extensions/commit/2513b0733a7017da8ae9753d5b20612565bfde7a))
+* **pi-little-helpers:** add limits runway cockpit and subscription reset inventory ([f6cc263](https://github.com/tryingET/pi-extensions/commit/f6cc263f0e0fd70aee174794939046a0b8754c7a))
+* **pi-little-helpers:** add limits runway cockpit and subscription reset inventory ([5aa6889](https://github.com/tryingET/pi-extensions/commit/5aa6889e26a871235d1facd41370ea9844ee1699))
+* **pi-little-helpers:** gate session closeout on independent operator review ([44caef6](https://github.com/tryingET/pi-extensions/commit/44caef6a7f523e8d0180cecc094de9d40a613462))
+* **task-session:** bind public launch to installed separate-worker authority ([39a1cda](https://github.com/tryingET/pi-extensions/commit/39a1cdad0da75646ede1a9ebd583fc976416f973))
+* **task-session:** consume owner ABI3 invariant and prepare withdrawal proof ([ce3bac1](https://github.com/tryingET/pi-extensions/commit/ce3bac1ba0747225058f4f804ecf1797544ac7ef))
+
+
+### Bug Fixes
+
+* close task5480 topology SDK resolution and profile preflight findings ([3c710d8](https://github.com/tryingET/pi-extensions/commit/3c710d83645eaeeea9db5b6d9bd3405f1531a6f7))
+* **closeout:** keep session_closeout always-active ([0717b4e](https://github.com/tryingET/pi-extensions/commit/0717b4e8877fcc4c72e4cdb706cd3afe3f1c98f3))
+* **helpers:** accept unowned activatable D-Bus names ([e54cc3a](https://github.com/tryingET/pi-extensions/commit/e54cc3a396250590f6b74ca6f900bd4f012f9c5d))
+* **little-helpers:** probe +new-tab --surface-id capability instead of trusting version strings ([7a7b235](https://github.com/tryingET/pi-extensions/commit/7a7b235c28e6121a45269428b6fce0bbf6e391d3))
+* **little-helpers:** probe +new-tab --surface-id capability instead of trusting version strings ([03123e8](https://github.com/tryingET/pi-extensions/commit/03123e8d170460c5f32d3c68a0769e5edd7df453))
+* reject task-session reasoning clamping before reservation ([c4618db](https://github.com/tryingET/pi-extensions/commit/c4618db0151e13d3dd43f2e56fe483757b7e6afb))
+* **release:** build task-session artifacts where release-check packs them ([#213](https://github.com/tryingET/pi-extensions/issues/213)) ([0a85161](https://github.com/tryingET/pi-extensions/commit/0a85161fc5a697258b5b01199e063ed012a3a690))
+* require explicit consistent owner reasoning capabilities ([bbf557e](https://github.com/tryingET/pi-extensions/commit/bbf557e445b9a662af314cf790d9c0082b98fc29))
+* **sidequest:** target originating Ghostty for +new-tab ([b85d00f](https://github.com/tryingET/pi-extensions/commit/b85d00fa07cd2df5a7483fa02f2c4572cc5f0c53))
+* **task-session:** match owner full-string patterns and Unicode lengths ([e9e092a](https://github.com/tryingET/pi-extensions/commit/e9e092a740668694775101133d159fb7c509ed6f))
+
 ## [0.9.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.8.0...pi-little-helpers-v0.9.0) (2026-09-02)
 
 

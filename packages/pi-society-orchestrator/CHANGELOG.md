@@ -13,6 +13,23 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.12.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.5...pi-society-orchestrator-v0.12.0) (2026-09-19)
+
+
+### Features
+
+* add fail-closed task-session core and synthetic host custody ([58a9040](https://github.com/tryingET/pi-extensions/commit/58a904001762498c176ba3a4f2851f77015f1188))
+* compose sealed task-session bootstrap and cross-process viewer custody ([26384be](https://github.com/tryingET/pi-extensions/commit/26384bed89e1af081a5e931278dbc23db40f86e9))
+* **task-session:** bind public launch to installed separate-worker authority ([39a1cda](https://github.com/tryingET/pi-extensions/commit/39a1cdad0da75646ede1a9ebd583fc976416f973))
+* **task-session:** consume owner ABI3 invariant and prepare withdrawal proof ([ce3bac1](https://github.com/tryingET/pi-extensions/commit/ce3bac1ba0747225058f4f804ecf1797544ac7ef))
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** make Level-4 effect receipts and packet verification fail closed ([252bde1](https://github.com/tryingET/pi-extensions/commit/252bde1a7481968a7db8f74b52716ecc207cc14a))
+* **release:** build task-session artifacts where release-check packs them ([#213](https://github.com/tryingET/pi-extensions/issues/213)) ([0a85161](https://github.com/tryingET/pi-extensions/commit/0a85161fc5a697258b5b01199e063ed012a3a690))
+* **task-session:** match owner full-string patterns and Unicode lengths ([e9e092a](https://github.com/tryingET/pi-extensions/commit/e9e092a740668694775101133d159fb7c509ed6f))
+
 ## [0.11.5](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.4...pi-society-orchestrator-v0.11.5) (2026-09-03)
 
 

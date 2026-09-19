@@ -13,6 +13,41 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [1.0.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.5.0...pi-context-packer-v1.0.0) (2026-09-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **context-packer:** remove SCI runtime and retire its evidence contracts
+
+### Features
+
+* **context-packer:** add trusted read-only ripwire adapter ([0dfef60](https://github.com/tryingET/pi-extensions/commit/0dfef606cf4ebc9151630a181d732bbd922dce01))
+* **context-packer:** deduplicate code against active Pi context ([ecc6ff1](https://github.com/tryingET/pi-extensions/commit/ecc6ff12887520cbb4bd95f9d95db1fc8f5e80fb))
+* **context-packer:** expand hash-bound symbols into focused source ([7317854](https://github.com/tryingET/pi-extensions/commit/7317854b858efbc2160b83c4c14897f5c64b411a))
+* **context-packer:** gate automatic discovery on reviewed adoption evidence ([b0d3bff](https://github.com/tryingET/pi-extensions/commit/b0d3bff0eb80e0b2c52a58d58e90f75a49c837a0))
+* **context-packer:** land reviewed ripwire-only explicit code context ([#210](https://github.com/tryingET/pi-extensions/issues/210)) ([2abdd14](https://github.com/tryingET/pi-extensions/commit/2abdd14627da60985b03e396bbbf5f87708d7925))
+* **context-packer:** wire explicit unseeded ripwire discovery ([375b66c](https://github.com/tryingET/pi-extensions/commit/375b66c925463b248ab75e2116b6ba144db3bb3f))
+
+
+### Bug Fixes
+
+* **context-packer:** close code workflow and acquisition boundary regressions ([34da0fb](https://github.com/tryingET/pi-extensions/commit/34da0fb41eeb463870a28823c73f040fecf4e0f9))
+* **context-packer:** close must-fix code discovery and acquisition regressions ([#211](https://github.com/tryingET/pi-extensions/issues/211)) ([555fb3a](https://github.com/tryingET/pi-extensions/commit/555fb3ab6ba51adfa3b837836e6c743dff57a0fa))
+* **context-packer:** enforce complete rendered packet budgets ([26e91e4](https://github.com/tryingET/pi-extensions/commit/26e91e4eb66c50c63579431e4700b98624e8d3e9))
+* **context-packer:** harden workspace boundaries and verify the complete landing ([5bb2d92](https://github.com/tryingET/pi-extensions/commit/5bb2d922a12f4092dbdb83e3ca50fc9f8b0e3f69))
+* **context-packer:** preserve archive budgets and normalize npm pack dialects ([66eddac](https://github.com/tryingET/pi-extensions/commit/66eddac21303b4700c41f0c0d273789b3f02831d))
+
+
+### Performance Improvements
+
+* **context-packer:** cache verified results against current source content ([a1bc317](https://github.com/tryingET/pi-extensions/commit/a1bc31747ff4902d15316086102032e71db4a2fe))
+
+
+### Code Refactoring
+
+* **context-packer:** remove SCI runtime and retire its evidence contracts ([f5c44dd](https://github.com/tryingET/pi-extensions/commit/f5c44ddedc2658f179eed2f6ff93ed4b3f7b03a4))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.4.0...pi-context-packer-v0.5.0) (2026-08-29)
 
 

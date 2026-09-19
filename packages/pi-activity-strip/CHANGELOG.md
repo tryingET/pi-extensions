@@ -54,6 +54,24 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.5.0...pi-activity-strip-v0.6.0) (2026-09-19)
+
+
+### Features
+
+* **activity-strip:** clickable read-only AK task references on the ribbon (AK 5701) ([7e73557](https://github.com/tryingET/pi-extensions/commit/7e735572dd7aa4bb3eefc3be12260e1f3c48b09d))
+* **activity-strip:** draw the ribbon fully opaque ([d40b39e](https://github.com/tryingET/pi-extensions/commit/d40b39ee15f4e4faaa4dbaa15942d6abd031fa1c))
+* **activity-strip:** draw the ribbon fully opaque ([ecbc51d](https://github.com/tryingET/pi-extensions/commit/ecbc51da7edab969b7157c4405485a5fb759b12e))
+* **activity-strip:** render session pid in card hover details and reset exclusive zone on hide ([6975a9c](https://github.com/tryingET/pi-extensions/commit/6975a9cea88ed88a602dd58414b3f32255c22e8c))
+* **activity-strip:** show every agent tab, in Ghostty's own theme ([6823274](https://github.com/tryingET/pi-extensions/commit/68232749f64a6e9dc7b7775d5bea6f3603491445))
+* **activity-strip:** show every agent tab, in Ghostty's own theme ([691807a](https://github.com/tryingET/pi-extensions/commit/691807a6f185150c54a2360c37e32131516ee0d6))
+
+
+### Bug Fixes
+
+* **activity-strip:** sit on the compositor's tighter gap rhythm ([4a6bd33](https://github.com/tryingET/pi-extensions/commit/4a6bd33955c23a417457da66286c9c27846ea619))
+* **activity-strip:** sit on the compositor's tighter gap rhythm ([aab10b1](https://github.com/tryingET/pi-extensions/commit/aab10b1cd62bd85a9444ac4a96ddb0916ae19b63))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.4.0...pi-activity-strip-v0.5.0) (2026-09-01)
 
 
