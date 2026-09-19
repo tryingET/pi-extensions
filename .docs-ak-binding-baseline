@@ -1,0 +1,15 @@
+# Live-state documents that predate the AK-binding rule (core/agent-scripts deb81ed).
+# Exempt from requiring a binding ONLY. A bound document is still invalidated by its
+# AK closure. Do not add new entries: bind new documents instead. Shrink this file.
+docs/project/2026-04-16-controlled-self-to-ontology-candidate-pipeline-status.md
+docs/project/2026-04-16-federated-learning-and-semantic-pressure-substrate-status.md
+docs/project/2026-04-16-pi-autoresearch-runtime-machine-and-ledger-status.md
+docs/project/2026-04-16-pi-autoresearch-stack-map-boundaries-status.md
+docs/project/2026-04-16-pi-autoresearch-supervision-and-ak-projection-status.md
+docs/project/2026-04-22-subagent-contrib-salvage-boundary-status.md
+docs/project/main-convergence/2026-09-09-fresh-continuation.md
+docs/project/main-convergence/2026-09-11-common-candidate-progress.md
+docs/project/pi-0844-isolated-qualification/2026-09-09-probe-failure-continuation.md
+docs/project/pi-0844-isolated-qualification/2026-09-09-resume-progress-and-next-gates.md
+docs/project/pi-0844-isolated-qualification/2026-09-10-offline-provisioning-progress.md
+docs/project/pi-0844-isolated-qualification/2026-09-19-ak5597-resume-handoff.md
