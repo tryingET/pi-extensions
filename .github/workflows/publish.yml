@@ -232,6 +232,14 @@ jobs:
           installLocalDeps(root);
           NODE
 
+      # The helpers fixture imports sibling peer-messaging source directly. Its
+      # broker uses that package's local tsx CLI, not helpers' optional npm peer.
+      # Install from the frozen lockfile; do not weaken the real-runtime assertion.
+      - name: Install little-helpers source-test peer runtime dependencies
+        if: env.RELEASE_COMPONENT == 'pi-little-helpers'
+        working-directory: packages/pi-peer-messaging
+        run: npm ci
+
       - name: Verify dependency installation did not rewrite tagged source
         shell: bash
         run: |

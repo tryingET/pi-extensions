@@ -47,6 +47,29 @@ A failed component leaves already published npm versions immutable. Re-run that 
 
 The scripts do not grant approval to merge, push, tag, create a GitHub Release, publish to npm, configure OIDC, or change repository settings. Those remain repository-admin/release-operator effects.
 
+### Little-helpers source-test prerequisites (AK5817)
+
+Before the little-helpers package gate, the workflow runs `npm ci` in the tagged
+`packages/pi-peer-messaging` directory. The self-evolution fixture imports this
+sibling's source directly and starts a real broker. That broker launches its own
+package-local `node_modules/tsx/dist/cli.mjs`; the optional npm peer installed under
+little-helpers is a different copy and cannot supply that path. The generic
+`file:` dependency installer does not traverse this versioned peer relationship.
+
+Run 35454662918 failed the real-runtime assertion (`ownedRuntimes.length`, expected
+1, observed 0) before publication. A fresh checkout with the verbatim workflow
+install recipe reproduced it; installing only the sibling's locked dependencies
+restored all nine self-evolution tests without changing source or assertions.
+The prerequisite is helpers-only and precedes the existing tagged-source drift
+check. Real runtime ownership, disconnect and broker-shutdown checks stay intact.
+It repairs the current workflow's preparation for frozen tags; it does not alter
+the tag, bypass the package gate, or authorize a publication retry.
+
+After merge, an explicitly approved retry must retain the original tag and wave
+identity. Publish dependents only after the helpers predecessor succeeds. This
+source-test setup does not certify dependency completeness of an installed npm
+peer-messaging artifact; that is a separate package release-contract concern.
+
 ### Post-publish npm visibility (AK5770)
 
 Both tarball paths converge on one `Wait for exact npm publication` step, using
