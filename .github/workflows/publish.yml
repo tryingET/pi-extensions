@@ -257,6 +257,14 @@ jobs:
           dolt config --global --set user.name "github-actions[bot]"
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      # The gate checks that every pi.extensions entry exists, but it runs
+      # before the tarball is packed, and some entries are prepack build outputs
+      # (pi-little-helpers: ./dist/task-session/pi-tool.js). dist/ is
+      # gitignored, so the restored-source checks are unaffected.
+      - name: Build task-session outputs the quality gate validates
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        run: npm run --if-present task-session:build
+
       - name: Run package quality gate
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         env:

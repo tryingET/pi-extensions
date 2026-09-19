@@ -58,6 +58,19 @@ test("durable evidence retention remains reachable after an exact publication no
   assert.match(retain, /needs\.publish-npm\.result == 'success'/u);
 });
 
+test("task-session build outputs exist before the package quality gate validates them", () => {
+  const workflow = fs.readFileSync(PUBLISH, "utf8");
+  // pi-little-helpers declares ./dist/task-session/pi-tool.js in pi.extensions.
+  // Only prepack builds it, and the gate that checks entries exist runs before npm pack.
+  const install = step(workflow, "Install local file dependency dependencies without lock repair");
+  const build = step(workflow, "Build task-session outputs the quality gate validates");
+  const gate = step(workflow, "Run package quality gate");
+  assert.match(build, /working-directory: \$\{\{ env\.RELEASE_PACKAGE_PATH \}\}/u);
+  assert.match(build, /run: npm run --if-present task-session:build/u);
+  assert.ok(workflow.indexOf(install) < workflow.indexOf(build));
+  assert.ok(workflow.indexOf(build) < workflow.indexOf(gate));
+});
+
 test("root quality gate executes npm state and workflow regression tests", () => {
   const full = fs.readFileSync(FULL, "utf8");
   assert.match(full, /node --test \.\/scripts\/release-npm-state\.test\.mjs/u);
