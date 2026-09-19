@@ -319,7 +319,7 @@ test("session_start footer refreshes vault health after startup drift", async ()
   }
 });
 
-test("session_start footer health retries respect the refresh interval", async () => {
+test("session_start footer health retries respect the refresh interval", async (t) => {
   const previousVaultDir = process.env.VAULT_DIR;
   const previousPiCompany = process.env.PI_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
@@ -337,6 +337,12 @@ test("session_start footer health retries respect the refresh interval", async (
   process.env.PI_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "1000";
 
+  // Real SQL and event-loop delays must not advance the retry schedule.
+  let now = 10_000;
+  const clock = t.mock.method(Date, "now", () => now);
+  const healthChanged = Promise.withResolvers();
+  let footer;
+  let watchdog;
   try {
     const events = new Map();
     extension({
@@ -368,10 +374,11 @@ test("session_start footer health retries respect the refresh interval", async (
     );
 
     assert.ok(footerFactory, "expected session_start to register a footer");
-    const footer = footerFactory(
+    footer = footerFactory(
       {
         requestRender() {
           rerenders += 1;
+          healthChanged.resolve();
         },
       },
       {
@@ -413,13 +420,39 @@ test("session_start footer health retries respect the refresh interval", async (
       { cwd: tempVaultDir, stdio: "ignore" },
     );
 
-    footer.render(120);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
+    now += 999;
+    const beforeThrottle = clock.mock.callCount();
     const stillStale = footer.render(120)[0];
+    // With no Git executor, a throttled render reads only the health clock.
+    // Admitting a probe also timestamps it synchronously, before async SQL.
+    // This checks admission itself, not a lucky absence of async completion.
+    assert.equal(clock.mock.callCount() - beforeThrottle, 1);
     assert.match(stillStale, /Vault✗/);
     assert.equal(rerenders, 0, "expected footer retries to stay throttled before the interval");
+
+    now += 1;
+    footer.render(120);
+    const beforeInFlight = clock.mock.callCount();
+    footer.render(120);
+    assert.equal(
+      clock.mock.callCount() - beforeInFlight,
+      0,
+      "in-flight probe must suppress retries",
+    );
+    await Promise.race([
+      healthChanged.promise,
+      new Promise((_, reject) => {
+        watchdog = setTimeout(
+          () => reject(new Error("footer health refresh did not finish")),
+          10_000,
+        );
+      }),
+    ]);
+    assert.match(footer.render(120)[0], /Vault✓/);
+    assert.equal(rerenders, 1, "expected recovery at the exact refresh deadline");
   } finally {
+    clearTimeout(watchdog);
+    footer?.dispose();
     if (previousVaultDir === undefined) {
       delete process.env.VAULT_DIR;
     } else {
