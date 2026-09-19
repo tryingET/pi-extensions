@@ -60,6 +60,7 @@ fi
 
 node --test ./scripts/root-package-install-contract.test.mjs
 node --test ./scripts/gate-inputs.test.mjs ./scripts/file-budget-audit.test.mjs
+node --test ./scripts/package-install-health.test.mjs
 node --test ./scripts/validate-package-release-contracts.test.mjs
 node --test ./scripts/pi-host-contract-admission.test.mjs
 node --test ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.test.mjs \

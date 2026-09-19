@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Check the active worktree, not the location of a chained hook symlink.
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "package-install-health: WARNING: cannot locate checkout" >&2; exit 0; }
+bash "$root/scripts/package-install-hook.sh" post-merge "$@" || { echo "package-install-health: WARNING: hook helper unavailable; installs were not checked" >&2; }
+exit 0

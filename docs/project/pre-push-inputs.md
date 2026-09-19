@@ -34,7 +34,44 @@ locks do not override actual installed versions. CI's existing `PI_SKIP_PACKAGES
 split also skips the fleet-install preflight, since dedicated package jobs own
 those dependencies; it does not skip toolchain admission.
 
-## Toolchain setup
+## Keeping live installs synchronized (warning-only)
+
+Run `bash scripts/install-hooks.sh` from the canonical checkout. It installs
+`post-checkout`, `post-merge`, and `post-rewrite` checks in the tracked hook lane
+or adds only missing post-hook links to the already-enabled UBS chain. Existing
+UBS pre-commit/pre-push bytes and hook-path configuration are preserved. Unknown
+hook directories or occupied post-hook entries are refused, not overwritten.
+If an external hook owner rebuilds its chain, rerun this installer.
+
+Each post hook checks the **current tracked working tree**, even for file-only
+checkouts and rewrites whose commit IDs do not reveal all working-tree changes.
+This deliberately scans after every such operation, not only a historical lock
+hash change. It can report pre-existing drift; it does not claim Git caused it.
+Healthy state is quiet. Stale installs or unavailable checks produce a warning
+but never fail the Git operation. No installs, builds, lock edits, state stamps,
+Pi settings changes, or session reloads occur automatically.
+
+Use `node scripts/package-install-health.mjs` for a focused read-only check.
+`node scripts/agent-doctor.mjs` (also included in `just doctor`) reports the same
+result as `info.installConsistency` in JSON and exits nonzero on inconsistency
+or an unavailable checker. This is separate from Pi install-source provenance;
+`--no-drift` does **not** disable install consistency.
+
+Warnings name affected packages and give shell-quoted `npm ci --prefix ...`
+commands. First reconcile any authored manifest/lock mismatch, select the pinned
+toolchain below, coordinate a pause with live Pi/test readers, then explicitly run
+the selected repair from the checkout root. `npm ci` removes `node_modules` and
+can rebuild `dist` in lifecycle scripts. Reload/restart affected Pi sessions
+following the coordinated sync. The checker retains the existing metadata/version
+consistency boundary; it does not prove installed-code integrity.
+
+The canonical UBS chain may contain absolute canonical-checkout pre-hooks, and
+its relative `.git/ubs-chain-hooks` path does not resolve in linked worktrees.
+This installer does not reinterpret that owner contract. In an isolated worktree,
+use the documented explicit `git -c core.hooksPath=.githooks ...` lane; post hooks
+resolve the active checkout, never the symlink's canonical source directory.
+
+## Toolchain setup (pinned versions)
 
 The pin is Node **22.22.2**, npm **12.0.2**. Do not change the pin merely to admit
 ambient machine drift. A Node distribution may bundle an unsuitable npm.
@@ -99,5 +136,7 @@ Push with `git -c core.hooksPath=.githooks push origin HEAD:main` so the checked
 hook actually runs: `.git/ubs-chain-hooks` does not resolve in linked worktrees.
 Never disable hooks. Retain logs and the subject commit, and check main CI.
 
-The live-fleet baseline and broker-test teardown remain separate AK5788/AK5789
-work. If either blocks AK5787 landing, report the blocker instead of bypassing it.
+The registry's explicit `npm run environment:health` lane retains live fleet
+and profile drift checks (AK5788); commit tests use fixtures. Package test-file
+timeouts and broker teardown are retained from AK5789. Report any unrelated gate
+blocker instead of bypassing it.

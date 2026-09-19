@@ -5,6 +5,7 @@
 //   broker      peer-messaging broker pid liveness + socket presence
 //   sessions    session storage count/size with warn thresholds
 //   drift       install provenance (delegates to check-install-drift.mjs)
+//   installs    tracked lock/installed metadata consistency (independent of --no-drift)
 //   extensions  broken symlinks / orphaned stash dirs in ~/.pi/agent/extensions
 //   logs        recent crash/debug log activity
 //
@@ -17,6 +18,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node
 import { homedir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { packageInstallHealth, formatInstallHealth } from "./package-install-health.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const agentDir = resolve(homedir(), ".pi/agent");
@@ -215,6 +217,11 @@ if (!noDrift) {
 }
 info.drift = drift ? drift.exitCode : "skipped";
 
+// Installation consistency is distinct from Pi source provenance. Never repair
+// node_modules underneath live readers, and never present checker failure as OK.
+info.installConsistency = packageInstallHealth(repoRoot);
+if (!info.installConsistency.ok) failures.push("package installation consistency failed (see installs output)");
+
 if (asJson) {
   console.log(JSON.stringify({ ok: failures.length === 0, failures, warnings, info }, null, 2));
 } else {
@@ -225,6 +232,7 @@ if (asJson) {
   for (const w of warnings) console.log(`warn:    ${w}`);
   for (const f of failures) console.log(`FAIL:    ${f}`);
   if (drift) for (const line of drift.output.split("\n")) if (line.trim()) console.log(`drift:   ${line}`);
+  for (const line of formatInstallHealth(info.installConsistency)) console.log(`installs: ${line}`);
   console.log(`agent-doctor: ${failures.length === 0 ? "OK" : "FAILED"} (${failures.length} failures, ${warnings.length} warnings)`);
 }
 process.exit(failures.length > 0 ? 1 : 0);
