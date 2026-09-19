@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.4](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.3...pi-agent-registry-v0.3.4) (2026-09-19)
+
+
+### Bug Fixes
+
+* **registry:** separate live fleet health from commit tests (AK5788) ([0791848](https://github.com/tryingET/pi-extensions/commit/0791848637a3faf2e8b792a6dc05fd03ec79dd6b))
+
 ## [0.3.3](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.2...pi-agent-registry-v0.3.3) (2026-09-19)
 
 
