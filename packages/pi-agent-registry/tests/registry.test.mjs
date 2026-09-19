@@ -1,5 +1,5 @@
 // ---
-// summary: verifies pattern-based discovery, fail-closed resolution, skill materialization from real EC profiles, and the real steward manifest.
+// summary: verifies pattern-based discovery, fail-closed resolution, and skill materialization from repository fixtures.
 // read_when:
 //   - changing discovery roots, resolution composition, or skill materialization.
 // ---
@@ -13,10 +13,6 @@ import test from "node:test";
 import { loadEcProfiles } from "../src/ec-profiles.ts";
 import { AgentRegistryError, createAgentRegistry, expandTildePath } from "../src/registry.ts";
 
-const REAL_EC_PROFILES = join(
-  expandTildePath("~/ai-society"),
-  "core/engineering-core/skills/profiles.json",
-);
 const FIXTURES_ROOT = new URL("./fixtures/", import.meta.url).pathname;
 const FIXTURE_EC_PROFILES = join(FIXTURES_ROOT, "engineering-core/skills/profiles.json");
 
@@ -148,71 +144,6 @@ test("unknown agent names fail closed with the registered set", async () => {
       return true;
     });
   });
-});
-
-test("profile materialization uses the real engineering-core profiles.json", async (t) => {
-  if (!existsSync(REAL_EC_PROFILES)) {
-    t.skip("real engineering-core profiles.json is unavailable");
-    return;
-  }
-  const ec = await loadEcProfiles(REAL_EC_PROFILES);
-  await withRegistry([join(FIXTURES_ROOT, "agent-fixture-steward")], { ec }, async (registry) => {
-    const ecFull = registry.ec.profiles.get("ec-full");
-    assert.ok(ecFull, "real EC profiles must expose ec-full");
-    assert.ok(
-      ecFull.length >= 40,
-      `ec-full should carry the full discipline set, got ${ecFull.length}`,
-    );
-    assert.deepEqual([...registry.ec.profiles.keys()].slice().sort().slice(0, 4), [
-      "ec-common-lisp",
-      "ec-common-lisp.justfile",
-      "ec-cpp",
-      "ec-cpp.cuda",
-    ]);
-  });
-});
-
-test("resolve against the real adoption-steward repo (live fleet fixture)", async (t) => {
-  const fleetRoot = join(expandTildePath("~/ai-society"), "agents", "agent-adoption-steward");
-  if (!existsSync(REAL_EC_PROFILES) || !existsSync(fleetRoot)) {
-    t.skip("real engineering-core profiles or adoption-steward fleet fixture is unavailable");
-    return;
-  }
-  const ec = await loadEcProfiles(REAL_EC_PROFILES);
-  const registry = await createAgentRegistry({
-    roots: [join(expandTildePath("~/ai-society"), "agents", "agent-*")],
-    ec,
-  });
-  assert.ok(registry.get("agent-adoption-steward"), "real steward manifest must be discovered");
-
-  const launch = await registry.resolve("agent-adoption-steward");
-  try {
-    assert.equal(launch.tools, "read,bash");
-    assert.equal(launch.thinking, "medium");
-    assert.equal(launch.model, null);
-    assert.match(launch.systemPrompt, /You are \*\*agent-adoption-steward\*\*/);
-    assert.match(launch.systemPrompt, /read-only advisory territory/);
-    assert.match(launch.systemPrompt, /softwareco\/owned\/\*/);
-    // ec-full profile members + ai-society-runtime-recipes extra, all materialized
-    assert.equal(launch.loadedSkills.length, ecFullCount(registry) + 1);
-    assert.ok(launch.loadedSkills.includes("ai-society-runtime-recipes"));
-    for (const skill of launch.loadedSkills) {
-      assert.equal(
-        existsSync(join(launch.skillDirs[0], skill, "SKILL.md")),
-        true,
-        `real steward skill missing: ${skill}`,
-      );
-    }
-    // activities glob expanded to the four shipped activity prompts
-    assert.equal(launch.activities.length, 4);
-    assert.ok(launch.activities.includes("prompts/activities/adoption-audit.md"));
-  } finally {
-    await launch.cleanup();
-  }
-
-  function ecFullCount(reg) {
-    return reg.ec.profiles.get("ec-full")?.length ?? 0;
-  }
 });
 
 test("expandTildePath handles ~, ~/, and absolute forms", () => {

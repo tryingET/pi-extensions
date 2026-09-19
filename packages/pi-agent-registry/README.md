@@ -34,9 +34,13 @@ claim; AK 5134 remains separate.
   - `lint` — aggregate immutable fleet observation, including missing/malformed
     manifests, with no skill materialization or fleet-script execution;
   - `refresh` — rebuild the mutable inspection registry.
-- `pi-agent-registry-lint` / `npm run fleet:lint` — JSON CLI for CI/operator
-  use; exits `1` for a coherent unhealthy report and `2` for infrastructure or
-  contract failure. `--allow-unhealthy` keeps known-debt dogfood exit-zero.
+- `pi-agent-registry-lint` / `npm run fleet:lint` — JSON CLI for explicit
+  environment-health/operator use, not commit validation; exits `1` for a
+  coherent unhealthy report and `2` for infrastructure or contract failure.
+  `--allow-unhealthy` is an explicit diagnostic option, not the health-lane default.
+- `npm run environment:health` — repository-checkout health lane: runs the live
+  baseline/compatibility checks and always emits the current fleet report.
+  It fails on drift, missing sources, or an unhealthy fleet.
 - `dispatch_agent` — the Fleet Phase-2 exact-task read-only contract (see
   below); fails closed with `confirmed_no_effects` before any ASC identity,
   capacity, session, or spawn effect exists.
@@ -132,6 +136,28 @@ The committed real-fleet baseline is intentionally unhealthy and
 revision-bound. It records the known L2 backfill/provenance debt rather than
 mutating external agent repos or claiming Phase-1 implementation made the
 fleet green.
+
+## Commit validation versus environment health
+
+`npm run check` and the root pre-push/CI gate use fixture-backed fleet/profile
+inputs. They do not depend on the operator's live fleet or engineering-core
+HEAD. A regression tripwire reruns default tests with Node filesystem/Git
+access to those live sources forbidden; it is testing instrumentation, not a
+security sandbox.
+
+Real observations live under `tests/environment-health/*.health.mjs`, outside
+the default `*.test.*` discovery. Run `npm run environment:health` explicitly
+from this repository checkout. It preserves the original revision-bound
+`tests/fixtures/real-fleet-lint-baseline.json` and real steward/profile/tool
+checks. Missing live sources fail rather than masquerading as health. The
+current known baseline has **7 errors**: matching that baseline is not a green
+fleet, so the command still exits nonzero and prints the unhealthy report.
+
+Engineering-core HEAD changes and profile-byte changes remain loud in this
+health lane, but do not block unrelated commits. Review any drift with the
+source owner; do not re-pin a baseline merely to make a push pass. Health
+observations grant no dispatch, lifecycle, or repair authority. No automatic
+baseline update, fleet mutation, or startup hook is introduced.
 
 ## Engineering-core profile interface
 

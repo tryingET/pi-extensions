@@ -93,7 +93,11 @@ approval, Pi runtime install/reload proof, or monorepo owner authority.
   helpers release must ship it. A packed registry with older npm helpers
   fails closed `visible_transport_unavailable`. Do not describe local tests
   or successful packing as a published Phase-3 feature.
-- Tests intentionally read live workspace fixtures (the real steward agent
-  repo and the real engineering-core `profiles.json`) to keep the
-  convention honest against the fleet, not just against synthetic data.
+- Commit-gate tests use repository/synthetic fleet and profile fixtures, never
+  the live fleet or engineering-core HEAD. `npm run environment:health` is the
+  explicit repository-checkout lane for the retained real steward/profile/tool
+  compatibility checks and unchanged revision-bound fleet baseline. It always
+  prints the current fleet report and exits nonzero on unhealthy state or drift;
+  today's known seven-error baseline is not considered healthy. See the package
+  README's commit-validation/environment-health contract.
 

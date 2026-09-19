@@ -5,17 +5,13 @@
 // ---
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createMissingManifestRepo, createProfileRepo } from "./fleet-lint-fixtures.mjs";
 
 const FIXTURES_ROOT = new URL("./fixtures/", import.meta.url).pathname;
-const REAL_EC_PROFILES = join(
-  process.env.HOME,
-  "ai-society/core/engineering-core/skills/profiles.json",
-);
 
 function createPiHarness() {
   const tools = new Map();
@@ -172,32 +168,41 @@ test("agent_registry validate reports per-agent fail-closed results", async () =
   });
 });
 
-test("agent_registry lint returns the real immutable unhealthy fleet observation without dispatch", async (t) => {
-  const fleetRoot = join(process.env.HOME, "ai-society/agents");
-  if (!existsSync(fleetRoot) || !existsSync(REAL_EC_PROFILES)) {
-    t.skip("real fleet fixture unavailable");
-    return;
-  }
+test("agent_registry lint reports an immutable unhealthy fixture without dispatch", async () => {
+  const scratch = await mkdtemp(join(tmpdir(), "agent-ext-lint-"));
   const previousRoots = process.env.PI_AGENT_REGISTRY_ROOTS;
   const previousEc = process.env.PI_AGENT_REGISTRY_EC_PROFILES;
-  process.env.PI_AGENT_REGISTRY_ROOTS = join(fleetRoot, "agent-*");
-  process.env.PI_AGENT_REGISTRY_EC_PROFILES = REAL_EC_PROFILES;
   try {
+    createProfileRepo(join(scratch, "engineering-core"));
+    createMissingManifestRepo(join(scratch, "agents", "agent-legacy"));
+    process.env.PI_AGENT_REGISTRY_ROOTS = join(scratch, "agents", "agent-*");
+    process.env.PI_AGENT_REGISTRY_EC_PROFILES = join(
+      scratch,
+      "engineering-core",
+      "skills",
+      "profiles.json",
+    );
     const harness = createPiHarness();
     await loadExtension(harness.pi);
     const result = await harness.tools
       .get("agent_registry")
-      .execute("lint-real", { action: "lint" }, null, null, { cwd: process.cwd() });
-    assert.match(result.content[0].text, /fleet lint unhealthy: repositories=4\/4, manifests=1/);
+      .execute("lint-fixture", { action: "lint" }, null, null, { cwd: scratch });
+    assert.match(result.content[0].text, /fleet lint unhealthy: repositories=1\/1, manifests=0/);
     assert.match(result.content[0].text, /Observation only: no agent was selected/);
     assert.equal(result.details.schema, "ai-society.agent-fleet-lint/1");
-    assert.equal(result.details.summary.errors, 7);
+    assert.ok(result.details.summary.errors > 0);
+    assert.ok(
+      result.details.repositories[0].diagnostics.some(
+        (item) => item.code === "fleet.manifest_missing",
+      ),
+    );
     assert.equal(result.details.authorityEffect, "none");
   } finally {
     if (previousRoots === undefined) delete process.env.PI_AGENT_REGISTRY_ROOTS;
     else process.env.PI_AGENT_REGISTRY_ROOTS = previousRoots;
     if (previousEc === undefined) delete process.env.PI_AGENT_REGISTRY_EC_PROFILES;
     else process.env.PI_AGENT_REGISTRY_EC_PROFILES = previousEc;
+    await rm(scratch, { recursive: true, force: true });
   }
 });
 
