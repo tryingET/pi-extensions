@@ -54,6 +54,7 @@ export const piPaths = [
   "packages/pi-little-helpers/src/task-session",
   "packages/pi-little-helpers/dist/task-session",
   "packages/pi-little-helpers/scripts/task-session-build.mjs",
+  "packages/pi-society-orchestrator/scripts/task-session-build.mjs",
   "packages/pi-little-helpers/src/taskSessionTransport.ts",
   "packages/pi-little-helpers/extensions/sidequestGhostty.ts",
   "packages/pi-society-orchestrator/src/runtime/task-session-adapter.ts",
