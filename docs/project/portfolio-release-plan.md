@@ -47,6 +47,53 @@ A failed component leaves already published npm versions immutable. Re-run that 
 
 The scripts do not grant approval to merge, push, tag, create a GitHub Release, publish to npm, configure OIDC, or change repository settings. Those remain repository-admin/release-operator effects.
 
+### Post-publish npm visibility (AK5770)
+
+Both tarball paths converge on one `Wait for exact npm publication` step, using
+`release-tooling/scripts/release-npm-state.mjs wait` from the current main tooling
+checkout, not frozen tag scripts. It succeeds immediately on `exact`, fails on
+`mismatch` without retrying, and retries only `absent`. Authentication, transport,
+invalid JSON and other inspection errors fail immediately rather than becoming
+absence. It never republishes. Successful exact/no-op runs still reach durable
+evidence retention; a failed wait still blocks consumers and evidence retention.
+
+The wait starts with an immediate query and has a **600000 ms (10 minute)** monotonic
+budget including npm requests and sleeps. Delays grow **10 → 20 → 30 seconds**, then
+stay capped at 30 seconds; each sleep and npm process timeout is clipped to the
+remaining budget. A timed-out npm process is killed, and a result arriving at or
+after the deadline is not accepted. Deadline errors identify the package/version,
+last observed state and attempt count. Progress goes to stderr; successful stdout
+is the existing `pi.npm-publication-state.v1` exact classification. `inspect` and
+its `--require` / env-file contract remain unchanged. CLI timing overrides
+`--deadline-ms`, `--initial-delay-ms`, and `--max-delay-ms` accept positive integer
+milliseconds (initial delay must not exceed the cap).
+
+**Why this budget:** the 2026-09-19 wave `41a7d378` had seven npm publish successes
+followed by six absent checks. The former shell loop actually slept five times,
+not six: final negative log observations occurred about 52 seconds after npm's
+publish acknowledgment. npm also explicitly warned that processing may take a few
+minutes. Later same-wave recovery runs observed identical bytes without publishing:
+
+| Failed run | Publish → final absent (s) | Recovery run | Publish → recovery exact (s) |
+| --- | ---: | --- | ---: |
+| 35431016650 | 51.950 | 35431244764 | 301.099 |
+| 35432181446 | 52.231 | 35432418900 | 244.084 |
+| 35432554494 | 51.707 | 35432685051 | 201.022 |
+| 35432817309 | 52.229 | 35432960223 | 184.335 |
+| 35433039342 | 52.377 | 35433292417 | 308.713 |
+| 35433464421 | 52.288 | 35433576821 | 130.417 |
+| 35433643968 | 51.970 | 35433751173 | 139.642 |
+
+Source: `gh run view <run> --repo tryingET/pi-extensions --log` (2026-09-19).
+Use the real publish `+ package@version` line, not the earlier dry-run line.
+Negative observations are lower-bound proxies; recovery observations are coarse
+upper bounds, **not first-visibility measurements**. The brief's claimed 8–69 s
+post-job appearance was not established by these logs. Ten minutes exceeds every
+sampled recovery bound with margin and remains well within the 60-minute job
+limit; the 30-second cap limits registry traffic while retaining useful feedback.
+This is a provisional operational budget, not a measured percentile or a guarantee.
+The next true release-wave propagation case remains the live efficacy check.
+
 ## Wave admission
 
 Human admit is one review of the combined release-please PR, not N `npm-publish` environment approvals. Keep the environment **name** `npm-publish` for npm OIDC Trusted Publishing. Empty **Required reviewers** on that environment so sequential `publish.yml` jobs do not each wait. Exact GitHub fields: `docs/project/2026-09-03-npm-publish-wave-admit.md`.

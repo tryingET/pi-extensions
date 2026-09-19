@@ -45,11 +45,25 @@ test("missing bytes publish once, exact bytes are a no-op, and mismatches fail c
     assert.match(publish, /already contains the exact immutable bytes/u);
     assert.match(publish, /mismatch\)/u);
     assert.match(publish, /refusing to overwrite/u);
-    assert.match(publish, /release-npm-state\.mjs"?\s+inspect[\s\S]*--require exact/u);
+    assert.doesNotMatch(publish, /for attempt|sleep 10|release-npm-state\.mjs/u);
   }
 });
 
 test("durable evidence retention remains reachable after an exact publication no-op", () => {
+  const workflow = fs.readFileSync(PUBLISH, "utf8");
+  const wait = step(workflow, "Wait for exact npm publication").split("\n  retain-github-release-evidence:")[0];
+  assert.match(wait, /release-tooling\/scripts\/release-npm-state\.mjs"?\s+wait/u);
+  assert.match(wait, /--manifest "\$RELEASE_ARTIFACT_MANIFEST_PATH"/u);
+  assert.match(wait, /--deadline-ms 600000/u);
+  assert.doesNotMatch(wait, /if:|continue-on-error:|npm publish/u);
+  assert.equal((workflow.match(/release-npm-state\.mjs"?\s+wait/gu) ?? []).length, 1);
+  for (const name of [
+    "Publish retained tarball to npm (OIDC + provenance)",
+    "Publish authoritative generic tarball to npm (OIDC + provenance)",
+  ]) assert.ok(workflow.indexOf(step(workflow, name)) < workflow.indexOf(wait));
+});
+
+test("evidence retention requires the shared wait job to succeed", () => {
   const workflow = fs.readFileSync(PUBLISH, "utf8");
   const retainStart = workflow.indexOf("  retain-github-release-evidence:\n");
   assert.notEqual(retainStart, -1);
