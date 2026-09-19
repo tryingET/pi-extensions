@@ -14,6 +14,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
+
+import { createPeerMessagingRuntime } from "../../pi-peer-messaging/index.ts";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
@@ -617,6 +620,7 @@ test("visible-loop candidate route persists the typed envelope and prepends it t
 test("candidate-bound nexus-loop recognizes the prefixed governed review and fails closed", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-candidate-gate-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  const ownedRuntimes = [];
   try {
     const execStub = createExecStub(({ command, args }) => {
       if (command === "/usr/bin/ghostty" && args[0] === "+help") {
@@ -628,6 +632,17 @@ test("candidate-bound nexus-loop recognizes the prefixed governed review and fai
     const extension = createSidequestExtension({
       registerTools: true,
       governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
+      async createPeerRuntime(config, ctx) {
+        const runtime = await createPeerMessagingRuntime({
+          id: config.runId,
+          name: "nexus-loop",
+          cwd: config.cwd || ctx.cwd,
+          model: ctx.model?.id || "unknown",
+          runtimeDir: `${stateHome}/peer-messaging`,
+        });
+        ownedRuntimes.push(runtime);
+        return runtime;
+      },
       env: {
         TERM_PROGRAM: "xterm",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -665,9 +680,23 @@ test("candidate-bound nexus-loop recognizes the prefixed governed review and fai
 
     assert.equal(userMessages.length, 1, "Nexus fixup must remain withheld without a receipt");
     assert.match(harness.notifications.at(-1).message, /governed deep-review did not complete/);
+    assert.equal(ownedRuntimes.length, 1, "the test must exercise the real report-back runtime");
   } finally {
-    restoreHome();
-    rmSync(stateHome, { recursive: true, force: true });
+    let shutdownVerified = false;
+    try {
+      await Promise.all(ownedRuntimes.map((runtime) => runtime.disconnect()));
+      // Await this fixture's normal broker idle shutdown before deleting its state.
+      const deadline = Date.now() + 10_000;
+      while (ownedRuntimes.some((runtime) => existsSync(runtime.getPaths().pidPath))) {
+        assert.ok(Date.now() < deadline, "owned broker did not shut down after disconnect");
+        await delay(25);
+      }
+      shutdownVerified = true;
+    } finally {
+      restoreHome();
+      if (shutdownVerified) rmSync(stateHome, { recursive: true, force: true });
+      else console.error(`retained unverified peer-runtime scratch: ${stateHome}`);
+    }
   }
 });
 

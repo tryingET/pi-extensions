@@ -30,6 +30,7 @@ import {
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
   type VISIBLE_LOOP_COMMAND,
+  type VisibleLoopChildRunnerOptions,
   type VisibleLoopCommandProfile,
   validatePersistedSelfEvolutionBinding,
   writeVisibleLoopRunConfig,
@@ -44,6 +45,7 @@ import { successToolResult } from "./sidequestPeerReportBack.ts";
 type PiCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
 export type SidequestVisibleLoopOptions = SidequestLaunchOptions & {
   governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
+  createPeerRuntime?: VisibleLoopChildRunnerOptions["createPeerRuntime"];
 };
 
 export function createSidequestVisibleLoopAdapter({
@@ -272,11 +274,13 @@ export function createSidequestVisibleLoopAdapter({
     visibleLoopChild: (args: string | undefined, ctx: PiCommandContext) =>
       startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(ctx),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       }),
     visibleLoopChildComplete: async (args: string | undefined, ctx: PiCommandContext) => {
       await startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(ctx),
+        createPeerRuntime: options.createPeerRuntime,
       });
     },
   };
@@ -296,6 +300,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       handleVisibleLoopAgentStart(pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -304,6 +309,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       handleVisibleLoopMessageStart(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -312,6 +318,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       handleVisibleLoopToolExecutionStart(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -320,6 +327,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       return handleVisibleLoopToolCall(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -328,6 +336,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       handleVisibleLoopToolResult(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -336,6 +345,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       handleVisibleLoopToolExecutionEnd(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -344,6 +354,7 @@ export function createSidequestVisibleLoopAdapter({
       const commandCtx = ctx ?? {};
       handleVisibleLoopAgentSettled(pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        createPeerRuntime: options.createPeerRuntime,
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
@@ -373,6 +384,7 @@ export function createSidequestVisibleLoopAdapter({
           options.env ?? process.env,
           {
             continueInNewSession: createVisibleLoopContinuation(ctx as PiCommandContext),
+            createPeerRuntime: options.createPeerRuntime,
             candidateCloseout: request.candidateCloseout,
           },
         );

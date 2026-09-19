@@ -48,6 +48,8 @@ Repo-local emphasis:
 - Lint/format baseline: Biome config in `biome.jsonc` + pinned local `@biomejs/biome` dev dependency.
 - Biome path strategy: lint repo files by default, but exclude artifact/vendor buckets (`external/`, `ontology/`, build outputs, generated/minified files).
 - Quality lane gate: `npm run quality:pre-commit`, `npm run quality:pre-push`, `npm run quality:ci`.
+- The root package runner bounds each test file to 120 seconds, including leaked event-loop handles. `NODE_TEST_TIMEOUT_MS` may select another positive millisecond deadline; zero, malformed values, and timer overflow are rejected.
+- Tests creating peer runtimes must retain and disconnect those clients in teardown, then verify their fixture broker has shut down before removing scratch. `createSidequestExtension({ createPeerRuntime })` forwards the existing runner factory through launch/recovery paths so tests can own real clients without disabling intercom. On uncertain shutdown, retain scratch and report its path.
 - Auto-fix workflow: `npm run fix` (before commit or when applying AI-generated diffs).
 - Pin lane metadata in `policy/engineering-lane.json` (`lane: ts`, pinned `engineering_core.ref`).
 - Validate structural/docs invariants with `npm run check`.

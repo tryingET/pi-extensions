@@ -20,7 +20,10 @@ import {
 } from "../src/candidatePeerCloseout.ts";
 import { runCandidatePeerJanitor } from "../src/candidatePeerJanitor.ts";
 import { LITTLE_HELPERS_CAPABILITY_MANIFEST } from "../src/capabilityManifest.ts";
-import type { RunVisibleLoopGovernedPreflight } from "../src/visibleLoop.ts";
+import type {
+  RunVisibleLoopGovernedPreflight,
+  VisibleLoopChildRunnerOptions,
+} from "../src/visibleLoop.ts";
 
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
@@ -59,6 +62,7 @@ type SidequestOptions = SidequestCommandHandlerOptions & {
   registerCommands?: boolean;
   registerTools?: boolean;
   governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
+  createPeerRuntime?: VisibleLoopChildRunnerOptions["createPeerRuntime"];
   ascExecutionObserver?: AscExecutionObserverController;
   ascObserverStateRoot?: string;
   candidateAdmission?: {

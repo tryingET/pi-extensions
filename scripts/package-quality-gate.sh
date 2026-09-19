@@ -243,17 +243,23 @@ run_tests_target() {
 
   local test_concurrency
   test_concurrency="$(resolve_node_test_concurrency)"
+  local test_timeout_ms="${NODE_TEST_TIMEOUT_MS:-120000}"
+  if [[ ! "$test_timeout_ms" =~ ^[1-9][0-9]{0,9}$ ]] || (( test_timeout_ms > 2147483647 )); then
+    echo "tests: NODE_TEST_TIMEOUT_MS must be a positive integer <= 2147483647 (milliseconds per file)." >&2
+    exit 1
+  fi
+  echo "tests: per-file timeout ${test_timeout_ms}ms ($(relative_target "$workdir"))"
 
   if [[ "$needs_tsx" == "true" ]]; then
     if [[ ! -x "$workdir/node_modules/.bin/tsx" ]]; then
       echo "tests: TypeScript test files detected in $(relative_target "$workdir") but local tsx binary is unavailable." >&2
       exit 1
     fi
-    (cd "$workdir" && node --import tsx --test --test-concurrency="$test_concurrency" "${test_files[@]}")
+    (cd "$workdir" && node --import tsx --test --test-concurrency="$test_concurrency" --test-timeout="$test_timeout_ms" "${test_files[@]}")
     return 0
   fi
 
-  (cd "$workdir" && node --test --test-concurrency="$test_concurrency" "${test_files[@]}")
+  (cd "$workdir" && node --test --test-concurrency="$test_concurrency" --test-timeout="$test_timeout_ms" "${test_files[@]}")
 }
 
 should_run_structure_validation_target() {
