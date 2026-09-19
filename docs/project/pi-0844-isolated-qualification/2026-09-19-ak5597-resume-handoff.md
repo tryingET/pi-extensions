@@ -1,5 +1,5 @@
 ---
-summary: "AK5597 resume handoff, 2026-09-19: the claim is 8 days stale, the heavy-job retained-run deadlock that refused the third provisioning attempt is fixed and cleared, and the preserved third-run artifact is outside the scratch root."
+summary: "SUPERSEDED the same day: premise stale, AK5597 closed failed-as-superseded; read 2026-09-19-ak5597-supersession-reconciliation.md instead. Original: AK5597 resume handoff, 2026-09-19: the claim is 8 days stale, the heavy-job retained-run deadlock that refused the third provisioning attempt is fixed and cleared, and the preserved third-run artifact is outside the scratch root."
 read_when:
   - "Resuming AK5597 offline provisioning after 2026-09-19."
   - "You expected the three stranded heavy-job runs and they are gone."
@@ -7,6 +7,13 @@ type: reference
 ---
 
 # AK5597 resume handoff — 2026-09-19
+
+> **Superseded 2026-09-19.** Do not follow the steps below. The 2026-09-10 doc was
+> not the controlling state, the preserved tar is the V6 failure (9177), not the third
+> run, and the provisioning path was retired by the operator (9807, 9846). AK5597 is
+> closed failed-as-superseded (10027, 10028). See the
+> [supersession reconciliation](2026-09-19-ak5597-supersession-reconciliation.md).
+> The text below is kept unchanged as written.
 
 Written by the dspx session that fixed the heavy-job retention deadlock. It changes the
 **environment** AK5597 runs in; it changes nothing about AK5597's own governance, and it
