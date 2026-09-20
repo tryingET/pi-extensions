@@ -5,6 +5,7 @@
 // ---
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +51,9 @@ export function getBrokerEntryPath(packageRoot: string = getPackageRoot()): stri
 }
 
 export function getTsxCliPath(packageRoot: string = getPackageRoot()): string {
-  return path.join(packageRoot, "node_modules", "tsx", "dist", "cli.mjs");
+  // Resolve the public export from this package, allowing npm to hoist or
+  // deduplicate its production dependency in an ancestor node_modules.
+  return createRequire(path.join(packageRoot, "package.json")).resolve("tsx/cli");
 }
 
 function quoteWindowsArg(value: string): string {

@@ -70,8 +70,10 @@
     "@earendil-works/pi-coding-agent": "0.84.4",
     "@types/node": "22.14.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
-    "tsx": "^4.20.5",
     "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "tsx": "4.23.13"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

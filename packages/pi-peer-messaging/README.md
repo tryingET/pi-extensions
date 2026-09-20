@@ -202,6 +202,19 @@ This package expects Pi host runtime APIs and declares them as peer dependencies
 - `@earendil-works/pi-coding-agent`
 - `@earendil-works/pi-ai`
 
+The broker executes TypeScript in a separate process. `tsx` is therefore a
+production dependency, not merely a development tool. The launcher resolves the
+supported `tsx/cli` export relative to this package, allowing npm's nested and
+hoisted layouts. It must not depend on a checkout's dev install or a global loader.
+
+Both quick and full release checks require a fresh, production-only installation
+of the packed artifact in **both** layouts. The installed public API must
+cold-start a real broker, connect two peers, deliver a message and correlated
+ask/reply, disconnect, and verify that the owned broker OS process has exited.
+This proof is separate from the optional Pi adapter smoke, which also tests
+registration with an injected runtime. Windows command construction has unit
+coverage; a Linux smoke is not native Windows runtime qualification.
+
 ## Package checks
 
 From the package directory:

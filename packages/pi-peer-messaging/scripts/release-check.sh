@@ -170,6 +170,33 @@ TARBALL="$(release_sandbox_npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
+# This is a real installed-library proof, not the optional Pi adapter smoke.
+# It must run in quick checks too: import-only mocks cannot certify cold startup.
+for layout in hoisted nested; do
+  echo "== installed broker smoke ($layout, production dependencies only)"
+  BROKER_PREFIX="$(mktemp -d "$TMPDIR/pm-install.XXXXXX")"
+  node - "$ROOT_DIR/package.json" "$BROKER_PREFIX/package.json" <<'NODE'
+const fs = require('node:fs');
+const pkg = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const dependencies = {};
+for (const name of Object.keys(pkg.peerDependencies)) {
+  const version = pkg.devDependencies[name];
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Missing exact host pin for ${name}`);
+  dependencies[name] = version;
+}
+fs.writeFileSync(process.argv[3], JSON.stringify({ private: true, type: 'module', dependencies }));
+NODE
+  release_sandbox_npm install --prefix "$BROKER_PREFIX" --install-strategy="$layout" \
+    --omit=dev --ignore-scripts --no-audit --no-fund "$TARBALL_PATH"
+  BROKER_PACKAGE="$BROKER_PREFIX/node_modules/$NAME"
+  BROKER_TSX="$(node -e 'const p=require("node:path"); console.log(require("node:module").createRequire(p.join(process.argv[1],"package.json")).resolve("tsx/cli"))' "$BROKER_PACKAGE")"
+  if ! release_sandbox_command node "$BROKER_TSX" "$ROOT_DIR/scripts/installed-runtime-smoke.mjs" "$BROKER_PACKAGE" "$layout"; then
+    echo "Installed broker proof failed; retaining owned consumer for inspection: $BROKER_PREFIX" >&2
+    exit 1
+  fi
+  rm -rf -- "$BROKER_PREFIX"
+done
+
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
 else
