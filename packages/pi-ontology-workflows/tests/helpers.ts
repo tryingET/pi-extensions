@@ -3,16 +3,7 @@
 //   - "Adding ontology workflow fixtures or changing test workspace detection behavior."
 
 import { existsSync } from "node:fs";
-import {
-  chmod,
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  realpath,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
@@ -415,11 +406,12 @@ export async function createTestDevelopmentDescriptor(): Promise<RocsRunnerDescr
   const entrypointPath = path.join(root, "entrypoint.txt");
   await writeFile(lockPath, lock);
   await writeFile(entrypointPath, entrypoint);
-  const sourceInterpreter = await realpath(process.execPath);
+  // A small real executable stands in for Python. Copying process.execPath tied the fixture to
+  // the Node build: the official Node 26 binary (149 MB) exceeds the 128 MiB interpreter cap.
+  const interpreter = Buffer.from("#!/bin/sh\nexit 0\n");
   const interpreterPath = path.join(root, "python3.12");
-  await copyFile(sourceInterpreter, interpreterPath);
+  await writeFile(interpreterPath, interpreter);
   await chmod(interpreterPath, 0o755);
-  const interpreter = await readFile(interpreterPath);
   const manifest: PreparedRuntimeManifest = {
     schema: "pi-rocs-prepared-runtime-manifest.v0",
     rocs_commit: "a".repeat(40),

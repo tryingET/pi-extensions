@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
 import {
   chmod,
-  copyFile,
   lstat,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
-  realpath,
   rename,
   symlink,
   writeFile,
@@ -156,11 +154,11 @@ test("verified descriptor binds exact development argv and a closed environment"
   const entrypoint = Buffer.from("python -B -m rocs_cli\n");
   await writeFile(lockPath, lock);
   await writeFile(entrypointPath, entrypoint);
-  const sourceInterpreter = await realpath(process.execPath);
+  // A small executable, not process.execPath: the official Node 26 binary exceeds the 128 MiB cap.
+  const interpreter = Buffer.from("#!/bin/sh\nexit 0\n");
   const interpreterPath = path.join(root, "python3.12");
-  await copyFile(sourceInterpreter, interpreterPath);
+  await writeFile(interpreterPath, interpreter);
   await chmod(interpreterPath, 0o755);
-  const interpreter = await readFile(interpreterPath);
   const interpreterStat = await lstat(interpreterPath);
   const manifest: PreparedRuntimeManifest = {
     schema: "pi-rocs-prepared-runtime-manifest.v0",
