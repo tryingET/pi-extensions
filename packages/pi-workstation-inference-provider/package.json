@@ -51,6 +51,7 @@
     "loop-landing-check": "npm run check"
   },
   "files": [
+    "extensions/workstation-inference-provider-only.ts",
     "extensions/workstation-inference.ts",
     "extensions/workstation-tool-argument-hygiene.ts",
     "extensions/workstation-inference-audio-turn.ts",

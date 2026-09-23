@@ -146,6 +146,74 @@ python3 scripts/phasee/lane-op.py provider-contract inkling --surface canary --w
 
 The exporter is a bounded write to `phasee/state/workstation-inference-provider.json`; runtime service lifecycle still belongs to lane-op's existing plan/apply surfaces.
 
+## Explicit provider-only entrypoint (AK5717)
+
+Cold model-only hosts can opt in to the **file**, not the package directory:
+
+```text
+/absolute/path/to/pi-workstation-inference-provider/extensions/workstation-inference-provider-only.ts
+```
+
+For Pi's SDK, use `DefaultResourceLoader` with `noExtensions: true` and
+`additionalExtensionPaths: [absoluteEntrypointPath]`. Disable unrelated resources,
+use private host configuration, reject loader errors, and transfer its pending
+provider registrations to a network-disabled `ModelRuntime.create()`. Resolve the
+exact provider/model pair; the host must not substitute another model. No
+`AgentSession` or agent loop is needed. Loading this explicit path is the opt-in;
+it is **not** added to `pi.extensions`, but is included in the publish file list.
+Do not co-load the full lifecycle entrypoint in that worker.
+
+Bootstrap reads the existing contract sources and only calls `registerProvider`:
+no health priming/network, audio cleanup, timers, lifecycle handlers, tools,
+commands, session/UI APIs, or exec. Invalid/missing primary contracts and failed
+refreshes reject bootstrap. Existing optional-source parsing/merge rules remain:
+missing/invalid optional contracts contribute no models. Only lane-op models
+without audio declarations, a runtime profile, or the reserved Inkling identity
+are registered; scheduler-owned models are excluded even for text-only requests.
+An all-excluded catalog is an error. Registration never grants audio permission.
+
+Invocation delegates to the **unchanged** workstation stream, preserving contract
+model mapping, baseline aliases, other-family upstream routing, thinking controls,
+and inherited payload hooks. Admission inspects message content and actual wire
+fields, not arbitrary text, tool schemas, or tool-call arguments. Complete v1 audio
+markers in the **latest user text** are rejected using the shared marker parser;
+quoted prefix literals and historical markers remain ordinary evidence. Final
+validation rejects route changes, native audio, and unsupported images, including
+hook/sampling overrides. Shared
+armed audio is rejected without consuming or cleaning it. Contract changes detected
+after registration require a fresh bootstrap; detected refresh errors fail closed.
+Contract TTL observation is still cached, not instantaneous file revocation.
+
+Ordinary invocation retains existing health behavior: a background probe for an
+unknown/stale endpoint, blocking bounded revalidation after a cached failure, and
+known-dead-lane rejection. **No startup network** does not mean no invocation I/O.
+Contract credentials are resolved by the shared stream at invocation; registration
+uses inert key metadata rather than executing Pi config-value expressions.
+
+Pi 0.84.3/0.84.4 image input is `{ type: "image", data: base64, mimeType: "image/png" }`.
+The newer documentation's `source` shape is not supported by those installed
+serializers and is rejected rather than silently losing bytes. Images require an
+image-capable contract model, including after inherited hooks. Final wire image
+blocks must be `image_url` objects with a valid inline image MIME/base64 URL
+and optional `auto`/`low`/`high` detail. Remote image URLs are not admitted.
+Provider hooks and custom fetch functions remain trusted in-process code, not a
+security sandbox.
+
+The intended baseline-multimodal integration target is a `family: "baseline-text"`
+contract whose selected alias advertises `input: ["text", "image"]`. Other ordinary
+families remain registered with existing upstream routing, but the shared stream
+may return `message.model = upstream_model`, not the selected alias. An AIconvo-style
+worker requiring exact returned identity will reject those responses. This patch
+does not fix that shared limitation or claim general AIconvo compatibility.
+
+Core bootstrap/alias/host acceptance and new review scenarios bind executable `Given`/`When`/`Then` steps on
+Node's test runner, with observable step diagnostics; this is Gherkin-style TDD,
+not a Cucumber dependency or a Gherkin parser.
+
+[Acceptance evidence and proof limits](docs/project/2026-09-12-ak5717-provider-only-evidence.md)
+cover hermetic fake-SSE transport and real host loading only: no AIconvo integration,
+installation/reload, live model, latency, quality, or canary claims.
+
 ## Commands
 
 ```text
