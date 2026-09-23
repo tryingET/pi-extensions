@@ -192,6 +192,26 @@ resolve_node_test_concurrency() {
   getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1\n'
 }
 
+# Tests build disposable Git repositories, and after a commit Git may start
+# `git maintenance run --auto --detach` in the background. That detached process
+# keeps writing .git/objects while the test deletes its fixture (ENOTEMPTY), so
+# every Git process a test starts, including code under test, runs with automatic
+# maintenance off. Appended after any caller-supplied GIT_CONFIG_* pairs.
+quiet_git_maintenance_exported="false"
+export_quiet_git_maintenance() {
+  [[ "$quiet_git_maintenance_exported" == "true" ]] && return 0
+  quiet_git_maintenance_exported="true"
+  local count="${GIT_CONFIG_COUNT:-0}"
+  if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+    echo "tests: GIT_CONFIG_COUNT must be a non-negative integer." >&2
+    exit 1
+  fi
+  export "GIT_CONFIG_KEY_${count}=maintenance.auto" "GIT_CONFIG_VALUE_${count}=false"
+  count=$((count + 1))
+  export "GIT_CONFIG_KEY_${count}=gc.auto" "GIT_CONFIG_VALUE_${count}=0"
+  export GIT_CONFIG_COUNT=$((count + 1))
+}
+
 run_tests_target() {
   local workdir="$1"
   if [[ ! -d "$workdir/tests" ]]; then
@@ -251,6 +271,7 @@ run_tests_target() {
     exit 1
   fi
   echo "tests: per-file timeout ${test_timeout_ms}ms ($(relative_target "$workdir"))"
+  export_quiet_git_maintenance
 
   if [[ "$needs_tsx" == "true" ]]; then
     if [[ ! -x "$workdir/node_modules/.bin/tsx" ]]; then

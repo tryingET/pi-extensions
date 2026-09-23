@@ -223,3 +223,48 @@ test("Given aligned pins but conflicting generated development metadata, When ad
     return true;
   });
 });
+
+test("Given a caller Git config pair, When package tests run, Then every Git process has automatic maintenance off and keeps the caller pair", (t) => {
+  const fixture = createFixture(t);
+  const testsDir = path.join(fixture.packageDir, "tests");
+  fs.mkdirSync(testsDir, { recursive: true });
+  const reportPath = path.join(fixture.packageDir, "git-config.json");
+  // The probe runs inside the gate's test phase and records what a Git child actually resolves.
+  fs.writeFileSync(
+    path.join(testsDir, "git-config-probe.test.mjs"),
+    `import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import test from "node:test";
+const get = (key) => execFileSync("git", ["config", "--get", key], { encoding: "utf8" }).trim();
+test("probe", () => {
+  writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify({
+    maintenanceAuto: get("maintenance.auto"),
+    gcAuto: get("gc.auto"),
+    caller: get("fixture.caller"),
+  }));
+});
+`,
+    "utf8",
+  );
+
+  // Without this the nested runner sees the outer one's context and skips its files.
+  const { NODE_TEST_CONTEXT: _outerRunner, ...inherited } = process.env;
+  const output = execFileSync("bash", [SCRIPT, "test", fixture.packageDir], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: {
+      ...inherited,
+      PI_EXTENSIONS_TMPDIR: path.join(path.dirname(fixture.packageDir), "tmp"),
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "fixture.caller",
+      GIT_CONFIG_VALUE_0: "kept",
+    },
+  });
+
+  assert.match(output, /tests: per-file timeout/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(reportPath, "utf8")), {
+    maintenanceAuto: "false",
+    gcAuto: "0",
+    caller: "kept",
+  });
+});
