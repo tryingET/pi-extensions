@@ -5,6 +5,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rename,
@@ -247,6 +248,17 @@ test("prepared runtime rejects intermediate symlinks, writable components, and o
   manifest.manifest_digest = preparedManifestDigest(manifest);
   await writeFile(escaped.location.manifestPath, JSON.stringify(manifest));
   await assert.rejects(() => verifyPreparedRuntime(escaped.location), /inside runtime root/);
+});
+
+test("a rejected interpreter releases the lock and entrypoint descriptors already opened", async () => {
+  // Node 26 turns a FileHandle closed by garbage collection into an uncaught error, so material
+  // opened before a later rejection must be closed on the failure path, not left to GC.
+  const openDescriptors = async () => (await readdir("/proc/self/fd")).length;
+  const runtime = await executableRuntime("#!/bin/sh\nexit 0\n");
+  await chmod(path.join(runtime.location.root, "python3.12"), 0o777);
+  const before = await openDescriptors();
+  await assert.rejects(() => verifyPreparedRuntime(runtime.location), /unsafe runtime material/);
+  assert.equal(await openDescriptors(), before);
 });
 
 test("complete immediate reverification detects content and inode replacement before spawn", async () => {

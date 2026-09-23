@@ -106,7 +106,12 @@ export async function openAbsoluteFile(
   const parent = await openAbsoluteDirectory(path.dirname(value), `${label} parent`, true);
   try {
     const opened = await openRelativeUnknown(parent, path.basename(value), label);
-    requireSafeFile(opened.stat, label, cap);
+    try {
+      requireSafeFile(opened.stat, label, cap);
+    } catch (error) {
+      await opened.handle.close();
+      throw error;
+    }
     return { handle: opened.handle };
   } finally {
     await parent.handle.close();
@@ -121,7 +126,7 @@ export async function resolveStableRequestedFile(
   validateRelative(relative, label);
   const requested = procChild(root, relative);
   const before = await lstat(requested, { bigint: true });
-  if ((!before.isFile() && !before.isSymbolicLink()) || Number(before.uid) !== process.getuid?.())
+  if ((!before.isFile() && !before.isSymbolicLink()) || !ownedByCaller(before))
     fail(`unsafe requested ${label}`);
   const first = await realpath(requested);
   const second = await realpath(requested);
@@ -175,8 +180,12 @@ export async function openRelativeUnknown(
       parent = next;
     }
     const handle = await open(`/proc/self/fd/${parent.fd}/${leaf}`, FILE_FLAGS);
-    const stat = await handle.stat({ bigint: true });
-    return { handle, stat };
+    try {
+      return { handle, stat: await handle.stat({ bigint: true }) };
+    } catch (error) {
+      await handle.close();
+      throw error;
+    }
   } finally {
     if (current) await current.close();
   }
@@ -244,9 +253,13 @@ export async function ensurePrivateCache(value: string): Promise<SafeDirectory> 
         next = await open(candidate, DIRECTORY_FLAGS);
       }
       display += `/${component}`;
-      const stat = await next.stat({ bigint: true });
-      requireSafeAncestor(stat, display);
-      if (created) await next.chmod(0o700);
+      try {
+        requireSafeAncestor(await next.stat({ bigint: true }), display);
+        if (created) await next.chmod(0o700);
+      } catch (error) {
+        await next.close();
+        throw error;
+      }
       await current.close();
       current = next;
       if (index === components.length - 1) {
@@ -269,7 +282,12 @@ export async function createPrivateChild(
   validateComponent(name, "staging name");
   await mkdir(procChild(parent, name), { mode: 0o700 });
   const child = await openRelativeDirectory(parent, name, "staging generation");
-  await child.handle.chmod(0o700);
+  try {
+    await child.handle.chmod(0o700);
+  } catch (error) {
+    await child.handle.close();
+    throw error;
+  }
   return child;
 }
 
@@ -287,15 +305,18 @@ export async function writeMaterial(
   try {
     for (const component of parts) {
       let next: SafeDirectory;
+      let created = false;
       try {
         next = await openRelativeDirectory(directory, component, "staging directory");
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         await mkdir(procChild(directory, component), { mode: 0o700 });
         next = await openRelativeDirectory(directory, component, "staging directory");
-        await next.handle.chmod(0o700);
+        created = true;
       }
+      // Tracked before anything else can throw, so the finally below closes it.
       opened.push(next);
+      if (created) await next.handle.chmod(0o700);
       directory = next;
     }
     const handle = await open(
@@ -327,20 +348,28 @@ export async function removeOwnedTree(
   name: string,
   root: SafeDirectory,
 ): Promise<void> {
-  for (const childName of await stableDirectoryNames(root, "staging cleanup")) {
-    const child = await openRelativeUnknown(root, childName, "staging cleanup");
-    if (child.stat.isDirectory()) {
-      await removeOwnedTree(root, childName, {
-        handle: child.handle,
-        absolute: path.join(root.absolute, childName),
-      });
-    } else {
-      requireOwnerSafe(child.stat, "staging cleanup");
-      await unlink(procChild(root, childName));
-      await child.handle.close();
+  // Owns root.handle: it is closed on every path, including a failed child removal.
+  try {
+    for (const childName of await stableDirectoryNames(root, "staging cleanup")) {
+      const child = await openRelativeUnknown(root, childName, "staging cleanup");
+      if (child.stat.isDirectory()) {
+        // The recursive call owns, and closes, the child handle.
+        await removeOwnedTree(root, childName, {
+          handle: child.handle,
+          absolute: path.join(root.absolute, childName),
+        });
+      } else {
+        try {
+          requireOwnerSafe(child.stat, "staging cleanup");
+          await unlink(procChild(root, childName));
+        } finally {
+          await child.handle.close();
+        }
+      }
     }
+  } finally {
+    await root.handle.close();
   }
-  await root.handle.close();
   await rmdir(procChild(parent, name));
 }
 
@@ -383,6 +412,9 @@ export function requireSafeAncestor(stat: Stat, label: string): void {
     (Number(stat.mode) & 0o022) !== 0
   )
     fail(`unsafe owner or mode path component: ${label}`);
+}
+function ownedByCaller(stat: Stat): boolean {
+  return Number(stat.uid) === process.getuid?.();
 }
 export function requireOwnerSafe(stat: Stat, label: string): void {
   if (Number(stat.uid) !== process.getuid?.() || (Number(stat.mode) & 0o022) !== 0)

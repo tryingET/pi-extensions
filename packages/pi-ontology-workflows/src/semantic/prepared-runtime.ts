@@ -247,7 +247,9 @@ export async function openVerifiedPreparedRuntime(
     if (new Set(allRelative).size !== allRelative.length)
       fail("runtime material paths must be distinct");
 
+    // Each handle joins `handles` as soon as it opens, so a later rejection closes it too.
     const lock = await openMaterial(root, lockRelative, MAX_FILE_BYTES, undefined, deadline);
+    handles.push(lock.handle);
     const entrypoint = await openMaterial(
       root,
       entrypointRelative,
@@ -255,6 +257,7 @@ export async function openVerifiedPreparedRuntime(
       undefined,
       deadline,
     );
+    handles.push(entrypoint.handle);
     const interpreter = await openMaterial(
       root,
       interpreterRelative,
@@ -262,7 +265,7 @@ export async function openVerifiedPreparedRuntime(
       undefined,
       deadline,
     );
-    handles.push(lock.handle, entrypoint.handle, interpreter.handle);
+    handles.push(interpreter.handle);
     const files: Record<string, Uint8Array> = {};
     const records: MaterialRecord[] = [manifestMaterial, lock, entrypoint, interpreter];
     for (const entry of manifest.files) {
