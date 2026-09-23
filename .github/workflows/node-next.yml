@@ -1,8 +1,10 @@
 name: node-next
 
 # Advisory lane: every package's tests on the lock's next Node line (`nextNodeVersion` in
-# policy/ci-toolchain-lock.json), so moving the pin is proven before it happens. Jobs never
-# fail the run; the pinned lanes in ci and release-check remain the only merge and release gates.
+# policy/ci-toolchain-lock.json), so moving the pin is proven before it happens. The job never
+# fails the run; the pinned lanes in ci and release-check remain the only merge and release gates.
+# One job with every package installed, because package tests first verify their local
+# `file:` sibling links, exactly as the pre-push gate runs them.
 
 on:
   push:
@@ -18,36 +20,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  discover:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: "26.9.0"
-          package-manager-cache: false
-
-      - id: matrix
-        name: Build package matrix
-        run: |
-          echo 'matrix<<EOF' >> "$GITHUB_OUTPUT"
-          node ./scripts/release-components.mjs matrix --json >> "$GITHUB_OUTPUT"
-          echo 'EOF' >> "$GITHUB_OUTPUT"
-
   package-tests:
-    needs: discover
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
     env:
       PI_GATE_NODE_LANE: next
     steps:
@@ -72,21 +48,66 @@ jobs:
       - name: Admit the next Node lane
         run: node ./scripts/check-gate-toolchain.mjs
 
-      - name: Prepare linked ASC source runtime
-        if: matrix.component == 'pi-society-orchestrator'
-        run: bash ./scripts/prepare-asc-source-build-owner.sh
+      - name: Install Dolt for vault tests
+        run: |
+          dolt_version="2.3.1"
+          dolt_commit="b15770fe588268027d799c11356af0ce24ba882a"
+          dolt_template_blob="b212efe0dcb5b8ac05ceeefad17a65f19a5f502b"
+          template="$RUNNER_TEMP/install-dolt.template.sh"
+          expected="$RUNNER_TEMP/install-dolt.expected.sh"
+          installer="$RUNNER_TEMP/install-dolt.sh"
+          curl -fsSL "https://raw.githubusercontent.com/dolthub/dolt/$dolt_commit/go/utils/publishrelease/install.sh" -o "$template"
+          test "$(git hash-object "$template")" = "$dolt_template_blob"
+          sed "s/__DOLT_VERSION__/$dolt_version/g" "$template" > "$expected"
+          curl -fsSL "https://github.com/dolthub/dolt/releases/download/v$dolt_version/install.sh" -o "$installer"
+          cmp "$expected" "$installer"
+          sudo bash "$installer"
+          dolt version | grep -F "$dolt_version"
+          dolt config --global --set user.name "github-actions[bot]"
+          dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Install package dependencies
-        working-directory: ${{ matrix.package_path }}
-        run: npm ci
+      - name: Install every package
+        shell: bash
+        run: |
+          set -euo pipefail
+          for lock in packages/*/package-lock.json packages/pi-interaction/*/package-lock.json; do
+            [[ -f "$lock" ]] || continue
+            echo "::group::npm ci $(dirname "$lock")"
+            npm ci --prefix "$(dirname "$lock")" --no-audit --no-fund
+            echo "::endgroup::"
+          done
 
       - name: Build gate-required outputs
-        working-directory: ${{ matrix.package_path }}
         run: |
-          npm run --if-present build:runtime
-          npm run --if-present task-session:build
-          npm run --if-present build:review-runtime
+          npm --prefix packages/pi-autonomous-session-control run build:runtime
+          npm --prefix packages/pi-society-orchestrator run task-session:build
+          npm --prefix packages/pi-little-helpers run task-session:build
+          npm --prefix packages/pi-telemetry run build:review-runtime
 
-      - name: Run package tests
-        working-directory: ${{ matrix.package_path }}
-        run: bash ./scripts/quality-gate.sh test
+      - name: Run every package's tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=()
+          {
+            echo "### Package tests on Node $(node --version)"
+            echo
+            echo "| package | result |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for dir in packages/*/; do
+            [[ -f "$dir/package.json" ]] || continue
+            name="$(basename "$dir")"
+            echo "::group::$name"
+            if ./scripts/ci/packages.sh test --package "$dir"; then
+              echo "| $name | pass |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $name | **fail** |" >> "$GITHUB_STEP_SUMMARY"
+              failed+=("$name")
+            fi
+            echo "::endgroup::"
+          done
+          if (( ${#failed[@]} )); then
+            echo "::error::Node $(node --version) failures: ${failed[*]}"
+            exit 1
+          fi
