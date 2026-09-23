@@ -16,6 +16,7 @@ const COMPACT_HEIGHT: i32 = 84;
 const OUTER_MARGIN: i32 = 8;
 const EXPANDED_HEIGHT: i32 = 276;
 const ORDER_REFRESH_MS: i64 = 15_000;
+const BRAND_WIDTH: i32 = 196;
 
 pub struct AppInit {
     pub demo: bool,
@@ -77,28 +78,42 @@ impl Component for App {
                 set_orientation: gtk::Orientation::Horizontal,
                 set_spacing: 0,
 
+                // "You are here": the project and folder of the focused window. The labels fill a
+                // fixed width instead of sizing it, so moving focus never shifts the cards beside it.
                 #[name = "brand"]
                 gtk::Box {
                     add_css_class: "brand",
                     set_orientation: gtk::Orientation::Vertical,
-                    set_width_request: 132,
+                    set_width_request: BRAND_WIDTH,
                     set_valign: gtk::Align::Center,
 
+                    #[name = "eyebrow"]
                     gtk::Label {
                         add_css_class: "brand-eyebrow",
                         set_label: "π ACTIVITY",
-                        set_halign: gtk::Align::Start,
+                        set_halign: gtk::Align::Fill,
+                        set_xalign: 0.0,
+                        set_ellipsize: gtk::pango::EllipsizeMode::End,
+                        set_max_width_chars: 1,
                     },
+                    #[name = "title"]
                     gtk::Label {
                         add_css_class: "brand-title",
                         set_label: "Sessions",
-                        set_halign: gtk::Align::Start,
+                        set_halign: gtk::Align::Fill,
+                        set_xalign: 0.0,
+                        set_ellipsize: gtk::pango::EllipsizeMode::End,
+                        set_max_width_chars: 1,
                     },
+                    // Ellipsized at the start: the deepest folder is the part that tells you where you are.
                     #[name = "meta"]
                     gtk::Label {
                         add_css_class: "meta",
                         set_label: "Waiting for sessions…",
-                        set_halign: gtk::Align::Start,
+                        set_halign: gtk::Align::Fill,
+                        set_xalign: 0.0,
+                        set_ellipsize: gtk::pango::EllipsizeMode::Start,
+                        set_max_width_chars: 1,
                     },
                 },
 
@@ -208,7 +223,7 @@ impl Component for App {
                     self.next_order_refresh_at = now_ms() + ORDER_REFRESH_MS;
                 }
                 self.refresh_cards();
-                self.update_meta(&widgets.meta);
+                self.update_brand(widgets);
             }
             AppMsg::Hover(id, entered) => {
                 if entered {
@@ -305,6 +320,57 @@ fn move_order_item(order: &mut Vec<String>, index: usize, target: usize) {
     order.insert(target, moved);
 }
 
+struct BrandCounts {
+    active: usize,
+    settled: usize,
+}
+
+#[derive(Debug, PartialEq)]
+struct BrandText {
+    eyebrow: String,
+    title: String,
+    meta: String,
+}
+
+/// The brand block names the focused window's project and folder. Without a focused agent window
+/// it falls back to the ribbon's own name and the session counts.
+fn brand_text(focused: Option<&Card>, counts: &BrandCounts, home: &str) -> BrandText {
+    let summary = format!("{} active · {} settled", counts.active, counts.settled);
+    match focused {
+        Some(card) if !card.repo_label.is_empty() || !card.cwd.is_empty() => BrandText {
+            eyebrow: format!("π {}", summary.to_uppercase()),
+            title: if card.repo_label.is_empty() {
+                short_path(&card.cwd, home)
+            } else {
+                card.repo_label.clone()
+            },
+            meta: if card.cwd.is_empty() {
+                "—".to_owned()
+            } else {
+                short_path(&card.cwd, home)
+            },
+        },
+        _ => BrandText {
+            eyebrow: "π ACTIVITY".to_owned(),
+            title: "Sessions".to_owned(),
+            meta: summary,
+        },
+    }
+}
+
+/// A path with the home directory written as `~`.
+fn short_path(path: &str, home: &str) -> String {
+    let home = home.trim_end_matches('/');
+    if home.is_empty() {
+        return path.to_owned();
+    }
+    match path.strip_prefix(home) {
+        Some("") => "~".to_owned(),
+        Some(rest) if rest.starts_with('/') => format!("~{rest}"),
+        _ => path.to_owned(),
+    }
+}
+
 fn engaged_card_id(
     hovered: &HashSet<String>,
     keyboard_active: bool,
@@ -394,7 +460,7 @@ impl App {
         }
         self.reorder_widgets(&widgets.cards_box);
         self.refresh_cards();
-        self.update_meta(&widgets.meta);
+        self.update_brand(widgets);
 
         let should_show = view.visible && !self.data.is_empty();
         if should_show != self.visible {
@@ -452,14 +518,26 @@ impl App {
         }
     }
 
-    fn update_meta(&self, meta: &gtk::Label) {
+    fn update_brand(&self, widgets: &AppWidgets) {
         let active = self.data.values().filter(|card| card.active()).count();
-        meta.set_text(&format!(
-            "{} active · {} settled · order {}s",
+        let counts = BrandCounts {
             active,
-            self.data.len().saturating_sub(active),
-            ((self.next_order_refresh_at - now_ms()).max(0) + 999) / 1000
-        ));
+            settled: self.data.len().saturating_sub(active),
+        };
+        let focused = self
+            .focused_card_id
+            .as_ref()
+            .and_then(|id| self.data.get(id));
+        let home = std::env::var("HOME").unwrap_or_default();
+        let brand = brand_text(focused, &counts, &home);
+        widgets.eyebrow.set_text(&brand.eyebrow);
+        widgets.title.set_text(&brand.title);
+        widgets.meta.set_text(&brand.meta);
+        widgets.brand.set_tooltip_text(
+            focused
+                .map(|card| card.cwd.as_str())
+                .filter(|cwd| !cwd.is_empty()),
+        );
     }
 
     fn regroup(&mut self) {
@@ -559,8 +637,58 @@ impl App {
 
 #[cfg(test)]
 mod tests {
-    use super::{engaged_card_id, move_order_item, navigation_target};
+    use super::{
+        BrandCounts, brand_text, engaged_card_id, move_order_item, navigation_target, short_path,
+    };
+    use crate::protocol::Card;
     use std::collections::HashSet;
+
+    fn counts() -> BrandCounts {
+        BrandCounts {
+            active: 2,
+            settled: 3,
+        }
+    }
+
+    #[test]
+    fn brand_names_the_focused_windows_project_and_folder() {
+        let card: Card = serde_json::from_value(serde_json::json!({
+            "repoLabel": "pi-activity-strip",
+            "cwd": "/home/op/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip"
+        }))
+        .expect("card");
+        let brand = brand_text(Some(&card), &counts(), "/home/op");
+        assert_eq!(brand.title, "pi-activity-strip");
+        assert_eq!(
+            brand.meta,
+            "~/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip"
+        );
+        assert_eq!(brand.eyebrow, "π 2 ACTIVE · 3 SETTLED");
+    }
+
+    #[test]
+    fn brand_falls_back_to_counts_without_a_focused_window() {
+        let brand = brand_text(None, &counts(), "/home/op");
+        assert_eq!(brand.title, "Sessions");
+        assert_eq!(brand.meta, "2 active · 3 settled");
+
+        let unlabelled: Card = serde_json::from_value(serde_json::json!({})).expect("card");
+        assert_eq!(
+            brand_text(Some(&unlabelled), &counts(), "/home/op").title,
+            "Sessions"
+        );
+    }
+
+    #[test]
+    fn short_path_abbreviates_only_the_whole_home_directory() {
+        assert_eq!(short_path("/home/op/repo", "/home/op"), "~/repo");
+        assert_eq!(short_path("/home/op", "/home/op/"), "~");
+        assert_eq!(
+            short_path("/home/operator/repo", "/home/op"),
+            "/home/operator/repo"
+        );
+        assert_eq!(short_path("/srv/repo", ""), "/srv/repo");
+    }
 
     #[test]
     fn stale_gtk_focus_does_not_retain_expansion_outside_keyboard_mode() {

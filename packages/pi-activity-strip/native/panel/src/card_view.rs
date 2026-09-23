@@ -8,8 +8,11 @@ use relm4::gtk::prelude::*;
 use std::cell::Cell;
 use std::rc::Rc;
 
-/// Rendered AK chips per card: at most two live-claim buttons plus two state badges.
-const AK_CHIP_SLOTS: usize = 4;
+/// Rendered AK chips per card. The controller sends live-claim buttons first, then state badges;
+/// the card shows the first and folds the rest into the `+N` count. Nothing else in the footer
+/// shrinks, so this bound and the bounded timers are what hold the card at its width. The
+/// inspector still lists every reference.
+const AK_CHIP_SLOTS: usize = 1;
 
 pub struct CardView {
     pub root: gtk::Button,
@@ -52,12 +55,8 @@ impl CardView {
         let phase = label("card-phase", gtk::Align::Start);
         label_box.append(&repo);
         label_box.append(&phase);
-        let ak_row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-        ak_row.set_valign(gtk::Align::Center);
-        ak_row.set_visible(false);
         let state = label("card-state", gtk::Align::End);
         header.append(&label_box);
-        header.append(&ak_row);
         header.append(&state);
 
         let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -65,11 +64,20 @@ impl CardView {
         // The Niri window id, so a window an agent or tool names by id can be found on the ribbon.
         // It leads the footer so it sits at the same place on every card and costs the title nothing.
         let window = label("card-window", gtk::Align::Start);
+        window.set_ellipsize(relm4::gtk::pango::EllipsizeMode::None);
         window.set_visible(false);
+        // AK references ride in the footer as bare task numbers: the header belongs to the folder
+        // name, which is what tells cards apart. The titles live in each chip's tooltip.
+        let ak_row = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        ak_row.set_valign(gtk::Align::Center);
+        ak_row.set_visible(false);
         let tool = label("card-tool", gtk::Align::Start);
         tool.set_hexpand(true);
         let elapsed = label("card-elapsed", gtk::Align::End);
+        // The window id and timers are never cut: the tool name gives way to the AK chips first.
+        elapsed.set_ellipsize(relm4::gtk::pango::EllipsizeMode::None);
         footer.append(&window);
+        footer.append(&ak_row);
         footer.append(&tool);
         footer.append(&elapsed);
 
@@ -111,9 +119,8 @@ impl CardView {
         let mut ak_chips = Vec::with_capacity(AK_CHIP_SLOTS);
         let mut ak_clickable = Vec::with_capacity(AK_CHIP_SLOTS);
         for _slot in 0..AK_CHIP_SLOTS {
-            let chip = label("ak-task", gtk::Align::End);
-            chip.set_ellipsize(relm4::gtk::pango::EllipsizeMode::End);
-            chip.set_max_width_chars(20);
+            let chip = label("ak-task", gtk::Align::Start);
+            chip.set_ellipsize(relm4::gtk::pango::EllipsizeMode::None);
             chip.set_visible(false);
             let clickable = Rc::new(Cell::new(false));
             let click = gtk::GestureClick::new();
@@ -131,7 +138,8 @@ impl CardView {
             ak_chips.push(chip);
             ak_clickable.push(clickable);
         }
-        let ak_overflow = label("ak-overflow", gtk::Align::End);
+        let ak_overflow = label("ak-overflow", gtk::Align::Start);
+        ak_overflow.set_ellipsize(relm4::gtk::pango::EllipsizeMode::None);
         ak_overflow.set_visible(false);
         ak_row.append(&ak_overflow);
 
@@ -349,13 +357,9 @@ impl CardView {
             }
         }
         self.ak_row.set_visible(!chips.is_empty());
-        if card.ak_task_overflow > 0 {
-            self.ak_overflow.set_visible(true);
-            self.ak_overflow
-                .set_text(&format!("+{} more", card.ak_task_overflow));
-        } else {
-            self.ak_overflow.set_visible(false);
-        }
+        let overflow = ak_folded_count(chips.len(), card.ak_task_overflow);
+        self.ak_overflow.set_visible(overflow > 0);
+        self.ak_overflow.set_text(&format!("+{overflow}"));
     }
 
     pub fn set_expanded(&self, expanded: bool) {
@@ -490,9 +494,16 @@ fn ak_chip_class(state: &str) -> &'static str {
     }
 }
 
-/// Compact chip text: task id plus as much title as the pill can hold.
+/// References beyond the rendered chips: those the card has no slot for plus the controller's own
+/// overflow.
+fn ak_folded_count(joined: usize, overflow: u32) -> u32 {
+    overflow.saturating_add(joined.saturating_sub(AK_CHIP_SLOTS) as u32)
+}
+
+/// Compact chip text: the task number as it is written in commits, `AK5701`, so it never reads as
+/// the `#43` window chip beside it. The title is in the tooltip and the inspector.
 fn ak_chip_text(task: &AkTask) -> String {
-    format!("AK #{} · {}", task.id, task.title)
+    format!("AK{}", task.id)
 }
 
 fn ak_chip_tooltip(task: &AkTask) -> String {
@@ -559,9 +570,19 @@ fn text_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
     if value.is_empty() { fallback } else { value }
 }
 
+/// Elapsed time in at most five characters (`59:59`, `23h59`, `99d`), so a long-running session
+/// never widens the card's footer.
 fn duration(now_ms: i64, anchor_ms: i64) -> String {
     let seconds = now_ms.saturating_sub(anchor_ms.max(1)) / 1000;
-    format!("{}:{:02}", seconds / 60, seconds % 60)
+    let minutes = seconds / 60;
+    let hours = minutes / 60;
+    if hours == 0 {
+        format!("{}:{:02}", minutes, seconds % 60)
+    } else if hours < 24 {
+        format!("{}h{:02}", hours, minutes % 60)
+    } else {
+        format!("{}d", (hours / 24).min(99))
+    }
 }
 
 #[cfg(test)]
@@ -657,12 +678,23 @@ mod tests {
         assert!(active.is_active());
         assert!(!orphaned.is_active());
         assert!(!deferred.is_active());
-        assert_eq!(
-            ak_chip_text(&active),
-            "AK #5701 · Show clickable AK-task references"
-        );
+        assert_eq!(ak_chip_text(&active), "AK5701");
+        assert_eq!(ak_folded_count(1, 0), 0);
+        assert_eq!(ak_folded_count(4, 0), 3);
+        assert_eq!(ak_folded_count(4, 21), 24);
         assert!(ak_chip_tooltip(&orphaned).contains("not clickable"));
         assert!(ak_chip_tooltip(&active).contains("focus the claiming session"));
+    }
+
+    #[test]
+    fn durations_stay_within_five_characters() {
+        let at = |seconds: i64| duration(1_000 + seconds * 1000, 1_000);
+        assert_eq!(at(65), "1:05");
+        assert_eq!(at(59 * 60 + 59), "59:59");
+        assert_eq!(at(3600 + 5 * 60), "1h05");
+        assert_eq!(at(23 * 3600 + 59 * 60), "23h59");
+        assert_eq!(at(3 * 86_400), "3d");
+        assert_eq!(at(400 * 86_400), "99d");
     }
 
     #[test]
