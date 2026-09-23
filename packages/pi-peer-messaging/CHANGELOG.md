@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.0...pi-peer-messaging-v0.4.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **pi-peer-messaging:** resolve production broker loader across npm layouts ([592b704](https://github.com/tryingET/pi-extensions/commit/592b7044ce96988d06325ac1b5193dcc83321c67))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.3.0...pi-peer-messaging-v0.4.0) (2026-09-02)
 
 
