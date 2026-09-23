@@ -124,6 +124,16 @@ test('toolchain admits only the existing exact CI lock', async () => {
   assert.match(checkToolchain(lock, '26.9.0', lock.npmVersion).join('\n'), /Node.*22\.22\.2/);
   assert.match(checkToolchain(lock, lock.nodeVersion, '10.9.0').join('\n'), /npm.*12\.0\.2/);
 });
+test('the next Node lane is opt-in and never widens the pinned lane', async () => {
+  const { checkToolchain, expectedNodeVersion } = await import('./check-gate-toolchain.mjs');
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'policy/ci-toolchain-lock.json')));
+  assert.notEqual(lock.nextNodeVersion, lock.nodeVersion);
+  assert.deepEqual(checkToolchain(lock, lock.nextNodeVersion, lock.npmVersion, 'next'), []);
+  assert.match(checkToolchain(lock, lock.nextNodeVersion, lock.npmVersion).join('\n'), /required Node 22\.22\.2/);
+  assert.match(checkToolchain(lock, lock.nodeVersion, lock.npmVersion, 'next').join('\n'), /required Node 26\.9\.0/);
+  assert.throws(() => expectedNodeVersion(lock, 'latest'), /unknown or unconfigured Node lane/);
+  assert.throws(() => expectedNodeVersion({ ...lock, nextNodeVersion: undefined }, 'next'), /unconfigured/);
+});
 test('install preflight admits platform-optional absence and ignores untracked roots', t => {
   const root = installedFixture(t);
   json(root, 'packages/untracked/package.json', { dependencies: { missing: '*' } });
@@ -163,8 +173,47 @@ test('gate runs toolchain and installs before smoke/tests and stops on their fai
   fs.writeFileSync(path.join(bin, 'node'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALL_LOG"\ncase "$1" in *check-gate-toolchain.mjs|*check-dev-pin-drift.mjs) exit 0;; *) exit 23;; esac\n', { mode: 0o755 });
   const run = spawnSync('bash', ['scripts/ci/full.sh'], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CALL_LOG: log, PI_SKIP_PACKAGES: '0', PI_EXTENSIONS_TMPDIR: tmp } });
   assert.equal(run.status, 23);
-  const calls = fs.readFileSync(log, 'utf8').trim().split('\n');
+  const logged = fs.readFileSync(log, 'utf8').trim().split('\n');
+  // Node selection only evaluates read-only `node -p` queries before admission.
+  const probes = logged.slice(0, logged.findIndex(c => c.includes('check-gate-toolchain')));
+  assert.ok(probes.every(c => c.startsWith('-p ')), probes.join('\n'));
+  const calls = logged.slice(probes.length);
   assert.match(calls[0], /check-gate-toolchain/);
   assert.match(calls.at(-1), /validate-package-installs/);
   assert.ok(!calls.some(c => c.includes('--test')));
+});
+test('commit gates select an installed exact pinned Node, force the pinned lane, and use nothing else', t => {
+  const root = fixture(t);
+  json(root, 'policy/ci-toolchain-lock.json', { schemaVersion: 1, nodeVersion: '1.2.3', npmVersion: '9.9.9', nextNodeVersion: '4.5.6' });
+  const fakeNode = (name, version) => {
+    const file = path.join(root, name);
+    fs.writeFileSync(file, `#!/bin/sh\necho v${version}\n`, { mode: 0o755 });
+    return file;
+  };
+  const select = (env) => spawnSync('sh', ['-c', `. "${path.join(ROOT, 'scripts/select-gate-node.sh')}"; echo "lane=$PI_GATE_NODE_LANE"; command -v node`], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, HOME: root, PI_EXTENSIONS_TMPDIR: path.join(root, 'tmp'), ...env },
+  });
+  const selected = (run) => fs.realpathSync(run.stdout.trim().split('\n').at(-1));
+  fs.mkdirSync(path.join(root, 'tmp'));
+  const ambient = execFileSync('sh', ['-c', 'command -v node'], { encoding: 'utf8' }).trim();
+
+  const chosen = select({ PI_GATE_NODE_BIN: fakeNode('node-pinned', '1.2.3') });
+  assert.equal(chosen.status, 0, chosen.stderr);
+  assert.match(chosen.stdout, /using installed Node 1\.2\.3/);
+  assert.equal(selected(chosen), path.join(root, 'node-pinned'));
+
+  // A `next` lane left exported in the shell never reaches a commit gate.
+  fakeNode('node-next', '4.5.6');
+  const leftover = select({ PI_GATE_NODE_LANE: 'next', PI_GATE_NODE_BIN: path.join(root, 'node-next') });
+  assert.match(leftover.stdout, /lane=pinned/);
+  assert.equal(leftover.stdout.trim().split('\n').at(-1), ambient, 'the next-line binary is not the pin');
+
+  const relative = select({ PI_GATE_NODE_BIN: './node-pinned' });
+  assert.equal(selected(relative), path.join(root, 'node-pinned'), 'a relative candidate links to the real binary');
+
+  const wrong = select({ PI_GATE_NODE_BIN: fakeNode('node-wrong', '1.2.4') });
+  assert.equal(wrong.status, 0, wrong.stderr);
+  assert.equal(wrong.stdout.trim().split('\n').at(-1), ambient, 'a candidate reporting another version is never used');
 });

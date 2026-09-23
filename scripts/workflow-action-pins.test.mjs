@@ -8,6 +8,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WORKFLOW_ROOT = path.join(ROOT, ".github", "workflows");
 const LOCK_PATH = path.join(ROOT, "policy", "ci-toolchain-lock.json");
 const FULL_SHA = /^[0-9a-f]{40}$/u;
+const NODE_NEXT_WORKFLOW = "node-next.yml";
 
 function loadLock() {
   const lock = JSON.parse(fs.readFileSync(LOCK_PATH, "utf8"));
@@ -91,7 +92,9 @@ test("workflow Node and npm inputs are exact and match the toolchain lock", () =
   for (const workflow of workflowFiles()) {
     for (const match of workflow.content.matchAll(/node-version:\s*["']?([^\s"']+)["']?/gu)) {
       nodeUses += 1;
-      assert.equal(match[1], lock.nodeVersion, `${workflow.name}: node-version must match the lock`);
+      // Only the advisory next-Node lane may run the lock's next line; every other workflow is pinned.
+      const expected = workflow.name === NODE_NEXT_WORKFLOW ? lock.nextNodeVersion : lock.nodeVersion;
+      assert.equal(match[1], expected, `${workflow.name}: node-version must match the lock`);
     }
 
     const versions = npmBootstrapVersions(workflow.content);

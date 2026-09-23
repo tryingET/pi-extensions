@@ -10,6 +10,8 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "error: not a
 cd "$repo_root"
 
 # Environment admission precedes tests, builds, and authored-contract validation.
+# An installed exact Node is selected before admission; nothing is ever installed.
+. ./scripts/select-gate-node.sh
 node ./scripts/check-gate-toolchain.mjs
 
 if [ -n "${PI_EXTENSIONS_TMPDIR:-}" ]; then

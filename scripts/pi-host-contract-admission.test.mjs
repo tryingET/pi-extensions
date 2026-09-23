@@ -16,6 +16,7 @@ function gateFixture(t) {
   const f = fixture(t, true);
   // This fixture isolates host-pin admission, not the separate toolchain contract.
   f.put("scripts/check-gate-toolchain.mjs", fs.readFileSync(path.join(ROOT, "scripts/check-gate-toolchain.mjs"), "utf8"));
+  f.put("scripts/select-gate-node.sh", fs.readFileSync(path.join(ROOT, "scripts/select-gate-node.sh"), "utf8"));
   f.put("policy/ci-toolchain-lock.json", { schemaVersion: 1, nodeVersion: process.versions.node,
     npmVersion: spawnSync("npm", ["--version"], { encoding: "utf8" }).stdout.trim() });
   for (const name of ["check-dev-pin-drift.mjs", "drift-snapshot.mjs", "drift-worktree.mjs", "host-contract.mjs", "manifest.mjs", "paths.mjs", "integrity.mjs"]) {

@@ -4,6 +4,8 @@
 set -eu
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
+# An installed exact Node is selected before admission; nothing is ever installed.
+. ./scripts/select-gate-node.sh
 node ./scripts/check-gate-toolchain.mjs
 node ./scripts/validate-package-installs.mjs
 node ./scripts/validate-local-package-links.mjs

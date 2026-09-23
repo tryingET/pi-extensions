@@ -75,19 +75,31 @@ resolve the active checkout, never the symlink's canonical source directory.
 
 The pin is Node **22.22.2**, npm **12.0.2**. Do not change the pin merely to admit
 ambient machine drift. A Node distribution may bundle an unsuitable npm.
-On this workstation, where system npm is already 12.0.2, a node-only PATH shim
-keeps npm separate from the older bundled npm:
 
-```sh
-shim="$(mktemp -d "${TMPDIR:?}/pi-gate-node.XXXXXX")"
-ln -s "$HOME/.local/opt/node-v22.22.2-linux-x64/bin/node" "$shim/node"
-export PATH="$shim:$PATH"
-node scripts/check-gate-toolchain.mjs
-```
+Gate entry points (`scripts/ci/full.sh`, `scripts/prepare-gate-builds.sh`) source
+`scripts/select-gate-node.sh` before admission. When the ambient `node` differs from
+the pin, it puts an **already-installed** exact Node first on PATH, checking in order
+`PI_GATE_NODE_BIN` and `~/.local/opt/node-v<version>-<platform>/bin/node` (an
+unpacked nodejs.org tarball), and uses a candidate only if its `--version` matches.
+Only `node` is shimmed; npm stays the one on PATH and is still admitted exactly.
+Nothing is downloaded or installed: with no candidate, admission fails as before.
+So after a system Node upgrade a plain `git push` keeps working, provided
+Node 22.22.2 is unpacked under `~/.local/opt` or named by `PI_GATE_NODE_BIN`.
 
 If npm also differs, provision npm 12.0.2 in a separate prefix as CI does; do not
 replace the active shared installation silently. Gate scratch honors
 `PI_EXTENSIONS_TMPDIR`, then `TMPDIR`, before its home-directory fallback.
+
+### Next Node line (advisory)
+
+`nextNodeVersion` in `policy/ci-toolchain-lock.json` (currently **26.9.0**) names the
+line the pin moves to next. The `node-next` workflow runs every package's tests on it
+after each push to `main`; its jobs are `continue-on-error`, so it reports without
+gating. `PI_GATE_NODE_LANE=next` admits that version for such runs only; the commit
+gates force the pinned lane, so a `next` left exported in a shell never admits a push. Move the pin once the next line is
+green here and has reached LTS, changing `nodeVersion`, the workflows, and
+`nextNodeVersion` in one commit (`scripts/workflow-action-pins.test.mjs` enforces
+that only `node-next.yml` runs the next line).
 
 ## Tracked file budgets
 

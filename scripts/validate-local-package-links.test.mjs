@@ -193,6 +193,18 @@ test("terminates cyclic local dependency graphs deterministically", (t) => {
   assert.equal(result.linkCount, 2);
 });
 
+/**
+ * Node calls the full gate made after its Node selection, which only evaluates read-only
+ * `node -p` queries before admission; asserts that nothing else ran ahead of admission.
+ */
+function gateCalls(logPath) {
+  const logged = fs.readFileSync(logPath, "utf8").trim().split("\n");
+  const admission = logged.findIndex((call) => call.includes("check-gate-toolchain"));
+  assert.ok(admission >= 0, logged.join("\n"));
+  assert.ok(logged.slice(0, admission).every((call) => call.startsWith("-p ")), logged.join("\n"));
+  return logged.slice(admission);
+}
+
 test("root full gate runs host admission then link validation before expensive validation", (t) => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-local-link-gate-order-"));
   t.after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
@@ -218,7 +230,7 @@ test("root full gate runs host admission then link validation before expensive v
   });
 
   assert.equal(result.status, 23);
-  const calls = fs.readFileSync(logPath, "utf8").trim().split("\n");
+  const calls = gateCalls(logPath);
   assert.equal(calls.length, 4);
   assert.match(calls[0], /check-gate-toolchain\.mjs/);
   assert.match(calls[1], /check-dev-pin-drift\.mjs/);
@@ -253,7 +265,7 @@ test("root full gate skips link validation when package validation is explicitly
   });
 
   assert.equal(result.status, 23);
-  const calls = fs.readFileSync(logPath, "utf8").trim().split("\n");
+  const calls = gateCalls(logPath);
   assert.equal(calls.length, 3);
   assert.doesNotMatch(calls.join("\n"), /validate-local-package-links\.mjs|validate-package-installs\.mjs/);
   assert.match(calls[0], /check-gate-toolchain\.mjs/);

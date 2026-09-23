@@ -1,0 +1,92 @@
+name: node-next
+
+# Advisory lane: every package's tests on the lock's next Node line (`nextNodeVersion` in
+# policy/ci-toolchain-lock.json), so moving the pin is proven before it happens. Jobs never
+# fail the run; the pinned lanes in ci and release-check remain the only merge and release gates.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26.9.0"
+          package-manager-cache: false
+
+      - id: matrix
+        name: Build package matrix
+        run: |
+          echo 'matrix<<EOF' >> "$GITHUB_OUTPUT"
+          node ./scripts/release-components.mjs matrix --json >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+
+  package-tests:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    env:
+      PI_GATE_NODE_LANE: next
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "26.9.0"
+          package-manager-cache: false
+
+      - name: Prepare managed scratch and npm
+        run: |
+          lane_tmp="$RUNNER_TEMP/node-next"
+          mkdir -p "$lane_tmp" "$RUNNER_TEMP/npm-global"
+          echo "TMPDIR=$lane_tmp" >> "$GITHUB_ENV"
+          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/npm-global/bin/npm" --version
+
+      - name: Admit the next Node lane
+        run: node ./scripts/check-gate-toolchain.mjs
+
+      - name: Prepare linked ASC source runtime
+        if: matrix.component == 'pi-society-orchestrator'
+        run: bash ./scripts/prepare-asc-source-build-owner.sh
+
+      - name: Install package dependencies
+        working-directory: ${{ matrix.package_path }}
+        run: npm ci
+
+      - name: Build gate-required outputs
+        working-directory: ${{ matrix.package_path }}
+        run: |
+          npm run --if-present build:runtime
+          npm run --if-present task-session:build
+          npm run --if-present build:review-runtime
+
+      - name: Run package tests
+        working-directory: ${{ matrix.package_path }}
+        run: bash ./scripts/quality-gate.sh test
