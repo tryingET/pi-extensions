@@ -16,6 +16,7 @@ export async function landingScenario(migrationScenario) {
     ["evaluation", "evaluationScenario"],
     ["policy", "policyScenario"],
     ["mustfix", "mustfixScenario"],
+    ["compatibility", "compatibilityScenario"],
   ]) {
     checks.push(await (await import(`./dogfood-${file}.mjs`))[name]());
   }

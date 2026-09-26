@@ -4,6 +4,7 @@ read_when:
   - "You change packet Markdown output, detail projections, or redaction guarantees."
 */
 
+import { normalizeCodeRequest } from "./code-request.js";
 import {
   compactNextToolSuggestionProjections,
   compactOmissionProjections,
@@ -14,6 +15,23 @@ import { DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE } from "./dogfood-followup-cla
 import { fitRenderedPacket } from "./packet-budget.js";
 
 export const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
+
+const exactSelectionBlock = (item) => {
+  if (item.provenance?.provider !== "ripwire") return "";
+  const p = item.provenance;
+  try {
+    const { selection } = normalizeCodeRequest({
+      mode: "expand",
+      selection: { path: p.path, name: p.symbol, line: p.line, contentSha256: p.contentSha256 },
+    });
+    return [
+      "Exact code.selection (copy the JSON, not the display labels):",
+      markdownFence("code.selection.json", JSON.stringify(selection)),
+    ].join("\n");
+  } catch {
+    return "Exact expansion selector unavailable; use ordinary Pi read/search for this item.";
+  }
+};
 
 const formatPacketItem = (item) => {
   const displayId = markdownInlineLabel(item.id, "packet item");
@@ -41,7 +59,9 @@ const formatPacketItem = (item) => {
       : undefined,
     `- rationale: ${markdownInlineLabel(item.rationale, "none")}`,
   ].filter(Boolean);
-  return [heading, ...meta, "", markdownFence(item.id, item.content)].join("\n");
+  return [heading, ...meta, "", exactSelectionBlock(item), markdownFence(item.id, item.content)]
+    .filter((value) => value !== "")
+    .join("\n");
 };
 
 const formatUnboundedPacket = (result, diagnostics = false) => {

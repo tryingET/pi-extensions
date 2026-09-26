@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { contextPacketToolResult } from "../src/context-pack.js";
+import { visibleSelections } from "./dogfood-compatibility.mjs";
 import { fixtureDigest } from "./dogfood-fixtures.mjs";
 
 const providers = { agents: "off", docs: "off", git: "off", session: "off", ripwire: "required" };
@@ -13,14 +14,9 @@ const textOf = (result) =>
     .map((item) => item.text)
     .join("\n");
 function selectionFromText(text) {
-  const path = /^- path: (.+)$/mu.exec(text)?.[1];
-  const name = /^- symbol: (.+)$/mu.exec(text)?.[1];
-  const contentSha256 = /^- source SHA-256: ([a-f0-9]{64})$/mu.exec(text)?.[1];
-  assert.ok(path && name && contentSha256, "Discovery must expose exact selection metadata");
-  const location = text.split("\n").find((line) => line.startsWith(`${path}:`));
-  const line = Number(location?.slice(path.length + 1));
-  assert.ok(Number.isSafeInteger(line) && line > 0, "Discovery must expose the source line");
-  return { path, name, line, contentSha256 };
+  const [selection] = visibleSelections({ content: [{ type: "text", text }] });
+  assert.ok(selection, "Discovery must expose exact, lossless selection JSON");
+  return selection;
 }
 
 /** @param {(input: Record<string, unknown>, env: {cwd: string}) => Promise<unknown>} call */

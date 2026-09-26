@@ -213,7 +213,8 @@ try {
     if (
       Number(flags.get("--gate").slice(3)) >= 10 &&
       (!text.includes("ripwire registered landing regressions PASS") ||
-        !text.includes("ripwire registered mustfix workflow PASS"))
+        !text.includes("ripwire registered mustfix workflow PASS") ||
+        !text.includes("ripwire registered current-main compatibility PASS"))
     )
       throw new Error("Landing runtime marker absent");
   }
