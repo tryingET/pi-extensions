@@ -21,11 +21,18 @@ import {
 import { createRewindGitHarness, gitStdout, runGit, runGitChecked } from "./rewind-harness.mjs";
 
 import {
+  AMBIENT_REPLAY_FABRIC_ENV_KEYS,
   createPiHarness,
   SessionManagerStub,
   startRecordingReplayFabricServer,
   withReplayFabricEnv,
 } from "./rewind-runtime-harness.mjs";
+
+test("rewind runtime tests do not inherit an ambient Replay Fabric URL", () => {
+  for (const key of AMBIENT_REPLAY_FABRIC_ENV_KEYS) {
+    assert.equal(process.env[key], undefined, `${key} must not leak into rewind tests`);
+  }
+});
 
 test("rewind runtime registers a diagnostic status command", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "asc-rewind-status-"));

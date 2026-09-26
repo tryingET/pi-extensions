@@ -6,6 +6,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 
+// Operator shells export the live Replay Fabric URL, and rewind projection
+// falls back to it. Drop it on import so tests never post into a live ledger;
+// tests that exercise projection opt in through withReplayFabricEnv.
+export const AMBIENT_REPLAY_FABRIC_ENV_KEYS = ["ASC_REWIND_REPLAY_FABRIC_URL", "REPLAY_FABRIC_URL"];
+for (const key of AMBIENT_REPLAY_FABRIC_ENV_KEYS) {
+  delete process.env[key];
+}
+
 export class SessionManagerStub {
   constructor({ sessionFile, id, cwd, parentSession }) {
     this.sessionFile = sessionFile;
