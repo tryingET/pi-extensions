@@ -4,12 +4,23 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { compileFleetSystemPrompt } from "../src/fleet-prompt-compiler.ts";
+import {
+  compileFleetSystemPrompt,
+  FLEET_COMPILED_PROMPT_PATH,
+  FLEET_PERSONA_DIR,
+  FLEET_PERSONA_FILES,
+} from "../src/fleet-prompt-compiler.ts";
 import { expandTildePath } from "../src/registry.ts";
 
 const templateRepo = join(expandTildePath("~/ai-society"), "core", "tpl-template-repo");
 const fixture = join(templateRepo, "fixtures", "l2", "tpl-agent-repo");
 const RATIFIED_FIXTURE_COMMIT = "3eba942c0df2726fd5f4e0e138d5007cc356f4ab";
+// Only the compiler contract is pinned: the manifest plus the persona directory, which
+// holds every persona input and the compiled system-prompt.md. Template resyncs of other
+// fixture files (scripts, README, ignore files) must not fail this gate (AK task 5982).
+const CONTRACT_PATHS = ["agent.json", FLEET_PERSONA_DIR].map((path) =>
+  join("fixtures", "l2", "tpl-agent-repo", path),
+);
 
 test("trusted compiler matches the exact ratified tpl-agent-repo v2 fixture bytes", async (t) => {
   if (!existsSync(join(fixture, "agent.json"))) {
@@ -22,6 +33,33 @@ test("trusted compiler matches the exact ratified tpl-agent-repo v2 fixture byte
     { encoding: "utf8" },
   ).trim();
   assert.equal(lastFixtureCommit, RATIFIED_FIXTURE_COMMIT);
+  // A pathspec that matches nothing would let the diff below pass vacuously.
+  const pinnedFiles = execFileSync(
+    "git",
+    [
+      "-C",
+      templateRepo,
+      "ls-tree",
+      "-r",
+      "--name-only",
+      RATIFIED_FIXTURE_COMMIT,
+      "--",
+      ...CONTRACT_PATHS,
+    ],
+    { encoding: "utf8" },
+  )
+    .trim()
+    .split("\n");
+  for (const path of [
+    "agent.json",
+    FLEET_COMPILED_PROMPT_PATH,
+    ...FLEET_PERSONA_FILES.map((name) => `${FLEET_PERSONA_DIR}/${name}`),
+  ]) {
+    assert.ok(
+      pinnedFiles.includes(`fixtures/l2/tpl-agent-repo/${path}`),
+      `contract path not pinned: ${path}`,
+    );
+  }
   execFileSync("git", [
     "-C",
     templateRepo,
@@ -29,11 +67,11 @@ test("trusted compiler matches the exact ratified tpl-agent-repo v2 fixture byte
     "--quiet",
     RATIFIED_FIXTURE_COMMIT,
     "--",
-    "fixtures/l2/tpl-agent-repo",
+    ...CONTRACT_PATHS,
   ]);
   const changed = execFileSync(
     "git",
-    ["-C", templateRepo, "status", "--porcelain", "--", "fixtures/l2/tpl-agent-repo"],
+    ["-C", templateRepo, "status", "--porcelain", "--", ...CONTRACT_PATHS],
     { encoding: "utf8" },
   );
   assert.equal(changed, "", "ratified fixture bytes have uncommitted drift");
