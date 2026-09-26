@@ -242,13 +242,13 @@ Use `tpl-package` from your L1 templates to add packages:
 
 ## Direction chain
 
-Use these root direction surfaces in order when planning the next active root wave:
+Root direction is AK-native. Use these surfaces in order when planning the next active root wave:
 
 - `docs/project/vision.md`
-- `docs/project/strategic_goals.md`
-- `docs/project/tactical_goals.md`
-- `docs/project/operating_plan.md`
+- `ak direction export --repo . -F json` and `ak direction check --repo . --machine` (the active frame and waves)
 - `next_session_prompt.md`
+
+The former SG/TG/OP markdown is archived under `docs/archive/legacy-direction/` and must not return to `docs/project/`: with all three files back, `ak direction import` would delete the AK-native frames and waves.
 
 ## Diary
 

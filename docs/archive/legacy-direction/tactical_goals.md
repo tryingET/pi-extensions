@@ -10,6 +10,8 @@ system4d:
   fog: "The main risk is reopening completed lower-plane proof, skipping straight to unrelated backlog, or inventing a new loop-hardening slice before AK says one is ready."
 ---
 
+> **Retired 2026-09-26 (AK task 5958).** Historical root direction from before AK-native direction; not current planning authority. Current direction is AK-native: `ak direction export --repo .` and `ak direction check --repo .`. See [README](README.md) for why this file must not return to `docs/project/`.
+
 # Tactical Goals
 
 Active strategic goal: **SG1 — Bind the next cross-package cognition control-plane wave explicitly and keep package-owner boundaries truthful**

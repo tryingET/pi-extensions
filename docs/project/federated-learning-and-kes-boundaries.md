@@ -61,7 +61,7 @@ Its bounded contract and proof are recorded in:
 - `packages/pi-society-orchestrator/docs/project/2026-04-10-kes-crystallization-contract.md`
 - `packages/pi-society-orchestrator/docs/project/operating_plan.md`
 - `packages/pi-society-orchestrator/README.md`
-- root direction docs under `docs/project/strategic_goals.md`, `tactical_goals.md`, and `operating_plan.md`
+- the root direction docs of that time, now archived under `docs/archive/legacy-direction/`
 
 That seam is already explicit about its own limits:
 

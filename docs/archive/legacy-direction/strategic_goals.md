@@ -10,15 +10,17 @@ system4d:
   fog: "The main risk is letting completed package waves or unrelated exploratory tasks masquerade as the current monorepo-root execution path."
 ---
 
+> **Retired 2026-09-26 (AK task 5958).** Historical root direction from before AK-native direction; not current planning authority. Current direction is AK-native: `ak direction export --repo .` and `ak direction check --repo .`. See [README](README.md) for why this file must not return to `docs/project/`.
+
 # Strategic goals — pi-extensions monorepo root
 
 ## Selection basis
 
 Evidence used:
 
-- [vision.md](vision.md)
-- [root-capabilities.md](root-capabilities.md)
-- [next_session_prompt.md](../../next_session_prompt.md)
+- [vision.md](../../project/vision.md)
+- [root-capabilities.md](../../project/root-capabilities.md)
+- [next_session_prompt.md](../../../next_session_prompt.md)
 - latest repo-local tasks: `task:1110`, `task:1108`, `task:1107`, `task:1091`, `task:1090`
 - current package-local runtime truth:
   - `packages/pi-society-orchestrator/docs/project/strategic_goals.md`
@@ -26,7 +28,7 @@ Evidence used:
   - `packages/pi-autonomous-session-control/docs/design/IMPLEMENTATION_STATUS.md`
   - `packages/pi-vault-client/docs/dev/vault-execution-receipts.md`
 - owner-side packet for the current routed concern:
-  - [2026-04-09 contract-first wave packet for seam -> KES -> loops](2026-04-09-contract-first-wave-kes-loops-vault-seam.md)
+  - [2026-04-09 contract-first wave packet for seam -> KES -> loops](../../project/2026-04-09-contract-first-wave-kes-loops-vault-seam.md)
 
 Current repo-local truth:
 

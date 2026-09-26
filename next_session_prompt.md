@@ -34,11 +34,8 @@ Do **not** treat this file as a live status database.
 
 ## CURRENT TRUTH
 - This repo is the canonical monorepo control plane for pi extensions.
-- The root direction chain is explicit and should be treated as the current narrative truth:
+- Root direction is AK-native (`ak direction export --repo .`; active frame SF7, wave IW8). The former SG/TG/OP markdown is archived under `docs/archive/legacy-direction/` and is history, not current truth (task 5958).
   - `docs/project/vision.md`
-  - `docs/project/strategic_goals.md`
-  - `docs/project/tactical_goals.md`
-  - `docs/project/operating_plan.md`
 - The recent `pi-society-orchestrator` runtime-truth wave is complete (`tasks:939-950`).
 - The guarded repo-bootstrap concern remains historical root context only; the durable owner/path was decided and verified through agent-kernel decision `#8` plus tasks `#657`, `#665`, `#666`, and `#667`.
 - The current routed root-local packet is still the cross-package concern captured in:
@@ -83,11 +80,9 @@ Do **not** treat this file as a live status database.
 - Do **not** bypass quality gates before committing.
 
 ## CONTINUE WITH
-1. Re-enter the current direction chain before opening or resuming any root-local wave:
+1. Re-enter the current direction before opening or resuming any root-local wave:
    - `docs/project/vision.md`
-   - `docs/project/strategic_goals.md`
-   - `docs/project/tactical_goals.md`
-   - `docs/project/operating_plan.md`
+   - `ak direction export --repo . -F json` and `ak direction check --repo . --machine`
 2. Read the latest root diary evidence for the first TG3 hardening slice:
    - `diary/2026-04-10--tg3-kes-root-fail-closed-and-installed-root-proof.md`
 3. Continue the AK-bound reassessment slice before choosing any new implementation work:
