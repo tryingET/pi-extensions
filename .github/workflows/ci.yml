@@ -46,6 +46,12 @@ jobs:
       - name: Validate immutable workflow inputs
         run: node --test ./scripts/workflow-action-pins.test.mjs
 
+      # Needs no install: every lock must mirror its package.json. Runs on every push to main and on
+      # PR runs (a bot-pushed release PR head runs CI once its checks are approved), so a manifest
+      # bumped without its lock goes red here instead of only in local pre-push gates.
+      - name: Check package locks mirror their manifests
+        run: node ./scripts/validate-package-installs.mjs --authored-only
+
       - name: Install Dolt for governed deep-review canary
         run: |
           dolt_version="2.3.1"

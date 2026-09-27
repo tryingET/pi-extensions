@@ -38,14 +38,45 @@ function absent(file) {
   catch (error) { if (error.code === 'ENOENT') return true; throw error; }
 }
 
+/**
+ * Differences between a package.json and its lock's root copy of it. These are authored-file
+ * facts, independent of any install, so CI can check them without node_modules.
+ */
+export function authoredLockIssues(manifest, lock) {
+  if (lock.lockfileVersion !== 3 || !lock.packages || !lock.packages['']) throw new Error('package-lock.json must be a v3 packages lock');
+  return [...FIELDS, 'peerDependenciesMeta']
+    .filter(field => !isDeepStrictEqual(manifest[field] ?? {}, lock.packages[''][field] ?? {}))
+    .map(field => `package.json ${field} differs from package-lock.json; reconcile the authored lock before npm ci`);
+}
+
+// Match the owned install topology, not generated dist manifests or test fixtures.
+function trackedManifests(root, tracked) {
+  return [...tracked].filter(file => /^(?:package\.json|packages\/[^/]+\/(?:package\.json|[^/]+\/package\.json))$/.test(path.relative(root, file))).sort();
+}
+
+/** Authored manifest/lock agreement for every tracked package; reads no node_modules. */
+export function validateAuthoredLocks(repoRoot = DEFAULT_ROOT) {
+  const root = fs.realpathSync(repoRoot);
+  const tracked = new Set(trackedFiles(root));
+  const issues = [];
+  let packageCount = 0;
+  for (const manifestPath of trackedManifests(root, tracked)) {
+    const dir = path.dirname(manifestPath), label = path.relative(root, dir) || '.';
+    const lockPath = path.join(dir, 'package-lock.json');
+    if (!tracked.has(lockPath)) continue;
+    packageCount++;
+    for (const message of authoredLockIssues(read(manifestPath), read(lockPath))) issues.push({ package: label, message });
+  }
+  return { ok: issues.length === 0, packageCount, issues };
+}
+
 export function validatePackageInstalls(repoRoot = DEFAULT_ROOT) {
   const root = fs.realpathSync(repoRoot);
   const tracked = new Set(trackedFiles(root));
-  // Match the owned install topology, not generated dist manifests or test fixtures.
-  const manifests = [...tracked].filter(file => /^(?:package\.json|packages\/[^/]+\/(?:package\.json|[^/]+\/package\.json))$/.test(path.relative(root, file)));
+  const manifests = trackedManifests(root, tracked);
   const issues = [];
   let packageCount = 0;
-  for (const manifestPath of manifests.sort()) {
+  for (const manifestPath of manifests) {
     const dir = path.dirname(manifestPath), label = path.relative(root, dir) || '.';
     const report = text => issues.push({ package: label, message: text });
     try {
@@ -57,10 +88,7 @@ export function validatePackageInstalls(repoRoot = DEFAULT_ROOT) {
       }
       packageCount++;
       const lock = read(lockPath);
-      if (lock.lockfileVersion !== 3 || !lock.packages || !lock.packages['']) throw new Error('package-lock.json must be a v3 packages lock');
-      for (const field of [...FIELDS, 'peerDependenciesMeta']) {
-        if (!isDeepStrictEqual(manifest[field] ?? {}, lock.packages[''][field] ?? {})) report(`package.json ${field} differs from package-lock.json; reconcile the authored lock before npm ci`);
-      }
+      for (const message of authoredLockIssues(manifest, lock)) report(message);
       const hidden = read(path.join(dir, 'node_modules/.package-lock.json'));
       checkRequiredGraph(lock, '', lock.packages[''], report);
       if (hidden.lockfileVersion !== 3 || !hidden.packages) throw new Error('node_modules/.package-lock.json must be a v3 packages lock');
@@ -107,17 +135,26 @@ export function validatePackageInstalls(repoRoot = DEFAULT_ROOT) {
 if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT) {
   try {
     const args = process.argv.slice(2);
-    if (args.length && (args.length !== 2 || args[0] !== '--repo-root')) throw new Error('Usage: validate-package-installs.mjs [--repo-root PATH]');
-    const result = validatePackageInstalls(path.resolve(args[1] ?? DEFAULT_ROOT));
-    if (result.ok) console.log(`package-installs: ok (${result.packageCount} package(s); lock metadata and installed versions, not code integrity)`);
+    const authoredOnly = args[0] === '--authored-only';
+    if (authoredOnly) args.shift();
+    if (args.length && (args.length !== 2 || args[0] !== '--repo-root')) throw new Error('Usage: validate-package-installs.mjs [--authored-only] [--repo-root PATH]');
+    const repoRoot = path.resolve(args[1] ?? DEFAULT_ROOT);
+    const result = authoredOnly ? validateAuthoredLocks(repoRoot) : validatePackageInstalls(repoRoot);
+    if (result.ok) console.log(authoredOnly
+      ? `package-locks: ok (${result.packageCount} package(s); every lock mirrors its package.json)`
+      : `package-installs: ok (${result.packageCount} package(s); lock metadata and installed versions, not code integrity)`);
     else {
-      console.error('package-installs: stale/inconsistent installs; no tests/builds started:');
+      console.error(authoredOnly
+        ? 'package-locks: package.json and package-lock.json disagree:'
+        : 'package-installs: stale/inconsistent installs; no tests/builds started:');
       for (const label of new Set(result.issues.map(issue => issue.package))) {
         const selected = result.issues.filter(issue => issue.package === label);
         console.error(`- ${label}: ${selected.length} issue(s)`);
         for (const issue of selected.slice(0, 8)) console.error(`  ${issue.message}`);
         if (selected.length > 8) console.error(`  ... ${selected.length - 8} more`);
-        console.error(`  Repair after coordinating with live sessions: npm ci --prefix ${JSON.stringify(label)}`);
+        console.error(authoredOnly
+          ? `  Repair: npm install --package-lock-only --ignore-scripts --prefix ${JSON.stringify(label)}`
+          : `  Repair after coordinating with live sessions: npm ci --prefix ${JSON.stringify(label)}`);
       }
       process.exitCode = 1;
     }
