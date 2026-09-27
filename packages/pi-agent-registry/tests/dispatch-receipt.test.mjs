@@ -223,7 +223,7 @@ test("a receipt file whose contents claim a foreign pair fails the ledger closed
   const dir = mkdtempSync(join(tmpdir(), "receipts-"));
   const { renameSync, writeFileSync: writeRaw } = await import("node:fs");
   try {
-    const first = await writeImmutableDispatchReceipt(sampleReceipt(), { dir });
+    await writeImmutableDispatchReceipt(sampleReceipt(), { dir });
     // digest-valid receipt for another pair, renamed into this pair's name space
     const foreign = sampleReceipt();
     foreign.agent.name = "agent-other";
