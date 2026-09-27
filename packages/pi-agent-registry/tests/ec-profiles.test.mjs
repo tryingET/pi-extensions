@@ -16,6 +16,7 @@ import {
   knownEcProfiles,
   loadEcProfiles,
   planSkillSelection,
+  resolveSkillSourcePath,
 } from "../src/ec-profiles.ts";
 
 async function withProfileFixture(payload, fn) {
@@ -125,6 +126,30 @@ test("rejects traversal-shaped profile members before source or destination reso
       );
     },
   );
+});
+
+test("rejects profile members outside the Agent Skills spec", async () => {
+  for (const member of ["ec-lane-ts.justfile", "snake_case", "double--hyphen"]) {
+    await withProfileFixture(
+      { schema: EC_PROFILE_SCHEMA, profiles: { "ec-ts": [member] }, deprecated_aliases: {} },
+      async (root) => {
+        await assert.rejects(
+          loadEcProfiles(join(root, "profiles.json")),
+          /array of valid skill names/,
+          member,
+        );
+      },
+    );
+  }
+});
+
+test("resolveSkillSourcePath refuses non-spec names before touching the filesystem", () => {
+  const roots = {
+    ecSkillsRoot: "/nonexistent",
+    manifestRoot: "/nonexistent",
+    userSkillsRoot: "/nonexistent",
+  };
+  assert.throws(() => resolveSkillSourcePath("ec-lane-ts.justfile", roots), /invalid skill name/);
 });
 
 test("rejects skill-source symlinks that escape their owning root", async () => {

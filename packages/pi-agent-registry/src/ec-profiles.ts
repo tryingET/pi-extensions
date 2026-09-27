@@ -9,13 +9,13 @@ import { constants, existsSync, realpathSync, statSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { isSkillName } from "./skill-name.ts";
 
 export const DEFAULT_EC_PROFILES_RELATIVE = "ai-society/core/engineering-core/skills/profiles.json";
 export const EC_PROFILES_ENV = "PI_AGENT_REGISTRY_EC_PROFILES";
 export const EC_PROFILE_SCHEMA = "engineering-core.skill-profiles/1";
 const EC_PROFILES_MAX_BYTES = 2 * 1024 * 1024;
 const PROFILE_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u;
-const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u;
 const ENVELOPE_KEYS: ReadonlySet<string> = new Set([
   "schema",
   "generated",
@@ -218,10 +218,7 @@ function parseProfileMap(
     if (!PROFILE_NAME_PATTERN.test(profile)) {
       throw new EcProfileError(`invalid profile key "${profile}" in ${resolvedPath}`);
     }
-    if (
-      !Array.isArray(members) ||
-      members.some((entry) => typeof entry !== "string" || !SKILL_NAME_PATTERN.test(entry))
-    ) {
+    if (!Array.isArray(members) || members.some((entry) => !isSkillName(entry))) {
       throw new EcProfileError(`profile "${profile}" must map to an array of valid skill names`);
     }
     if (new Set(members).size !== members.length) {
@@ -256,7 +253,7 @@ export interface SkillSelection {
 }
 
 export function resolveSkillSourcePath(name: string, roots: SkillSourceRoots): string | undefined {
-  if (!SKILL_NAME_PATTERN.test(name)) {
+  if (!isSkillName(name)) {
     throw new EcProfileError(`invalid skill name: ${JSON.stringify(name)}`);
   }
   const candidates = [

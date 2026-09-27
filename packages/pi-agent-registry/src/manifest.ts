@@ -8,6 +8,7 @@ import { constants, type Stats } from "node:fs";
 import { lstat, open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isSkillName } from "./skill-name.ts";
 
 export const AGENT_MANIFEST_SCHEMA = "ai-society.agent/1";
 export const AGENT_MANIFEST_FILENAME = "agent.json";
@@ -20,7 +21,6 @@ const AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/u;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
 export const AGENT_CREATION_TASK_PATTERN = /^AK-[1-9][0-9]*$/u;
 const TOOL_NAME_PATTERN = /^[a-z0-9_]+$/u;
-const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u;
 const EXTENSION_NAME_PATTERN = /^[A-Za-z0-9@.][A-Za-z0-9@/._-]*$/u;
 const THINKING_LEVELS: ReadonlySet<string> = new Set([
   "off",
@@ -296,7 +296,7 @@ export function validateAgentManifest(
         throw fail("skills.extra must be an array of skill names");
       }
       extra = skillsRecord.extra.map((entry, index) => {
-        if (typeof entry !== "string" || !SKILL_NAME_PATTERN.test(entry)) {
+        if (!isSkillName(entry)) {
           throw fail(`skills.extra[${index}] must be a skill name string`);
         }
         return entry;

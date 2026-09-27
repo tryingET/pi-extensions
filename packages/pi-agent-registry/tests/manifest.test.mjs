@@ -247,6 +247,50 @@ test("malformed skills extras fail closed", async () => {
   );
 });
 
+// Agent Skills spec (enforced by Pi's validateName): lowercase a-z, 0-9, single hyphens, <= 64.
+// A lenient pattern let 15 dotted engineering-core skill names go unnoticed (engineering-core AK5774).
+const NON_SPEC_SKILL_NAMES = [
+  "ec-lane-ts.justfile",
+  "snake_case",
+  "Upper",
+  "double--hyphen",
+  "-leading",
+  "trailing-",
+  "a".repeat(65),
+];
+
+test("skills.extra rejects names outside the Agent Skills spec", async () => {
+  for (const name of NON_SPEC_SKILL_NAMES) {
+    await withManifestDir(
+      {
+        "agent.json": JSON.stringify({ ...baseValid(), skills: { extra: [name] } }),
+        "prompt.md": "body",
+      },
+      async (dir) => {
+        await assert.rejects(
+          loadAgentManifest(dir),
+          /skills\.extra\[0\] must be a skill name/,
+          name,
+        );
+      },
+    );
+  }
+});
+
+test("skills.extra accepts spec names up to 64 characters", async () => {
+  const names = ["a", "ec-lane-ts-justfile", "x".repeat(64)];
+  await withManifestDir(
+    {
+      "agent.json": JSON.stringify({ ...baseValid(), skills: { extra: names } }),
+      "prompt.md": "body",
+    },
+    async (dir) => {
+      const manifest = await loadAgentManifest(dir);
+      assert.deepEqual(manifest.skills.extra, names);
+    },
+  );
+});
+
 test("tools shape failures fail closed", async () => {
   await withManifestDir(
     { "agent.json": JSON.stringify({ ...baseValid(), tools: "read" }) },
