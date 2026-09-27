@@ -125,7 +125,8 @@ compatibility policy (currently 0.84.4); package validation reads that policy ra
 than choosing a version from the installed Pi. The original port was tested on
 0.84.4; that historical observation is not a minimum-version requirement.
 Host peers use `*` as Pi requires, not a universal
-compatibility claim. TypeScript 6.0.3 is a **runtime** dependency; typebox 1.3.7 is
+compatibility claim. TypeScript 7.0.2 is a **runtime** dependency (checking uses its
+`typescript/unstable/sync` API over a virtual file system; emit uses its `tsc`); typebox 1.3.7 is
 host-provided, with an exact development pin and peer declaration.
 
 Fresh Copier lineage and port deltas: [provenance](docs/project/provenance.md).

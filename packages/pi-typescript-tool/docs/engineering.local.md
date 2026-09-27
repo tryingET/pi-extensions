@@ -19,7 +19,11 @@ pin matches the root's immutable commit recorded in local policy.
 ## Local deltas
 
 - Node >=22 + npm. TypeScript source loads through Pi/jiti; no build artifact.
-- Runtime TypeScript **6.0.3** is required for submitted-code checking/transpiling.
+- Runtime TypeScript **7.0.2** is required for submitted-code checking/transpiling
+  (engineering-core ts lanes are TypeScript 7 only). TypeScript 7 has no classic
+  compiler API: checking uses `typescript/unstable/sync` over an in-memory file system,
+  and emit runs TypeScript 7's `tsc` in a private temporary directory with
+  `--ignoreConfig`. The unstable API is why the version is pinned exactly.
   The structure gate checks the runtime dependency, not a dev-only compiler.
 - Template host baseline **0.84.3** is historical scaffold metadata. The root
   `policy/pi-host-compatibility-canary.json` owns the current exact development

@@ -128,8 +128,8 @@ function validatePiHostContract(p) {
     }
   }
 
-  if (p.dependencies?.typescript !== "6.0.3") {
-    fail("package.json dependencies.typescript must be pinned to 6.0.3 for generated typechecks");
+  if (p.dependencies?.typescript !== "7.0.2") {
+    fail("package.json dependencies.typescript must be pinned to 7.0.2 for generated typechecks");
   }
   if (!fs.existsSync("tsconfig.json")) {
     fail("Generated package must include tsconfig.json");

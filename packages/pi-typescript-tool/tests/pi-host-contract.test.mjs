@@ -82,13 +82,13 @@ test("private metadata, runtime compiler, lockfile and artifact notices stay ali
   const lock = readPackageJson("package-lock.json");
   assert.equal(pkg.private, true);
   assert.equal(pkg["x-pi-template"].releaseConfigMode, "none");
-  assert.deepEqual(pkg.dependencies, { typescript: "6.0.3" });
+  assert.deepEqual(pkg.dependencies, { typescript: "7.0.2" });
   assert.equal(pkg.peerDependencies.typebox, "*");
   assert.equal(pkg.devDependencies.typebox, "1.3.7");
   assert.deepEqual(lock.packages[""].dependencies, pkg.dependencies);
   assert.deepEqual(lock.packages[""].devDependencies, pkg.devDependencies);
   assert.deepEqual(lock.packages[""].peerDependencies, pkg.peerDependencies);
-  assert.equal(lock.packages["node_modules/typescript"].version, "6.0.3");
+  assert.equal(lock.packages["node_modules/typescript"].version, "7.0.2");
   assert.notEqual(lock.packages["node_modules/typescript"].dev, true);
   for (const file of ["src", "NOTICE", "external/LICENSE-Apache-2.0.txt"]) {
     assert.ok(pkg.files.includes(file));

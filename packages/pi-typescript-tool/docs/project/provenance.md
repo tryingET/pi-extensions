@@ -46,6 +46,11 @@ Apache notices in pack allowlist; all generated docs/prompts made package-specif
 policy pin/loop references projected from the owning root; private packaging branch
 runs provider-free artifact checks rather than publication or Pi installation.
 
+Later delta (pi-extensions AK5929): the runtime dependency moved to TypeScript 7.0.2.
+TypeScript 7 has no classic compiler API, so the gate checks through
+`typescript/unstable/sync` over a virtual file system and emits through TypeScript 7's
+`tsc`; the exact-pin validator, pack smoke and host-contract test now pin 7.0.2.
+
 Template/source repos, root control plane and unrelated working-tree paths are
 outside this port's mutation scope. No commit, install, provider session or AK
 mutation is part of the implementation handoff.

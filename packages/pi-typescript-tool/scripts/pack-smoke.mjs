@@ -15,7 +15,7 @@ try {
   const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
   assert.equal(pkg.private, true);
   assert.equal(pkg["x-pi-template"].releaseConfigMode, "none");
-  assert.deepEqual(pkg.dependencies, { typescript: "6.0.3" });
+  assert.deepEqual(pkg.dependencies, { typescript: "7.0.2" });
   assert.equal(pkg.peerDependencies.typebox, "*");
   assert.match(await readFile(join(root, "NOTICE"), "utf8"), /Carlos Villela/);
   assert.match(
