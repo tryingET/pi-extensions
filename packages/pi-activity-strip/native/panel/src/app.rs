@@ -24,6 +24,10 @@ const BRAND_WIDTH: i32 = 196;
 /// Grace before a hovered-away window list closes, so crossing the brand's own padding does not
 /// close and reopen it.
 const DIRECTORY_CLOSE_MS: u64 = 200;
+/// Hovering the ribbon takes the keyboard so a window number can be typed at once. Without a digit
+/// within this time it is handed back, so a pointer resting on the ribbon cannot keep swallowing
+/// what is typed into the window below; a click on the ribbon still takes it again.
+const HOVER_GRAB_MS: u64 = 3_000;
 
 pub struct AppInit {
     pub demo: bool,
@@ -55,8 +59,13 @@ pub struct App {
     /// Counts list openings, so a jump or activation result only acts on the list that asked.
     directory_session: u64,
     pending_request: Option<PendingRequest>,
-    /// The list set on-demand keyboard focus and must set it back when it closes.
+    /// The list changed the keyboard mode and must set it back when it closes.
     directory_owns_keyboard: bool,
+    /// The keyboard was taken on hover and is still held. Released when the pointer leaves, and
+    /// after HOVER_GRAB_MS without a key while nothing is typed.
+    hover_grab: bool,
+    /// Counts grab timers, so only the latest one (re-armed on every key) can release the grab.
+    grab_generation: u64,
     /// Whether the ribbon has keyboard focus right now: after a click on the list, or in
     /// keyboard mode. Hovering alone never takes the keyboard from the window being typed into.
     window_active: bool,
@@ -117,6 +126,7 @@ pub enum AppMsg {
     InputError(String),
     DirectoryHover(bool),
     DirectoryCloseIf(u64),
+    DirectoryGrabExpired(u64),
     DirectoryKey(DirectoryKey),
     DirectoryActivate(String),
     JumpResult(i64, bool, String),
@@ -264,6 +274,8 @@ impl Component for App {
             directory_session: 0,
             pending_request: None,
             directory_owns_keyboard: false,
+            hover_grab: false,
+            grab_generation: 0,
             window_active: false,
             jump_digits: String::new(),
             key_capture: Rc::clone(&key_capture),
@@ -272,7 +284,7 @@ impl Component for App {
         widgets.body.set_can_target(!init.click_through);
         widgets.brand.append(&model.directory.root);
 
-        // Hovering the brand block opens the window list.
+        // Hovering anywhere on the ribbon opens the window list in the brand column.
         let hover = gtk::EventControllerMotion::new();
         let tx = sender.input_sender().clone();
         hover.connect_enter(move |_, _, _| {
@@ -282,7 +294,7 @@ impl Component for App {
         hover.connect_leave(move |_| {
             let _ = tx.send(AppMsg::DirectoryHover(false));
         });
-        widgets.brand.add_controller(hover);
+        widgets.body.add_controller(hover);
 
         // Captured before any card sees it, and only while the list (or keyboard mode) is live:
         // see `directory_key` for which keys belong to the list in which state.
@@ -355,8 +367,12 @@ impl Component for App {
             }
             AppMsg::Activate(id) => {
                 emit(json!({ "protocol": 1, "type": "activate", "cardId": id }));
+                // Focus is moving to that card's window, so the ribbon must hold nothing: not
+                // keyboard mode, and not the hover grab that clicking inside the ribbon implies.
                 if self.keyboard_active {
                     self.leave_keyboard_mode(widgets, root);
+                } else {
+                    self.close_directory(widgets, root);
                 }
             }
             AppMsg::ActivationResult(id, ok, message) => {
@@ -377,8 +393,10 @@ impl Component for App {
                         self.leave_keyboard_mode(widgets, root);
                     } else {
                         self.keyboard_active = true;
-                        // Keyboard mode now holds the keyboard, whoever opened the list.
+                        // Keyboard mode now holds the keyboard, whoever opened the list, and no
+                        // hover timeout may hand it back.
                         self.directory_owns_keyboard = false;
+                        self.hover_grab = false;
                         self.sync_key_capture();
                         self.hovered.clear();
                         self.keyboard_focused = self.order.first().cloned();
@@ -416,6 +434,9 @@ impl Component for App {
                     // A click elsewhere dismisses a clicked-into list. Hover expansion of cards is
                     // pointer business and is left alone.
                     self.close_directory(widgets, root);
+                } else {
+                    // Still hovered but no longer typing (the hover grab ran out): say so.
+                    self.refresh_directory_status();
                 }
             }
             AppMsg::CollapseIf(generation) => {
@@ -432,7 +453,13 @@ impl Component for App {
                 self.directory_generation += 1;
                 if entered {
                     self.open_directory(widgets, root, true);
+                    // Also on re-entry within the close grace: the grab and its timer start over.
+                    if self.take_hover_grab(root) {
+                        self.arm_grab_timer(&sender);
+                    }
                 } else {
+                    // Hovering is the only reason the ribbon holds the keyboard: leaving returns it.
+                    self.release_hover_grab(root);
                     let generation = self.directory_generation;
                     let tx = sender.input_sender().clone();
                     glib::timeout_add_local_once(
@@ -443,41 +470,27 @@ impl Component for App {
                     );
                 }
             }
+            AppMsg::DirectoryGrabExpired(generation) => {
+                if generation == self.grab_generation && self.jump_digits.is_empty() {
+                    self.release_hover_grab(root);
+                }
+            }
             AppMsg::DirectoryCloseIf(generation) => {
                 if generation == self.directory_generation
                     && !self.directory_hovered
                     && self.directory_opened_by_hover
-                    && self.jump_digits.is_empty()
                 {
                     self.close_directory(widgets, root);
                 }
             }
-            AppMsg::DirectoryKey(key) => match key {
-                DirectoryKey::Digit(digit) => {
-                    self.open_directory(widgets, root, false);
-                    if push_digit(&mut self.jump_digits, digit) {
-                        self.render_directory();
-                        self.sync_key_capture();
-                    }
+            AppMsg::DirectoryKey(key) => {
+                // Every key keeps a hover grab alive for another HOVER_GRAB_MS; the grab is only
+                // released idle and empty, never mid-number.
+                if self.hover_grab {
+                    self.arm_grab_timer(&sender);
                 }
-                DirectoryKey::Backspace => {
-                    self.jump_digits.pop();
-                    self.render_directory();
-                    self.sync_key_capture();
-                }
-                DirectoryKey::Enter => {
-                    if let Some(window_id) = jump_target(&self.jump_digits) {
-                        self.pending_request = Some(PendingRequest {
-                            session: self.directory_session,
-                            target: RequestTarget::Window(window_id),
-                        });
-                        self.directory
-                            .set_status(&format!("Jumping to #{window_id}…"));
-                        emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
-                    }
-                }
-                DirectoryKey::Escape => self.close_directory(widgets, root),
-            },
+                self.handle_directory_key(widgets, root, key);
+            }
             AppMsg::DirectoryActivate(card_id) => {
                 self.pending_request = Some(PendingRequest {
                     session: self.directory_session,
@@ -868,6 +881,40 @@ impl App {
             });
     }
 
+    fn handle_directory_key(
+        &mut self,
+        widgets: &mut AppWidgets,
+        root: &gtk::Window,
+        key: DirectoryKey,
+    ) {
+        match key {
+            DirectoryKey::Digit(digit) => {
+                self.open_directory(widgets, root, false);
+                if push_digit(&mut self.jump_digits, digit) {
+                    self.render_directory();
+                    self.sync_key_capture();
+                }
+            }
+            DirectoryKey::Backspace => {
+                self.jump_digits.pop();
+                self.render_directory();
+                self.sync_key_capture();
+            }
+            DirectoryKey::Enter => {
+                if let Some(window_id) = jump_target(&self.jump_digits) {
+                    self.pending_request = Some(PendingRequest {
+                        session: self.directory_session,
+                        target: RequestTarget::Window(window_id),
+                    });
+                    self.directory
+                        .set_status(&format!("Jumping to #{window_id}…"));
+                    emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
+                }
+            }
+            DirectoryKey::Escape => self.close_directory(widgets, root),
+        }
+    }
+
     /// Whether a result answers exactly what the open list asked for. Anything else (a card's own
     /// activation, an earlier jump) leaves the pending request in place.
     fn take_own_request(&mut self, target: &RequestTarget) -> bool {
@@ -904,6 +951,42 @@ impl App {
         }
     }
 
+    /// Take the keyboard for a hover-opened list, so a number can be typed at once. Clears the
+    /// window's focus widget first: Enter with nothing typed must not press a card or row that
+    /// kept focus from an earlier keyboard mode or click.
+    fn take_hover_grab(&mut self, root: &gtk::Window) -> bool {
+        if !self.directory_open || !self.directory_opened_by_hover || self.keyboard_active {
+            return false;
+        }
+        if !self.hover_grab {
+            GtkWindowExt::set_focus(root, None::<&gtk::Widget>);
+            root.set_keyboard_mode(KeyboardMode::Exclusive);
+            self.hover_grab = true;
+            self.directory_owns_keyboard = true;
+        }
+        true
+    }
+
+    fn release_hover_grab(&mut self, root: &gtk::Window) {
+        if self.hover_grab {
+            self.hover_grab = false;
+            self.grab_generation += 1;
+            if !self.keyboard_active {
+                root.set_keyboard_mode(KeyboardMode::OnDemand);
+            }
+            self.refresh_directory_status();
+        }
+    }
+
+    fn arm_grab_timer(&mut self, sender: &ComponentSender<Self>) {
+        self.grab_generation += 1;
+        let generation = self.grab_generation;
+        let tx = sender.input_sender().clone();
+        glib::timeout_add_local_once(Duration::from_millis(HOVER_GRAB_MS), move || {
+            let _ = tx.send(AppMsg::DirectoryGrabExpired(generation));
+        });
+    }
+
     fn open_directory(&mut self, widgets: &AppWidgets, root: &gtk::Window, by_hover: bool) {
         if self.directory_open || !self.visible || !self.interactive {
             return;
@@ -914,9 +997,8 @@ impl App {
         self.jump_digits.clear();
         self.directory.set_visible(true);
         widgets.brand.set_valign(gtk::Align::Start);
-        // Hovering never takes the keyboard: on-demand focus lets one click on the list take it,
-        // so a pointer resting here cannot swallow what is being typed elsewhere. Keyboard mode
-        // already holds it.
+        // On-demand until a hover grab (take_hover_grab) upgrades it; a click can always take the
+        // keyboard. Keyboard mode already holds it.
         if !self.keyboard_active {
             root.set_keyboard_mode(KeyboardMode::OnDemand);
             self.directory_owns_keyboard = true;
@@ -951,6 +1033,7 @@ impl App {
         }
         self.directory_open = false;
         self.directory_opened_by_hover = false;
+        self.hover_grab = false;
         self.pending_request = None;
         self.jump_digits.clear();
         self.directory.set_visible(false);
