@@ -3,9 +3,9 @@
 // read_when:
 //   - rebuilding extension runtime files before package checks or publication.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
-import ts from "typescript";
+import { emitTypeScript } from "./emit-typescript.mjs";
 
 const ROOT = process.cwd();
 const RUNTIME_ROOTS = ["extensions", "src"];
@@ -41,18 +41,11 @@ const sourceFiles = RUNTIME_ROOTS.flatMap((relativeRoot) => {
   }
 }).sort();
 
+emitTypeScript(sourceFiles, ROOT);
+
 for (const sourcePath of sourceFiles) {
-  const source = readFileSync(sourcePath, "utf8");
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2022,
-    },
-    fileName: sourcePath,
-  }).outputText;
   const outputPath = sourcePath.replace(/\.ts$/, ".js");
   mkdirSync(path.dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, transpiled, "utf8");
   execFileSync(BIOME_BIN, ["check", "--write", "--no-errors-on-unmatched", outputPath], {
     cwd: ROOT,
     stdio: QUIET ? "ignore" : "inherit",

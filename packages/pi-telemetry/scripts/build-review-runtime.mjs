@@ -11,10 +11,10 @@ import { fileURLToPath } from "node:url";
 
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const distDir = join(packageRoot, "dist");
-const tsgo = join(packageRoot, "node_modules", "@typescript", "native-preview", "bin", "tsgo.js");
+const tsc = join(packageRoot, "node_modules", "typescript", "bin", "tsc");
 
 rmSync(distDir, { recursive: true, force: true });
-execFileSync(process.execPath, [tsgo, "-p", join(packageRoot, "tsconfig.review-runtime.json")], {
+execFileSync(process.execPath, [tsc, "-p", join(packageRoot, "tsconfig.review-runtime.json")], {
   cwd: packageRoot,
   stdio: "inherit",
 });

@@ -4,13 +4,15 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import ts from "typescript";
 import { buildTaskSessionAdapter } from "../../pi-society-orchestrator/scripts/task-session-build.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -22,6 +24,7 @@ function run(command, args) {
 mkdirSync("dist/task-session", { recursive: true });
 run(process.execPath, [
   "node_modules/typescript/bin/tsc",
+  "--ignoreConfig",
   "--target",
   "ES2023",
   "--lib",
@@ -32,6 +35,8 @@ run(process.execPath, [
   "NodeNext",
   "--strict",
   "--skipLibCheck",
+  "--types",
+  "node",
   "--outDir",
   "dist/task-session",
   "--rootDir",
@@ -50,35 +55,49 @@ run(process.execPath, [
 buildTaskSessionAdapter(resolve("node_modules/typescript/bin/tsc"));
 run(process.execPath, [
   "node_modules/typescript/bin/tsc",
+  "--ignoreConfig",
   "--noEmit",
   "--allowImportingTsExtensions",
   "--strict",
   "--skipLibCheck",
+  "--types",
+  "node",
   "--target",
   "ES2023",
   "--module",
   "NodeNext",
   "extensions/sidequestGhostty.ts",
 ]);
-// Same existing transport source, emitted without its erased TS-only handshake type import.
-writeFileSync(
-  "dist/task-session/shared-ghostty.js",
-  ts.transpileModule(
+// Emit the transport sources with the same TypeScript 7 CLI, without the
+// classic transpileModule API. The temporary source preserves the restricted
+// handshake import rewrite, and --noCheck only applies to this isolated emit.
+const emitRoot = mkdtempSync(resolve(tmpdir(), "pi-task-session-emit-"));
+try {
+  writeFileSync(
+    resolve(emitRoot, "shared-ghostty.ts"),
     readFileSync("extensions/sidequestGhostty.ts", "utf8").replace(
       "../src/taskSessionTransport.ts",
       "./restricted-transport.js",
     ),
-    {
-      compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext },
-    },
-  ).outputText,
-);
-writeFileSync(
-  "dist/task-session/restricted-transport.js",
-  ts.transpileModule(readFileSync("src/taskSessionTransport.ts", "utf8"), {
-    compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext },
-  }).outputText,
-);
+  );
+  copyFileSync("src/taskSessionTransport.ts", resolve(emitRoot, "restricted-transport.ts"));
+  run(process.execPath, [
+    "node_modules/typescript/bin/tsc",
+    "--ignoreConfig",
+    "--noCheck",
+    "--noResolve",
+    "--target",
+    "ES2023",
+    "--module",
+    "ESNext",
+    "--outDir",
+    "dist/task-session",
+    resolve(emitRoot, "shared-ghostty.ts"),
+    resolve(emitRoot, "restricted-transport.ts"),
+  ]);
+} finally {
+  rmSync(emitRoot, { recursive: true, force: true });
+}
 if (process.platform !== "linux" || process.arch !== "x64")
   throw new Error("native_platform_unsupported");
 // Build-time only. No install scripts/download/compiler fallback in emitted runtime.

@@ -95,12 +95,12 @@ function collectOutputEntries(root: string): GovernedRuntimeOutputEntry[] {
 
 function inspectAscCompiler(ascRoot: string): GovernedRuntimeCompilerProof {
   const nodeModulesRoot = realpathSync(resolve(ascRoot, "node_modules"));
-  const rawCompilerRoot = resolve(ascRoot, "node_modules/@typescript/native-preview");
+  const rawCompilerRoot = resolve(ascRoot, "node_modules/typescript");
   const stat = lstatSync(rawCompilerRoot);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new GovernedRuntimeMaterializationError(
       "materialization_asc_compiler_invalid",
-      "ASC runtime compiler must be a physical @typescript/native-preview directory.",
+      "ASC runtime compiler must be a physical typescript directory.",
     );
   }
   const compilerRoot = realpathSync(rawCompilerRoot);
@@ -117,7 +117,7 @@ function inspectAscCompiler(ascRoot: string): GovernedRuntimeCompilerProof {
   const regular = regularLock.packages?.[lockKey];
   const hidden = hiddenLock.packages?.[lockKey];
   if (
-    compilerRoot !== resolve(nodeModulesRoot, "@typescript/native-preview") ||
+    compilerRoot !== resolve(nodeModulesRoot, "typescript") ||
     compiler.root !== compilerRoot ||
     compiler.name !== GOVERNED_RUNTIME_ASC_COMPILER.name ||
     compiler.version !== GOVERNED_RUNTIME_ASC_COMPILER.version ||

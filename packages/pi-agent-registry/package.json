@@ -85,12 +85,12 @@
     "releaseConfigMode": "component"
   },
   "devDependencies": {
+    "typescript": "7.0.2",
     "@biomejs/biome": "2.3.14",
     "@earendil-works/pi-agent-core": "0.84.4",
     "@earendil-works/pi-ai": "0.84.4",
     "@earendil-works/pi-coding-agent": "0.84.4",
-    "@types/node": "^25.3.3",
-    "@typescript/native-preview": "7.0.0-dev.20260417.1"
+    "@types/node": "^25.3.3"
   },
   "overrides": {
     "fast-xml-parser": "5.7.0"

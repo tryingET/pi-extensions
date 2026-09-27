@@ -260,7 +260,7 @@ test("ASC runtime proof requires two retained complete derivation receipts", () 
     );
     mkdirSync(ascNodeModules, { recursive: true });
     symlinkSync(ascNodeModules, resolve(ascRoot, "node_modules"), "dir");
-    const compilerRoot = resolve(ascNodeModules, "@typescript/native-preview");
+    const compilerRoot = resolve(ascNodeModules, GOVERNED_RUNTIME_ASC_COMPILER.name);
     mkdirSync(compilerRoot, { recursive: true });
     writeFileSync(
       resolve(compilerRoot, "package.json"),

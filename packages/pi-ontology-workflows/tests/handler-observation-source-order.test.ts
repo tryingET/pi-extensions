@@ -1,18 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import ts from "typescript";
+import * as ts from "typescript/unstable/ast";
+import { parseSource } from "./helpers/parse-source.js";
 
 const sourcePath = new URL("../src/semantic/preflight-runtime.ts", import.meta.url);
 
 async function parseRuntime(): Promise<ts.SourceFile> {
-  return ts.createSourceFile(
-    "preflight-runtime.ts",
-    await readFile(sourcePath, "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
+  return parseSource("preflight-runtime.ts", await readFile(sourcePath, "utf8"));
 }
 
 function collect<T extends ts.Node>(
@@ -22,7 +17,7 @@ function collect<T extends ts.Node>(
   const selected: T[] = [];
   const visit = (node: ts.Node): void => {
     if (select(node)) selected.push(node);
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   };
   visit(source);
   return selected;
@@ -103,15 +98,12 @@ test("source order retains post-builder and post-correlation stale-state rejecti
   assert.ok(postBuilderCurrentCheck > builder);
   assert.ok(preparation > postBuilderCurrentCheck);
 
-  const state = ts.createSourceFile(
+  const state = parseSource(
     "agent-prompt-observation-state.ts",
     await readFile(
       new URL("../src/semantic/agent-prompt-observation-state.ts", import.meta.url),
       "utf8",
     ),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
   );
   const coordinator = state.statements.find(
     (statement): statement is ts.FunctionDeclaration =>

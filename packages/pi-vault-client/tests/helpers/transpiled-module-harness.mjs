@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
+import { emitTypeScript } from "../../scripts/emit-typescript.mjs";
 
 const HELPERS_DIR = fileURLToPath(new URL(".", import.meta.url));
 export const PACKAGE_ROOT = path.resolve(HELPERS_DIR, "..", "..");
@@ -59,23 +59,19 @@ export function createTranspiledModuleHarness({
     projectedFiles.add(generatedContract);
   }
 
+  const typeScriptFiles = [...projectedFiles].filter((file) => file.endsWith(".ts"));
+  emitTypeScript(
+    typeScriptFiles.map((file) => path.join(PACKAGE_ROOT, file)),
+    tempDir,
+  );
+
   for (const relativePath of projectedFiles) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
     const source = readFileSync(sourcePath, "utf8");
     const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));
     mkdirSync(path.dirname(outputPath), { recursive: true });
 
-    if (relativePath.endsWith(".ts")) {
-      const transpiled = ts.transpileModule(source, {
-        compilerOptions: {
-          module: ts.ModuleKind.ESNext,
-          target: ts.ScriptTarget.ES2022,
-        },
-        fileName: sourcePath,
-      }).outputText;
-      writeFileSync(outputPath, transpiled, "utf8");
-      continue;
-    }
+    if (relativePath.endsWith(".ts")) continue;
 
     writeFileSync(outputPath, source, "utf8");
   }

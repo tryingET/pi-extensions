@@ -3,7 +3,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import ts from "typescript";
+import * as ts from "typescript/unstable/ast";
+import { createVirtualFileSystem } from "typescript/unstable/fs";
+import { API } from "typescript/unstable/sync";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const releaseCheckPath = path.join(packageDir, "scripts", "release-check.sh");
@@ -191,16 +193,27 @@ function resolveStaticRelativeImport(importerPath, specifier) {
 
 function listStaticRelativeImports(filePath) {
   const sourceText = fs.readFileSync(filePath, "utf8");
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
+  const root = "/static-import-inspection";
+  const sourcePath = `${root}/source.ts`;
+  const config = `${root}/tsconfig.json`;
+  const api = new API({
+    cwd: root,
+    fs: createVirtualFileSystem({
+      [sourcePath]: sourceText,
+      [config]: JSON.stringify({
+        compilerOptions: { noLib: true, noEmit: true },
+        files: ["source.ts"],
+      }),
+    }),
+  });
+  const sourceFile = api
+    .updateSnapshot({ openProject: config })
+    .getProject(config)
+    ?.program.getSourceFile(sourcePath);
+  if (!sourceFile) throw new Error(`Cannot parse runtime import source: ${filePath}`);
   const specifiers = new Set();
   const recordStringLiteral = (node) => {
-    if (node && ts.isStringLiteralLike(node) && node.text.startsWith(".")) {
+    if (node && ts.isStringLiteralLikeNode(node) && node.text.startsWith(".")) {
       specifiers.add(node.text);
     }
   };
@@ -214,9 +227,10 @@ function listStaticRelativeImports(filePath) {
     ) {
       recordStringLiteral(node.arguments[0]);
     }
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   };
   visit(sourceFile);
+  api.close();
   return [...specifiers].sort();
 }
 

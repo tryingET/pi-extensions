@@ -244,8 +244,7 @@
     "@earendil-works/pi-coding-agent": "0.84.4",
     "@earendil-works/pi-tui": "0.84.4",
     "@types/node": "22.14.0",
-    "@typescript/native-preview": "7.0.0-dev.20260417.1",
-    "typescript": "5.9.2"
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "@tryinget/pi-session-compaction": "file:../pi-session-compaction",

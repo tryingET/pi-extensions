@@ -16,6 +16,7 @@ export function buildTaskSessionAdapter(tsc = `${root}node_modules/typescript/bi
     process.execPath,
     [
       tsc,
+      "--ignoreConfig",
       "--target",
       "ES2023",
       "--lib",
@@ -26,6 +27,8 @@ export function buildTaskSessionAdapter(tsc = `${root}node_modules/typescript/bi
       "NodeNext",
       "--strict",
       "--skipLibCheck",
+      "--types",
+      "node",
       "--resolveJsonModule",
       "--outDir",
       outDir,

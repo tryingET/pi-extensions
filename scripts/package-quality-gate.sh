@@ -162,18 +162,13 @@ run_typecheck_target() {
     return 0
   fi
 
-  if [[ -x "$workdir/node_modules/.bin/tsgo" ]]; then
-    (cd "$workdir" && ./node_modules/.bin/tsgo --noEmit)
-    return 0
-  fi
-
   if [[ -x "$workdir/node_modules/.bin/tsc" ]]; then
     (cd "$workdir" && ./node_modules/.bin/tsc --noEmit)
     return 0
   fi
 
-  echo "typecheck: tsconfig.json found but neither local tsgo nor local tsc is available in $(relative_target "$workdir")." >&2
-  echo "Run 'npm install' (and prefer @typescript/native-preview with typescript fallback when the package has a real compile boundary)." >&2
+  echo "typecheck: tsconfig.json found but local tsc is unavailable in $(relative_target "$workdir")." >&2
+  echo "Run 'npm ci' with an exactly pinned typescript@7 dependency." >&2
   exit 1
 }
 

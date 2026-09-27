@@ -28,6 +28,7 @@ void promptPlaneRuntime;
       process.execPath,
       [
         compiler,
+        "--ignoreConfig",
         "--noEmit",
         "--strict",
         "--skipLibCheck",

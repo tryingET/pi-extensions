@@ -58,11 +58,11 @@ export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
 export { GOVERNED_RUNTIME_ASC_REGISTRY_OWNER };
 
 export const GOVERNED_RUNTIME_ASC_COMPILER = {
-  name: "@typescript/native-preview",
-  version: "7.0.0-dev.20260417.1",
-  url: "https://registry.npmjs.org/@typescript/native-preview/-/native-preview-7.0.0-dev.20260417.1.tgz",
+  name: "typescript",
+  version: "7.0.2",
+  url: "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
   integrity:
-    "sha512-uIsfMRxtjgMF83TbAcpvHe0rgWVhqDSwCU1EYQT17qQbnOR56NIULneywLjeGKFgOCpn3eszd01/EjzS0n/LkA==",
+    "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
 } as const;
 
 export const GOVERNED_RUNTIME_HOST_PEERS = {
