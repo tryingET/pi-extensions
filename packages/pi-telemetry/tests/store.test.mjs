@@ -47,6 +47,25 @@ test("store: reads exclude events outside the window", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+test("store: reads the previous day's shard when its events remain inside a rolling window", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "pi-telemetry-"));
+  const now = Date.parse("2026-09-27T02:00:00.000Z");
+  const cutoff = now - DAY;
+  const shard = path.join(dir, "2026-09-26.backfill.jsonl");
+  await writeFile(
+    shard,
+    `${JSON.stringify(turnEvent(cutoff - 1, 1))}\n${JSON.stringify(turnEvent(cutoff, 2))}\n${JSON.stringify(turnEvent(now - 30 * 60 * 1000, 3))}\n`,
+  );
+
+  const events = await readTelemetryEvents(dir, 1, now);
+  assert.deepEqual(
+    events.map((event) => event.index),
+    [2, 3],
+  );
+
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("store: rotates the day shard once the size cap is exceeded", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "pi-telemetry-"));
   const now = Date.now();

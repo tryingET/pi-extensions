@@ -107,7 +107,9 @@ export async function readTelemetryEvents(
       .replace(/-1$/, "");
     if (!SHARD_DAY_PATTERN.test(day)) continue;
     const shardTime = Date.parse(`${day}T00:00:00.000Z`);
-    if (Number.isFinite(shardTime) && shardTime < cutoff) continue;
+    // A rolling window can still contain events from yesterday after its midnight.
+    // Skip only whole days ending before the cutoff; filter individual events below.
+    if (Number.isFinite(shardTime) && shardTime + 24 * 60 * 60 * 1000 <= cutoff) continue;
 
     let content: string;
     try {
