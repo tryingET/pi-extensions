@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.5](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.4...pi-agent-registry-v0.3.5) (2026-09-27)
+
+
+### Bug Fixes
+
+* **agent-registry:** enforce the Agent Skills name spec for skill names (AK6001) ([a9842de](https://github.com/tryingET/pi-extensions/commit/a9842dea5a6f882fcf4fa99e72e2fdf577a99b78))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-little-helpers bumped from file:../pi-little-helpers to 0.10.2
+
 ## [0.3.4](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.3...pi-agent-registry-v0.3.4) (2026-09-19)
 
 
