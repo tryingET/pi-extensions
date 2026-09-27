@@ -5,7 +5,7 @@
   "$comment": "Runtime validation remains authoritative for UTF-8 byte limits and cross-field self-reference/overlap rules that JSON Schema cannot fully express.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "key", "label", "promptStrategy", "systemPrompt"],
+  "required": ["schemaVersion", "key", "label", "promptStrategy"],
   "properties": {
     "schemaVersion": { "const": 2 },
     "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
@@ -29,6 +29,12 @@
       "pattern": "\\S",
       "$comment": "The runtime additionally enforces a 131072-byte UTF-8 limit."
     },
+    "systemPromptFile": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
     "requires": { "$ref": "#/$defs/keyList" },
     "conflictsWith": { "$ref": "#/$defs/keyList" },
     "before": { "$ref": "#/$defs/keyList" },
@@ -43,6 +49,9 @@
     }
   },
   "allOf": [
+    {
+      "oneOf": [{ "required": ["systemPrompt"] }, { "required": ["systemPromptFile"] }]
+    },
     {
       "if": { "properties": { "promptStrategy": { "not": { "const": "append" } } } },
       "then": {

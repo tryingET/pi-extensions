@@ -137,7 +137,9 @@ Discovery follows Pi's `AGENTS.md` direction: global first, then filesystem root
 }
 ```
 
-Schema v2 requires an explicit strategy and rejects unknown fields, noncanonical keys, unsafe display text, oversized prompts, duplicates, self-reference, contradictory contracts, and invalid contract roles. Legacy schema v1 remains readable and retains its historical missing-strategy default of `replace_base`; saving through current authoring writes v2.
+Schema v2 requires an explicit strategy and rejects unknown fields, noncanonical keys, unsafe display text, oversized prompts, duplicates, self-reference, contradictory contracts, and invalid contract roles.
+
+Use either `systemPrompt` for inline text or `systemPromptFile` for a UTF-8 text file. The file path is resolved relative to the mode JSON file. These fields are mutually exclusive. The referenced file must be non-empty and stay within the prompt size limit. Legacy schema v1 remains readable and retains its historical missing-strategy default of `replace_base`; saving through current authoring writes v2.
 
 Optional contracts:
 

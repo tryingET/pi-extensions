@@ -26,6 +26,7 @@ export interface ModeDefinition {
   description?: string;
   promptStrategy: PromptStrategy;
   systemPrompt: string;
+  systemPromptFile?: string;
   requires?: string[];
   conflictsWith?: string[];
   before?: string[];
@@ -136,6 +137,7 @@ export function parseModeDefinition(raw: unknown): ModeDefinition {
     "description",
     "promptStrategy",
     "systemPrompt",
+    "systemPromptFile",
     ...(schemaVersion === 2 ? ["requires", "conflictsWith", "before", "after"] : []),
   ]);
   const unknown = Object.keys(value).filter((key) => !allowed.has(key));
@@ -159,7 +161,15 @@ export function parseModeDefinition(raw: unknown): ModeDefinition {
       ? ""
       : validateDisplayText("description", value.description, 1000);
   const rawSystemPrompt = typeof value.systemPrompt === "string" ? value.systemPrompt : "";
-  if (!rawSystemPrompt.trim()) throw new Error("systemPrompt is required");
+  const systemPromptFile =
+    value.systemPromptFile === undefined
+      ? undefined
+      : validateDisplayText("systemPromptFile", value.systemPromptFile, 4096);
+  if (!rawSystemPrompt.trim() && !systemPromptFile)
+    throw new Error("systemPrompt or systemPromptFile is required");
+  if (rawSystemPrompt.trim() && systemPromptFile) {
+    throw new Error("systemPrompt and systemPromptFile are mutually exclusive");
+  }
   if (stringBytes(rawSystemPrompt) > MODE_PROMPT_MAX_BYTES) {
     throw new Error(`systemPrompt exceeds ${MODE_PROMPT_MAX_BYTES} UTF-8 bytes`);
   }
@@ -192,6 +202,7 @@ export function parseModeDefinition(raw: unknown): ModeDefinition {
     ...(description ? { description } : {}),
     promptStrategy,
     systemPrompt: promptStrategy === "replace_final" ? rawSystemPrompt : rawSystemPrompt.trim(),
+    ...(systemPromptFile ? { systemPromptFile } : {}),
     ...(requires ? { requires } : {}),
     ...(conflictsWith ? { conflictsWith } : {}),
     ...(before ? { before } : {}),
@@ -211,6 +222,7 @@ export function modeDefinitionFingerprint(mode: ResolvedMode): DefinitionFingerp
     description: mode.description ?? null,
     promptStrategy: mode.promptStrategy,
     systemPrompt: mode.systemPrompt,
+    systemPromptFile: mode.systemPromptFile ?? null,
     requires: [...(mode.requires ?? [])].sort(),
     conflictsWith: [...(mode.conflictsWith ?? [])].sort(),
     before: [...(mode.before ?? [])].sort(),
@@ -320,7 +332,14 @@ function loadModeDirectory(dir: string, scope: Exclude<ModeScope, "builtin">): L
       }
       const mode = parseModeDefinition(JSON.parse(readFileSync(path, "utf8")));
       if (file !== `${mode.key}.json`) throw new Error(`filename must be ${mode.key}.json`);
-      modes.push({ ...mode, scope, path });
+      const resolvedPrompt = mode.systemPromptFile
+        ? readFileSync(resolve(dirname(path), mode.systemPromptFile), "utf8")
+        : mode.systemPrompt;
+      if (!resolvedPrompt.trim()) throw new Error("system prompt file is empty");
+      if (stringBytes(resolvedPrompt) > MODE_PROMPT_MAX_BYTES) {
+        throw new Error(`system prompt file exceeds ${MODE_PROMPT_MAX_BYTES} UTF-8 bytes`);
+      }
+      modes.push({ ...mode, systemPrompt: resolvedPrompt, scope, path });
     } catch (error) {
       diagnostics.push({ path, message: error instanceof Error ? error.message : String(error) });
     }
