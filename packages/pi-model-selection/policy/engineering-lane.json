@@ -3,12 +3,12 @@
   "engineering_core": {
     "tool": "engineering-core",
     "lane": "pi-ts",
-    "repository": "https://github.com/lightningralf/engineering-core",
-    "ref": "workspace-local-unpinned",
-    "command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo",
-    "catalog_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty",
-    "list_disciplines_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines",
-    "list_templates_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates",
+    "repository": "https://github.com/tryingET/core_engineering-core",
+    "ref": "v0.12.2",
+    "command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core show pi-ts --prefer-repo",
+    "catalog_command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core catalog --pretty",
+    "list_disciplines_command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core list-disciplines",
+    "list_templates_command": "uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core list-templates",
     "disciplines": [
       "validation",
       "testing",
@@ -29,6 +29,12 @@
         "loop-impact-wide": "npm run loop-impact-wide",
         "loop-landing-check": "npm run loop-landing-check"
       }
+    },
+    "release_pin": {
+      "kind": "git-commit",
+      "ref": "v0.12.2",
+      "resolved_commit": "27ff32a529b6da6b27051e97fdb1d95a0a9be4ae",
+      "source": "git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae"
     }
   }
 }

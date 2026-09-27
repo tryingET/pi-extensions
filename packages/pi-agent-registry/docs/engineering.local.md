@@ -19,9 +19,9 @@ Primary lane:
 Catalog/list commands:
 
 ```bash
-uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
-uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
-uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core catalog --pretty
+uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core list-disciplines
+uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@27ff32a529b6da6b27051e97fdb1d95a0a9be4ae engineering-core list-templates
 ```
 
 Selected disciplines:
