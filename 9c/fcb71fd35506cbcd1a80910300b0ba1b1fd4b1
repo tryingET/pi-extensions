@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9cfcb71fd35506cbcd1a80910300b0ba1b1fd4b1"
+created_at: "2026-09-27T03:20:31Z"
+intent: "Record the unaccepted phased target-root orchestration proposal without enabling implementation"
+files:
+  - "packages/pi-semantic-code-intelligence/docs/project/pi-composite-target-root-orchestration-rfc.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 3
+  rationale: "Externally replayed from 7bf2136b with identical file blob; per-group fast gate passed on original SHA, not rerun on replayed base; full gate passed at final HEAD"
+links:
+  task_ids:
+    - 5440
