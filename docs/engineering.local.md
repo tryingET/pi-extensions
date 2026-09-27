@@ -16,11 +16,11 @@ Primary model:
 
 - Root repo is a **monorepo control plane**, not a full npm workspace manifest.
 - Packages under `packages/` keep their own manifests and package-local checks.
-- Shared upstream guidance comes from `engineering-core` v0.8.0 at immutable commit `8f59f4178f0c40f73d64c417e7a591de42a0f0d2`; root machine-readable recognition lives in `policy/engineering-lane.json`.
+- Shared upstream guidance comes from `engineering-core` v0.12.0 at immutable commit `3fc8387274dddccbae3d7fab80954ad483c9b681`; root machine-readable recognition lives in `policy/engineering-lane.json`.
 - Inspect available upstream catalog/discipline/template surfaces with:
-  - `uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core catalog --pretty`
-  - `uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core list-disciplines`
-  - `uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core list-templates`
+  - `uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@3fc8387274dddccbae3d7fab80954ad483c9b681 engineering-core catalog --pretty`
+  - `uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@3fc8387274dddccbae3d7fab80954ad483c9b681 engineering-core list-disciplines`
+  - `uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@3fc8387274dddccbae3d7fab80954ad483c9b681 engineering-core list-templates`
 
 Repo-local emphasis:
 
