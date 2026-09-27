@@ -164,8 +164,8 @@ export function resolveFocusedWorkspaceView(windows, workspaces, sessions, optio
 
 /**
  * Every agent window on every workspace, for the ribbon's window list. It reuses the per-workspace
- * card projection, so an entry exists exactly when that workspace would show the card. Ordered as
- * the operator sees workspaces (output, then workspace number), then by window number.
+ * card projection, so an entry exists exactly when that workspace would show the card. Ordered
+ * alphabetically by project name, then by window number; each entry carries its workspace.
  * @param {Array<Record<string, unknown>>} windows
  * @param {Array<Record<string, unknown>>} workspaces
  * @param {Array<Record<string, unknown>>} sessions
@@ -206,6 +206,10 @@ export function resolveWindowDirectory(windows, workspaces, sessions, options = 
       });
     }
   }
+  entries.sort(
+    (a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.windowId - b.windowId,
+  );
   return { entries, cards };
 }
 

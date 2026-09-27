@@ -60,19 +60,10 @@ impl DirectoryView {
             self.rows.remove(&child);
         }
         let shown = filter_entries(windows, digits);
-        let mut previous: Option<&WindowEntry> = None;
+        // Alphabetical from the controller, so workspace headings would repeat; each row names
+        // its workspace instead.
         for entry in &shown {
-            if previous.is_none_or(|last| !same_workspace(last, entry)) {
-                let header = gtk::Label::new(Some(&workspace_heading(entry)));
-                header.add_css_class("directory-header");
-                header.set_xalign(0.0);
-                // A long workspace name must not widen the brand column.
-                header.set_ellipsize(relm4::gtk::pango::EllipsizeMode::End);
-                header.set_max_width_chars(1);
-                self.rows.append(&header);
-            }
             self.rows.append(&self.row(entry));
-            previous = Some(entry);
         }
         if shown.is_empty() {
             let empty = gtk::Label::new(Some(if windows.is_empty() {
@@ -114,15 +105,19 @@ impl DirectoryView {
         label.set_hexpand(true);
         label.set_ellipsize(relm4::gtk::pango::EllipsizeMode::End);
         label.set_max_width_chars(1);
+        let workspace = gtk::Label::new(Some(&workspace_tag(entry)));
+        workspace.add_css_class("directory-workspace");
         let id = gtk::Label::new(Some(&format!("#{}", entry.window_id)));
         id.add_css_class("directory-id");
         line.append(&label);
+        line.append(&workspace);
         line.append(&id);
         row.set_child(Some(&line));
         row.set_tooltip_text(Some(&format!(
-            "{} — window #{}{}",
+            "{} — window #{}, {}{}",
             entry.label,
             entry.window_id,
+            workspace_title(entry),
             if entry.hidden_tab { ", hidden tab" } else { "" }
         )));
         let tx = self.sender.clone();
@@ -131,15 +126,6 @@ impl DirectoryView {
             let _ = tx.send(AppMsg::DirectoryActivate(card_id.clone()));
         });
         row
-    }
-}
-
-/// One heading per workspace. Workspace numbers repeat across monitors, so the workspace id
-/// decides; the number is only what the heading shows.
-fn same_workspace(a: &WindowEntry, b: &WindowEntry) -> bool {
-    match (a.workspace_id, b.workspace_id) {
-        (Some(left), Some(right)) => left == right,
-        _ => a.workspace_idx == b.workspace_idx,
     }
 }
 
@@ -168,11 +154,20 @@ pub fn push_digit(digits: &mut String, digit: char) -> bool {
     true
 }
 
-fn workspace_heading(entry: &WindowEntry) -> String {
+/// The short workspace marker on each row: the number the operator sees in Niri.
+fn workspace_tag(entry: &WindowEntry) -> String {
+    entry
+        .workspace_idx
+        .map(|idx| format!("ws{idx}"))
+        .unwrap_or_default()
+}
+
+/// The workspace in full, for the row's tooltip: its number and any name.
+fn workspace_title(entry: &WindowEntry) -> String {
     let number = entry
         .workspace_idx
-        .map(|idx| format!("WORKSPACE {idx}"))
-        .unwrap_or_else(|| "WORKSPACE".to_owned());
+        .map(|idx| format!("workspace {idx}"))
+        .unwrap_or_else(|| "workspace".to_owned());
     match entry
         .workspace_name
         .as_deref()
@@ -209,15 +204,6 @@ mod tests {
             hidden_tab: false,
             current: false,
         }
-    }
-
-    #[test]
-    fn workspaces_with_the_same_number_on_different_monitors_get_their_own_heading() {
-        let left = entry("a", 1, 1);
-        let mut right = entry("b", 2, 1);
-        right.workspace_id = Some(900);
-        assert!(!same_workspace(&left, &right));
-        assert!(same_workspace(&left, &entry("c", 3, 1)));
     }
 
     #[test]
@@ -262,10 +248,11 @@ mod tests {
     }
 
     #[test]
-    fn workspace_headings_name_the_number_and_any_name() {
+    fn each_row_names_its_workspace() {
         let mut named = entry("a", 1, 3);
         named.workspace_name = Some("claude-recovery".into());
-        assert_eq!(workspace_heading(&named), "WORKSPACE 3 · claude-recovery");
-        assert_eq!(workspace_heading(&entry("a", 1, 2)), "WORKSPACE 2");
+        assert_eq!(workspace_tag(&named), "ws3");
+        assert_eq!(workspace_title(&named), "workspace 3 · claude-recovery");
+        assert_eq!(workspace_title(&entry("a", 1, 2)), "workspace 2");
     }
 }

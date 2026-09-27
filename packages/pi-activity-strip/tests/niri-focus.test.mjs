@@ -378,7 +378,7 @@ test("focused workspace view includes every exact tracked terminal on only that 
   );
 });
 
-test("the window list names every agent window on every workspace, in workspace order", () => {
+test("the window list names every agent window on every workspace, alphabetically", () => {
   const otherSessionId = "019fa4d1-7142-7fb4-8d30-f98e951f0513";
   const thirdSessionId = "019fa4d2-7142-7fb4-8d30-f98e951f0513";
   const workspaces = [
@@ -418,14 +418,6 @@ test("the window list names every agent window on every workspace, in workspace 
         hiddenTab: false,
       },
       {
-        label: "notes",
-        windowId: 9,
-        workspaceIdx: 3,
-        workspaceName: null,
-        current: false,
-        hiddenTab: false,
-      },
-      {
         label: "kernel",
         windowId: 61,
         workspaceIdx: 3,
@@ -433,8 +425,16 @@ test("the window list names every agent window on every workspace, in workspace 
         current: false,
         hiddenTab: false,
       },
+      {
+        label: "notes",
+        windowId: 9,
+        workspaceIdx: 3,
+        workspaceName: null,
+        current: false,
+        hiddenTab: false,
+      },
     ],
-    "workspaces in the order the operator sees them, windows by number; no browser, no headless session",
+    "alphabetical by project name across workspaces; no browser, no headless session",
   );
   assert.equal(
     cards.get(`session:${otherSessionId}`)?.windowId,
@@ -444,7 +444,7 @@ test("the window list names every agent window on every workspace, in workspace 
   assert.deepEqual(
     entries.map((entry) => entry.workspaceId),
     [76, 102, 102],
-    "the workspace id groups entries, since workspace numbers repeat across monitors",
+    "each entry carries its workspace",
   );
   assert.deepEqual(resolveWindowDirectory(windows, [], sessions).entries, []);
 });

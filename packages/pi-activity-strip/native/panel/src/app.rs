@@ -52,6 +52,9 @@ pub struct App {
     windows: Vec<WindowEntry>,
     directory_open: bool,
     directory_hovered: bool,
+    /// The pointer is over the brand column: an expanded ribbon stays expanded while it moves
+    /// from a card to the list, so rows can be clicked.
+    brand_hovered: bool,
     directory_generation: u64,
     /// Opened by hovering the brand, so leaving it closes the list; a list opened by a typed
     /// digit in keyboard mode stays open until it jumps or is dismissed.
@@ -125,6 +128,7 @@ pub enum AppMsg {
     ParentGone,
     InputError(String),
     DirectoryHover(bool),
+    BrandHover(bool),
     DirectoryCloseIf(u64),
     DirectoryGrabExpired(u64),
     DirectoryKey(DirectoryKey),
@@ -269,6 +273,7 @@ impl Component for App {
             windows: Vec::new(),
             directory_open: false,
             directory_hovered: false,
+            brand_hovered: false,
             directory_generation: 0,
             directory_opened_by_hover: false,
             directory_session: 0,
@@ -295,6 +300,17 @@ impl Component for App {
             let _ = tx.send(AppMsg::DirectoryHover(false));
         });
         widgets.body.add_controller(hover);
+
+        let brand_hover = gtk::EventControllerMotion::new();
+        let tx = sender.input_sender().clone();
+        brand_hover.connect_enter(move |_, _, _| {
+            let _ = tx.send(AppMsg::BrandHover(true));
+        });
+        let tx = sender.input_sender().clone();
+        brand_hover.connect_leave(move |_| {
+            let _ = tx.send(AppMsg::BrandHover(false));
+        });
+        widgets.brand.add_controller(brand_hover);
 
         // Captured before any card sees it, and only while the list (or keyboard mode) is live:
         // see `directory_key` for which keys belong to the list in which state.
@@ -337,8 +353,14 @@ impl Component for App {
             AppMsg::Theme(definitions) => apply_theme(&definitions),
             AppMsg::Tick => {
                 if now_ms() >= self.next_order_refresh_at {
+                    let focused_at = self.focused_position();
                     self.regroup();
                     self.reorder_widgets(&widgets.cards_box);
+                    // Only when regrouping moved the focused card: a row the operator scrolled
+                    // by hand stays where they left it.
+                    if self.focused_position() != focused_at {
+                        self.scroll_focused_into_view(widgets);
+                    }
                     self.next_order_refresh_at = now_ms() + ORDER_REFRESH_MS;
                 }
                 self.refresh_cards();
@@ -439,9 +461,16 @@ impl Component for App {
                     self.refresh_directory_status();
                 }
             }
+            AppMsg::BrandHover(entered) => {
+                self.brand_hovered = entered;
+                if !entered {
+                    self.reconcile_engagement(widgets, root, &sender);
+                }
+            }
             AppMsg::CollapseIf(generation) => {
                 if generation == self.collapse_generation
                     && self.hovered.is_empty()
+                    && !self.brand_hovered
                     && (!self.keyboard_active || self.keyboard_focused.is_none())
                 {
                     self.apply_expansion(widgets, root, None);
@@ -511,6 +540,18 @@ impl Component for App {
             }
             AppMsg::ParentGone => root.close(),
         }
+    }
+}
+
+/// The scroll offset that shows the span `start..end` with the least movement: unchanged when it
+/// is already fully visible, otherwise just far enough to bring its nearer edge into view.
+fn scroll_to_show(value: f64, page: f64, start: f64, end: f64) -> f64 {
+    if start < value {
+        start
+    } else if end > value + page {
+        (end - page).min(start)
+    } else {
+        value
     }
 }
 
@@ -635,6 +676,7 @@ impl App {
             return;
         }
         self.revision = view.revision;
+        let focus_moved = self.focused_card_id != view.focused_card_id;
         self.focused_card_id = view.focused_card_id;
         if self.windows != view.windows {
             self.windows = view.windows;
@@ -692,6 +734,9 @@ impl App {
         self.reorder_widgets(&widgets.cards_box);
         self.refresh_cards();
         self.update_brand(widgets);
+        if focus_moved {
+            self.scroll_focused_into_view(widgets);
+        }
 
         let should_show = view.visible && !self.data.is_empty();
         if should_show != self.visible {
@@ -839,7 +884,7 @@ impl App {
 
     fn apply_expansion(
         &mut self,
-        _widgets: &mut AppWidgets,
+        widgets: &mut AppWidgets,
         root: &gtk::Window,
         card_id: Option<String>,
     ) {
@@ -849,11 +894,68 @@ impl App {
         self.open_card_id = card_id;
         self.refresh_cards();
         self.resize(root);
+        self.sync_directory_layout(widgets);
     }
 
-    /// The ribbon is tall while a card is open or the window list is showing.
+    /// Scroll the card row so the focused window's card is fully in view, as Niri focus moves
+    /// between windows. Runs once layout has placed the card, so its position in the row is known.
+    fn scroll_focused_into_view(&self, widgets: &AppWidgets) {
+        let Some(card) = self
+            .focused_card_id
+            .as_ref()
+            .and_then(|id| self.cards.get(id))
+        else {
+            return;
+        };
+        let row = widgets.cards_box.clone();
+        let scroller = widgets.scroller.clone();
+        // Measured on the second frame after the change: the first one lays the row out, so the
+        // card's position is final, and a panel that is not shown yet simply waits until it is.
+        let frames = Cell::new(0u8);
+        card.root.add_tick_callback(move |card, _clock| {
+            frames.set(frames.get() + 1);
+            if frames.get() < 2 {
+                return glib::ControlFlow::Continue;
+            }
+            if let Some(origin) = card.compute_point(&row, &gtk::graphene::Point::new(0.0, 0.0)) {
+                let start = f64::from(origin.x());
+                let end = start + f64::from(card.width());
+                let adjustment = scroller.hadjustment();
+                adjustment.set_value(scroll_to_show(
+                    adjustment.value(),
+                    adjustment.page_size(),
+                    start,
+                    end,
+                ));
+            }
+            glib::ControlFlow::Break
+        });
+    }
+
+    fn focused_position(&self) -> Option<usize> {
+        let id = self.focused_card_id.as_ref()?;
+        self.order.iter().position(|candidate| candidate == id)
+    }
+
+    /// The ribbon is tall while a card is open (hovered or in keyboard mode), or while a typed
+    /// number needs the filtered list shown. The list never expands the ribbon on its own.
+    fn expanded(&self) -> bool {
+        self.open_card_id.is_some() || (self.directory_open && !self.jump_digits.is_empty())
+    }
+
+    /// The list fills the brand column whenever the ribbon is expanded; compact, it is hidden.
+    fn sync_directory_layout(&self, widgets: &AppWidgets) {
+        let shown = self.directory_open && self.expanded();
+        self.directory.set_visible(shown);
+        widgets.brand.set_valign(if shown {
+            gtk::Align::Start
+        } else {
+            gtk::Align::Center
+        });
+    }
+
     fn resize(&self, root: &gtk::Window) {
-        let expanded = self.open_card_id.is_some() || self.directory_open;
+        let expanded = self.expanded();
         root.set_default_size(
             1,
             if expanded {
@@ -893,12 +995,16 @@ impl App {
                 if push_digit(&mut self.jump_digits, digit) {
                     self.render_directory();
                     self.sync_key_capture();
+                    self.resize(root);
+                    self.sync_directory_layout(widgets);
                 }
             }
             DirectoryKey::Backspace => {
                 self.jump_digits.pop();
                 self.render_directory();
                 self.sync_key_capture();
+                self.resize(root);
+                self.sync_directory_layout(widgets);
             }
             DirectoryKey::Enter => {
                 if let Some(window_id) = jump_target(&self.jump_digits) {
@@ -911,7 +1017,7 @@ impl App {
                     emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
                 }
             }
-            DirectoryKey::Escape => self.close_directory(widgets, root),
+            DirectoryKey::Escape => self.dismiss_directory(widgets, root),
         }
     }
 
@@ -995,8 +1101,6 @@ impl App {
         self.directory_opened_by_hover = by_hover;
         self.directory_session += 1;
         self.jump_digits.clear();
-        self.directory.set_visible(true);
-        widgets.brand.set_valign(gtk::Align::Start);
         // On-demand until a hover grab (take_hover_grab) upgrades it; a click can always take the
         // keyboard. Keyboard mode already holds it.
         if !self.keyboard_active {
@@ -1006,6 +1110,7 @@ impl App {
         self.render_directory();
         self.sync_key_capture();
         self.resize(root);
+        self.sync_directory_layout(widgets);
     }
 
     /// After the list moved focus somewhere, nothing on the ribbon may keep the keyboard: the list
@@ -1014,7 +1119,16 @@ impl App {
         if self.keyboard_active {
             self.leave_keyboard_mode(widgets, root);
         } else {
-            self.close_directory(widgets, root);
+            self.dismiss_directory(widgets, root);
+        }
+    }
+
+    /// Close the list and let the ribbon fall back to compact unless a card is still under the
+    /// pointer: the card kept open while the pointer crossed to the list has done its job.
+    fn dismiss_directory(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
+        self.close_directory(widgets, root);
+        if self.hovered.is_empty() && !self.keyboard_active {
+            self.apply_expansion(widgets, root, None);
         }
     }
 
@@ -1036,8 +1150,6 @@ impl App {
         self.hover_grab = false;
         self.pending_request = None;
         self.jump_digits.clear();
-        self.directory.set_visible(false);
-        widgets.brand.set_valign(gtk::Align::Center);
         if self.directory_owns_keyboard {
             self.directory_owns_keyboard = false;
             if !self.keyboard_active {
@@ -1046,6 +1158,7 @@ impl App {
         }
         self.sync_key_capture();
         self.resize(root);
+        self.sync_directory_layout(widgets);
     }
 }
 
@@ -1053,7 +1166,8 @@ impl App {
 mod tests {
     use super::{
         BrandCounts, DirectoryKey, KeyCapture, PendingRequest, RequestTarget, answers_request,
-        brand_text, directory_key, engaged_card_id, move_order_item, navigation_target, short_path,
+        brand_text, directory_key, engaged_card_id, move_order_item, navigation_target,
+        scroll_to_show, short_path,
     };
     use crate::protocol::Card;
     use relm4::gtk::gdk;
@@ -1064,6 +1178,31 @@ mod tests {
             active: 2,
             settled: 3,
         }
+    }
+
+    #[test]
+    fn the_focused_card_scrolls_into_view_with_the_least_movement() {
+        // Row viewport 0..1000.
+        assert_eq!(
+            scroll_to_show(0.0, 1000.0, 200.0, 440.0),
+            0.0,
+            "already visible"
+        );
+        assert_eq!(
+            scroll_to_show(0.0, 1000.0, 1500.0, 1740.0),
+            740.0,
+            "right of view"
+        );
+        assert_eq!(
+            scroll_to_show(800.0, 1000.0, 300.0, 540.0),
+            300.0,
+            "left of view"
+        );
+        assert_eq!(
+            scroll_to_show(0.0, 200.0, 500.0, 740.0),
+            500.0,
+            "wider than the view: its start wins"
+        );
     }
 
     #[test]

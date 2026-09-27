@@ -330,3 +330,10 @@ window {
   color: alpha(@pi_foreground, 0.5);
   font-size: 10px;
 }
+
+/* Which workspace a row's window is on; quieter than the number you type. */
+.directory-workspace {
+  color: alpha(@pi_foreground, 0.5);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 9px;
+}
