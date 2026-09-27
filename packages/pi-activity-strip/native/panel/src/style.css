@@ -345,3 +345,8 @@ window {
   font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
   font-size: 9px;
 }
+
+/* The row Enter would open: a typed name always shows where it leads. */
+.directory-row.chosen {
+  background: alpha(@pi_accent, 0.16);
+}

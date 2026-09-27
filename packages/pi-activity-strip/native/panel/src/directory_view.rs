@@ -4,11 +4,23 @@ use relm4::Sender;
 use relm4::gtk;
 use relm4::gtk::prelude::*;
 
-/// Enough digits for any Niri window id; more is a typo, not a window.
-const MAX_JUMP_DIGITS: usize = 9;
+/// Enough digits for any Niri window id; a longer number is a typo, not a window.
+const MAX_WINDOW_DIGITS: usize = 9;
+/// A search is a few letters of a project name, never a sentence.
+const MAX_QUERY_CHARS: usize = 32;
+
+/// What Enter does with the typed query.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JumpChoice {
+    /// A number: exactly that Niri window, listed or not.
+    Window(i64),
+    /// A name: the first listed match, opened like clicking its row.
+    Card(String),
+}
 
 /// The brand block's window list: every agent window on every workspace, as its card's first line
-/// and its Niri window number. Typed digits narrow the list; Enter jumps to the typed number.
+/// and its Niri window number. The typed query narrows it by name or number; Enter goes to the
+/// typed window number, or to the first match of a name.
 pub struct DirectoryView {
     pub root: gtk::Box,
     status: gtk::Label,
@@ -51,17 +63,30 @@ impl DirectoryView {
         self.root.set_visible(visible);
     }
 
-    /// Rebuild the rows for the current list and typed digits. Clicking a row activates its card,
-    /// so a hidden tab is presented exactly as clicking its card would.
-    pub fn render(&self, windows: &[WindowEntry], digits: &str, can_type: bool) {
+    /// Rebuild the rows for the current list and query. Clicking a row activates its card, so a
+    /// hidden tab is presented exactly as clicking its card would. The row Enter would open is
+    /// marked, so a typed name always shows where it leads.
+    pub fn render(
+        &self,
+        windows: &[WindowEntry],
+        query: &str,
+        can_type: bool,
+        allow_unlisted: bool,
+    ) {
         while let Some(child) = self.rows.first_child() {
             self.rows.remove(&child);
         }
-        let shown = filter_entries(windows, digits);
+        let shown = filter_entries(windows, query);
+        let choice = jump_choice(windows, query, allow_unlisted);
         // Alphabetical from the controller, so workspace headings would repeat; each row names
         // its workspace instead.
         for entry in &shown {
-            self.rows.append(&self.row(entry));
+            let chosen = match &choice {
+                Some(JumpChoice::Window(id)) => entry.window_id == *id,
+                Some(JumpChoice::Card(card_id)) => &entry.card_id == card_id,
+                None => false,
+            };
+            self.rows.append(&self.row(entry, chosen));
         }
         if shown.is_empty() {
             let empty = gtk::Label::new(Some(if windows.is_empty() {
@@ -73,12 +98,20 @@ impl DirectoryView {
             empty.set_xalign(0.0);
             self.rows.append(&empty);
         }
-        self.status.set_text(&status_text(digits, can_type));
+        self.status
+            .set_text(&status_text(windows, query, can_type, allow_unlisted));
     }
 
     /// The typing hint alone, leaving the rows (and any click in progress on them) untouched.
-    pub fn set_prompt(&self, digits: &str, can_type: bool) {
-        self.status.set_text(&status_text(digits, can_type));
+    pub fn set_prompt(
+        &self,
+        windows: &[WindowEntry],
+        query: &str,
+        can_type: bool,
+        allow_unlisted: bool,
+    ) {
+        self.status
+            .set_text(&status_text(windows, query, can_type, allow_unlisted));
     }
 
     /// A transient message after a jump or activation, until the next keystroke re-renders.
@@ -86,11 +119,14 @@ impl DirectoryView {
         self.status.set_text(message);
     }
 
-    fn row(&self, entry: &WindowEntry) -> gtk::Button {
+    fn row(&self, entry: &WindowEntry, chosen: bool) -> gtk::Button {
         let row = gtk::Button::new();
         row.add_css_class("directory-row");
         if entry.current {
             row.add_css_class("current");
+        }
+        if chosen {
+            row.add_css_class("chosen");
         }
         let line = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let label = gtk::Label::new(Some(&format!(
@@ -127,29 +163,69 @@ impl DirectoryView {
     }
 }
 
-/// Entries whose window number starts with the typed digits; all of them when nothing is typed.
-pub fn filter_entries<'a>(windows: &'a [WindowEntry], digits: &str) -> Vec<&'a WindowEntry> {
+/// Entries whose project name contains the query (ignoring case) or whose window number starts
+/// with it; all of them when nothing is typed.
+pub fn filter_entries<'a>(windows: &'a [WindowEntry], query: &str) -> Vec<&'a WindowEntry> {
+    let needle = query.to_lowercase();
     windows
         .iter()
-        .filter(|entry| entry.window_id.to_string().starts_with(digits))
+        .filter(|entry| {
+            entry.window_id.to_string().starts_with(&needle)
+                || entry.label.to_lowercase().contains(&needle)
+        })
         .collect()
 }
 
-/// The window number Enter jumps to: exactly what was typed, never a guessed completion.
-pub fn jump_target(digits: &str) -> Option<i64> {
-    if digits.is_empty() || digits.len() > MAX_JUMP_DIGITS {
-        return None;
-    }
-    digits.parse().ok()
+fn is_window_number(query: &str) -> bool {
+    !query.is_empty() && query.chars().all(|character| character.is_ascii_digit())
 }
 
-/// Append a typed digit, refusing input past the longest possible window number.
-pub fn push_digit(digits: &mut String, digit: char) -> bool {
-    if !digit.is_ascii_digit() || digits.len() >= MAX_JUMP_DIGITS {
+/// What Enter does. Digits go to the listed window with exactly that number; failing that, to a
+/// project whose name contains them (`0844` finds `pi-0844-…`); failing that, when
+/// `allow_unlisted`, to exactly that number, listed or not, never a guessed completion. Anything
+/// else goes to the first project whose name contains it. Nothing typed, or nothing matching,
+/// does nothing. Typing held only by hover passes `allow_unlisted = false`, so a digit typed at a
+/// terminal prompt cannot reach an arbitrary window.
+pub fn jump_choice(
+    windows: &[WindowEntry],
+    query: &str,
+    allow_unlisted: bool,
+) -> Option<JumpChoice> {
+    if query.is_empty() {
+        return None;
+    }
+    let needle = query.to_lowercase();
+    let named = || {
+        windows
+            .iter()
+            .find(|entry| entry.label.to_lowercase().contains(&needle))
+            .map(|entry| JumpChoice::Card(entry.card_id.clone()))
+    };
+    if !is_window_number(query) {
+        return named();
+    }
+    let number = (query.len() <= MAX_WINDOW_DIGITS)
+        .then(|| query.parse::<i64>().ok())
+        .flatten();
+    if let Some(id) = number
+        && windows.iter().any(|entry| entry.window_id == id)
+    {
+        return Some(JumpChoice::Window(id));
+    }
+    named().or(number.filter(|_| allow_unlisted).map(JumpChoice::Window))
+}
+
+/// Append a typed character: letters and digits, and the `-`, `_` and `.` of project names.
+pub fn push_query_char(query: &mut String, character: char) -> bool {
+    if !is_query_char(character) || query.chars().count() >= MAX_QUERY_CHARS {
         return false;
     }
-    digits.push(digit);
+    query.push(character);
     true
+}
+
+pub fn is_query_char(character: char) -> bool {
+    character.is_alphanumeric() || matches!(character, '-' | '_' | '.')
 }
 
 /// The short workspace marker on each row: the number the operator sees in Niri.
@@ -176,20 +252,38 @@ fn workspace_title(entry: &WindowEntry) -> String {
     }
 }
 
-fn status_text(digits: &str, can_type: bool) -> String {
+fn status_text(
+    windows: &[WindowEntry],
+    query: &str,
+    can_type: bool,
+    allow_unlisted: bool,
+) -> String {
     if !can_type {
-        // Hover shows the list without taking the keyboard; a click hands it over.
-        "Click, then type a window number".to_owned()
-    } else if digits.is_empty() {
-        "Type a window number · ⏎ jump".to_owned()
-    } else {
-        format!("#{digits}▏ ⏎ jump · ⌫ edit")
+        // The keyboard was handed back (hover timeout); a click takes it again.
+        return "Click, then type a name or number".to_owned();
+    }
+    match jump_choice(windows, query, allow_unlisted) {
+        _ if query.is_empty() => "Type a name or number · ⏎ go".to_owned(),
+        Some(JumpChoice::Window(_)) => format!("#{query}▏ ⏎ jump · ⌫ edit"),
+        Some(JumpChoice::Card(card_id)) => {
+            let label = windows
+                .iter()
+                .find(|entry| entry.card_id == card_id)
+                .map(|entry| entry.label.as_str())
+                .unwrap_or("match");
+            format!("{query}▏ ⏎ {label}")
+        }
+        None => format!("{query}▏ no match"),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn jump_choice_open(windows: &[WindowEntry], query: &str) -> Option<JumpChoice> {
+        jump_choice(windows, query, true)
+    }
 
     fn entry(label: &str, window_id: i64, workspace_idx: i64) -> WindowEntry {
         WindowEntry {
@@ -205,44 +299,103 @@ mod tests {
     }
 
     #[test]
-    fn the_status_line_says_when_a_click_is_needed_before_typing() {
-        assert_eq!(status_text("", false), "Click, then type a window number");
-        assert_eq!(status_text("", true), "Type a window number · ⏎ jump");
-        assert!(status_text("43", true).starts_with("#43"));
+    fn the_status_line_says_what_enter_will_do() {
+        let windows = vec![entry("pi-extensions", 432, 2)];
+        assert_eq!(
+            status_text(&windows, "", false, true),
+            "Click, then type a name or number"
+        );
+        assert_eq!(
+            status_text(&windows, "", true, true),
+            "Type a name or number · ⏎ go"
+        );
+        assert!(status_text(&windows, "43", true, true).starts_with("#43"));
+        assert_eq!(
+            status_text(&windows, "ext", true, true),
+            "ext▏ ⏎ pi-extensions"
+        );
+        assert_eq!(status_text(&windows, "zzz", true, true), "zzz▏ no match");
     }
 
     #[test]
-    fn typed_digits_narrow_the_list_by_window_number_prefix() {
-        let windows = vec![entry("a", 43, 2), entry("b", 432, 2), entry("c", 344, 3)];
-        let labels = |digits: &str| -> Vec<String> {
-            filter_entries(&windows, digits)
+    fn the_query_matches_names_anywhere_and_numbers_from_the_start() {
+        let windows = vec![
+            entry("pi-extensions", 43, 2),
+            entry("dep-diet", 432, 2),
+            entry("Text-Tools", 344, 3),
+        ];
+        let labels = |query: &str| -> Vec<String> {
+            filter_entries(&windows, query)
                 .iter()
                 .map(|entry| entry.label.clone())
                 .collect()
         };
-        assert_eq!(labels(""), ["a", "b", "c"]);
-        assert_eq!(labels("43"), ["a", "b"]);
-        assert_eq!(labels("432"), ["b"]);
+        assert_eq!(labels("").len(), 3);
+        assert_eq!(
+            labels("ext"),
+            ["pi-extensions", "Text-Tools"],
+            "any case, anywhere"
+        );
+        assert_eq!(labels("43"), ["pi-extensions", "dep-diet"]);
+        assert_eq!(labels("432"), ["dep-diet"]);
         assert!(labels("9").is_empty());
     }
 
     #[test]
-    fn enter_jumps_to_exactly_the_typed_number() {
-        assert_eq!(jump_target("43"), Some(43));
-        assert_eq!(jump_target("007"), Some(7));
-        assert_eq!(jump_target(""), None);
-        assert_eq!(jump_target("1234567890"), None);
+    fn enter_goes_to_the_typed_number_or_the_first_named_match() {
+        let windows = vec![entry("dep-diet", 432, 2), entry("pi-extensions", 43, 2)];
+        assert_eq!(
+            jump_choice_open(&windows, "43"),
+            Some(JumpChoice::Window(43))
+        );
+        assert_eq!(
+            jump_choice_open(&windows, "007"),
+            Some(JumpChoice::Window(7)),
+            "a number need not be listed"
+        );
+        assert_eq!(jump_choice_open(&windows, "1234567890"), None);
+        assert_eq!(
+            jump_choice_open(&windows, "d"),
+            Some(JumpChoice::Card("card-432".into())),
+            "the first listed match"
+        );
+        assert_eq!(jump_choice_open(&windows, "nothing"), None);
+        let numbered = vec![entry("pi-0844-qualification", 12, 2), entry("x", 844, 2)];
+        assert_eq!(
+            jump_choice_open(&numbered, "844"),
+            Some(JumpChoice::Window(844)),
+            "a listed window number wins"
+        );
+        assert_eq!(
+            jump_choice_open(&numbered[..1], "0844"),
+            Some(JumpChoice::Card("card-12".into())),
+            "digits inside a name, with no such window listed, go to that project"
+        );
+        assert_eq!(jump_choice_open(&windows, ""), None);
+        assert_eq!(
+            jump_choice(&windows, "1", false),
+            None,
+            "held only by hover, an unlisted number goes nowhere"
+        );
+        assert_eq!(
+            jump_choice(&windows, "43", false),
+            Some(JumpChoice::Window(43)),
+            "a listed number still jumps"
+        );
     }
 
     #[test]
-    fn only_digits_are_accepted_up_to_a_window_number_length() {
-        let mut digits = String::new();
-        assert!(push_digit(&mut digits, '4'));
-        assert!(!push_digit(&mut digits, 'x'));
-        for _ in 0..20 {
-            push_digit(&mut digits, '1');
+    fn the_query_takes_name_characters_up_to_a_bound() {
+        let mut query = String::new();
+        assert!(push_query_char(&mut query, 'e'));
+        assert!(push_query_char(&mut query, '-'));
+        assert!(push_query_char(&mut query, '4'));
+        assert!(!push_query_char(&mut query, ' '));
+        assert!(!push_query_char(&mut query, '/'));
+        for _ in 0..50 {
+            push_query_char(&mut query, 'x');
         }
-        assert_eq!(digits.len(), MAX_JUMP_DIGITS);
+        assert_eq!(query.chars().count(), MAX_QUERY_CHARS);
     }
 
     #[test]

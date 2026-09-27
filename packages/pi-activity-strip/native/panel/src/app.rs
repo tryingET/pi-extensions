@@ -1,5 +1,7 @@
 use crate::card_view::CardView;
-use crate::directory_view::{DirectoryView, jump_target, push_digit};
+use crate::directory_view::{
+    DirectoryView, JumpChoice, is_query_char, jump_choice, push_query_char,
+};
 use crate::protocol::{Card, ViewMessage, WindowEntry, demo_view, emit, emit_error, emit_ready};
 use crate::runtime::{apply_theme, duplicate_labels, install_css, now_ms, start_input_reader};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
@@ -75,16 +77,20 @@ pub struct App {
     /// Whether the ribbon has keyboard focus right now: after a click on the list, or in
     /// keyboard mode. Hovering alone never takes the keyboard from the window being typed into.
     window_active: bool,
-    jump_digits: String,
+    query: String,
     /// Read by the window's key controller: which keys belong to the window list right now.
     key_capture: Rc<Cell<KeyCapture>>,
+    /// Read by the key controller: the keyboard is held only because of hover, so any key that is
+    /// not part of a search means the typing was meant for the window below.
+    hover_guard: Rc<Cell<bool>>,
 }
 
 /// Keys the window list takes before any card sees them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyCapture {
     None,
-    /// Keyboard mode on the cards: a digit opens the list; Enter and Escape stay with the cards.
+    /// Keyboard mode on the cards: a typed name or number character opens the list; Enter and
+    /// Escape stay with the cards.
     Digits,
     /// The list is open with nothing typed: digits, Backspace and Escape are its own; Enter still
     /// reaches the focused card.
@@ -108,10 +114,13 @@ pub enum RequestTarget {
 
 #[derive(Debug)]
 pub enum DirectoryKey {
-    Digit(char),
+    /// A letter, digit, `-`, `_` or `.` of a name or window number.
+    Char(char),
     Backspace,
     Enter,
     Escape,
+    /// A key that cannot be part of a search, pressed while only hover holds the keyboard.
+    Interrupt,
 }
 
 #[derive(Debug)]
@@ -259,6 +268,7 @@ impl Component for App {
 
         let directory = DirectoryView::new(sender.input_sender());
         let key_capture = Rc::new(Cell::new(KeyCapture::None));
+        let hover_guard = Rc::new(Cell::new(false));
         let model = App {
             cards: HashMap::new(),
             data: HashMap::new(),
@@ -287,8 +297,9 @@ impl Component for App {
             hover_grab: false,
             grab_generation: 0,
             window_active: false,
-            jump_digits: String::new(),
+            query: String::new(),
             key_capture: Rc::clone(&key_capture),
+            hover_guard: Rc::clone(&hover_guard),
         };
         let widgets = view_output!();
         widgets.body.set_can_target(!init.click_through);
@@ -322,9 +333,12 @@ impl Component for App {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let tx = sender.input_sender().clone();
-        keys.connect_key_pressed(move |_, key, _, _| {
-            let Some(message) = directory_key(key_capture.get(), key) else {
-                return glib::Propagation::Proceed;
+        keys.connect_key_pressed(move |_, key, _, modifiers| {
+            let chord = is_chord(modifiers);
+            let message = match directory_key(key_capture.get(), key, chord) {
+                Some(message) => message,
+                None if hover_guard.get() && !is_modifier_key(key) => DirectoryKey::Interrupt,
+                None => return glib::Propagation::Proceed,
             };
             let _ = tx.send(AppMsg::DirectoryKey(message));
             glib::Propagation::Stop
@@ -522,7 +536,7 @@ impl Component for App {
                 }
             }
             AppMsg::DirectoryGrabExpired(generation) => {
-                if generation == self.grab_generation && self.jump_digits.is_empty() {
+                if generation == self.grab_generation && self.query.is_empty() {
                     self.release_hover_grab(root);
                 }
             }
@@ -582,19 +596,55 @@ fn answers_request(pending: Option<&PendingRequest>, session: u64, target: &Requ
     pending.is_some_and(|request| request.session == session && &request.target == target)
 }
 
+/// Ctrl, Alt, Super or Meta held: a shortcut, not typing. Shift is typing (capital letters).
+fn is_chord(modifiers: gdk::ModifierType) -> bool {
+    modifiers.intersects(
+        gdk::ModifierType::CONTROL_MASK
+            | gdk::ModifierType::ALT_MASK
+            | gdk::ModifierType::SUPER_MASK
+            | gdk::ModifierType::META_MASK,
+    )
+}
+
+/// A modifier pressed on its own, on the way to a capital letter or a chord: neither search input
+/// nor a sign that the typing is meant elsewhere.
+fn is_modifier_key(key: gdk::Key) -> bool {
+    matches!(
+        key,
+        gdk::Key::Shift_L
+            | gdk::Key::Shift_R
+            | gdk::Key::Control_L
+            | gdk::Key::Control_R
+            | gdk::Key::Alt_L
+            | gdk::Key::Alt_R
+            | gdk::Key::Super_L
+            | gdk::Key::Super_R
+            | gdk::Key::Meta_L
+            | gdk::Key::Meta_R
+            | gdk::Key::ISO_Level3_Shift
+            | gdk::Key::Caps_Lock
+    )
+}
+
 /// The window-list key a press means under the current capture, if it belongs to the list at all.
-fn directory_key(capture: KeyCapture, key: gdk::Key) -> Option<DirectoryKey> {
-    let digit = key.to_unicode().filter(char::is_ascii_digit);
+fn directory_key(capture: KeyCapture, key: gdk::Key, chord: bool) -> Option<DirectoryKey> {
+    // Ctrl, Alt and Super combinations are shortcuts, never search characters.
+    if chord {
+        return None;
+    }
+    let typed = key
+        .to_unicode()
+        .filter(|character| is_query_char(*character));
     match capture {
         KeyCapture::None => None,
-        KeyCapture::Digits => digit.map(DirectoryKey::Digit),
+        KeyCapture::Digits => typed.map(DirectoryKey::Char),
         KeyCapture::List | KeyCapture::ListTyped => match key {
             gdk::Key::BackSpace => Some(DirectoryKey::Backspace),
             gdk::Key::Return | gdk::Key::KP_Enter if capture == KeyCapture::ListTyped => {
                 Some(DirectoryKey::Enter)
             }
             gdk::Key::Escape => Some(DirectoryKey::Escape),
-            _ => digit.map(DirectoryKey::Digit),
+            _ => typed.map(DirectoryKey::Char),
         },
     }
 }
@@ -963,7 +1013,7 @@ impl App {
     /// on the brand column with the list open, or while a typed number needs the list shown.
     fn expanded(&self) -> bool {
         self.open_card_id.is_some()
-            || (self.directory_open && (self.brand_hovered || !self.jump_digits.is_empty()))
+            || (self.directory_open && (self.brand_hovered || !self.query.is_empty()))
     }
 
     /// The list fills the brand column, top to bottom, whenever the ribbon is expanded; compact,
@@ -995,8 +1045,10 @@ impl App {
     }
 
     fn sync_key_capture(&self) {
+        self.hover_guard
+            .set(self.directory_open && self.hover_grab && !self.keyboard_active);
         self.key_capture
-            .set(if self.directory_open && !self.jump_digits.is_empty() {
+            .set(if self.directory_open && !self.query.is_empty() {
                 KeyCapture::ListTyped
             } else if self.directory_open {
                 KeyCapture::List
@@ -1014,9 +1066,9 @@ impl App {
         key: DirectoryKey,
     ) {
         match key {
-            DirectoryKey::Digit(digit) => {
+            DirectoryKey::Char(digit) => {
                 self.open_directory(widgets, root, false);
-                if push_digit(&mut self.jump_digits, digit) {
+                if push_query_char(&mut self.query, digit) {
                     self.render_directory();
                     self.sync_key_capture();
                     self.resize(root);
@@ -1024,24 +1076,39 @@ impl App {
                 }
             }
             DirectoryKey::Backspace => {
-                self.jump_digits.pop();
+                self.query.pop();
                 self.render_directory();
                 self.sync_key_capture();
                 self.resize(root);
                 self.sync_directory_layout(widgets);
             }
             DirectoryKey::Enter => {
-                if let Some(window_id) = jump_target(&self.jump_digits) {
-                    self.pending_request = Some(PendingRequest {
-                        session: self.directory_session,
-                        target: RequestTarget::Window(window_id),
-                    });
-                    self.directory
-                        .set_status(&format!("Jumping to #{window_id}…"));
-                    emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
+                match jump_choice(&self.windows, &self.query, self.allow_unlisted()) {
+                    Some(JumpChoice::Window(window_id)) => {
+                        self.pending_request = Some(PendingRequest {
+                            session: self.directory_session,
+                            target: RequestTarget::Window(window_id),
+                        });
+                        self.directory
+                            .set_status(&format!("Jumping to #{window_id}…"));
+                        emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
+                    }
+                    Some(JumpChoice::Card(card_id)) => {
+                        self.pending_request = Some(PendingRequest {
+                            session: self.directory_session,
+                            target: RequestTarget::Card(card_id.clone()),
+                        });
+                        self.directory.set_status("Opening…");
+                        emit(json!({ "protocol": 1, "type": "activate", "cardId": card_id }));
+                    }
+                    // Enter leading nowhere while only hover holds the keyboard: the typing was meant
+                    // for the window below, so hand the keyboard back.
+                    None if self.hover_guard.get() => self.cancel_hover_search(widgets, root),
+                    None => {}
                 }
             }
             DirectoryKey::Escape => self.dismiss_directory(widgets, root),
+            DirectoryKey::Interrupt => self.cancel_hover_search(widgets, root),
         }
     }
 
@@ -1065,8 +1132,10 @@ impl App {
     fn refresh_directory_status(&self) {
         if self.directory_open {
             self.directory.set_prompt(
-                &self.jump_digits,
+                &self.windows,
+                &self.query,
                 self.window_active || self.keyboard_active,
+                self.allow_unlisted(),
             );
         }
     }
@@ -1075,8 +1144,9 @@ impl App {
         if self.directory_open {
             self.directory.render(
                 &self.windows,
-                &self.jump_digits,
+                &self.query,
                 self.window_active || self.keyboard_active,
+                self.allow_unlisted(),
             );
         }
     }
@@ -1093,8 +1163,24 @@ impl App {
             root.set_keyboard_mode(KeyboardMode::Exclusive);
             self.hover_grab = true;
             self.directory_owns_keyboard = true;
+            self.sync_key_capture();
         }
         true
+    }
+
+    /// Typing held only by hover turned out to be meant for the window below: drop it, hand the
+    /// keyboard back and close the list, so keys still in flight find nothing to type into. The
+    /// list reopens when the pointer re-enters the ribbon.
+    fn cancel_hover_search(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
+        self.query.clear();
+        self.release_hover_grab(root);
+        self.dismiss_directory(widgets, root);
+    }
+
+    /// Unlisted window numbers are reachable only when the keyboard was given on purpose (a
+    /// click or keyboard mode), not merely held by hover.
+    fn allow_unlisted(&self) -> bool {
+        !(self.hover_grab && !self.keyboard_active)
     }
 
     fn release_hover_grab(&mut self, root: &gtk::Window) {
@@ -1104,6 +1190,7 @@ impl App {
             if !self.keyboard_active {
                 root.set_keyboard_mode(KeyboardMode::OnDemand);
             }
+            self.sync_key_capture();
             self.refresh_directory_status();
         }
     }
@@ -1124,7 +1211,7 @@ impl App {
         self.directory_open = true;
         self.directory_opened_by_hover = by_hover;
         self.directory_session += 1;
-        self.jump_digits.clear();
+        self.query.clear();
         // On-demand until a hover grab (take_hover_grab) upgrades it; a click can always take the
         // keyboard. Keyboard mode already holds it.
         if !self.keyboard_active {
@@ -1173,7 +1260,7 @@ impl App {
         self.directory_opened_by_hover = false;
         self.hover_grab = false;
         self.pending_request = None;
-        self.jump_digits.clear();
+        self.query.clear();
         if self.directory_owns_keyboard {
             self.directory_owns_keyboard = false;
             if !self.keyboard_active {
@@ -1256,14 +1343,42 @@ mod tests {
     }
 
     #[test]
+    fn only_ctrl_alt_super_make_a_chord_and_bare_modifiers_are_not_typing() {
+        assert!(super::is_chord(gdk::ModifierType::CONTROL_MASK));
+        assert!(super::is_chord(gdk::ModifierType::SUPER_MASK));
+        assert!(
+            !super::is_chord(gdk::ModifierType::SHIFT_MASK),
+            "Shift types capitals"
+        );
+        assert!(super::is_modifier_key(gdk::Key::Shift_L));
+        assert!(!super::is_modifier_key(gdk::Key::space));
+    }
+
+    #[test]
     fn the_window_list_takes_keys_only_while_they_belong_to_it() {
-        let key = |capture, key| format!("{:?}", directory_key(capture, key));
+        let key = |capture, key| format!("{:?}", directory_key(capture, key, false));
+        assert_eq!(
+            format!("{:?}", directory_key(KeyCapture::List, gdk::Key::c, true)),
+            "None",
+            "Ctrl+C is a shortcut, not a search for c"
+        );
         assert_eq!(key(KeyCapture::None, gdk::Key::_4), "None");
         // Keyboard mode on the cards: a digit opens the list, Enter and Escape stay with the cards.
-        assert_eq!(key(KeyCapture::Digits, gdk::Key::_4), "Some(Digit('4'))");
+        assert_eq!(key(KeyCapture::Digits, gdk::Key::_4), "Some(Char('4'))");
+        assert_eq!(
+            key(KeyCapture::Digits, gdk::Key::e),
+            "Some(Char('e'))",
+            "a letter starts a name search"
+        );
         assert_eq!(key(KeyCapture::Digits, gdk::Key::Return), "None");
         assert_eq!(key(KeyCapture::Digits, gdk::Key::Escape), "None");
-        assert_eq!(key(KeyCapture::List, gdk::Key::KP_7), "Some(Digit('7'))");
+        assert_eq!(key(KeyCapture::List, gdk::Key::KP_7), "Some(Char('7'))");
+        assert_eq!(key(KeyCapture::List, gdk::Key::minus), "Some(Char('-'))");
+        assert_eq!(
+            key(KeyCapture::List, gdk::Key::space),
+            "None",
+            "space is never taken"
+        );
         assert_eq!(
             key(KeyCapture::List, gdk::Key::Return),
             "None",
@@ -1275,13 +1390,9 @@ mod tests {
             "Some(Backspace)"
         );
         assert_eq!(key(KeyCapture::List, gdk::Key::Escape), "Some(Escape)");
-        assert_eq!(
-            key(KeyCapture::List, gdk::Key::a),
-            "None",
-            "letters are never taken"
-        );
+        assert_eq!(key(KeyCapture::None, gdk::Key::a), "None");
         assert!(matches!(
-            directory_key(KeyCapture::ListTyped, gdk::Key::KP_Enter),
+            directory_key(KeyCapture::ListTyped, gdk::Key::KP_Enter, false),
             Some(DirectoryKey::Enter)
         ));
     }
