@@ -40,6 +40,12 @@ When a package change affects live Pi behavior:
 2. reload Pi with `/reload`
 3. verify via a real command/tool call
 
+That proves the change where you work. Every Pi session loads the packages from the canonical
+checkout, so a change reaches them only when that checkout moves: develop in a linked worktree and
+move the canonical checkout with `scripts/land-canonical.sh <ref>`, which installs changed packages,
+runs `pi --no-session -p ""` (fails on any extension that does not load) and moves back on failure.
+Never `pull`, `merge` or `reset` it by hand.
+
 ## Use this skill for
 - choosing the right package before deeper inspection
 - monorepo root vs package-local responsibility questions
