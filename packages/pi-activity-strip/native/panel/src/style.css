@@ -288,6 +288,14 @@ window {
   background: transparent;
 }
 
+/* Same as the card row: scrolls by wheel or touchpad without a visible bar. */
+/* biome-ignore lint/correctness/noUnknownTypeSelector: GTK CSS uses widget node names. */
+.directory-scroller scrollbar {
+  opacity: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
 .directory-header {
   color: alpha(@pi_foreground, 0.5);
   font-family: "IBM Plex Mono", "JetBrains Mono", monospace;

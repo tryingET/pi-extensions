@@ -52,9 +52,12 @@ pub struct App {
     windows: Vec<WindowEntry>,
     directory_open: bool,
     directory_hovered: bool,
-    /// The pointer is over the brand column: an expanded ribbon stays expanded while it moves
-    /// from a card to the list, so rows can be clicked.
+    /// The pointer is over the brand column: it expands the ribbon like a card does, showing the
+    /// list at full height.
     brand_hovered: bool,
+    /// Counts brand hover changes, so a leave only collapses if the pointer did not come back
+    /// (or land on a card) within the collapse grace.
+    brand_generation: u64,
     directory_generation: u64,
     /// Opened by hovering the brand, so leaving it closes the list; a list opened by a typed
     /// digit in keyboard mode stays open until it jumps or is dismissed.
@@ -129,6 +132,7 @@ pub enum AppMsg {
     InputError(String),
     DirectoryHover(bool),
     BrandHover(bool),
+    BrandSettle(u64),
     DirectoryCloseIf(u64),
     DirectoryGrabExpired(u64),
     DirectoryKey(DirectoryKey),
@@ -274,6 +278,7 @@ impl Component for App {
             directory_open: false,
             directory_hovered: false,
             brand_hovered: false,
+            brand_generation: 0,
             directory_generation: 0,
             directory_opened_by_hover: false,
             directory_session: 0,
@@ -463,8 +468,25 @@ impl Component for App {
             }
             AppMsg::BrandHover(entered) => {
                 self.brand_hovered = entered;
-                if !entered {
+                self.brand_generation += 1;
+                if entered {
+                    self.resize(root);
+                    self.sync_directory_layout(widgets);
+                } else {
+                    // Collapse only after the same grace as a card, so crossing from the brand to
+                    // a card does not flicker the ribbon down and up again.
                     self.reconcile_engagement(widgets, root, &sender);
+                    let generation = self.brand_generation;
+                    let tx = sender.input_sender().clone();
+                    glib::timeout_add_local_once(Duration::from_millis(120), move || {
+                        let _ = tx.send(AppMsg::BrandSettle(generation));
+                    });
+                }
+            }
+            AppMsg::BrandSettle(generation) => {
+                if generation == self.brand_generation {
+                    self.resize(root);
+                    self.sync_directory_layout(widgets);
                 }
             }
             AppMsg::CollapseIf(generation) => {
@@ -937,18 +959,20 @@ impl App {
         self.order.iter().position(|candidate| candidate == id)
     }
 
-    /// The ribbon is tall while a card is open (hovered or in keyboard mode), or while a typed
-    /// number needs the filtered list shown. The list never expands the ribbon on its own.
+    /// The ribbon is tall while a card is open (hovered or in keyboard mode), while the pointer is
+    /// on the brand column with the list open, or while a typed number needs the list shown.
     fn expanded(&self) -> bool {
-        self.open_card_id.is_some() || (self.directory_open && !self.jump_digits.is_empty())
+        self.open_card_id.is_some()
+            || (self.directory_open && (self.brand_hovered || !self.jump_digits.is_empty()))
     }
 
-    /// The list fills the brand column whenever the ribbon is expanded; compact, it is hidden.
+    /// The list fills the brand column, top to bottom, whenever the ribbon is expanded; compact,
+    /// it is hidden.
     fn sync_directory_layout(&self, widgets: &AppWidgets) {
         let shown = self.directory_open && self.expanded();
         self.directory.set_visible(shown);
         widgets.brand.set_valign(if shown {
-            gtk::Align::Start
+            gtk::Align::Fill
         } else {
             gtk::Align::Center
         });

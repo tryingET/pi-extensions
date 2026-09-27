@@ -4,8 +4,6 @@ use relm4::Sender;
 use relm4::gtk;
 use relm4::gtk::prelude::*;
 
-/// Room for the list under the brand text in the expanded ribbon.
-const DIRECTORY_MAX_HEIGHT: i32 = 150;
 /// Enough digits for any Niri window id; more is a typo, not a window.
 const MAX_JUMP_DIGITS: usize = 9;
 
@@ -23,6 +21,7 @@ impl DirectoryView {
         let root = gtk::Box::new(gtk::Orientation::Vertical, 6);
         root.add_css_class("directory");
         root.set_visible(false);
+        root.set_vexpand(true);
         root.set_margin_top(8);
 
         let status = gtk::Label::new(None);
@@ -34,9 +33,8 @@ impl DirectoryView {
         let scroller = gtk::ScrolledWindow::new();
         scroller.add_css_class("directory-scroller");
         scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        // Ask for the rows' height up to what the expanded ribbon has room for, then scroll.
-        scroller.set_propagate_natural_height(true);
-        scroller.set_max_content_height(DIRECTORY_MAX_HEIGHT);
+        // Fill the brand column's height; rows beyond it scroll (wheel or touchpad, no bar).
+        scroller.set_vexpand(true);
         scroller.set_child(Some(&rows));
 
         root.append(&status);
