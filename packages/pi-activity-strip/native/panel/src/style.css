@@ -265,3 +265,68 @@ window {
   font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
   font-size: 8px;
 }
+
+/*
+ * The brand block's window list: every agent window on every workspace, as its card's first line
+ * and its Niri window number. The number is the thing you type, so it carries the accent.
+ */
+.directory {
+  border-top: 1px solid alpha(@pi_foreground, 0.12);
+  padding-top: 7px;
+}
+
+.jump-line {
+  color: @pi_accent;
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* biome-ignore lint/correctness/noUnknownTypeSelector: GTK CSS uses widget node names. */
+.directory-scroller,
+.directory-scroller > viewport {
+  background: transparent;
+}
+
+.directory-header {
+  color: alpha(@pi_foreground, 0.5);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  margin-top: 5px;
+}
+
+.directory-row {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: @pi_foreground;
+  min-height: 0;
+  padding: 2px 6px;
+}
+
+.directory-row:hover,
+.directory-row:focus-visible {
+  background: mix(@pi_background, @pi_foreground, 0.1);
+}
+
+/* The window you are in: the same accent ring as its card. */
+.directory-row.current {
+  border-color: @pi_accent;
+}
+
+.directory-label {
+  font-size: 11px;
+}
+
+.directory-id {
+  color: @pi_accent;
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.directory-empty {
+  color: alpha(@pi_foreground, 0.5);
+  font-size: 10px;
+}

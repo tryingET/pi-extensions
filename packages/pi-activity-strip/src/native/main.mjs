@@ -13,7 +13,7 @@ import { pruneClaudeEventRecords } from "../common/claude-events.mjs";
 import { ACTIVITY_STRIP_WORKSPACE_SYNC_MS } from "../common/constants.mjs";
 import { focusNiriSession, readNiriWindows, readNiriWorkspaces } from "../common/niri-focus.mjs";
 import { haveSameRecordMembership } from "../common/session-cards.mjs";
-import { resolveFocusedWorkspaceView } from "../common/workspace-view.mjs";
+import { resolveFocusedWorkspaceView, resolveWindowDirectory } from "../common/workspace-view.mjs";
 import { discoverAgentTabs } from "./agent-discovery.mjs";
 import { startAkTaskProjection } from "./ak-runtime.mjs";
 import { createHeightRepair } from "./height-repair.mjs";
@@ -158,6 +158,37 @@ async function focusSession(targetId) {
   return result;
 }
 
+/**
+ * Jump to a window by the number Niri gives it, as typed into the window list. Only a window that
+ * exists right now is focused; any other number does nothing.
+ * @param {number} windowId
+ * @returns {Promise<{ok: boolean; error?: string}>}
+ */
+async function jumpToWindow(windowId) {
+  if (!isNiriSession()) return { ok: false, error: "Niri is not available; nothing moved." };
+  if (!Number.isInteger(windowId) || windowId < 0) {
+    return { ok: false, error: "Not a window number; nothing moved." };
+  }
+  let windows;
+  try {
+    windows = await getNiriWindows();
+  } catch {
+    return { ok: false, error: "Could not read Niri windows; nothing moved." };
+  }
+  if (!windows.some((window) => window?.id === windowId)) {
+    return { ok: false, error: `No window #${windowId}; nothing moved.` };
+  }
+  try {
+    await execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(windowId)], {
+      env: process.env,
+    });
+  } catch {
+    return { ok: false, error: `Niri refused to focus #${windowId}; nothing moved.` };
+  }
+  reconcileRunner.request();
+  return { ok: true };
+}
+
 async function focusStrip() {
   if (runtimeStatus.clickThrough) {
     return { ok: false, error: "Keyboard entry is disabled in click-through mode." };
@@ -229,6 +260,17 @@ function consumePanelEvents(child, chunk) {
                     : "Focused its Ghostty window and asked Ghostty to show the tab."
                   : "Focused Ghostty window."
                 : result.error || "Focus failed; nothing moved.",
+            }),
+          );
+        } else if (event.type === "jump") {
+          runtimeStatus.panelJumpCount = (runtimeStatus.panelJumpCount ?? 0) + 1;
+          const windowId = Number(event.windowId);
+          void jumpToWindow(windowId).then((result) =>
+            writePanel({
+              type: "jump-result",
+              windowId,
+              ok: result.ok === true,
+              message: result.ok ? `Jumped to #${windowId}.` : result.error || "Nothing moved.",
             }),
           );
         } else if (event.type === "moved") {
@@ -362,6 +404,7 @@ const reconcileRunner = createLatestOnlyRunner(async ({ isCurrent }) => {
   runtimeStatus.unplacedSurfaceCount = placement.countUnplaced(windows, sessions);
   const view = resolveFocusedWorkspaceView(windows, workspaces, sessions, placement.options);
   if (view) placement.learnFromPlacements(view.sessions, windows);
+  projection.setDirectory(resolveWindowDirectory(windows, workspaces, sessions, placement.options));
   projection.publishWorkspaceView(
     view ?? { workspace: null, sessions: [], focusedSessionId: null, focusedCardId: null },
   );

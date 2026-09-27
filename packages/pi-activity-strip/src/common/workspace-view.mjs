@@ -149,6 +149,66 @@ export function resolveFocusedWorkspaceView(windows, workspaces, sessions, optio
   return workspace ? resolveWorkspaceView(windows, workspace, sessions, options) : null;
 }
 
+/**
+ * @typedef {{
+ *   cardId: string;
+ *   label: string;
+ *   windowId: number;
+ *   workspaceId: number;
+ *   workspaceIdx: number | null;
+ *   workspaceName: string | null;
+ *   hiddenTab: boolean;
+ *   current: boolean;
+ * }} WindowDirectoryEntry
+ */
+
+/**
+ * Every agent window on every workspace, for the ribbon's window list. It reuses the per-workspace
+ * card projection, so an entry exists exactly when that workspace would show the card. Ordered as
+ * the operator sees workspaces (output, then workspace number), then by window number.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Array<Record<string, unknown>>} workspaces
+ * @param {Array<Record<string, unknown>>} sessions
+ * @param {ResolveOptions} [options]
+ * @returns {{entries: WindowDirectoryEntry[]; cards: Map<string, Record<string, unknown>>}}
+ */
+export function resolveWindowDirectory(windows, workspaces, sessions, options = {}) {
+  const ordered = workspaces
+    .filter((workspace) => Number.isInteger(workspace?.id))
+    .sort(
+      (a, b) =>
+        String(a.output ?? "").localeCompare(String(b.output ?? "")) ||
+        Number(a.idx ?? 0) - Number(b.idx ?? 0),
+    );
+  /** @type {WindowDirectoryEntry[]} */
+  const entries = [];
+  /** @type {Map<string, Record<string, unknown>>} */
+  const cards = new Map();
+  for (const workspace of ordered) {
+    const view = resolveWorkspaceView(windows, workspace, sessions, options);
+    if (!view) continue;
+    const placed = view.sessions
+      .filter((card) => Number.isInteger(card.windowId))
+      .sort((a, b) => Number(a.windowId) - Number(b.windowId));
+    for (const card of placed) {
+      const cardId = String(card.cardId ?? "");
+      if (!cardId || cards.has(cardId)) continue;
+      cards.set(cardId, card);
+      entries.push({
+        cardId,
+        label: String(card.repoLabel || "session"),
+        windowId: Number(card.windowId),
+        workspaceId: Number(workspace.id),
+        workspaceIdx: Number.isInteger(card.workspaceIdx) ? Number(card.workspaceIdx) : null,
+        workspaceName: typeof workspace.name === "string" ? workspace.name : null,
+        hiddenTab: card.surfaceVisible === false,
+        current: cardId === view.focusedCardId,
+      });
+    }
+  }
+  return { entries, cards };
+}
+
 /** @param {Array<Record<string, unknown>>} workspaces */
 export function resolveFocusedNiriWorkspace(workspaces) {
   const matches = workspaces.filter(

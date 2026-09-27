@@ -140,6 +140,31 @@ pub struct ViewMessage {
     pub focused_card_id: Option<String>,
     #[serde(default)]
     pub sessions: Vec<Card>,
+    /// Every agent window on every workspace, for the brand block's window list.
+    #[serde(default)]
+    pub windows: Vec<WindowEntry>,
+}
+
+/// One entry of the window list: the card's first line and the Niri window number to jump to.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowEntry {
+    #[serde(default)]
+    pub card_id: String,
+    #[serde(default)]
+    pub label: String,
+    pub window_id: i64,
+    /// Niri's workspace id: the grouping key, since workspace numbers repeat across monitors.
+    #[serde(default, deserialize_with = "lenient_integer")]
+    pub workspace_id: Option<i64>,
+    #[serde(default, deserialize_with = "lenient_integer")]
+    pub workspace_idx: Option<i64>,
+    #[serde(default)]
+    pub workspace_name: Option<String>,
+    #[serde(default)]
+    pub hidden_tab: bool,
+    #[serde(default)]
+    pub current: bool,
 }
 
 fn protocol_version() -> u8 {
@@ -252,6 +277,33 @@ pub fn demo_view() -> ViewMessage {
                 ..empty_card()
             },
         ],
+        windows: vec![
+            demo_window("demo-monitor", "activity-strip", 36, 2, false, false),
+            demo_window("demo-tool", "native-dogfood", 43, 2, false, true),
+            demo_window("demo-hidden", "pi-extensions", 43, 2, true, false),
+            demo_window("demo-other", "dep-surgeon", 344, 3, false, false),
+            demo_window("demo-far", "niri-desktop-continuity", 1048, 5, false, false),
+        ],
+    }
+}
+
+fn demo_window(
+    card_id: &str,
+    label: &str,
+    window_id: i64,
+    workspace_idx: i64,
+    hidden_tab: bool,
+    current: bool,
+) -> WindowEntry {
+    WindowEntry {
+        card_id: card_id.into(),
+        label: label.into(),
+        window_id,
+        workspace_id: Some(workspace_idx + 100),
+        workspace_idx: Some(workspace_idx),
+        workspace_name: None,
+        hidden_tab,
+        current,
     }
 }
 
@@ -300,6 +352,25 @@ mod tests {
         assert_eq!(view.sessions[0].pid, 4242);
         assert!(view.sessions[0].ak_tasks.is_empty());
         assert_eq!(view.sessions[0].ak_task_overflow, 0);
+        assert!(
+            view.windows.is_empty(),
+            "controllers without a window list still parse"
+        );
+    }
+
+    #[test]
+    fn view_messages_carry_the_window_list() {
+        let view: ViewMessage = serde_json::from_str(
+            r#"{"type":"view","revision":1,"windows":[{"cardId":"terminal:a","label":"pi-extensions","windowId":432,"workspaceIdx":"x","workspaceName":null,"hiddenTab":true,"current":false}]}"#,
+        )
+        .expect("view should parse");
+        assert_eq!(view.windows.len(), 1);
+        assert_eq!(view.windows[0].window_id, 432);
+        assert_eq!(
+            view.windows[0].workspace_idx, None,
+            "a malformed workspace number drops only that field"
+        );
+        assert!(view.windows[0].hidden_tab);
     }
 
     #[test]

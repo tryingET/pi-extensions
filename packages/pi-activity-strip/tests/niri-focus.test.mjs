@@ -11,6 +11,7 @@ import {
 import {
   resolveFocusedNiriWorkspace,
   resolveFocusedWorkspaceView,
+  resolveWindowDirectory,
   resolveWorkspaceView,
 } from "../src/common/workspace-view.mjs";
 
@@ -375,6 +376,77 @@ test("focused workspace view includes every exact tracked terminal on only that 
     [],
     "workspace identity must remain numeric and exact",
   );
+});
+
+test("the window list names every agent window on every workspace, in workspace order", () => {
+  const otherSessionId = "019fa4d1-7142-7fb4-8d30-f98e951f0513";
+  const thirdSessionId = "019fa4d2-7142-7fb4-8d30-f98e951f0513";
+  const workspaces = [
+    { id: 102, idx: 3, name: null, output: "DP-2", is_focused: false },
+    { id: 76, idx: 2, name: "work", output: "DP-2", is_focused: true },
+  ];
+  const windows = [
+    { ...ghostty(61, "π - kernel · 019fa4d171427fb48d30f98e951f0513"), workspace_id: 102 },
+    { ...ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513"), is_focused: true },
+    { ...ghostty(9, "π - notes · 019fa4d271427fb48d30f98e951f0513"), workspace_id: 102 },
+    { id: 46, title: "Browser", app_id: "brave-browser", workspace_id: 76 },
+  ];
+  const sessions = [
+    { sessionId, state: "success", repoLabel: "dspx" },
+    { sessionId: otherSessionId, state: "tool", repoLabel: "kernel" },
+    { sessionId: thirdSessionId, state: "idle", repoLabel: "notes" },
+    { sessionId: "headless-session", state: "thinking", repoLabel: "headless" },
+  ];
+
+  const { entries, cards } = resolveWindowDirectory(windows, workspaces, sessions);
+  assert.deepEqual(
+    entries.map(({ label, windowId, workspaceIdx, workspaceName, current, hiddenTab }) => ({
+      label,
+      windowId,
+      workspaceIdx,
+      workspaceName,
+      current,
+      hiddenTab,
+    })),
+    [
+      {
+        label: "dspx",
+        windowId: 44,
+        workspaceIdx: 2,
+        workspaceName: "work",
+        current: true,
+        hiddenTab: false,
+      },
+      {
+        label: "notes",
+        windowId: 9,
+        workspaceIdx: 3,
+        workspaceName: null,
+        current: false,
+        hiddenTab: false,
+      },
+      {
+        label: "kernel",
+        windowId: 61,
+        workspaceIdx: 3,
+        workspaceName: null,
+        current: false,
+        hiddenTab: false,
+      },
+    ],
+    "workspaces in the order the operator sees them, windows by number; no browser, no headless session",
+  );
+  assert.equal(
+    cards.get(`session:${otherSessionId}`)?.windowId,
+    61,
+    "entries resolve to activatable cards",
+  );
+  assert.deepEqual(
+    entries.map((entry) => entry.workspaceId),
+    [76, 102, 102],
+    "the workspace id groups entries, since workspace numbers repeat across monitors",
+  );
+  assert.deepEqual(resolveWindowDirectory(windows, [], sessions).entries, []);
 });
 
 test("workspace membership includes every activity state", () => {

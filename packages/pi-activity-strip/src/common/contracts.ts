@@ -123,6 +123,7 @@ export interface ActivityStripRuntimeStatus {
   clickThrough?: boolean;
   panelMoveCount?: number;
   panelActivationCount?: number;
+  panelJumpCount?: number;
   panelRestartCount?: number;
   lastMovedCardId?: string | null;
   warnings?: string[];

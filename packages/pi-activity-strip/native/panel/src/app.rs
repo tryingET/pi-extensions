@@ -1,13 +1,17 @@
 use crate::card_view::CardView;
-use crate::protocol::{Card, ViewMessage, demo_view, emit, emit_error, emit_ready};
+use crate::directory_view::{DirectoryView, jump_target, push_digit};
+use crate::protocol::{Card, ViewMessage, WindowEntry, demo_view, emit, emit_error, emit_ready};
 use crate::runtime::{apply_theme, duplicate_labels, install_css, now_ms, start_input_reader};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use relm4::gtk;
+use relm4::gtk::gdk;
 use relm4::gtk::glib;
 use relm4::gtk::prelude::*;
 use relm4::{Component, ComponentParts, ComponentSender};
 use serde_json::json;
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use std::time::Duration;
 
 const COMPACT_HEIGHT: i32 = 84;
@@ -17,6 +21,9 @@ const OUTER_MARGIN: i32 = 8;
 const EXPANDED_HEIGHT: i32 = 276;
 const ORDER_REFRESH_MS: i64 = 15_000;
 const BRAND_WIDTH: i32 = 196;
+/// Grace before a hovered-away window list closes, so crossing the brand's own padding does not
+/// close and reopen it.
+const DIRECTORY_CLOSE_MS: u64 = 200;
 
 pub struct AppInit {
     pub demo: bool,
@@ -37,6 +44,59 @@ pub struct App {
     next_order_refresh_at: i64,
     collapse_generation: u64,
     interactive: bool,
+    directory: DirectoryView,
+    windows: Vec<WindowEntry>,
+    directory_open: bool,
+    directory_hovered: bool,
+    directory_generation: u64,
+    /// Opened by hovering the brand, so leaving it closes the list; a list opened by a typed
+    /// digit in keyboard mode stays open until it jumps or is dismissed.
+    directory_opened_by_hover: bool,
+    /// Counts list openings, so a jump or activation result only acts on the list that asked.
+    directory_session: u64,
+    pending_request: Option<PendingRequest>,
+    /// The list set on-demand keyboard focus and must set it back when it closes.
+    directory_owns_keyboard: bool,
+    /// Whether the ribbon has keyboard focus right now: after a click on the list, or in
+    /// keyboard mode. Hovering alone never takes the keyboard from the window being typed into.
+    window_active: bool,
+    jump_digits: String,
+    /// Read by the window's key controller: which keys belong to the window list right now.
+    key_capture: Rc<Cell<KeyCapture>>,
+}
+
+/// Keys the window list takes before any card sees them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyCapture {
+    None,
+    /// Keyboard mode on the cards: a digit opens the list; Enter and Escape stay with the cards.
+    Digits,
+    /// The list is open with nothing typed: digits, Backspace and Escape are its own; Enter still
+    /// reaches the focused card.
+    List,
+    /// The list is open with digits typed: Enter jumps.
+    ListTyped,
+}
+
+/// What the open list asked the controller for, so only that answer acts on it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingRequest {
+    session: u64,
+    target: RequestTarget,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RequestTarget {
+    Card(String),
+    Window(i64),
+}
+
+#[derive(Debug)]
+pub enum DirectoryKey {
+    Digit(char),
+    Backspace,
+    Enter,
+    Escape,
 }
 
 #[derive(Debug)]
@@ -52,9 +112,14 @@ pub enum AppMsg {
     FocusStrip,
     Collapse,
     CollapseIf(u64),
-    WindowInactive,
+    WindowActive(bool),
     ParentGone,
     InputError(String),
+    DirectoryHover(bool),
+    DirectoryCloseIf(u64),
+    DirectoryKey(DirectoryKey),
+    DirectoryActivate(String),
+    JumpResult(i64, bool, String),
 }
 
 #[relm4::component(pub)]
@@ -85,6 +150,9 @@ impl Component for App {
                     add_css_class: "brand",
                     set_orientation: gtk::Orientation::Vertical,
                     set_width_request: BRAND_WIDTH,
+                    // Set explicitly so the window list's expanding rows cannot widen the brand
+                    // and push the cards aside.
+                    set_hexpand: false,
                     set_valign: gtk::Align::Center,
 
                     #[name = "eyebrow"]
@@ -168,11 +236,11 @@ impl Component for App {
 
         let tx = sender.input_sender().clone();
         root.connect_is_active_notify(move |window| {
-            if !window.is_active() {
-                let _ = tx.send(AppMsg::WindowInactive);
-            }
+            let _ = tx.send(AppMsg::WindowActive(window.is_active()));
         });
 
+        let directory = DirectoryView::new(sender.input_sender());
+        let key_capture = Rc::new(Cell::new(KeyCapture::None));
         let model = App {
             cards: HashMap::new(),
             data: HashMap::new(),
@@ -187,9 +255,48 @@ impl Component for App {
             next_order_refresh_at: 0,
             collapse_generation: 0,
             interactive: !init.click_through,
+            directory,
+            windows: Vec::new(),
+            directory_open: false,
+            directory_hovered: false,
+            directory_generation: 0,
+            directory_opened_by_hover: false,
+            directory_session: 0,
+            pending_request: None,
+            directory_owns_keyboard: false,
+            window_active: false,
+            jump_digits: String::new(),
+            key_capture: Rc::clone(&key_capture),
         };
         let widgets = view_output!();
         widgets.body.set_can_target(!init.click_through);
+        widgets.brand.append(&model.directory.root);
+
+        // Hovering the brand block opens the window list.
+        let hover = gtk::EventControllerMotion::new();
+        let tx = sender.input_sender().clone();
+        hover.connect_enter(move |_, _, _| {
+            let _ = tx.send(AppMsg::DirectoryHover(true));
+        });
+        let tx = sender.input_sender().clone();
+        hover.connect_leave(move |_| {
+            let _ = tx.send(AppMsg::DirectoryHover(false));
+        });
+        widgets.brand.add_controller(hover);
+
+        // Captured before any card sees it, and only while the list (or keyboard mode) is live:
+        // see `directory_key` for which keys belong to the list in which state.
+        let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let tx = sender.input_sender().clone();
+        keys.connect_key_pressed(move |_, key, _, _| {
+            let Some(message) = directory_key(key_capture.get(), key) else {
+                return glib::Propagation::Proceed;
+            };
+            let _ = tx.send(AppMsg::DirectoryKey(message));
+            glib::Propagation::Stop
+        });
+        widgets.root.add_controller(keys);
 
         let tick_tx = sender.input_sender().clone();
         glib::timeout_add_seconds_local(1, move || {
@@ -249,24 +356,30 @@ impl Component for App {
             AppMsg::Activate(id) => {
                 emit(json!({ "protocol": 1, "type": "activate", "cardId": id }));
                 if self.keyboard_active {
-                    self.end_engagement();
-                    root.set_keyboard_mode(KeyboardMode::None);
-                    self.apply_expansion(widgets, root, None);
+                    self.leave_keyboard_mode(widgets, root);
                 }
             }
             AppMsg::ActivationResult(id, ok, message) => {
                 if let Some(card) = self.cards.get(&id) {
                     card.set_activation(ok, &message);
                 }
+                if self.take_own_request(&RequestTarget::Card(id)) {
+                    if ok {
+                        self.finish_directory_jump(widgets, root);
+                    } else {
+                        self.directory.set_status(&message);
+                    }
+                }
             }
             AppMsg::FocusStrip => {
                 if self.visible && self.interactive {
                     if self.keyboard_active {
-                        self.end_engagement();
-                        root.set_keyboard_mode(KeyboardMode::None);
-                        self.apply_expansion(widgets, root, None);
+                        self.leave_keyboard_mode(widgets, root);
                     } else {
                         self.keyboard_active = true;
+                        // Keyboard mode now holds the keyboard, whoever opened the list.
+                        self.directory_owns_keyboard = false;
+                        self.sync_key_capture();
                         self.hovered.clear();
                         self.keyboard_focused = self.order.first().cloned();
                         root.set_keyboard_mode(KeyboardMode::Exclusive);
@@ -282,17 +395,28 @@ impl Component for App {
                                 json!({ "protocol": 1, "type": "keyboard-active", "active": true }),
                             );
                         } else {
-                            self.end_engagement();
-                            root.set_keyboard_mode(KeyboardMode::None);
-                            self.apply_expansion(widgets, root, None);
+                            self.leave_keyboard_mode(widgets, root);
                         }
                     }
                 }
             }
-            AppMsg::Collapse | AppMsg::WindowInactive => {
-                self.end_engagement();
-                root.set_keyboard_mode(KeyboardMode::None);
-                self.apply_expansion(widgets, root, None);
+            AppMsg::Collapse => {
+                self.leave_keyboard_mode(widgets, root);
+            }
+            AppMsg::WindowActive(active) => {
+                self.window_active = active;
+                if active {
+                    // Only the hint changes. Rebuilding the rows here would replace the very row
+                    // whose click just handed over the keyboard, and swallow that click.
+                    self.refresh_directory_status();
+                } else if self.keyboard_active {
+                    // Keyboard mode lost the keyboard to another window: leave it entirely.
+                    self.leave_keyboard_mode(widgets, root);
+                } else if !self.directory_hovered {
+                    // A click elsewhere dismisses a clicked-into list. Hover expansion of cards is
+                    // pointer business and is left alone.
+                    self.close_directory(widgets, root);
+                }
             }
             AppMsg::CollapseIf(generation) => {
                 if generation == self.collapse_generation
@@ -303,8 +427,99 @@ impl Component for App {
                 }
             }
             AppMsg::InputError(message) => emit_error(message),
+            AppMsg::DirectoryHover(entered) => {
+                self.directory_hovered = entered;
+                self.directory_generation += 1;
+                if entered {
+                    self.open_directory(widgets, root, true);
+                } else {
+                    let generation = self.directory_generation;
+                    let tx = sender.input_sender().clone();
+                    glib::timeout_add_local_once(
+                        Duration::from_millis(DIRECTORY_CLOSE_MS),
+                        move || {
+                            let _ = tx.send(AppMsg::DirectoryCloseIf(generation));
+                        },
+                    );
+                }
+            }
+            AppMsg::DirectoryCloseIf(generation) => {
+                if generation == self.directory_generation
+                    && !self.directory_hovered
+                    && self.directory_opened_by_hover
+                    && self.jump_digits.is_empty()
+                {
+                    self.close_directory(widgets, root);
+                }
+            }
+            AppMsg::DirectoryKey(key) => match key {
+                DirectoryKey::Digit(digit) => {
+                    self.open_directory(widgets, root, false);
+                    if push_digit(&mut self.jump_digits, digit) {
+                        self.render_directory();
+                        self.sync_key_capture();
+                    }
+                }
+                DirectoryKey::Backspace => {
+                    self.jump_digits.pop();
+                    self.render_directory();
+                    self.sync_key_capture();
+                }
+                DirectoryKey::Enter => {
+                    if let Some(window_id) = jump_target(&self.jump_digits) {
+                        self.pending_request = Some(PendingRequest {
+                            session: self.directory_session,
+                            target: RequestTarget::Window(window_id),
+                        });
+                        self.directory
+                            .set_status(&format!("Jumping to #{window_id}…"));
+                        emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
+                    }
+                }
+                DirectoryKey::Escape => self.close_directory(widgets, root),
+            },
+            AppMsg::DirectoryActivate(card_id) => {
+                self.pending_request = Some(PendingRequest {
+                    session: self.directory_session,
+                    target: RequestTarget::Card(card_id.clone()),
+                });
+                self.directory.set_status("Opening…");
+                emit(json!({ "protocol": 1, "type": "activate", "cardId": card_id }));
+            }
+            AppMsg::JumpResult(window_id, ok, message) => {
+                if self.take_own_request(&RequestTarget::Window(window_id)) {
+                    if ok {
+                        // The jumped-to window must get the keyboard back at once.
+                        self.finish_directory_jump(widgets, root);
+                    } else {
+                        self.directory.set_status(&message);
+                    }
+                }
+            }
             AppMsg::ParentGone => root.close(),
         }
+    }
+}
+
+/// Whether a result for `target` answers the request the list opened as `session` is waiting on.
+fn answers_request(pending: Option<&PendingRequest>, session: u64, target: &RequestTarget) -> bool {
+    pending.is_some_and(|request| request.session == session && &request.target == target)
+}
+
+/// The window-list key a press means under the current capture, if it belongs to the list at all.
+fn directory_key(capture: KeyCapture, key: gdk::Key) -> Option<DirectoryKey> {
+    let digit = key.to_unicode().filter(char::is_ascii_digit);
+    match capture {
+        KeyCapture::None => None,
+        KeyCapture::Digits => digit.map(DirectoryKey::Digit),
+        KeyCapture::List | KeyCapture::ListTyped => match key {
+            gdk::Key::BackSpace => Some(DirectoryKey::Backspace),
+            gdk::Key::Return | gdk::Key::KP_Enter if capture == KeyCapture::ListTyped => {
+                Some(DirectoryKey::Enter)
+            }
+            gdk::Key::Escape => Some(DirectoryKey::Escape),
+            _ => digit.map(DirectoryKey::Digit),
+        },
     }
 }
 
@@ -389,6 +604,7 @@ impl App {
         self.hovered.clear();
         self.keyboard_focused = None;
         self.keyboard_active = false;
+        self.sync_key_capture();
         self.collapse_generation += 1;
         if was_keyboard_active {
             emit(json!({ "protocol": 1, "type": "keyboard-active", "active": false }));
@@ -407,6 +623,10 @@ impl App {
         }
         self.revision = view.revision;
         self.focused_card_id = view.focused_card_id;
+        if self.windows != view.windows {
+            self.windows = view.windows;
+            self.render_directory();
+        }
         let incoming_order: Vec<_> = view
             .sessions
             .iter()
@@ -450,9 +670,7 @@ impl App {
             if focus_grabbed {
                 self.reconcile_engagement(widgets, root, sender);
             } else {
-                self.end_engagement();
-                root.set_keyboard_mode(KeyboardMode::None);
-                self.apply_expansion(widgets, root, None);
+                self.leave_keyboard_mode(widgets, root);
             }
         }
         if open_card_removed {
@@ -469,9 +687,7 @@ impl App {
                 root.set_exclusive_zone(COMPACT_HEIGHT);
                 root.present();
             } else {
-                self.end_engagement();
-                root.set_keyboard_mode(KeyboardMode::None);
-                self.apply_expansion(widgets, root, None);
+                self.leave_keyboard_mode(widgets, root);
                 root.set_exclusive_zone(-1);
                 root.set_visible(false);
             }
@@ -618,7 +834,13 @@ impl App {
             return;
         }
         self.open_card_id = card_id;
-        let expanded = self.open_card_id.is_some();
+        self.refresh_cards();
+        self.resize(root);
+    }
+
+    /// The ribbon is tall while a card is open or the window list is showing.
+    fn resize(&self, root: &gtk::Window) {
+        let expanded = self.open_card_id.is_some() || self.directory_open;
         root.set_default_size(
             1,
             if expanded {
@@ -628,19 +850,130 @@ impl App {
             },
         );
         root.set_exclusive_zone(COMPACT_HEIGHT);
-        self.refresh_cards();
         emit(
             json!({ "protocol": 1, "type": "expanded", "expanded": expanded, "cardId": self.open_card_id }),
         );
+    }
+
+    fn sync_key_capture(&self) {
+        self.key_capture
+            .set(if self.directory_open && !self.jump_digits.is_empty() {
+                KeyCapture::ListTyped
+            } else if self.directory_open {
+                KeyCapture::List
+            } else if self.keyboard_active {
+                KeyCapture::Digits
+            } else {
+                KeyCapture::None
+            });
+    }
+
+    /// Whether a result answers exactly what the open list asked for. Anything else (a card's own
+    /// activation, an earlier jump) leaves the pending request in place.
+    fn take_own_request(&mut self, target: &RequestTarget) -> bool {
+        if self.directory_open
+            && answers_request(
+                self.pending_request.as_ref(),
+                self.directory_session,
+                target,
+            )
+        {
+            self.pending_request = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn refresh_directory_status(&self) {
+        if self.directory_open {
+            self.directory.set_prompt(
+                &self.jump_digits,
+                self.window_active || self.keyboard_active,
+            );
+        }
+    }
+
+    fn render_directory(&self) {
+        if self.directory_open {
+            self.directory.render(
+                &self.windows,
+                &self.jump_digits,
+                self.window_active || self.keyboard_active,
+            );
+        }
+    }
+
+    fn open_directory(&mut self, widgets: &AppWidgets, root: &gtk::Window, by_hover: bool) {
+        if self.directory_open || !self.visible || !self.interactive {
+            return;
+        }
+        self.directory_open = true;
+        self.directory_opened_by_hover = by_hover;
+        self.directory_session += 1;
+        self.jump_digits.clear();
+        self.directory.set_visible(true);
+        widgets.brand.set_valign(gtk::Align::Start);
+        // Hovering never takes the keyboard: on-demand focus lets one click on the list take it,
+        // so a pointer resting here cannot swallow what is being typed elsewhere. Keyboard mode
+        // already holds it.
+        if !self.keyboard_active {
+            root.set_keyboard_mode(KeyboardMode::OnDemand);
+            self.directory_owns_keyboard = true;
+        }
+        self.render_directory();
+        self.sync_key_capture();
+        self.resize(root);
+    }
+
+    /// After the list moved focus somewhere, nothing on the ribbon may keep the keyboard: the list
+    /// closes, and keyboard mode ends exactly as activating a card ends it.
+    fn finish_directory_jump(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
+        if self.keyboard_active {
+            self.leave_keyboard_mode(widgets, root);
+        } else {
+            self.close_directory(widgets, root);
+        }
+    }
+
+    /// The one way out of keyboard mode. The list closes with it: once the ribbon gives up the
+    /// keyboard nothing could type into or dismiss a list left open.
+    fn leave_keyboard_mode(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
+        self.close_directory(widgets, root);
+        self.end_engagement();
+        root.set_keyboard_mode(KeyboardMode::None);
+        self.apply_expansion(widgets, root, None);
+    }
+
+    fn close_directory(&mut self, widgets: &AppWidgets, root: &gtk::Window) {
+        if !self.directory_open {
+            return;
+        }
+        self.directory_open = false;
+        self.directory_opened_by_hover = false;
+        self.pending_request = None;
+        self.jump_digits.clear();
+        self.directory.set_visible(false);
+        widgets.brand.set_valign(gtk::Align::Center);
+        if self.directory_owns_keyboard {
+            self.directory_owns_keyboard = false;
+            if !self.keyboard_active {
+                root.set_keyboard_mode(KeyboardMode::None);
+            }
+        }
+        self.sync_key_capture();
+        self.resize(root);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        BrandCounts, brand_text, engaged_card_id, move_order_item, navigation_target, short_path,
+        BrandCounts, DirectoryKey, KeyCapture, PendingRequest, RequestTarget, answers_request,
+        brand_text, directory_key, engaged_card_id, move_order_item, navigation_target, short_path,
     };
     use crate::protocol::Card;
+    use relm4::gtk::gdk;
     use std::collections::HashSet;
 
     fn counts() -> BrandCounts {
@@ -648,6 +981,63 @@ mod tests {
             active: 2,
             settled: 3,
         }
+    }
+
+    #[test]
+    fn only_the_answer_to_what_the_open_list_asked_acts_on_it() {
+        let pending = PendingRequest {
+            session: 3,
+            target: RequestTarget::Window(43),
+        };
+        assert!(answers_request(
+            Some(&pending),
+            3,
+            &RequestTarget::Window(43)
+        ));
+        assert!(
+            !answers_request(Some(&pending), 3, &RequestTarget::Window(44)),
+            "an earlier jump to another number"
+        );
+        assert!(
+            !answers_request(Some(&pending), 3, &RequestTarget::Card("card-a".into())),
+            "a card's own activation"
+        );
+        assert!(
+            !answers_request(Some(&pending), 4, &RequestTarget::Window(43)),
+            "a list opened again since"
+        );
+        assert!(!answers_request(None, 3, &RequestTarget::Window(43)));
+    }
+
+    #[test]
+    fn the_window_list_takes_keys_only_while_they_belong_to_it() {
+        let key = |capture, key| format!("{:?}", directory_key(capture, key));
+        assert_eq!(key(KeyCapture::None, gdk::Key::_4), "None");
+        // Keyboard mode on the cards: a digit opens the list, Enter and Escape stay with the cards.
+        assert_eq!(key(KeyCapture::Digits, gdk::Key::_4), "Some(Digit('4'))");
+        assert_eq!(key(KeyCapture::Digits, gdk::Key::Return), "None");
+        assert_eq!(key(KeyCapture::Digits, gdk::Key::Escape), "None");
+        assert_eq!(key(KeyCapture::List, gdk::Key::KP_7), "Some(Digit('7'))");
+        assert_eq!(
+            key(KeyCapture::List, gdk::Key::Return),
+            "None",
+            "with nothing typed, Enter still reaches the focused card"
+        );
+        assert_eq!(key(KeyCapture::ListTyped, gdk::Key::Return), "Some(Enter)");
+        assert_eq!(
+            key(KeyCapture::List, gdk::Key::BackSpace),
+            "Some(Backspace)"
+        );
+        assert_eq!(key(KeyCapture::List, gdk::Key::Escape), "Some(Escape)");
+        assert_eq!(
+            key(KeyCapture::List, gdk::Key::a),
+            "None",
+            "letters are never taken"
+        );
+        assert!(matches!(
+            directory_key(KeyCapture::ListTyped, gdk::Key::KP_Enter),
+            Some(DirectoryKey::Enter)
+        ));
     }
 
     #[test]

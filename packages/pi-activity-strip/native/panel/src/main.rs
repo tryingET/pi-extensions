@@ -1,5 +1,6 @@
 mod app;
 mod card_view;
+mod directory_view;
 mod protocol;
 mod runtime;
 

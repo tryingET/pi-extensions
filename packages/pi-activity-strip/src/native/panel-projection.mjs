@@ -36,6 +36,11 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
   /** Read-only AK task claims joined onto cards; absent until the first successful AK read. */
   /** @type {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
   let akTasks = null;
+  /** Every agent window on every workspace, for the brand block's window list. */
+  /** @type {import("../common/workspace-view.mjs").WindowDirectoryEntry[]} */
+  let directory = [];
+  /** @type {Map<string, SessionRecord>} */
+  let directoryCards = new Map();
   let revision = 0;
 
   function allSessions() {
@@ -83,6 +88,7 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
       focusedCardId,
       generatedAt: snapshot.generatedAt,
       sessions,
+      windows: directory,
     };
   }
 
@@ -117,8 +123,24 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
       akTasks = state;
       send();
     },
-    /** @param {string} targetId */
-    resolveTarget: (targetId) => resolveSnapshotSession(getDisplaySessions(), targetId),
+    /**
+     * A card on this workspace, or else an entry of the window list, which spans every workspace.
+     * @param {string} targetId
+     */
+    resolveTarget: (targetId) =>
+      resolveSnapshotSession(getDisplaySessions(), targetId) ??
+      directoryCards.get(targetId) ??
+      null,
+    /** @param {number} windowId */
+    hasDirectoryWindow: (windowId) => directory.some((entry) => entry.windowId === windowId),
+    /**
+     * Replace the window list; it is published with the next view.
+     * @param {{entries: import("../common/workspace-view.mjs").WindowDirectoryEntry[]; cards: Map<string, SessionRecord>}} next
+     */
+    setDirectory(next) {
+      directory = next.entries;
+      directoryCards = next.cards;
+    },
     /** @param {WorkspaceView} view */
     publishWorkspaceView(view) {
       workspace = view.workspace ?? null;

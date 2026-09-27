@@ -45,20 +45,36 @@ pub fn apply_theme(definitions: &str) {
     THEME_PROVIDER.with(|provider| provider.load_from_data(&css));
 }
 
+/// Read controller messages from stdin on their own thread. The thread is detached on purpose: it
+/// lives exactly as long as stdin, and on EOF it reports the parent gone, which closes the panel.
 pub fn start_input_reader(sender: relm4::Sender<AppMsg>) {
-    std::thread::spawn(move || {
-        for line in BufReader::new(std::io::stdin()).lines() {
-            match line {
-                Ok(line) if !line.trim().is_empty() => consume_line(&sender, &line),
-                Ok(_) => {}
-                Err(error) => {
-                    let _ = sender.send(AppMsg::InputError(format!("panel input failed: {error}")));
-                    break;
-                }
+    let reader_sender = sender.clone();
+    let spawned = std::thread::Builder::new()
+        .name("panel-input".into())
+        .spawn(move || read_input(reader_sender));
+    match spawned {
+        Ok(handle) => drop(handle),
+        Err(error) => {
+            let _ = sender.send(AppMsg::InputError(format!(
+                "could not start the panel input reader: {error}"
+            )));
+            let _ = sender.send(AppMsg::ParentGone);
+        }
+    }
+}
+
+fn read_input(sender: relm4::Sender<AppMsg>) {
+    for line in BufReader::new(std::io::stdin()).lines() {
+        match line {
+            Ok(line) if !line.trim().is_empty() => consume_line(&sender, &line),
+            Ok(_) => {}
+            Err(error) => {
+                let _ = sender.send(AppMsg::InputError(format!("panel input failed: {error}")));
+                break;
             }
         }
-        let _ = sender.send(AppMsg::ParentGone);
-    });
+    }
+    let _ = sender.send(AppMsg::ParentGone);
 }
 
 fn consume_line(sender: &relm4::Sender<AppMsg>, line: &str) {
@@ -120,6 +136,22 @@ fn consume_line(sender: &relm4::Sender<AppMsg>, line: &str) {
                 })
                 .to_owned();
             let _ = sender.send(AppMsg::ActivationResult(card_id, ok, message));
+        }
+        Some("jump-result") => {
+            let ok = value
+                .get("ok")
+                .and_then(|item| item.as_bool())
+                .unwrap_or(false);
+            let message = value
+                .get("message")
+                .and_then(|item| item.as_str())
+                .unwrap_or(if ok { "Jumped." } else { "Nothing moved." })
+                .to_owned();
+            let window_id = value
+                .get("windowId")
+                .and_then(|item| item.as_i64())
+                .unwrap_or(-1);
+            let _ = sender.send(AppMsg::JumpResult(window_id, ok, message));
         }
         Some(kind) => {
             let _ = sender.send(AppMsg::InputError(format!(
