@@ -57,6 +57,13 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.7.0...pi-activity-strip-v0.8.0) (2026-09-27)
+
+
+### Features
+
+* **activity-strip:** name the focused window's project and folder ([fb3a8a6](https://github.com/tryingET/pi-extensions/commit/fb3a8a69afb43941406c3c2509c2a3fc70770fe5))
+
 ## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.6.0...pi-activity-strip-v0.7.0) (2026-09-19)
 
 

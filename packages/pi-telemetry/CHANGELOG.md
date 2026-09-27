@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.2](https://github.com/tryingET/pi-extensions/compare/pi-telemetry-v0.4.1...pi-telemetry-v0.4.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **pi-telemetry:** retain in-window events from prior-day shards ([2010739](https://github.com/tryingET/pi-extensions/commit/2010739d379bb1b71edbcbfc56f972c19bf7c70f))
+
 ## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-telemetry-v0.4.0...pi-telemetry-v0.4.1) (2026-09-01)
 
 

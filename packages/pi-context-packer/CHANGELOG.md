@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [1.0.1](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v1.0.0...pi-context-packer-v1.0.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **context-packer:** verify current-main compatibility and close read/selection gaps ([#222](https://github.com/tryingET/pi-extensions/issues/222)) ([93bd387](https://github.com/tryingET/pi-extensions/commit/93bd387431a664cfd3e2fd327789442f483a5bca))
+
 ## [1.0.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.5.0...pi-context-packer-v1.0.0) (2026-09-19)
 
 

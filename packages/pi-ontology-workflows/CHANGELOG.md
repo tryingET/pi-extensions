@@ -23,6 +23,13 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.1...pi-ontology-workflows-v0.5.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **ontology-workflows:** close FileHandles on every failure path ([13503eb](https://github.com/tryingET/pi-extensions/commit/13503eb7e616c5086f8ab48b8ba32ac1d5d91766))
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.0...pi-ontology-workflows-v0.5.1) (2026-09-01)
 
 

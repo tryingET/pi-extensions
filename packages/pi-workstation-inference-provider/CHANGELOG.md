@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.6.0...pi-workstation-inference-provider-v0.7.0) (2026-09-27)
+
+
+### Features
+
+* **workstation-inference-provider:** add opt-in provider-only entrypoint (AK5717) ([f32f17e](https://github.com/tryingET/pi-extensions/commit/f32f17ea8c3e4ef05364e5b79514281fbbaea5bb))
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.5.0...pi-workstation-inference-provider-v0.6.0) (2026-09-19)
 
 
