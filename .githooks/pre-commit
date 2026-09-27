@@ -4,4 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT_DIR"
+# The canonical checkout is the live Pi runtime: refuse a manifest change its installs do not satisfy.
+node scripts/commit-install-guard.mjs
 npm run quality:pre-commit

@@ -71,6 +71,25 @@ This installer does not reinterpret that owner contract. In an isolated worktree
 use the documented explicit `git -c core.hooksPath=.githooks ...` lane; post hooks
 resolve the active checkout, never the symlink's canonical source directory.
 
+## Moving the canonical checkout (the live Pi runtime)
+
+Pi settings load packages from this checkout's working tree, so any change here changes
+what every new Pi session runs. On 2026-09-27 a `git reset --hard origin/main` brought a
+TypeScript 7 import without its install; no hook runs on reset, and every Pi start failed
+for ~25 minutes (AK6069; design in softwareco/infra/workstation
+`docs/project/2026-09-27-live-runtime-promotion-design.md`).
+
+- `scripts/land-canonical.sh <ref>` moves it: fetch, fast-forward (or `--reset`, refused
+  while tracked files are modified), `npm ci --prefix` for every package whose manifest or
+  lock changed (pinned toolchain via `select-gate-node.sh`), install health, then a Pi smoke
+  (`pi --no-session -p ""`, which loads every extension and calls no model; `--list-models` does not fail on a broken extension). On any failure it moves
+  back with `git reset --keep`, reinstalls the previous versions and smokes again. It prints
+  a JSON receipt. Installs happen because an agent ran it, never because of a Git event.
+- `.githooks/pre-commit` runs `scripts/commit-install-guard.mjs`: in the canonical checkout
+  only, a commit that stages a package's `package.json` or `package-lock.json` is refused
+  until this checkout's installs satisfy it. Linked worktrees are exempt; drift in packages
+  the commit does not touch stays the post-hooks' warning.
+
 ## Toolchain setup (pinned versions)
 
 The pin is Node **22.22.2**, npm **12.0.2**. Do not change the pin merely to admit

@@ -50,6 +50,7 @@ Do not duplicate:
 
 ## Live package activation
 - When a package change affects live Pi extension behavior, reinstall that package into Pi from its local package path.
+- The canonical checkout is the live Pi runtime (Pi settings load its packages): develop in a linked worktree, and move the canonical checkout only with `scripts/land-canonical.sh <ref>` (never `pull`/`merge`/`reset` by hand). Its pre-commit refuses a staged package manifest its installs do not satisfy.
 - Path shape depends on topology:
   - simple package: `pi install /absolute/path/to/packages/<package-name>`
   - monorepo package inside a package group: `pi install /absolute/path/to/packages/<group-name>/<package-name>`
