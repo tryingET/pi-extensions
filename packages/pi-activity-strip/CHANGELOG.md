@@ -57,6 +57,18 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.9.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.8.0...pi-activity-strip-v0.9.0) (2026-09-28)
+
+
+### Features
+
+* **activity-strip:** card-hover expansion with the list beside it, focus follows ([d62371d](https://github.com/tryingET/pi-extensions/commit/d62371db7da64fadf33fc9879259dc1810a22ce0))
+* **activity-strip:** hovering the brand column opens every card's details ([b85ec39](https://github.com/tryingET/pi-extensions/commit/b85ec39520187c18ae9292bd496fbff9972ef291))
+* **activity-strip:** list every agent window and jump to one by its number ([ba62239](https://github.com/tryingET/pi-extensions/commit/ba62239c55c89390cd04938aa0ee87e99843373a))
+* **activity-strip:** open the window list on hover anywhere on the ribbon ([b7a4ac6](https://github.com/tryingET/pi-extensions/commit/b7a4ac687d873c45e4a3b058c6d1da40db244655))
+* **activity-strip:** search the window list by project name, not only number ([25955b4](https://github.com/tryingET/pi-extensions/commit/25955b4d85ca18cd345b4baa7bdb13e744c78a18))
+* **activity-strip:** the brand column expands the ribbon like a card, full-height list ([5ff30bf](https://github.com/tryingET/pi-extensions/commit/5ff30bf2241b7a30d694b354f3f354ed095b4e91))
+
 ## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.7.0...pi-activity-strip-v0.8.0) (2026-09-27)
 
 
