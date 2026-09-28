@@ -483,6 +483,8 @@ impl Component for App {
             AppMsg::BrandHover(entered) => {
                 self.brand_hovered = entered;
                 self.brand_generation += 1;
+                // Every card opens (entered) or falls back to the hovered one (left) at once.
+                self.refresh_cards();
                 if entered {
                     self.resize(root);
                     self.sync_directory_layout(widgets);
@@ -851,6 +853,8 @@ impl App {
     fn refresh_cards(&self) {
         let duplicates = duplicate_labels(self.data.values());
         let now = now_ms();
+        // Hovering the brand column is an overview: every card shows its details at once.
+        let all_open = self.brand_hovered && self.expanded();
         for (id, view) in &self.cards {
             if let Some(card) = self.data.get(id) {
                 view.update(
@@ -859,7 +863,7 @@ impl App {
                     duplicates.contains(&card.repo_label),
                     now,
                 );
-                view.set_expanded(self.open_card_id.as_deref() == Some(id));
+                view.set_expanded(all_open || self.open_card_id.as_deref() == Some(id));
             }
         }
     }
