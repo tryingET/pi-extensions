@@ -317,33 +317,14 @@ Before first production release under root automation:
 
 Included files:
 
-- [Bug report form](.github/ISSUE_TEMPLATE/bug-report.yml)
-- [Feature request form](.github/ISSUE_TEMPLATE/feature-request.yml)
-- [Docs request form](.github/ISSUE_TEMPLATE/docs.yml)
-- [Issue template config](.github/ISSUE_TEMPLATE/config.yml)
-- [PR template](.github/pull_request_template.md)
+- [Bug report form](../../.github/ISSUE_TEMPLATE/bug-report.yml)
+- [Feature request form](../../.github/ISSUE_TEMPLATE/feature-request.yml)
+- [Docs request form](../../.github/ISSUE_TEMPLATE/docs.yml)
+- [Issue template config](../../.github/ISSUE_TEMPLATE/config.yml)
+- [PR template](../../.github/pull_request_template.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Support guide](SUPPORT.md)
 - [Top-level contributing guide](CONTRIBUTING.md)
-
-## Vouch trust gate baseline
-
-Included files:
-
-- [Vouched contributors list](.github/VOUCHED.td)
-- [PR trust gate workflow](.github/workflows/vouch-check-pr.yml)
-- [Issue-comment trust management workflow](.github/workflows/vouch-manage.yml)
-
-Default behavior:
-
-- PR workflow runs on `pull_request_target` (`opened`, `reopened`).
-- `require-vouch: true` and `auto-close: true` are enabled by default.
-- Maintainers can comment `vouch`, `denounce`, or `unvouch` on issues to update trust state.
-- Vouch actions are SHA pinned for reproducibility and supply-chain review.
-
-Bootstrap step:
-
-- Confirm/adjust entries in [.github/VOUCHED.td](.github/VOUCHED.td) before enforcing production policy.
 
 ## Docs discovery
 

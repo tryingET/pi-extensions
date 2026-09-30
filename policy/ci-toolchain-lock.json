@@ -27,14 +27,6 @@
     "googleapis/release-please-action": {
       "version": "v5.0.0",
       "sha": "45996ed1f6d02564a971a2fa1b5860e934307cf7"
-    },
-    "mitchellh/vouch/action/check-pr": {
-      "version": "reviewed",
-      "sha": "d66fa29a64600490892131ad87597c30c91fcac4"
-    },
-    "mitchellh/vouch/action/manage-by-issue": {
-      "version": "reviewed",
-      "sha": "d66fa29a64600490892131ad87597c30c91fcac4"
     }
   },
   "dolt": {

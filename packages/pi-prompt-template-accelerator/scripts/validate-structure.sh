@@ -94,69 +94,8 @@ for copier_key in "_src_path:" "repo_name:" "command_name:"; do
 done
 
 if [[ -d ".github" ]]; then
-  placeholder_pattern='\{username\}|\{repo\}|\{discordInvite\}|\{@twitter\}'
-  placeholder_hits="$(grep -R -nE "$placeholder_pattern" .github || true)"
-  if [[ -n "$placeholder_hits" ]]; then
-    echo "Unresolved placeholders found under .github:" >&2
-    echo "$placeholder_hits" >&2
-    ((errors+=1))
-  fi
-
-  vouch_ref="5713ce1baedf75e2f830afa3dac813a9c48bff12"
-  if [[ -f ".github/workflows/vouch-check-pr.yml" ]] && ! grep -q "mitchellh/vouch/action/check-pr@${vouch_ref}" ".github/workflows/vouch-check-pr.yml"; then
-    echo "vouch-check-pr workflow must pin mitchellh/vouch/action/check-pr to ${vouch_ref}" >&2
-    ((errors+=1))
-  fi
-
-  if [[ -f ".github/workflows/vouch-manage.yml" ]] && ! grep -q "mitchellh/vouch/action/manage-by-issue@${vouch_ref}" ".github/workflows/vouch-manage.yml"; then
-    echo "vouch-manage workflow must pin mitchellh/vouch/action/manage-by-issue to ${vouch_ref}" >&2
-    ((errors+=1))
-  fi
-
-  if compgen -G ".github/workflows/vouch-*.yml" >/dev/null && grep -n "@main" .github/workflows/vouch-*.yml >/dev/null 2>&1; then
-    echo "vouch workflows must not use @main refs" >&2
-    ((errors+=1))
-  fi
-
-  if [[ -f ".github/workflows/vouch-check-pr.yml" ]]; then
-    if ! grep -q "pull_request_target" ".github/workflows/vouch-check-pr.yml"; then
-      echo "vouch-check-pr workflow must trigger on pull_request_target" >&2
-      ((errors+=1))
-    fi
-    if ! grep -q "require-vouch" ".github/workflows/vouch-check-pr.yml"; then
-      echo "vouch-check-pr workflow must set require-vouch" >&2
-      ((errors+=1))
-    fi
-    if ! grep -q "auto-close" ".github/workflows/vouch-check-pr.yml"; then
-      echo "vouch-check-pr workflow must set auto-close" >&2
-      ((errors+=1))
-    fi
-  fi
-
-  if [[ -f ".github/workflows/vouch-manage.yml" ]]; then
-    if ! grep -q "issue_comment" ".github/workflows/vouch-manage.yml"; then
-      echo "vouch-manage workflow must trigger on issue_comment" >&2
-      ((errors+=1))
-    fi
-    if ! grep -q "concurrency:" ".github/workflows/vouch-manage.yml" || ! grep -q "group: vouch-manage" ".github/workflows/vouch-manage.yml"; then
-      echo "vouch-manage workflow must define serialized concurrency" >&2
-      ((errors+=1))
-    fi
-    if ! grep -q "vouched-file: .github/VOUCHED.td" ".github/workflows/vouch-manage.yml"; then
-      echo "vouch-manage workflow must target .github/VOUCHED.td" >&2
-      ((errors+=1))
-    fi
-  fi
-
-  if [[ -f ".github/CODEOWNERS" ]] && grep -q "@your-github-handle" ".github/CODEOWNERS"; then
-    echo ".github/CODEOWNERS must not keep @your-github-handle placeholder" >&2
-    ((errors+=1))
-  fi
-
-  if [[ -f ".github/VOUCHED.td" ]] && ! grep -Eq "^github:[A-Za-z0-9][A-Za-z0-9-]*" ".github/VOUCHED.td"; then
-    echo ".github/VOUCHED.td must include at least one github maintainer entry" >&2
-    ((errors+=1))
-  fi
+  echo "Monorepo package scaffold must not create package-local .github directory" >&2
+  ((errors+=1))
 fi
 
 if command -v node >/dev/null 2>&1; then

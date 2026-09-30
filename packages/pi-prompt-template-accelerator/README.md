@@ -183,25 +183,6 @@ Included files:
 - [Support guide](SUPPORT.md)
 - [Top-level contributing guide](CONTRIBUTING.md)
 
-## Vouch trust gate baseline
-
-Included files:
-
-- [Vouched contributors list](../../.github/VOUCHED.td)
-- [PR trust gate workflow](../../.github/workflows/vouch-check-pr.yml)
-- [Issue-comment trust management workflow](../../.github/workflows/vouch-manage.yml)
-
-Default behavior:
-
-- PR workflow runs on `pull_request_target` (`opened`, `reopened`).
-- `require-vouch: true` and `auto-close: true` are enabled by default.
-- Maintainers can comment `vouch`, `denounce`, or `unvouch` on issues to update trust state.
-- Vouch actions are SHA pinned (`5713ce1baedf75e2f830afa3dac813a9c48bff12`) for reproducibility and supply-chain review.
-
-Bootstrap step:
-
-- Confirm/adjust entries in [../../.github/VOUCHED.td](../../.github/VOUCHED.td) before enforcing production policy.
-
 ## Docs discovery
 
 Run:

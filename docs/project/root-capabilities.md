@@ -79,15 +79,19 @@ system4d:
 ### Review / governance feedback
 - `.github/pull_request_template.md`
 - `.github/CODEOWNERS`
-- `.github/VOUCHED.td`
 - `.github/ISSUE_TEMPLATE/*`
 - `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
+- `.github/workflows/compatibility-canary.yml`
+- `.github/workflows/node-next.yml`
+- `.github/workflows/immutable-extension-generations.yml`
 - `.github/workflows/release-check.yml`
 - `.github/workflows/release-please.yml`
+- `.github/workflows/release-evidence.yml`
 - `.github/workflows/publish.yml`
-- `.github/workflows/vouch-check-pr.yml`
-- `.github/workflows/vouch-manage.yml`
+- Outside contributions: no contributor gate in the repo (the vouch gate was removed 2026-09-30, AK6200).
+  GitHub's fork pull request approval policy (`first_time_contributors`) holds Actions runs of a
+  contributor's first pull request until a maintainer approves them; it does not gate merging.
 
 ### Release automation control plane
 - `.release-please-config.json`

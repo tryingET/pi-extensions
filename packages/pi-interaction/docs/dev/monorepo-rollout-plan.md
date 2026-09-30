@@ -223,7 +223,7 @@ The runtime should additionally own:
 
 6. Align profile defaults with governance intent.
    - Use tpl-template profile policy as baseline (`internal-governed` default for release-enabled internal repos unless explicitly public).
-   - Keep community/vouch gates opt-in unless trust boundary requires them.
+   - Keep community contribution gates opt-in unless trust boundary requires them.
 
 7. Validate behavior (not only static file presence).
    - Template checks must execute generated behavior, not only grep for strings.
