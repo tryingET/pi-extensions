@@ -1,17 +1,7 @@
-import { randomUUID } from "node:crypto";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { isValidModeKey, type ModeScope } from "./mode-definitions.ts";
+import { writeFileAtomically } from "./mode-prompt-file.ts";
 import { type ModeSelection, normalizeModeSelection } from "./mode-state.ts";
 
 export const MODE_PRESET_SCHEMA_VERSION = 1 as const;
@@ -219,21 +209,8 @@ export function saveModePreset(dir: string, preset: ModePreset): string {
   mkdirSync(dirname(target), { recursive: true });
   const boundary = symlinkBoundary(dirname(target));
   if (boundary) throw new Error(`preset path crosses symbolic-link boundary: ${boundary}`);
-  if (existsSync(target) && lstatSync(target).isSymbolicLink()) {
-    throw new Error("preset file must not be a symbolic link");
-  }
-  const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(temporary, `${JSON.stringify(normalized, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx",
-    });
-    renameSync(temporary, target);
-    return target;
-  } finally {
-    rmSync(temporary, { force: true });
-  }
+  writeFileAtomically(target, `${JSON.stringify(normalized, null, 2)}\n`);
+  return target;
 }
 
 export function presetExportText(preset: ModePreset): string {

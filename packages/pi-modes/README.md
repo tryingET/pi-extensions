@@ -171,6 +171,12 @@ Optional contracts:
 
 Contracts never auto-add, auto-remove, or auto-reorder. Invalid candidates are rejected atomically; replay-time contract failure returns native host with diagnostics.
 
+### Prompt in a Markdown file
+
+A schema v2 mode can keep its prompt in `<key>.md` beside `<key>.json`, leaving `systemPrompt` out of the JSON; the file is used whenever it is present. A prompt in both places is an error, and so is an empty file. A `<key>.md` beside a mode's JSON is always read as its prompt, so notes kept under that name in a modes directory need another name. The file must be a regular file (not a symbolic link, FIFO or directory); it is checked before it is read, and the 131072-byte prompt limit applies to the prompt text, not to line endings or blank lines around it. A leading byte order mark is dropped, and the text is trimmed like an inline prompt, except for `replace_final`, which is kept exactly.
+
+Moving an unchanged prompt into the file is not a change of definition, but any edit to the file is: it counts as drift, and for a project mode it needs confirming again. `/mode-edit` shows the prompt with the rest of the definition and saves it back to the `.md`. `/mode-new` for a key whose `.md` already exists creates the JSON around it; any other save that did not load its prompt from the `.md` is refused rather than overwrite it. Deleting a mode removes the `.md` its prompt came from, first, and the confirmation says so. `npm run mode:lint` checks the `.md` beside each JSON file it is given.
+
 Packaged schemas live under [`schemas`](schemas). Lint files with:
 
 ```bash

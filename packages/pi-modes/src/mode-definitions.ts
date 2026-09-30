@@ -1,20 +1,28 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import { BUILTIN_MODES } from "./builtin-modes.ts";
+import {
+  hasPromptFile,
+  MODE_PROMPT_MAX_BYTES,
+  promptFilePath,
+  promptFileText,
+  readPromptFile,
+  writeFileAtomically,
+} from "./mode-prompt-file.ts";
+
+export { BUILTIN_MODES, MODE_PROMPT_MAX_BYTES };
 
 export const MODE_SCHEMA_VERSION = 2 as const;
 export const MODE_DEFINITION_MAX_BYTES = 256 * 1024;
-export const MODE_PROMPT_MAX_BYTES = 128 * 1024;
 export const MODE_DIRECTORY_MAX_FILES = 1024;
 export type PromptStrategy = "append" | "replace_base" | "replace_final";
 export type ModeScope = "builtin" | "global" | "project";
@@ -39,6 +47,9 @@ export interface ResolvedMode extends ModeDefinition {
   // directory (`shadowedPath`). Not part of the fingerprint.
   shadows?: ModeScope;
   shadowedPath?: string;
+  // The sibling <key>.md its prompt was read from, when it lives there. Not part of the fingerprint:
+  // moving an identical prompt into the file is not a change.
+  promptPath?: string;
 }
 
 export interface ModeDiagnostic {
@@ -58,35 +69,6 @@ export interface DefinitionFingerprint {
 }
 
 export type DefinitionFingerprints = Record<string, DefinitionFingerprint>;
-
-export const BUILTIN_MODES: ModeDefinition[] = [
-  {
-    schemaVersion: 2,
-    key: "plan",
-    label: "Plan",
-    description: "Plan carefully without changing files until asked.",
-    promptStrategy: "append",
-    systemPrompt:
-      "Make a concise implementation plan before changing files. Do not edit files unless the user asks you to proceed.",
-  },
-  {
-    schemaVersion: 2,
-    key: "review",
-    label: "Review",
-    description: "Prioritize correctness, risks, and missing verification.",
-    promptStrategy: "append",
-    systemPrompt:
-      "Review the current work for correctness, risks, regressions, and missing tests before proposing changes.",
-  },
-  {
-    schemaVersion: 2,
-    key: "explain",
-    label: "Explain",
-    description: "Explain code and decisions before proposing changes.",
-    promptStrategy: "append",
-    systemPrompt: "Explain the relevant code and decisions clearly before proposing changes.",
-  },
-];
 
 export function isValidModeKey(value: string): boolean {
   return /^[a-z][a-z0-9_-]{0,63}$/.test(value);
@@ -124,7 +106,11 @@ function parseKeyList(name: string, value: unknown, self: string): string[] | un
   return keys.length > 0 ? keys : undefined;
 }
 
-export function parseModeDefinition(raw: unknown): ModeDefinition {
+/**
+ * Validates a mode definition. `promptFromFile` is the content of a sibling <key>.md when there is
+ * one: it is then the prompt, and the JSON must not also carry `systemPrompt`.
+ */
+export function parseModeDefinition(raw: unknown, promptFromFile?: string): ModeDefinition {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("mode must be a JSON object");
   }
@@ -162,10 +148,22 @@ export function parseModeDefinition(raw: unknown): ModeDefinition {
     value.description === undefined
       ? ""
       : validateDisplayText("description", value.description, 1000);
-  const rawSystemPrompt = typeof value.systemPrompt === "string" ? value.systemPrompt : "";
-  if (!rawSystemPrompt.trim()) throw new Error("systemPrompt is required");
-  if (stringBytes(rawSystemPrompt) > MODE_PROMPT_MAX_BYTES) {
-    throw new Error(`systemPrompt exceeds ${MODE_PROMPT_MAX_BYTES} UTF-8 bytes`);
+  if (promptFromFile !== undefined) {
+    if (schemaVersion !== MODE_SCHEMA_VERSION) {
+      throw new Error(`a ${key}.md prompt file needs schemaVersion 2`);
+    }
+    if (value.systemPrompt !== undefined) {
+      throw new Error(`systemPrompt is set and ${key}.md exists; keep the prompt in one of them`);
+    }
+  }
+  const rawSystemPrompt =
+    promptFromFile ?? (typeof value.systemPrompt === "string" ? value.systemPrompt : "");
+  if (!rawSystemPrompt.trim()) {
+    throw new Error(
+      promptFromFile === undefined
+        ? `systemPrompt is required, inline or in ${key}.md`
+        : `${key}.md is empty`,
+    );
   }
   if (schemaVersion === 2 && value.promptStrategy === undefined) {
     throw new Error("schemaVersion 2 requires promptStrategy");
@@ -173,6 +171,14 @@ export function parseModeDefinition(raw: unknown): ModeDefinition {
   const promptStrategy = value.promptStrategy ?? "replace_base";
   if (!isPromptStrategy(promptStrategy)) {
     throw new Error("promptStrategy must be append, replace_base, or replace_final");
+  }
+  // A prompt file's own trailing newline is not part of the prompt it holds.
+  const measured =
+    promptFromFile !== undefined && promptStrategy !== "replace_final"
+      ? rawSystemPrompt.trim()
+      : rawSystemPrompt;
+  if (stringBytes(measured) > MODE_PROMPT_MAX_BYTES) {
+    throw new Error(`systemPrompt exceeds ${MODE_PROMPT_MAX_BYTES} UTF-8 bytes`);
   }
   const requires = parseKeyList("requires", value.requires, key);
   const conflictsWith = parseKeyList("conflictsWith", value.conflictsWith, key);
@@ -270,6 +276,37 @@ function findSymbolicLinkBoundary(path: string): string | undefined {
   }
 }
 
+/**
+ * Reads one mode definition file and the prompt file beside it, as the loader and the linter both do.
+ * The filename is checked against a valid declared key before any prompt file is looked up, so a
+ * prompt-file error always names the file really read; an invalid key is left to the parser, which
+ * reports it precisely.
+ */
+export function readModeFile(path: string): { definition: ModeDefinition; promptPath?: string } {
+  if (lstatSync(path).isSymbolicLink()) throw new Error("mode file must not be a symbolic link");
+  if (statSync(path).size > MODE_DEFINITION_MAX_BYTES) {
+    throw new Error(`mode file exceeds ${MODE_DEFINITION_MAX_BYTES} bytes`);
+  }
+  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const declaredKey =
+    raw &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    typeof (raw as { key?: unknown }).key === "string"
+      ? (raw as { key: string }).key.trim().toLowerCase()
+      : "";
+  if (!isValidModeKey(declaredKey)) return { definition: parseModeDefinition(raw) };
+  if (basename(path) !== `${declaredKey}.json`) {
+    throw new Error(`filename must be ${declaredKey}.json`);
+  }
+  const promptPath = promptFilePath(path);
+  const promptText = readPromptFile(promptPath);
+  return {
+    definition: parseModeDefinition(raw, promptText),
+    ...(promptText === undefined ? {} : { promptPath }),
+  };
+}
+
 function loadModeDirectory(dir: string, scope: Exclude<ModeScope, "builtin">): LoadedModes {
   const modes: ResolvedMode[] = [];
   const diagnostics: ModeDiagnostic[] = [];
@@ -317,14 +354,8 @@ function loadModeDirectory(dir: string, scope: Exclude<ModeScope, "builtin">): L
   for (const file of files.slice(0, MODE_DIRECTORY_MAX_FILES)) {
     const path = join(dir, file);
     try {
-      if (lstatSync(path).isSymbolicLink())
-        throw new Error("mode file must not be a symbolic link");
-      if (statSync(path).size > MODE_DEFINITION_MAX_BYTES) {
-        throw new Error(`mode file exceeds ${MODE_DEFINITION_MAX_BYTES} bytes`);
-      }
-      const mode = parseModeDefinition(JSON.parse(readFileSync(path, "utf8")));
-      if (file !== `${mode.key}.json`) throw new Error(`filename must be ${mode.key}.json`);
-      modes.push({ ...mode, scope, path });
+      const { definition, promptPath } = readModeFile(path);
+      modes.push({ ...definition, scope, path, ...(promptPath ? { promptPath } : {}) });
     } catch (error) {
       diagnostics.push({ path, message: error instanceof Error ? error.message : String(error) });
     }
@@ -381,33 +412,57 @@ export function modePath(dir: string, key: string): string {
   return target;
 }
 
-export function saveMode(dir: string, mode: ModeDefinition): string {
+/**
+ * Saves a definition. When its prompt was loaded from a sibling <key>.md (`promptFrom` names that
+ * file), the prompt is written back there and never added to the JSON beside it. A <key>.md the
+ * prompt did not come from is never overwritten: the save is refused instead.
+ */
+export function saveMode(
+  dir: string,
+  mode: ModeDefinition,
+  options: { promptFrom?: string } = {},
+): string {
   const normalized = parseModeDefinition(mode);
-  const serialized: ModeDefinition = { ...normalized, schemaVersion: MODE_SCHEMA_VERSION };
   const target = modePath(dir, normalized.key);
+  const inPromptFile = hasPromptFile(target);
+  if (
+    inPromptFile &&
+    (!options.promptFrom || resolve(options.promptFrom) !== promptFilePath(target))
+  ) {
+    throw new Error(
+      `${normalized.key}.md already holds this mode's prompt; edit it with /mode-edit, or move it away first`,
+    );
+  }
+  const { systemPrompt, ...withoutPrompt } = normalized;
+  const serialized = {
+    ...(inPromptFile ? withoutPrompt : normalized),
+    schemaVersion: MODE_SCHEMA_VERSION,
+  };
   mkdirSync(dirname(target), { recursive: true });
   const symbolicLinkBoundary = findSymbolicLinkBoundary(dirname(target));
   if (symbolicLinkBoundary) {
     throw new Error(`mode path crosses symbolic-link boundary: ${symbolicLinkBoundary}`);
   }
-  if (existsSync(target) && lstatSync(target).isSymbolicLink()) {
-    throw new Error("mode file must not be a symbolic link");
+  if (inPromptFile) {
+    // The prompt first: a failure after it leaves the old JSON with the new prompt, both valid.
+    writeFileAtomically(
+      promptFilePath(target),
+      promptFileText(systemPrompt, normalized.promptStrategy === "replace_final"),
+    );
   }
-  const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(temporary, `${JSON.stringify(serialized, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx",
-    });
-    renameSync(temporary, target);
-    return target;
-  } finally {
-    rmSync(temporary, { force: true });
-  }
+  writeFileAtomically(target, `${JSON.stringify(serialized, null, 2)}\n`);
+  return target;
 }
 
-export function deleteMode(path: string, expectedDir: string): void {
+/**
+ * Deletes a mode file and, when its prompt was loaded from it (`promptFrom`), its prompt file first,
+ * so a failure there leaves the mode whole rather than half deleted.
+ */
+export function deleteMode(
+  path: string,
+  expectedDir: string,
+  options: { promptFrom?: string } = {},
+): void {
   const base = resolve(expectedDir);
   const target = resolve(path);
   if (!target.startsWith(`${base}${sep}`) || !target.endsWith(".json")) {
@@ -416,6 +471,10 @@ export function deleteMode(path: string, expectedDir: string): void {
   const symbolicLinkBoundary = findSymbolicLinkBoundary(target);
   if (symbolicLinkBoundary) {
     throw new Error(`mode path crosses symbolic-link boundary: ${symbolicLinkBoundary}`);
+  }
+  const promptPath = promptFilePath(target);
+  if (options.promptFrom && resolve(options.promptFrom) === promptPath) {
+    rmSync(promptPath, { force: true });
   }
   rmSync(target);
 }

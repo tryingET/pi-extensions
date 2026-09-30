@@ -361,7 +361,7 @@ export function projectConfirmationBody(modes: readonly ResolvedMode[]): string 
     const hidden = hiddenWarning(mode);
     const labelOnly = mode.promptStrategy === "append" ? 0 : countHiddenCharacters(mode.label);
     return [
-      `${mode.key} ("${displaySafe(mode.label)}") ${EFFECT[mode.promptStrategy]}; from ${mode.path ? displaySafe(mode.path) : "an unknown file"} (definition ${digest}).${replaces ? ` It ${replaces}.` : ""}`,
+      `${mode.key} ("${displaySafe(mode.label)}") ${EFFECT[mode.promptStrategy]}; from ${mode.path ? displaySafe(mode.path) : "an unknown file"}${mode.promptPath ? `, prompt in ${displaySafe(mode.promptPath)}` : ""} (definition ${digest}).${replaces ? ` It ${replaces}.` : ""}`,
       `  Prompt, ${shown < total ? `first ${shown} of ${total}` : total} characters: "${excerpt}${shown < total ? "…" : ""}"`,
       ...(hidden ? [`  Warning: it contains ${hidden}, marked ⟨n hidden⟩ where shown above.`] : []),
       ...(labelOnly
@@ -382,6 +382,7 @@ export function describeProjectModes(modes: readonly ResolvedMode[]): string {
     .map((mode) => {
       const details = [
         mode.path ? displaySafe(mode.path) : "unknown file",
+        mode.promptPath ? `prompt in ${displaySafe(mode.promptPath)}` : "",
         describeReplacement(mode),
         hiddenWarning(mode),
       ].filter(Boolean);

@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/tryingET/pi-extensions/packages/pi-modes/schemas/mode.schema.json",
   "title": "pi-modes definition v2",
-  "$comment": "Runtime validation remains authoritative for UTF-8 byte limits and cross-field self-reference/overlap rules that JSON Schema cannot fully express.",
+  "$comment": "Runtime validation remains authoritative for UTF-8 byte limits and cross-field self-reference/overlap rules that JSON Schema cannot fully express, and for the prompt: systemPrompt is required unless a sibling <key>.md holds it, and must be absent when one does.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "key", "label", "promptStrategy", "systemPrompt"],
+  "required": ["schemaVersion", "key", "label", "promptStrategy"],
   "properties": {
     "schemaVersion": { "const": 2 },
     "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },

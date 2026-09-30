@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { modeTemplate, parseScopedArguments } from "./mode-authoring.ts";
 import type { ModeCommandServices } from "./mode-command-handlers.ts";
+import { promptFilePath, readPromptFile } from "./mode-prompt-file.ts";
 import {
   deleteMode,
   formatDiagnostics,
@@ -35,18 +36,24 @@ export function registerModeAuthoringCommands(
         return reportError(ctx, "Project modes require a trusted project");
       }
       try {
-        const initial = modeTemplate(key);
         const dir =
           parsed.scope === "project" ? services.projectModeDir(ctx) : services.globalModeDir;
+        // A <key>.md written first becomes the prompt: the JSON is created around it, not over it.
+        const promptPath = promptFilePath(modePath(dir, key));
+        const promptText = readPromptFile(promptPath);
+        const { systemPrompt: _template, ...withoutPrompt } = modeTemplate(key);
+        const initial = promptText === undefined ? modeTemplate(key) : withoutPrompt;
         const edited = await ctx.ui.editor(
-          `Create ${parsed.scope} prompt mode`,
+          `Create ${parsed.scope} prompt mode${promptText === undefined ? "" : ` (prompt from ${key}.md)`}`,
           JSON.stringify(initial, null, 2),
         );
         if (!edited) return;
-        const mode = parseModeDefinition(JSON.parse(edited));
+        const raw: unknown = JSON.parse(edited);
+        const sameKey = (raw as { key?: unknown } | null)?.key === key;
+        const mode = parseModeDefinition(raw, sameKey ? promptText : undefined);
         const path = modePath(dir, mode.key);
         if (existsSync(path) && !(await ctx.ui.confirm("Overwrite mode?", path))) return;
-        saveMode(dir, mode);
+        saveMode(dir, mode, sameKey && promptText !== undefined ? { promptFrom: promptPath } : {});
         ctx.ui.notify(`Saved prompt mode without activating it: ${mode.key}`, "info");
       } catch (error) {
         reportError(
@@ -74,21 +81,41 @@ export function registerModeAuthoringCommands(
           "warning",
         );
       }
-      const text = readFileSync(mode.path, "utf8");
+      // A prompt kept in <key>.md is edited with the rest of the definition, as it was loaded, and
+      // saved back there.
+      const {
+        scope: _scope,
+        path: _path,
+        promptPath: _promptPath,
+        shadows: _shadows,
+        shadowedPath: _shadowedPath,
+        ...definition
+      } = mode;
+      const text = mode.promptPath
+        ? `${JSON.stringify(definition, null, 2)}\n`
+        : readFileSync(mode.path, "utf8");
       // The editor would show them raw: escape sequences live, invisible text unseen.
       const hidden = countHiddenCharacters(text);
       if (hidden > 0) {
+        const inPrompt = mode.promptPath ? countHiddenCharacters(mode.systemPrompt) : 0;
+        const files = [
+          ...(hidden > inPrompt ? [mode.path] : []),
+          ...(inPrompt > 0 && mode.promptPath ? [mode.promptPath] : []),
+        ].map((file) => displaySafe(file));
         return reportError(
           ctx,
-          `${mode.key} contains ${hidden} hidden character${hidden === 1 ? "" : "s"}; review it with /mode-preview and edit ${displaySafe(mode.path)} in an editor that shows them`,
+          `${mode.key} contains ${hidden} hidden character${hidden === 1 ? "" : "s"}; review it with /mode-preview and edit ${files.join(" and ")} in an editor that shows them`,
         );
       }
-      const edited = await ctx.ui.editor(`Edit ${mode.scope} mode: ${mode.key}`, text);
+      const edited = await ctx.ui.editor(
+        `Edit ${mode.scope} mode: ${mode.key}${mode.promptPath ? ` (prompt saved to ${mode.key}.md)` : ""}`,
+        text,
+      );
       if (!edited) return;
       try {
         const next = parseModeDefinition(JSON.parse(edited));
         if (next.key !== mode.key) throw new Error("renaming during edit is not supported");
-        saveMode(dir, next);
+        saveMode(dir, next, mode.promptPath ? { promptFrom: mode.promptPath } : {});
         const active = services.activeSelection();
         ctx.ui.notify(
           [...(active.baseKey ? [active.baseKey] : []), ...active.overlayKeys].includes(next.key)
@@ -130,13 +157,13 @@ export function registerModeAuthoringCommands(
       if (
         !(await ctx.ui.confirm(
           `Delete ${mode.scope} mode?`,
-          `${mode.path}\nActive composition ${
+          `${displaySafe(mode.path)}${mode.promptPath ? `\n${displaySafe(mode.promptPath)} (its prompt) is deleted too` : ""}\nActive composition ${
             wasSelected ? `becomes ${selectionLabel(next)}` : "remains unchanged"
           }.`,
         ))
       )
         return;
-      deleteMode(mode.path, dir);
+      deleteMode(mode.path, dir, mode.promptPath ? { promptFrom: mode.promptPath } : {});
       if (!wasSelected) {
         services.updateStatus(ctx);
         ctx.ui.notify(`Deleted inactive prompt mode: ${key}`, "info");

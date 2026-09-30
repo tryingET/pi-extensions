@@ -145,7 +145,7 @@ export function resolveModeSelection(
     for (const mode of unconfirmed) {
       diagnostics.push({
         key: mode.key,
-        message: `project mode from ${mode.path ? displaySafe(mode.path) : "an unknown file"} is not confirmed; review it with /mode-preview, then confirm it with /mode-reapprove (--confirm-project headless)`,
+        message: `project mode from ${mode.path ? displaySafe(mode.path) : "an unknown file"}${mode.promptPath ? ` (prompt in ${displaySafe(mode.promptPath)})` : ""} is not confirmed; review it with /mode-preview, then confirm it with /mode-reapprove (--confirm-project headless)`,
       });
     }
     diagnostics.push({ message: "composition blocked until its project modes are confirmed" });

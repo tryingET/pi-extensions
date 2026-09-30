@@ -91,6 +91,8 @@ export function harness(
     entries?: unknown[];
     // Given the rows the /mode selector renders, what the operator applies.
     selector?: (rows: string[]) => ModeSelection | null;
+    // Given the text an editor opens with, what the operator saves (undefined cancels).
+    edit?: (text: string) => string | undefined;
   } = {},
 ) {
   const entries: unknown[] = [...(options.entries ?? [])];
@@ -142,7 +144,7 @@ export function harness(
       },
       editor: async (title: string, text: string) => {
         editors.push({ title, text });
-        return undefined;
+        return options.edit?.(text);
       },
       confirm: async (title: string, body: string) => {
         dialogs.push({ title, body });

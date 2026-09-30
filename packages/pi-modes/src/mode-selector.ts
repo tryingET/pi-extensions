@@ -275,7 +275,7 @@ export async function selectModeComposition(
         add(
           theme.fg(
             "dim",
-            `source: ${selectedMode.path ? displaySafe(selectedMode.path) : "built-in"}`,
+            `source: ${selectedMode.path ? displaySafe(selectedMode.path) : "built-in"}${selectedMode.promptPath ? `, prompt in ${displaySafe(selectedMode.promptPath)}` : ""}`,
           ),
         );
         const contracts = [
