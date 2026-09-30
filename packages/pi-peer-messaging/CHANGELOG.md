@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.2](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.1...pi-peer-messaging-v0.4.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **pi-peer-messaging:** settle every ask and type its outcome (AK5928) ([6ddb162](https://github.com/tryingET/pi-extensions/commit/6ddb16230a050897cb832b026f5c916d18f25967))
+
 ## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.0...pi-peer-messaging-v0.4.1) (2026-09-27)
 
 
