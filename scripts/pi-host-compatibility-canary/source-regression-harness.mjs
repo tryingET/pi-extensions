@@ -57,7 +57,7 @@ export const SOURCE_SUITES = Object.freeze([
   ["child-clearance.test.mjs", 6],
   ["recovery-snapshots.test.mjs", 11],
   ["child-clearance.io.test.mjs", 10],
-  ["source-regression.test.mjs", 8],
+  ["source-regression.test.mjs", 9],
 ].map(suite => Object.freeze(suite)));
 export function runSourceRegressionSuites(directory, cwd) {
   const OBSERVATION = observeSourceRegression(directory);

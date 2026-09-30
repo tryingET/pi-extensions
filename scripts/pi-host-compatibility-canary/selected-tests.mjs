@@ -19,7 +19,7 @@ export { exactPattern, reconcileEvents, assertSupportedNode };
  * File evaluation, hooks and explicitly declared imports can still have effects:
  * this is a verifier for trusted tests, NOT a sandbox or proof of assertion quality.
  *
- * Strict v22.22.2 / v26.8.1 event proof: see selected-tests-protocol.mjs.
+ * Strict v22.22.2 / v22.23.3 / v26.8.1 event proof: see selected-tests-protocol.mjs.
  * Other versions are refused before execution. TS/tsx and SDK remain unqualified.
  * API cancellation: options.signal (AbortSignal). CLI SIGINT/SIGTERM abort the
  * active run and return 130/143; listeners are removed on every settled path.

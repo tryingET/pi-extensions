@@ -92,7 +92,7 @@ for ~25 minutes (AK6069; design in softwareco/infra/workstation
 
 ## Toolchain setup (pinned versions)
 
-The pin is Node **22.22.2**, npm **12.0.2**. Do not change the pin merely to admit
+The pin is Node **22.23.3**, npm **12.0.2**. Do not change the pin merely to admit
 ambient machine drift. A Node distribution may bundle an unsuitable npm.
 
 Gate entry points (`scripts/ci/full.sh`, `scripts/prepare-gate-builds.sh`) source
@@ -103,7 +103,7 @@ unpacked nodejs.org tarball), and uses a candidate only if its `--version` match
 Only `node` is shimmed; npm stays the one on PATH and is still admitted exactly.
 Nothing is downloaded or installed: with no candidate, admission fails as before.
 So after a system Node upgrade a plain `git push` keeps working, provided
-Node 22.22.2 is unpacked under `~/.local/opt` or named by `PI_GATE_NODE_BIN`.
+Node 22.23.3 is unpacked under `~/.local/opt` or named by `PI_GATE_NODE_BIN`.
 
 If npm also differs, provision npm 12.0.2 in a separate prefix as CI does; do not
 replace the active shared installation silently. Gate scratch honors
@@ -119,6 +119,17 @@ gates force the pinned lane, so a `next` left exported in a shell never admits a
 green here and has reached LTS, changing `nodeVersion`, the workflows, and
 `nextNodeVersion` in one commit (`scripts/workflow-action-pins.test.mjs` enforces
 that only `node-next.yml` runs the next line).
+
+Any pin move, a patch release included, also updates the compatibility canary's exact
+Node lists in that same commit. In
+`scripts/pi-host-compatibility-canary/selected-tests-protocol.mjs`, add the version to
+`SUPPORTED_EVENT_NODE_VERSIONS`, and to `NODE22_DIALECT` when it is a 22.x release (every
+other supported version is read as the Node 26 dialect), but only after observing that it
+emits the same test events as a version already in that dialect. Add it to
+`SUPPORTED_NODE_VERSIONS` in `completion-fixture-closure.mjs`. The canary tests derive their
+version cases from these lists. `scripts/gate-inputs.test.mjs` fails while either list
+refuses the pinned Node, or while this page names another pin. The frozen
+`ADMITTED_NODE_VERSIONS` and `completion-fixture-inputs.json` are not widened by a pin move.
 
 ## Tracked file budgets
 

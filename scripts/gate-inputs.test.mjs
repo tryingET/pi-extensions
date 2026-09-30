@@ -117,20 +117,40 @@ test('tracked budget ignores untracked files but still audits tracked content, s
 test('tracked selection fails closed outside git', t => {
   assert.throws(() => auditFileBudgets({ root: fixture(t), tracked: true }), /git|tracked/i);
 });
+const escapeVersion = version => version.replaceAll('.', '\\.');
+const readLock = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'policy/ci-toolchain-lock.json')));
 test('toolchain admits only the existing exact CI lock', async () => {
   const { checkToolchain } = await import('./check-gate-toolchain.mjs');
-  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'policy/ci-toolchain-lock.json')));
+  const lock = readLock();
   assert.deepEqual(checkToolchain(lock, lock.nodeVersion, lock.npmVersion), []);
-  assert.match(checkToolchain(lock, '26.9.0', lock.npmVersion).join('\n'), /Node.*22\.22\.2/);
-  assert.match(checkToolchain(lock, lock.nodeVersion, '10.9.0').join('\n'), /npm.*12\.0\.2/);
+  // 0.0.1 and 0.0.2 can never be a pin, so these stay refusals after any move of either pin.
+  assert.match(checkToolchain(lock, '0.0.1', lock.npmVersion).join('\n'),
+    new RegExp(`required Node ${escapeVersion(lock.nodeVersion)}`));
+  assert.match(checkToolchain(lock, lock.nodeVersion, '0.0.2').join('\n'),
+    new RegExp(`npm.*${escapeVersion(lock.npmVersion)}`));
+});
+test('a pin move carries the compatibility canary and the pre-push guidance with it', async () => {
+  // The gate and CI run the canary root tests on the pinned Node; both exact lists must name it.
+  const lock = readLock();
+  const pinned = `v${lock.nodeVersion}`;
+  const events = await import('./pi-host-compatibility-canary/selected-tests-protocol.mjs');
+  const closure = await import('./pi-host-compatibility-canary/completion-fixture-closure.mjs');
+  assert.equal(events.assertSupportedNode(pinned), pinned);
+  assert.doesNotThrow(() => closure.assertSupportedNode(pinned));
+  const guidance = fs.readFileSync(path.join(ROOT, 'docs/project/pre-push-inputs.md'), 'utf8');
+  assert.ok(guidance.includes(`The pin is Node **${lock.nodeVersion}**, npm **${lock.npmVersion}**.`));
+  assert.ok(guidance.includes(`Node ${lock.nodeVersion} is unpacked under \`~/.local/opt\``));
+  assert.ok(guidance.includes(`(currently **${lock.nextNodeVersion}**)`));
 });
 test('the next Node lane is opt-in and never widens the pinned lane', async () => {
   const { checkToolchain, expectedNodeVersion } = await import('./check-gate-toolchain.mjs');
-  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'policy/ci-toolchain-lock.json')));
+  const lock = readLock();
   assert.notEqual(lock.nextNodeVersion, lock.nodeVersion);
   assert.deepEqual(checkToolchain(lock, lock.nextNodeVersion, lock.npmVersion, 'next'), []);
-  assert.match(checkToolchain(lock, lock.nextNodeVersion, lock.npmVersion).join('\n'), /required Node 22\.22\.2/);
-  assert.match(checkToolchain(lock, lock.nodeVersion, lock.npmVersion, 'next').join('\n'), /required Node 26\.9\.0/);
+  assert.match(checkToolchain(lock, lock.nextNodeVersion, lock.npmVersion).join('\n'),
+    new RegExp(`required Node ${escapeVersion(lock.nodeVersion)}`));
+  assert.match(checkToolchain(lock, lock.nodeVersion, lock.npmVersion, 'next').join('\n'),
+    new RegExp(`required Node ${escapeVersion(lock.nextNodeVersion)}`));
   assert.throws(() => expectedNodeVersion(lock, 'latest'), /unknown or unconfigured Node lane/);
   assert.throws(() => expectedNodeVersion({ ...lock, nextNodeVersion: undefined }, 'next'), /unconfigured/);
 });

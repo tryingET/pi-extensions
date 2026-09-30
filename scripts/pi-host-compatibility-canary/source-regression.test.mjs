@@ -4,14 +4,21 @@ import { chmodSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSy
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { COPIED, OBSERVATION_KIND, assertSupportedNode, canonicalPath, digest, validatePins,
-  validatePurpose, verifyFixtureNode, verifyNode } from "./completion-fixture-closure.mjs";
+import { ADMITTED_NODE_VERSIONS, COPIED, OBSERVATION_KIND, SUPPORTED_NODE_VERSIONS, assertSupportedNode,
+  canonicalPath, digest, validatePins, validatePurpose, verifyFixtureNode, verifyNode, verifyNodeIdentity }
+  from "./completion-fixture-closure.mjs";
 import { observeSourceRegression } from "./source-regression-observation.mjs";
 import { assertIntentPathBudget } from "./completion-fixture-cases.mjs";
 import { assertCompleteTap, createSourceScratch, safeScratchParent, syntheticEnvironment } from "./source-regression-harness.mjs";
 const source = path.dirname(fileURLToPath(import.meta.url));
 const inputFile = path.join(source, "completion-fixture-inputs.json");
 const reviewed = () => JSON.parse(readFileSync(inputFile, "utf8"));
+// Runs fn while process.version names another exact version, then restores the original property.
+const withProcessVersion = (version, fn) => {
+  const descriptor = Object.getOwnPropertyDescriptor(process, "version");
+  Object.defineProperty(process, "version", { ...descriptor, value: version });
+  try { return fn(); } finally { Object.defineProperty(process, "version", descriptor); }
+};
 
 test("source_regression: purposes are explicit and cannot exchange authority inputs", () => {
   const observation = observeSourceRegression(source);
@@ -31,8 +38,15 @@ test("source_regression: purposes are explicit and cannot exchange authority inp
   assert.throws(() => validatePurpose({ ...admitted, observedNode: observation.observedNode }));
 });
 test("source_regression: exact supported versions only, no major-range or unknown fallback", () => {
-  for (const version of ["v22.22.2", "v26.8.1"]) assertSupportedNode(version);
-  for (const version of [undefined, "", "22.22.2", "v22.22.1", "v22.22.3", "v26.8.0", "v26.8.2", "v24.0.0"]) {
+  for (const version of SUPPORTED_NODE_VERSIONS) assertSupportedNode(version);
+  // Near misses of every supported version, derived so a pin move cannot collide with them.
+  const nearMisses = SUPPORTED_NODE_VERSIONS.flatMap(version => {
+    const [major, minor, patch] = version.slice(1).split(".").map(Number);
+    return [version.slice(1), `v${major}.${minor}.${patch + 1}`, `v${major}.${minor + 1}.0`, `v${major}.0.0`,
+      ...(patch > 0 ? [`v${major}.${minor}.${patch - 1}`] : [])];
+  }).filter(version => !SUPPORTED_NODE_VERSIONS.includes(version));
+  assert.ok(nearMisses.includes("v22.22.1") && nearMisses.includes("v26.8.2"));
+  for (const version of [undefined, "", "v24.0.0", "v99.0.0", ...nearMisses]) {
     assert.throws(() => assertSupportedNode(version), /unsupported exact Node version/);
   }
   const bad = observeSourceRegression(source); bad.observedNode.version = "v99.0.0";
@@ -48,12 +62,42 @@ test("source_regression: current Node path/hash is observed, never fixed-worksta
   assert.throws(() => verifyFixtureNode(changedPath), /observed source-regression path changed/);
   const changedHash = structuredClone(observation); changedHash.observedNode.sha256 = "0".repeat(64);
   assert.throws(() => verifyFixtureNode(changedHash), /observed binary changed/);
-  const admitted = reviewed();
-  admitted.nodes.find(pin => pin.version === process.version).path = "/not-the-admitted/node";
-  assert.throws(() => verifyNode(admitted), /unreviewed Node executable path/);
-  const pin = admitted.nodes.find(pin => pin.version === process.version);
-  pin.path = process.execPath; pin.sha256 = "0".repeat(64);
-  assert.throws(() => verifyNode(admitted), /Node binary changed/);
+  // Binary identity checks run on every supported Node, against the observed running binary.
+  const { version, path: nodePath, sha256 } = observation.observedNode;
+  const running = { version, path: nodePath, sha256 };
+  assert.equal(verifyNodeIdentity(running), running);
+  assert.throws(() => verifyNodeIdentity({ ...running, path: "/not-the-admitted/node" }),
+    /unreviewed Node executable path/);
+  assert.throws(() => verifyNodeIdentity({ ...running, sha256: "0".repeat(64) }), /Node binary changed/);
+  assert.throws(() => verifyNodeIdentity({ ...running, version: "v0.0.1" }), /Node identity names another version/);
+  // Strict admission stays frozen: a supported but unadmitted Node is refused, never admitted.
+  if (!ADMITTED_NODE_VERSIONS.includes(process.version)) {
+    assert.equal(reviewed().nodes.find(entry => entry.version === process.version), undefined);
+    assert.throws(() => verifyNode(reviewed()), /unreviewed Node version/);
+  }
+  // verifyNode's admitted path runs on every Node: present each admitted version, pinned to this binary.
+  for (const admittedVersion of ADMITTED_NODE_VERSIONS) {
+    withProcessVersion(admittedVersion, () => {
+      const admitted = reviewed();
+      const pin = admitted.nodes.find(entry => entry.version === admittedVersion);
+      Object.assign(pin, { path: running.path, sha256: running.sha256 });
+      assert.equal(verifyNode(admitted), pin);
+      pin.path = "/not-the-admitted/node";
+      assert.throws(() => verifyNode(admitted), /unreviewed Node executable path/);
+      pin.path = running.path; pin.sha256 = "0".repeat(64);
+      assert.throws(() => verifyNode(admitted), /Node binary changed/);
+    });
+  }
+  assert.equal(process.version, version);
+});
+test("source_regression: observation support widens without admitting a binary", () => {
+  for (const version of ADMITTED_NODE_VERSIONS) assert.ok(SUPPORTED_NODE_VERSIONS.includes(version));
+  assert.deepEqual(reviewed().nodes.map(entry => entry.version).sort(), [...ADMITTED_NODE_VERSIONS]);
+  for (const version of SUPPORTED_NODE_VERSIONS.filter(entry => !ADMITTED_NODE_VERSIONS.includes(entry))) {
+    const widened = reviewed();
+    widened.nodes.push({ ...widened.nodes[0], version });
+    assert.throws(() => validatePins(widened), /strictly deep-equal/);
+  }
 });
 test("source_regression: exact copied inputs and transformations; admission file is not repinned", () => {
   const before = readFileSync(inputFile);

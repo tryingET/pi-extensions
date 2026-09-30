@@ -453,8 +453,8 @@ console TAP alone. Missing, extra, duplicate, skipped, todo, cancelled or failed
 selected bodies fail. Suites, nesting and imported registrations are unsupported;
 this does not replace the suite-nested session-compaction command above.
 
-Only Node **22.22.2** and **26.8.1** event dialects are supported; other versions fail
-before execution. Ordinary declared imports become Node `--import` arguments.
+Only Node **22.22.2** and **22.23.3**, which share one observed dialect (AK6228), and
+**26.8.1** are supported; other versions fail before execution. Ordinary declared imports become Node `--import` arguments.
 File evaluation, hooks and imports can have effects: this is trusted-test selection,
 not a sandbox, SDK-consumption proof or assertion-quality proof. Abort handling and
 the parent-lifetime pipe remain; their process-group bounds do not contain escaped
@@ -538,7 +538,13 @@ builtin-only fixtures and exercise real process interruption, retaining scratch.
 Completion source regressions use finite synthetic commands and a denied lifecycle
 executor, not package installs. Neither is real host qualification.
 `completion-fixture-inputs.json` remains frozen historical strict admission: changed
-source must not be admitted by silently refreshing its pins. The separate
+source must not be admitted by silently refreshing its pins, and its admitted Node set
+(`ADMITTED_NODE_VERSIONS`: 22.22.2, 26.8.1) does not follow pin moves. Source-regression
+observations may run on the wider `SUPPORTED_NODE_VERSIONS` (22.23.3 since AK6228)
+without admitting that binary. AK6228 also changed three files the manifest hash-pins
+(`completion-fixture-closure.mjs`, `source-regression-harness.mjs`,
+`source-regression.test.mjs`); a future re-admission must review them with the other
+changed inputs. The separate
 source-regression entry observes current trusted source without claiming approval.
 
 ### Manual workflow dispatch

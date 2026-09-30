@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getEventListeners } from 'node:events';
 import { test } from 'node:test';
+import { NODE22_DIALECT, SUPPORTED_EVENT_NODE_VERSIONS } from './selected-tests-protocol.mjs';
 
 // Only newly authored builtin fixtures execute. No network, installs, real HOME,
 // caches, packages, Pi or AK. Retain all owned scratch; never recursively delete.
@@ -47,8 +48,8 @@ const rawRun = (file, pattern) => {
 const cli = args => spawnSync(process.execPath, [adapterPath, ...args], {
   cwd: home, env, encoding: 'utf8', timeout: 10000,
 });
-assert.ok(['v22.22.2', 'v26.8.1'].includes(process.version), 'explicit calibrated version required');
-const node22 = process.version === 'v22.22.2';
+assert.ok(SUPPORTED_EVENT_NODE_VERSIONS.includes(process.version), 'explicit calibrated version required');
+const node22 = NODE22_DIALECT.includes(process.version);
 const isBody = d => node22 ? !(d.name === d.file && d.line === 1 && d.column === 1) : Boolean(d.entryFile);
 const fileSummary = (events, file) => events.find(e => e.type === 'test:summary' && e.data.file === file);
 const bodyPasses = events => events.filter(e => e.type === 'test:pass' && isBody(e.data));
@@ -281,8 +282,19 @@ test('reconciler rejects missing/duplicate lifecycle, wrappers, summaries, plans
   const inventory = { file, names: ['present'] };
   assert.equal(reconcileEvents(events, inventory).selected, 1);
   assert.throws(() => reconcileEvents(zero, inventory));
-  for (const version of ['v22.22.1', 'v26.8.0', 'v99.0.0', node22 ? 'v26.8.1' : 'v22.22.2']) {
-    assert.throws(() => reconcileEvents(events, inventory, version), 'unknown or mismatched dialect');
+  // Near misses of every supported version, derived so a pin move cannot collide with them.
+  const nearMisses = SUPPORTED_EVENT_NODE_VERSIONS.flatMap(version => {
+    const [major, minor, patch] = version.slice(1).split('.').map(Number);
+    return [`v${major}.${minor}.${patch + 1}`, `v${major}.${minor + 1}.0`,
+      ...(patch > 0 ? [`v${major}.${minor}.${patch - 1}`] : [])];
+  }).filter(version => !SUPPORTED_EVENT_NODE_VERSIONS.includes(version));
+  for (const version of ['v99.0.0', ...nearMisses]) {
+    assert.throws(() => reconcileEvents(events, inventory, version), /unsupported Node event protocol/);
+  }
+  // The other dialect's label refuses these events, each direction with its own reason.
+  for (const version of SUPPORTED_EVENT_NODE_VERSIONS.filter(entry => NODE22_DIALECT.includes(entry) !== node22)) {
+    assert.throws(() => reconcileEvents(events, inventory, version),
+      node22 ? /malformed or unsupported nesting\/identity/ : /mixed Node event protocols/);
   }
   for (let index = 0; index < events.length; index++) {
     if (events[index].type === 'test:diagnostic') continue;

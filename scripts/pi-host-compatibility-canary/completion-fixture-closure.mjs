@@ -73,7 +73,10 @@ export function transformBytes(file, bytes) {
     `${file}: denied executor binding missing`);
   return Buffer.from(output);
 }
-export const SUPPORTED_NODE_VERSIONS = Object.freeze(["v22.22.2", "v26.8.1"]);
+// Frozen AK5597 admission: exactly the Node binaries completion-fixture-inputs.json admits.
+export const ADMITTED_NODE_VERSIONS = Object.freeze(["v22.22.2", "v26.8.1"]);
+// Exact versions a source-regression observation may run on. Widening it never admits a binary.
+export const SUPPORTED_NODE_VERSIONS = Object.freeze(["v22.22.2", "v22.23.3", "v26.8.1"]);
 export const OBSERVATION_KIND = "source-regression-identity-OBSERVATION-copy-consistency-only";
 export function assertSupportedNode(version) {
   assert.ok(SUPPORTED_NODE_VERSIONS.includes(version), `unsupported exact Node version: ${version}`);
@@ -83,7 +86,7 @@ export function validatePurpose(pins) {
   if (pins.purpose === "admitted_fixture") {
     assert.equal(pins.observedNode, undefined, "observations cannot be qualification inputs");
     assert.equal(pins.observationKind, undefined);
-    assert.deepEqual(pins.nodes.map(pin => pin.version).sort(), [...SUPPORTED_NODE_VERSIONS]);
+    assert.deepEqual(pins.nodes.map(pin => pin.version).sort(), [...ADMITTED_NODE_VERSIONS]);
   } else {
     assert.equal(pins.nodes, undefined, "source observations cannot contain admitted nodes");
     assert.equal(pins.observationKind, OBSERVATION_KIND);
@@ -152,23 +155,30 @@ export function verifyNode(pins) {
   assert.equal(process.platform, "linux");
   const pin = pins.nodes.find(entry => entry.version === process.version);
   assert.ok(pin, `unreviewed Node version: ${process.version}`);
-  assert.equal(canonicalPath(process.execPath), pin.path, "unreviewed Node executable path");
-  assert.equal(digest(regularBytes(pin.path)), pin.sha256, "Node binary changed");
-  assert.equal(digest(readFileSync("/proc/self/exe")), pin.sha256, "actual running Node binary differs");
+  return verifyNodeIdentity(pin);
+}
+const ADMITTED_IDENTITY = Object.freeze({ path: "unreviewed Node executable path",
+  file: "Node binary changed", running: "actual running Node binary differs" });
+const OBSERVED_IDENTITY = Object.freeze({ path: "observed source-regression path changed",
+  file: "observed binary changed", running: "observed running binary differs" });
+// One binary-identity check for both purposes; only the refusal wording differs.
+function verifyBinaryIdentity(pin, messages) {
+  assert.equal(process.platform, "linux");
+  assert.equal(pin.version, process.version, "Node identity names another version");
+  assert.equal(canonicalPath(process.execPath), pin.path, messages.path);
+  assert.equal(digest(regularBytes(pin.path)), pin.sha256, messages.file);
+  assert.equal(digest(readFileSync("/proc/self/exe")), pin.sha256, messages.running);
   return pin;
+}
+export function verifyNodeIdentity(pin) {
+  return verifyBinaryIdentity(pin, ADMITTED_IDENTITY);
 }
 export function verifyFixtureNode(pins) {
   validatePurpose(pins);
   if (pins.purpose === "admitted_fixture") return verifyNode(pins);
   // Caller trusts this running Node; observed path/hash bind its children only.
   assertSupportedNode(process.version);
-  assert.equal(process.platform, "linux");
-  const observed = pins.observedNode;
-  assert.equal(observed.version, process.version);
-  assert.equal(canonicalPath(process.execPath), observed.path, "observed source-regression path changed");
-  assert.equal(digest(regularBytes(observed.path)), observed.sha256, "observed binary changed");
-  assert.equal(digest(readFileSync("/proc/self/exe")), observed.sha256, "observed running binary differs");
-  return observed;
+  return verifyBinaryIdentity(pins.observedNode, OBSERVED_IDENTITY);
 }
 export function fixtureEnv(base) {
   // No ambient spread, PATH lookup, NODE_OPTIONS, compile cache, npm, or crash controls.
