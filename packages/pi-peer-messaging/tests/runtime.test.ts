@@ -4,15 +4,14 @@
 //   - changing managed runtime behavior or broker-backed messaging semantics
 // ---
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import type { Socket } from "node:net";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { afterEach } from "node:test";
 
 import {
-  createPeerMessagingRuntime,
+  createPeerMessagingRuntime as createRuntime,
   isPeerAskNoReply,
   type ManagedPeerMessagingRuntime,
   type PeerMessage,
@@ -22,45 +21,39 @@ import {
 import { PeerMessagingBroker } from "../src/broker.ts";
 import { PeerMessagingClient } from "../src/client.ts";
 import { resolvePeerMessagingPaths } from "../src/paths.ts";
+import {
+  createMessage,
+  delay,
+  disconnectAll,
+  holdsThroughout,
+  waitFor,
+  waitForBrokerShutdown,
+  withPeers,
+} from "./peer-harness.ts";
 
 // Compact mkdtemp prefixes keep real broker.sock paths within Linux sun_path
 // under managed-job TMPDIR; each test still owns a distinct private directory.
 
-async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (predicate()) {
-      return;
-    }
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 50);
-    });
-  }
-
-  throw new Error("Timed out waiting for predicate.");
+// Every runtime a test creates is disconnected after it, however it ended: a failed assertion must
+// report, not leave sockets open that keep the test process alive (AK6249).
+const created = new Set<ManagedPeerMessagingRuntime>();
+async function createPeerMessagingRuntime(
+  options: Parameters<typeof createRuntime>[0],
+): Promise<ManagedPeerMessagingRuntime> {
+  const runtime = await createRuntime(options);
+  created.add(runtime);
+  return runtime;
 }
-
-async function waitForBrokerShutdown(runtimeDir: string): Promise<void> {
-  const paths = resolvePeerMessagingPaths({ runtimeDir });
-  await waitFor(() => !fs.existsSync(paths.pidPath), 3_000);
-}
+afterEach(async () => {
+  const runtimes = [...created];
+  created.clear();
+  await disconnectAll(runtimes);
+});
 
 function requireClientSocket(client: PeerMessagingClient): Socket {
   const socket = (client as unknown as { socket: Socket | null }).socket;
   assert.ok(socket);
   return socket;
-}
-
-function createMessage(text: string, options: { id?: string; replyTo?: string } = {}): PeerMessage {
-  return {
-    id: options.id ?? randomUUID(),
-    timestamp: Date.now(),
-    replyTo: options.replyTo,
-    content: {
-      text,
-    },
-  };
 }
 
 function waitForNextMessage(runtime: ManagedPeerMessagingRuntime): Promise<{
@@ -73,59 +66,6 @@ function waitForNextMessage(runtime: ManagedPeerMessagingRuntime): Promise<{
       resolve({ from, message });
     });
   });
-}
-
-async function disconnectAll(runtimes: ManagedPeerMessagingRuntime[]): Promise<void> {
-  for (const runtime of runtimes.reverse()) {
-    try {
-      await runtime.disconnect();
-    } catch {
-      // Best-effort cleanup for tests.
-    }
-  }
-}
-
-// Creates named peers on a private broker and always disconnects them, even when an assertion fails,
-// so a failure reports instead of hanging on open sockets.
-async function withPeers<T>(
-  names: string[],
-  fn: (peer: (name: string) => ManagedPeerMessagingRuntime) => Promise<T>,
-): Promise<T> {
-  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-"));
-  const peers: ManagedPeerMessagingRuntime[] = [];
-  try {
-    for (const name of names) {
-      peers.push(
-        await createPeerMessagingRuntime({
-          name,
-          cwd: `/repo/${name}`,
-          model: "openai/gpt-4.1",
-          runtimeDir,
-          idleShutdownMs: 250,
-        }),
-      );
-    }
-    return await fn((name) => {
-      const found = peers[names.indexOf(name)];
-      assert.ok(found, `no peer named ${name}`);
-      return found;
-    });
-  } finally {
-    await disconnectAll([...peers]);
-    await waitForBrokerShutdown(runtimeDir).catch(() => {});
-    fs.rmSync(runtimeDir, { recursive: true, force: true });
-  }
-}
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Asserts that `check` holds on every poll across `ms`: a fixed sleep could pass before the broker acts.
-async function holdsThroughout(check: () => Promise<boolean>, message: string, ms = 600) {
-  const deadline = Date.now() + ms;
-  do {
-    assert.ok(await check(), message);
-    await delay(50);
-  } while (Date.now() < deadline);
 }
 
 function replyToEverything(peer: ManagedPeerMessagingRuntime, received: PeerMessage[] = []) {

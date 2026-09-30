@@ -47,7 +47,8 @@ for (const suffix of ['mjs', 'ts']) {
     const result = await runGate(t, { suffix });
     assert.equal(result.emergency, false, `runner hung beyond file timeout:\n${result.output}`);
     assert.notEqual(result.code, 0);
-    assert.match(result.output, /^\s*ok 1 - passes but leaks a handle$/m);
+    // Node 22 reports piped output as TAP, Node 26 in the spec format.
+    assert.match(result.output, /^\s*(?:ok 1 - |✔ )passes but leaks a handle\b/m);
     assert.match(result.output, /timed out|testTimeoutFailure/);
     assert.ok(result.elapsed < 5000);
   });

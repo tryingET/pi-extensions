@@ -268,16 +268,18 @@ run_tests_target() {
   echo "tests: per-file timeout ${test_timeout_ms}ms ($(relative_target "$workdir"))"
   export_quiet_git_maintenance
 
+  local -a imports=()
   if [[ "$needs_tsx" == "true" ]]; then
     if [[ ! -x "$workdir/node_modules/.bin/tsx" ]]; then
       echo "tests: TypeScript test files detected in $(relative_target "$workdir") but local tsx binary is unavailable." >&2
       exit 1
     fi
-    (cd "$workdir" && node --import tsx --test --test-concurrency="$test_concurrency" --test-timeout="$test_timeout_ms" "${test_files[@]}")
-    return 0
+    imports=(--import tsx)
   fi
 
-  (cd "$workdir" && node --test --test-concurrency="$test_concurrency" --test-timeout="$test_timeout_ms" "${test_files[@]}")
+  # One process per file under a wall clock: Node 26 no longer bounds a file that keeps a handle
+  # open after its tests, so the timeout is enforced here as well (AK6249).
+  (cd "$workdir" && node "$REPO_ROOT/scripts/run-package-tests.mjs" --concurrency "$test_concurrency" --timeout-ms "$test_timeout_ms" "${imports[@]}" -- "${test_files[@]}")
 }
 
 should_run_structure_validation_target() {
