@@ -185,7 +185,8 @@ function pollFixture(t, terminal, absentAttempts = 0) {
     artifact: { npmIntegrity: expected.integrity, npmShasum: expected.shasum },
   }));
   return {
-    attempts: () => Number(fs.readFileSync(`${executable}.count`, "utf8")),
+    // Zero when the fake npm was stopped before it could record its first attempt.
+    attempts: () => (fs.existsSync(`${executable}.count`) ? Number(fs.readFileSync(`${executable}.count`, "utf8")) : 0),
     run: (args = []) => spawnSync(process.execPath, [SCRIPT, "wait", "--manifest", manifest, ...args], {
       encoding: "utf8", env: { ...process.env, NPM_EXECUTABLE: executable }, timeout: 10000,
     }),
@@ -255,18 +256,24 @@ test("wait CLI accepts npm 12 flattened array publication records", (t) => {
 });
 
 test("wait CLI exhausts absent deadline clearly and bounds a hung npm process", (t) => {
-  for (const terminal of ["absent", "hung"]) {
+  // Each attempt starts a Node process, which can take hundreds of milliseconds on a loaded CI
+  // runner: the absent case gets a deadline with room for several, the hung case needs only one.
+  for (const [terminal, deadline] of [["absent", 2000], ["hung", 500]]) {
     const fixture = pollFixture(t, terminal);
     const started = performance.now();
-    const result = fixture.run(["--deadline-ms", "500", "--initial-delay-ms", "20", "--max-delay-ms", "40"]);
+    const result = fixture.run(["--deadline-ms", String(deadline), "--initial-delay-ms", "20", "--max-delay-ms", "40"]);
     const elapsed = performance.now() - started;
     assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, /deadline of 500ms exceeded/u);
+    assert.match(result.stderr, new RegExp(`deadline of ${deadline}ms exceeded`, "u"));
     assert.match(result.stderr, /@tryinget\/example@1\.2\.3/u);
     assert.match(result.stderr, terminal === "absent" ? /last state: absent/u : /npm view timed out/u);
-    assert.ok(elapsed >= 500 && elapsed < 5000, `elapsed ${elapsed}ms`);
-    if (terminal === "hung") assert.equal(fixture.attempts(), 1);
-    else assert.ok(fixture.attempts() > 1);
+    assert.ok(elapsed >= deadline && elapsed < deadline + 4500, `elapsed ${elapsed}ms`);
+    // A query cut off by the deadline can be counted before the fake npm records it.
+    const reported = Number(/attempts: (\d+)/u.exec(result.stderr)?.[1]);
+    assert.ok(reported >= fixture.attempts(), `reported ${reported}, recorded ${fixture.attempts()}`);
+    // A hung query is never retried: the CLI reports one attempt, however far that npm got.
+    if (terminal === "hung") assert.equal(reported, 1);
+    else assert.ok(fixture.attempts() > 1, `retried while absent (${fixture.attempts()} attempt(s))`);
   }
 });
 
@@ -281,7 +288,7 @@ test("wait CLI rejects unsafe timing and unknown options before querying npm", (
     const result = fixture.run(args);
     assert.equal(result.status, 1, `${args}: ${result.stderr}`);
     assert.match(result.stderr, /must be|Unknown wait option/u);
-    assert.throws(fixture.attempts, /ENOENT/u);
+    assert.equal(fixture.attempts(), 0, "npm was never queried");
   }
 });
 
