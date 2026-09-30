@@ -232,6 +232,12 @@ export function composeModeSelection(
   trust: ProjectTrust,
   policy: Omit<ResolutionPolicy, "projectApprovals"> = {},
 ): { prompt: string; resolved: ResolvedModeSelection } {
+  // Checked at run time as well: a JavaScript caller that leaves trust out must not fail open.
+  if (trust !== "review" && typeof (trust as { get?: unknown } | undefined)?.get !== "function") {
+    throw new TypeError(
+      'composeModeSelection needs the confirmed project definitions (a Map) or "review"',
+    );
+  }
   const resolved = resolveModeSelection(selection, modes, {
     ...policy,
     ...(trust === "review" ? {} : { projectApprovals: trust }),

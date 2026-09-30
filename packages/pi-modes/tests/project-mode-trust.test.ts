@@ -20,10 +20,11 @@ import {
   modeDefinitionFingerprint,
   type ResolvedMode,
 } from "../src/mode-definitions.ts";
-import { MODE_STATE_TYPE } from "../src/modes.ts";
+import { composeModeSelection, MODE_STATE_TYPE } from "../src/modes.ts";
 import {
   projectApprovalDigest,
   projectConfirmationBody,
+  projectModeRecordProblem,
   readProjectModeApprovals,
   recordProjectModeApprovals,
   unconfirmedProjectModes,
@@ -69,6 +70,15 @@ test("the approval record fails closed and never silently loses entries", () => 
       '{"schemaVersion":1,"approvals":{"/gone.json":"x",}',
       "exactly the bytes that were read are kept",
     );
+    // Not UTF-8 (a UTF-16 editor, binary garbage): kept byte for byte, not as decoded text.
+    const utf16 = Buffer.from([0xff, 0xfe, 0x7b, 0x00, 0x7d, 0x00]);
+    writeFileSync(path, utf16);
+    recordProjectModeApprovals(path, [local]);
+    const saved = invalid().map((name) => readFileSync(join(agent, name)));
+    assert.ok(
+      saved.some((bytes) => bytes.equals(utf16)),
+      "non-UTF-8 content is kept exactly",
+    );
     for (const approvals of [null, [], { "/other/x.json": 5 }]) {
       writeFileSync(path, JSON.stringify({ schemaVersion: 1, approvals }));
       assert.equal(
@@ -83,15 +93,21 @@ test("the approval record fails closed and never silently loses entries", () => 
 
     const deleted = join(root, "modes", "deleted.json");
     const outOfView = "/no/such/checkout/.pi/modes/elsewhere.json";
+    // Another directory is not visited: a stat there could hang on an unreachable mount.
+    const elsewhere = join(root, "none", "gone.json");
+    mkdirSync(join(root, "none"), { recursive: true });
     writeFileSync(
       path,
-      JSON.stringify({ schemaVersion: 1, approvals: { [deleted]: "a", [outOfView]: "b" } }),
+      JSON.stringify({
+        schemaVersion: 1,
+        approvals: { [deleted]: "a", [outOfView]: "b", [elsewhere]: "c" },
+      }),
     );
     recordProjectModeApprovals(path, [local]);
     assert.deepEqual(
       new Set(readProjectModeApprovals(path).keys()),
-      new Set([local.path, outOfView]),
-      "a deleted file's entry is pruned; a file this process cannot see keeps its approval",
+      new Set([local.path, outOfView, elsewhere]),
+      "only a gone file in a directory being confirmed is pruned",
     );
 
     const newer = JSON.stringify({ schemaVersion: 2, approvals: { [local.path]: "future" } });
@@ -154,6 +170,19 @@ test("the approval record fails closed and never silently loses entries", () => 
     recordProjectModeApprovals(viaHome, [local]);
     assert.equal(readProjectModeApprovals(viaHome).size, 1, "read back through the same path");
     assert.ok(existsSync(join(root, "dotfiles", "pi", "shared", "approvals.json")));
+
+    // A `..` after a symlinked directory inside the link text goes where the kernel goes.
+    const deep = join(root, "x", "deep", "inner");
+    const agent2 = join(root, "agent2");
+    mkdirSync(deep, { recursive: true });
+    mkdirSync(agent2);
+    symlinkSync(deep, join(agent2, "sub"));
+    const viaSub = join(agent2, "mode-approvals.json");
+    symlinkSync("sub/../approvals.json", viaSub); // literal: path.join would normalize the `..` away
+    recordProjectModeApprovals(viaSub, [local]);
+    assert.equal(readProjectModeApprovals(viaSub).size, 1, "every read finds it");
+    assert.ok(existsSync(join(root, "x", "deep", "approvals.json")));
+    assert.ok(!existsSync(join(agent2, "approvals.json")), "not the lexical path");
 
     const oversized = join(root, "oversized.json");
     writeFileSync(oversized, " ".repeat(1024 * 1024 + 1));
@@ -400,7 +429,11 @@ test(
         diagnostics?: string[];
       };
       assert.match(preview.prompt ?? "", /Changed text under review\./);
-      assert.ok(preview.diagnostics?.some((line) => /changed since activation: local/.test(line)));
+      assert.ok(
+        preview.diagnostics?.some((line) =>
+          /local: definition changed since activation/.test(line),
+        ),
+      );
     } finally {
       console.log = originalLog;
       p.restore();
@@ -712,4 +745,174 @@ test("a confirmation does not cover a replacement that appeared after it", () =>
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test(
+  "a startup acknowledgement can be made permanent, and an unusable record is refused before asking",
+  harnessOptions,
+  async () => {
+    const p = project({ "local.json": modeFile("local", "Local rules.") });
+    const names = ["PI_MODE", "PI_MODES", "PI_MODE_CONFIRM_PROJECT"] as const;
+    const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+    try {
+      delete process.env.PI_MODE;
+      p.writeGlobal("mine.json", modeFile("mine", "My rules."));
+      process.env.PI_MODES = JSON.stringify({ baseKey: null, overlayKeys: ["local", "mine"] });
+      process.env.PI_MODE_CONFIRM_PROJECT = "1";
+      const h = harness(p.cwd);
+      await h.run("session_start", { reason: "startup" });
+      assert.match(await h.turnPrompt(), /Local rules\./);
+      assert.ok(!existsSync(p.approvalsPath));
+
+      // Other drift is reapproved without touching the acknowledged mode or recording it.
+      p.writeGlobal("mine.json", modeFile("mine", "My new rules."));
+      await h.command("mode-reapprove")("");
+      assert.match(await h.turnPrompt(), /My new rules\./);
+      assert.ok(!existsSync(p.approvalsPath), "the acknowledgement stays for this process only");
+
+      await h.command("mode-reapprove")("--confirm-project");
+      assert.ok(
+        readProjectModeApprovals(p.approvalsPath).has(p.mode("local").path ?? ""),
+        "the operator's confirmation is recorded, not absorbed by the acknowledgement",
+      );
+
+      // A record this version must not rewrite is found before the dialog, not after the answer.
+      writeFileSync(p.approvalsPath, JSON.stringify({ schemaVersion: 2, approvals: {} }));
+      p.write("fresh.json", modeFile("fresh", "Fresh rules."));
+      const tui = harness(p.cwd, { mode: "tui", answers: [true] });
+      await tui.command("mode")("+fresh");
+      assert.equal(tui.dialogs.length, 0, "no question whose answer cannot be kept");
+      assert.match(tui.notifications.at(-1) ?? "", /newer format; .*cannot be confirmed/);
+    } finally {
+      for (const name of names) {
+        if (saved[name] === undefined) delete process.env[name];
+        else process.env[name] = saved[name];
+      }
+      newProcess();
+      p.restore();
+    }
+  },
+);
+
+test(
+  "/mode-preview says what the model gets now, and shows what the files compose",
+  harnessOptions,
+  async () => {
+    const p = project({ "local.json": modeFile("local", "Local rules.") });
+    const output: string[] = [];
+    const originalLog = console.log;
+    console.log = (value?: unknown) => output.push(String(value));
+    const preview = async (h: ReturnType<typeof harness>) => {
+      await h.command("mode-preview")("--json");
+      return JSON.parse(output.at(-1) ?? "{}") as {
+        blocked: boolean;
+        prompt?: string;
+        diagnostics: string[];
+      };
+    };
+    try {
+      const h = harness(p.cwd);
+      await h.command("mode")("+local --confirm-project");
+      rmSync(p.approvalsPath);
+      const lost = await preview(h);
+      assert.equal(await h.turnPrompt(), "HOST");
+      assert.equal(lost.blocked, true, "not reported as in use while every turn falls back");
+      assert.match(lost.prompt ?? "", /Local rules\./, "the text is still there to read");
+      assert.ok(lost.diagnostics.some((line) => /model does not get this composition/.test(line)));
+
+      p.writeGlobal("mine.json", modeFile("mine", "My rules."));
+      await h.command("mode")("-local");
+      await h.command("mode")("+mine");
+      await h.command("mode-policy")("warn");
+      p.writeGlobal("mine.json", modeFile("mine", "My new rules."));
+      const warned = await preview(h);
+      assert.match(await h.turnPrompt(), /My new rules\./);
+      assert.equal(warned.blocked, false);
+      assert.ok(
+        warned.diagnostics.some((line) =>
+          /mine: definition changed since activation \(warn policy\)/.test(line),
+        ),
+      );
+    } finally {
+      console.log = originalLog;
+      p.restore();
+    }
+  },
+);
+
+test(
+  "a confirmation given while the file changes is not reported as active",
+  harnessOptions,
+  async () => {
+    const p = project({ "local.json": modeFile("local", "Local rules.") });
+    try {
+      const h = harness(p.cwd, {
+        mode: "tui",
+        answers: [true, true],
+        onConfirm: () => {
+          if (h.dialogs.length === 2) p.write("local.json", modeFile("local", "Swapped rules."));
+        },
+      });
+      await h.command("mode")("+local");
+      rmSync(p.approvalsPath);
+      await h.command("mode")("+local --confirm-project");
+      assert.match(h.notifications.at(-1) ?? "", /changed after confirmation/);
+      assert.notEqual(
+        readProjectModeApprovals(p.approvalsPath).get(p.mode("local").path ?? ""),
+        projectApprovalDigest(p.mode("local")),
+        "the swapped text is not recorded as confirmed",
+      );
+    } finally {
+      p.restore();
+    }
+  },
+);
+
+test("an unusable record is found before any question, and any map of approvals is accepted", () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-modes-problem-"));
+  try {
+    mkdirSync(join(root, "agent"));
+    const viaMissing = join(root, "agent", "mode-approvals.json");
+    symlinkSync("missing/../approvals.json", viaMissing);
+    assert.match(projectModeRecordProblem(viaMissing) ?? "", /leaves the missing directory/);
+    if (process.getuid?.() !== 0) {
+      const locked = join(root, "locked");
+      mkdirSync(locked);
+      chmodSync(locked, 0o555);
+      try {
+        assert.match(projectModeRecordProblem(join(locked, "mode-approvals.json")) ?? "", /EACCES/);
+      } finally {
+        chmodSync(locked, 0o755);
+      }
+    }
+    const readonlyApprovals: ReadonlyMap<string, string> = {
+      get: () => undefined,
+      has: () => false,
+    } as unknown as ReadonlyMap<string, string>;
+    assert.doesNotThrow(() =>
+      composeModeSelection(
+        { baseKey: null, overlayKeys: [] },
+        [],
+        { cwd: "/", selectedTools: [] },
+        "HOST",
+        readonlyApprovals,
+      ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("composition refuses a missing trust decision at run time", () => {
+  assert.throws(
+    () =>
+      // @ts-expect-error A JavaScript caller can leave the trust argument out.
+      composeModeSelection(
+        { baseKey: null, overlayKeys: [] },
+        [],
+        { cwd: "/", selectedTools: [] },
+        "HOST",
+      ),
+    /needs the confirmed project definitions/,
+  );
 });

@@ -4,14 +4,16 @@ import {
   confirmProjectModes,
   createConfirmActivation,
   type ProjectApprovalStore,
+  projectApprovalsToAsk,
 } from "./mode-activation-gate.ts";
 import { registerModeAuthoringCommands } from "./mode-authoring-commands.ts";
-import { compactCompositionSummary, createCompositionReport } from "./mode-observability.ts";
+import { compactCompositionSummary } from "./mode-observability.ts";
 import { handlePresetCommand } from "./mode-preset-commands.ts";
 import type { LoadedModePresets } from "./mode-presets.ts";
+import { registerModePreviewCommand } from "./mode-preview-command.ts";
+import { approvalsFor, reportFor, writeMachineOutput } from "./mode-reports.ts";
 import { selectModeComposition } from "./mode-selector.ts";
 import {
-  composeModeSelection,
   type DefinitionFingerprints,
   type DriftPolicy,
   formatDiagnostic,
@@ -20,7 +22,6 @@ import {
   type ModeSelection,
   type ModeStateV3,
   modeSelectionsEqual,
-  type ProjectTrust,
   resolutionPolicy,
   resolveModeSelection,
   selectedKeys,
@@ -34,7 +35,6 @@ import {
   selectionDefinitionFingerprint,
   selectionLabel,
 } from "./selection-commands.ts";
-import { inertJson, revealHidden } from "./untrusted-text.ts";
 
 export const MODE_STATUS_ENTRY_TYPE = "pi-mode-status.v3";
 
@@ -81,39 +81,6 @@ export interface ModeCommandServices extends ProjectApprovalStore {
 function reportError(ctx: ExtensionCommandContext, message: string): void {
   if (ctx.mode === "tui") ctx.ui.notify(message, "error");
   else throw new Error(message);
-}
-
-function reportFor(
-  ctx: ExtensionCommandContext,
-  selection: ModeSelection,
-  state: ModeStateV3 | undefined,
-  modes: LoadedModes["modes"],
-  includePrompt: boolean,
-  // Status passes the confirmed project definitions so it reports what a turn really composes;
-  // previews pass "review", because reading an unconfirmed prompt is how it gets reviewed.
-  trust: ProjectTrust,
-) {
-  const hostPrompt = ctx.getSystemPrompt();
-  const composed = composeModeSelection(
-    selection,
-    modes,
-    ctx.getSystemPromptOptions(),
-    hostPrompt,
-    trust,
-    resolutionPolicy(state),
-  );
-  return createCompositionReport({
-    selection,
-    resolved: composed.resolved,
-    prompt: composed.prompt,
-    hostPrompt,
-    ...(state ? { state } : {}),
-    includePrompt,
-  });
-}
-
-function writeMachineOutput(value: unknown): void {
-  console.log(inertJson(value));
 }
 
 export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServices): void {
@@ -235,13 +202,25 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
             { expectedDefinitionFingerprint: confirmedFingerprint },
           );
         } else {
-          // --confirm-project may just have recorded a confirmation for the active selection.
+          // --confirm-project may just have recorded a confirmation for the active selection; the
+          // files may also have changed while its dialog was open.
+          const fresh = services.currentModes(ctx);
           services.updateStatus(ctx);
+          if (
+            confirmedFingerprint !== selectionDefinitionFingerprint(parsed.selection, fresh.modes)
+          ) {
+            throw new Error(
+              "Mode definitions changed after confirmation; preview and confirm the selection again",
+            );
+          }
           if (ctx.mode !== "tui") return;
           const now = resolveModeSelection(
             replayed.selection,
-            loaded.modes,
-            resolutionPolicy(replayed.state, services.projectModeApprovals(loaded.modes)),
+            fresh.modes,
+            resolutionPolicy(
+              replayed.state,
+              approvalsFor(services, replayed.selection, fresh.modes),
+            ),
           );
           ctx.ui.notify(
             now.blocked
@@ -287,11 +266,12 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
           replayed.selection,
           loaded.modes,
         );
-        // Reapproval is where an active project mode whose file changed gets confirmed.
+        // Reapproval is where an active project mode whose file changed gets confirmed; with
+        // --confirm-project it also makes a startup acknowledgement permanent.
         const unconfirmed = unconfirmedProjectModes(
           selectedKeys(replayed.selection),
           loaded.modes,
-          services.projectModeApprovals(loaded.modes),
+          projectApprovalsToAsk(services, loaded.modes, flags.project),
         );
         const { driftedKeys } = resolveModeSelection(
           replayed.selection,
@@ -305,7 +285,7 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
             : []),
         ]);
         const unshownDrift = driftedKeys.filter((key) => !shown.has(key));
-        if (!(await confirmProjectModes(ctx, unconfirmed, flags.project))) return;
+        if (!(await confirmProjectModes(ctx, services, unconfirmed, flags.project))) return;
         if (
           !(await confirmExact(
             ctx,
@@ -380,7 +360,7 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
         replayed.state,
         loaded.modes,
         false,
-        services.projectModeApprovals(loaded.modes),
+        approvalsFor(services, replayed.selection, loaded.modes),
       );
       const diagnostics = [
         ...loaded.diagnostics.map((item) => `${item.path}: ${item.message}`),
@@ -412,70 +392,6 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
     },
   });
 
-  pi.registerCommand("mode-preview", {
-    description: "Preview prompt composition; use --json for machine-readable output",
-    handler: async (args, ctx) => {
-      try {
-        const loaded = services.currentModes(ctx);
-        const replayed = services.replay(ctx, loaded.modes);
-        const tokens = args.trim().split(/\s+/).filter(Boolean);
-        const json = tokens.includes("--json") || ctx.mode !== "tui";
-        const selectionArgs = tokens.filter((token) => token !== "--json").join(" ");
-        const parsed = selectionArgs
-          ? parseDirectSelection(selectionArgs, loaded.modes, replayed.selection)
-          : { selection: replayed.selection };
-        if (!parsed.selection) throw new Error(parsed.error ?? "Invalid preview selection");
-        const state = modeSelectionsEqual(parsed.selection, replayed.selection)
-          ? replayed.state
-          : undefined;
-        // The current definitions, as activating or reapproving them would compose: drift is
-        // reported, not applied, so a changed or unconfirmed prompt can be read before accepting it.
-        const composed = reportFor(ctx, parsed.selection, undefined, loaded.modes, true, "review");
-        const { driftedKeys } = resolveModeSelection(
-          parsed.selection,
-          loaded.modes,
-          resolutionPolicy(state),
-        );
-        const report = {
-          ...composed,
-          ...(state
-            ? {
-                activation: {
-                  source: state.source,
-                  activatedAt: state.activatedAt,
-                  driftPolicy: state.driftPolicy,
-                },
-              }
-            : {}),
-          ...(driftedKeys.length > 0
-            ? {
-                driftedKeys,
-                diagnostics: [
-                  ...composed.diagnostics,
-                  `changed since activation: ${driftedKeys.join(", ")}; shown as the files are now, which the active composition uses only once reapproved`,
-                ],
-              }
-            : {}),
-        };
-        if (json) writeMachineOutput(report);
-        else {
-          // Diagnostics name what changed or is waiting for confirmation; their paths are safe.
-          ctx.ui.notify(
-            [compactCompositionSummary(report), ...report.diagnostics].join("\n"),
-            report.blocked || report.diagnostics.length > 0 ? "warning" : "info",
-          );
-          // Repository text, shown inertly: escape sequences and invisible characters spelled out.
-          const hidden = report.composition.hiddenCharacters;
-          await ctx.ui.editor(
-            `Preview: ${selectionLabel(report.effective)}${hidden > 0 ? ` · ${hidden} hidden character${hidden === 1 ? "" : "s"} in the whole prompt, shown as ⟨U+…⟩ or ⟨tags "…"⟩` : ""}`,
-            revealHidden(report.prompt ?? ""),
-          );
-        }
-      } catch (error) {
-        reportError(ctx, error instanceof Error ? error.message : String(error));
-      }
-    },
-  });
-
+  registerModePreviewCommand(pi, services);
   registerModeAuthoringCommands(pi, services);
 }

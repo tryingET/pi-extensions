@@ -5,6 +5,8 @@ read_when:
 */
 import { createHash, randomUUID } from "node:crypto";
 import {
+  accessSync,
+  constants,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -16,7 +18,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { modeDefinitionFingerprint, type ResolvedMode } from "./mode-definitions.ts";
 import { countHiddenCharacters, displaySafe } from "./untrusted-text.ts";
 
@@ -39,8 +41,8 @@ interface ApprovalsFile {
 type ApprovalsRead =
   | { state: "ok"; approvals: Map<string, string> }
   | { state: "missing" | "newer"; approvals: Map<string, string> }
-  // Malformed content, kept so it can be saved aside before the record is rewritten.
-  | { state: "invalid"; approvals: Map<string, string>; text: string }
+  // Malformed content, kept byte for byte so it can be saved aside before the record is rewritten.
+  | { state: "invalid"; approvals: Map<string, string>; bytes: Buffer }
   // Not safe to rewrite: an I/O error, not a regular file, or larger than any record we write.
   | { state: "unreadable"; approvals: Map<string, string>; reason: string };
 
@@ -48,24 +50,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 function readApprovalsFile(path: string): ApprovalsRead {
-  let text: string;
+  let bytes: Buffer;
   try {
     const stat = statSync(path);
     if (!stat.isFile()) return { state: "unreadable", approvals: new Map(), reason: "not a file" };
     if (stat.size > MAX_APPROVALS_BYTES) {
       return { state: "unreadable", approvals: new Map(), reason: "larger than 1 MiB" };
     }
-    text = readFileSync(path, "utf8");
+    bytes = readFileSync(path);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return code === "ENOENT"
       ? { state: "missing", approvals: new Map() }
       : { state: "unreadable", approvals: new Map(), reason: code ?? String(error) };
   }
-  const invalid = { state: "invalid" as const, approvals: new Map<string, string>(), text };
+  const invalid = { state: "invalid" as const, approvals: new Map<string, string>(), bytes };
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(bytes.toString("utf8"));
   } catch {
     return invalid;
   }
@@ -115,28 +117,52 @@ export function isProjectModeApproved(
   );
 }
 
+/**
+ * Resolves `link` from the real directory `base` one component at a time, the way the kernel does:
+ * each existing prefix through the OS realpath, then `..` from that real directory. A lexical
+ * resolve would send a `..` after a symlinked directory somewhere no read of the record looks.
+ */
+function followLink(base: string, link: string): string {
+  let current = base;
+  let missing: string | undefined;
+  for (const part of link.split("/")) {
+    if (part === "" || part === ".") continue;
+    // A missing directory is created on write, but `..` out of one cannot be resolved by the kernel
+    // (or by any read of the record) until then, and would point somewhere else once it exists.
+    if (missing && part === "..") {
+      throw new Error(`the record link ${link} leaves the missing directory ${missing}`);
+    }
+    if (part === "..") {
+      current = dirname(current);
+      continue;
+    }
+    const next = join(current, part);
+    try {
+      current = realpathSync.native(next);
+    } catch {
+      // Not there yet: writing creates it.
+      current = next;
+      missing = next;
+    }
+  }
+  return current;
+}
+
 /** The file a record path really names: symlinks (dotfiles) are written through, even dangling. */
 function recordTarget(path: string): string {
   let target = path;
   for (let hop = 0; hop < MAX_SYMLINK_HOPS; hop += 1) {
+    let link: string;
     try {
       if (!lstatSync(target).isSymbolicLink()) return target;
-      // Relative to the link's real directory, as the kernel resolves it (`..` included).
-      target = resolve(realpathSync(dirname(target)), readlinkSync(target));
+      link = readlinkSync(target);
     } catch {
       // Missing: this path is the target.
       return target;
     }
+    target = followLink(isAbsolute(link) ? "/" : realpathSync.native(dirname(target)), link);
   }
   throw new Error(`${path}: too many levels of symbolic links`);
-}
-
-/**
- * An entry is dropped only when its directory is visible and the file is gone. A file that is merely
- * out of view (another checkout, a sandbox, an unmounted volume) keeps its approval.
- */
-function deleted(file: string): boolean {
-  return !existsSync(file) && existsSync(dirname(file));
 }
 
 function serialize(approvals: ReadonlyMap<string, string>): string {
@@ -149,7 +175,7 @@ function serialize(approvals: ReadonlyMap<string, string>): string {
 
 /**
  * Keeps the record within MAX_APPROVALS entries and MAX_APPROVALS_BYTES by forgetting the least
- * recently confirmed files, those out of view first; a forgotten file is only asked about again.
+ * recently confirmed files; a forgotten file is only asked about again.
  */
 function bounded(approvals: Map<string, string>, keep: ReadonlySet<string>): string {
   let text = serialize(approvals);
@@ -158,12 +184,9 @@ function bounded(approvals: Map<string, string>, keep: ReadonlySet<string>): str
   if (fits()) return text;
   const entryBytes = (file: string) =>
     Buffer.byteLength(`    ${JSON.stringify(file)}: ${JSON.stringify(approvals.get(file))},\n`);
-  const candidates = [...approvals.keys()].filter((file) => !keep.has(file));
-  const visible = new Set(candidates.filter((file) => existsSync(file)));
-  const order = [
-    ...candidates.filter((file) => !visible.has(file)),
-    ...candidates.filter((file) => visible.has(file)),
-  ];
+  // Least recently confirmed first, without looking at the files: a stat on an unreachable mount
+  // could hang every confirmation once the record is full.
+  const order = [...approvals.keys()].filter((file) => !keep.has(file));
   let estimate = exact;
   for (const file of order) {
     if (fits()) break;
@@ -182,6 +205,31 @@ function bounded(approvals: Map<string, string>, keep: ReadonlySet<string>): str
   return text;
 }
 
+function recordProblem(target: string, current: ApprovalsRead): string | undefined {
+  if (current.state === "newer") {
+    return `${target} uses a newer format; update pi-modes before confirming project modes`;
+  }
+  if (current.state === "unreadable") return `Cannot use ${target} (${current.reason})`;
+  return undefined;
+}
+
+/** Why a confirmation could not be recorded now: checked before the operator is asked. */
+export function projectModeRecordProblem(path: string): string | undefined {
+  try {
+    const target = recordTarget(path);
+    const problem = recordProblem(target, readApprovalsFile(target));
+    if (problem) return problem;
+    // The nearest existing directory must be writable (a read-only sandbox or file system is not).
+    let directory = dirname(target);
+    while (!existsSync(directory) && dirname(directory) !== directory)
+      directory = dirname(directory);
+    accessSync(directory, constants.W_OK);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 /**
  * Records the current definitions of `modes` as confirmed, replacing older digests for their files.
  * The write is atomic; if another session's write replaced ours, it merges and writes again. A
@@ -197,22 +245,22 @@ export function recordProjectModeApprovals(path: string, modes: readonly Resolve
   mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
   for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt += 1) {
     const current = readApprovalsFile(target);
-    if (current.state === "newer") {
-      throw new Error(
-        `${target} uses a newer format; update pi-modes before confirming project modes`,
-      );
-    }
-    if (current.state === "unreadable") {
-      throw new Error(`Cannot use ${target} (${current.reason}); nothing was recorded`);
-    }
+    const problem = recordProblem(target, current);
+    if (problem) throw new Error(`${problem}; nothing was recorded`);
     if (current.state === "invalid") {
       // Saves the malformed bytes we read, never whatever another session has written since.
-      writeFileSync(`${target}.invalid-${Date.now()}-${randomUUID().slice(0, 8)}`, current.text, {
+      writeFileSync(`${target}.invalid-${Date.now()}-${randomUUID().slice(0, 8)}`, current.bytes, {
         flag: "wx",
         mode: 0o600,
       });
     }
-    const approvals = new Map([...current.approvals].filter(([file]) => !deleted(file)));
+    // Drops entries whose file is gone from a directory being confirmed now (a renamed or deleted
+    // mode). Other directories are not visited: a stat on an unreachable mount can hang, and an entry
+    // out of view (another checkout, a sandbox) keeps its approval until the bound forgets it.
+    const touched = new Set(confirmed.map(([file]) => dirname(file)));
+    const approvals = new Map(
+      [...current.approvals].filter(([file]) => !touched.has(dirname(file)) || existsSync(file)),
+    );
     // Most recent last, so the bound forgets the oldest confirmations first.
     for (const [file, digest] of confirmed) {
       approvals.delete(file);
@@ -226,7 +274,8 @@ export function recordProjectModeApprovals(path: string, modes: readonly Resolve
     } finally {
       rmSync(temporary, { force: true });
     }
-    const written = readProjectModeApprovals(target);
+    // Read back through the configured path, as every later read does.
+    const written = readProjectModeApprovals(path);
     if (confirmed.every(([file, digest]) => written.get(file) === digest)) return;
   }
   throw new Error(`Could not record the confirmation in ${target}; try again`);
@@ -244,6 +293,37 @@ export function unconfirmedProjectModes(
     .filter((mode) => !isProjectModeApproved(mode, approvals));
 }
 
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/**
+ * The start of a prompt for the dialog, at most EXCERPT_CHARS code points. Visible spacing is
+ * collapsed so no run of spaces can fill it, and only that spacing is trimmed, so a hidden character
+ * at either end is still marked. Whole graphemes are kept, so no emoji or marker is split; one that
+ * would not fit ends the excerpt, and a single oversized grapheme is cut.
+ */
+function promptExcerpt(prompt: string): { excerpt: string; shown: number; total: number } {
+  const text = prompt
+    .replace(/\r\n/g, "\n")
+    .replace(/[\t\n\p{Zs}]+/gu, " ")
+    .replace(/^ | $/g, "");
+  const total = [...text].length;
+  let kept = "";
+  let shown = 0;
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    const size = [...segment].length;
+    if (shown + size > EXCERPT_CHARS) {
+      if (shown === 0) {
+        kept = [...segment].slice(0, EXCERPT_CHARS).join("");
+        shown = EXCERPT_CHARS;
+      }
+      break;
+    }
+    kept += segment;
+    shown += size;
+  }
+  return { excerpt: displaySafe(kept), shown, total };
+}
+
 const EFFECT: Record<ResolvedMode["promptStrategy"], string> = {
   append: "adds its text to the system prompt",
   replace_base: "replaces the base system prompt",
@@ -259,9 +339,10 @@ export function describeReplacement(mode: ResolvedMode): string {
   return `replaces the ${mode.shadows} "${mode.key}" mode`;
 }
 
-// The label reaches the model too, as the heading of the mode's prompt text.
+// An overlay's label reaches the model too, as the heading of its prompt text; a base's does not.
 function hiddenWarning(mode: ResolvedMode): string {
-  const hidden = countHiddenCharacters(mode.label) + countHiddenCharacters(mode.systemPrompt);
+  const label = mode.promptStrategy === "append" ? countHiddenCharacters(mode.label) : 0;
+  const hidden = label + countHiddenCharacters(mode.systemPrompt);
   return hidden > 0 ? `${hidden} hidden character${hidden === 1 ? "" : "s"} the model reads` : "";
 }
 
@@ -275,16 +356,19 @@ export function projectConfirmationTitle(modes: readonly ResolvedMode[]): string
 export function projectConfirmationBody(modes: readonly ResolvedMode[]): string {
   const lines = modes.map((mode) => {
     const digest = modeDefinitionFingerprint(mode).digest.slice(0, 12);
-    // Cut by code points before marking, so neither a surrogate pair nor a marker is split.
-    const characters = [...mode.systemPrompt.replace(/[\t\n\r ]+/g, " ").trim()];
-    const cut = characters.length > EXCERPT_CHARS;
-    const excerpt = displaySafe(characters.slice(0, EXCERPT_CHARS).join(""));
+    const { excerpt, shown, total } = promptExcerpt(mode.systemPrompt);
     const replaces = describeReplacement(mode);
     const hidden = hiddenWarning(mode);
+    const labelOnly = mode.promptStrategy === "append" ? 0 : countHiddenCharacters(mode.label);
     return [
       `${mode.key} ("${displaySafe(mode.label)}") ${EFFECT[mode.promptStrategy]}; from ${mode.path ? displaySafe(mode.path) : "an unknown file"} (definition ${digest}).${replaces ? ` It ${replaces}.` : ""}`,
-      `  Prompt, ${cut ? `first ${EXCERPT_CHARS} of ${characters.length}` : characters.length} characters: "${excerpt}${cut ? "…" : ""}"`,
+      `  Prompt, ${shown < total ? `first ${shown} of ${total}` : total} characters: "${excerpt}${shown < total ? "…" : ""}"`,
       ...(hidden ? [`  Warning: it contains ${hidden}, marked ⟨n hidden⟩ where shown above.`] : []),
+      ...(labelOnly
+        ? [
+            `  Its label has ${labelOnly} hidden character${labelOnly === 1 ? "" : "s"}; a base mode's label is not sent to the model.`,
+          ]
+        : []),
     ].join("\n");
   });
   return [

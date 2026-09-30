@@ -18,8 +18,14 @@ import { displaySafe } from "./untrusted-text.ts";
 
 /** Exact project mode definitions the operator confirmed (path -> digest), and recording new ones. */
 export interface ProjectApprovalStore {
-  // `modes` are the definitions being evaluated: startup acknowledgements count only where they match.
+  // What composition may use: recorded confirmations plus this process's startup acknowledgements
+  // that still match `modes`, the definitions being evaluated.
   projectModeApprovals(modes: readonly ResolvedMode[]): ReadonlyMap<string, string>;
+  // Recorded confirmations only: with --confirm-project, what is asked about and recorded, so a
+  // startup acknowledgement can be made permanent.
+  recordedProjectModeApprovals(): ReadonlyMap<string, string>;
+  // Why nothing could be recorded now (unreadable, oversized or newer record), or undefined.
+  projectModeRecordProblem(): string | undefined;
   recordProjectModeApprovals(modes: readonly ResolvedMode[]): void;
 }
 
@@ -62,10 +68,14 @@ export async function confirmExact(
 // definition is used only once the operator confirmed it.
 export async function confirmProjectModes(
   ctx: ExtensionCommandContext,
+  store: ProjectApprovalStore,
   unconfirmed: readonly ResolvedMode[],
   acknowledged: boolean,
 ): Promise<boolean> {
   if (unconfirmed.length === 0) return true;
+  // Refused before the question: an answer that cannot be recorded would only be asked again.
+  const problem = store.projectModeRecordProblem();
+  if (problem) throw new Error(`${problem}; project modes cannot be confirmed`);
   if (ctx.mode === "tui") {
     return ctx.ui.confirm(
       projectConfirmationTitle(unconfirmed),
@@ -74,6 +84,19 @@ export async function confirmProjectModes(
   }
   if (acknowledged) return true;
   throw new Error(projectConfirmationError(unconfirmed, "--confirm-project"));
+}
+
+/**
+ * What an activation or reapproval asks about. Without --confirm-project, anything confirmed for this
+ * process (recorded, or acknowledged at startup) is not asked again; with it, every project mode not
+ * yet recorded is confirmed and recorded, which is how a startup acknowledgement becomes permanent.
+ */
+export function projectApprovalsToAsk(
+  store: ProjectApprovalStore,
+  modes: readonly ResolvedMode[],
+  explicit: boolean,
+): ReadonlyMap<string, string> {
+  return explicit ? store.recordedProjectModeApprovals() : store.projectModeApprovals(modes);
 }
 
 /**
@@ -88,9 +111,9 @@ export function createConfirmActivation(services: ProjectApprovalStore): Confirm
     const unconfirmed = unconfirmedProjectModes(
       selectedKeys(next).filter((key) => flags.project || !active.has(key)),
       modes,
-      services.projectModeApprovals(modes),
+      projectApprovalsToAsk(services, modes, flags.project),
     );
-    if (!(await confirmProjectModes(ctx, unconfirmed, flags.project))) return false;
+    if (!(await confirmProjectModes(ctx, services, unconfirmed, flags.project))) return false;
     if (!(await confirmExact(ctx, current, next, modes, flags.exact, approvedFingerprints))) {
       return false;
     }

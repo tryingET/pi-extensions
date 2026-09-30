@@ -39,6 +39,7 @@ import {
   describeProjectModes,
   PROJECT_MODE_APPROVALS_FILE,
   projectApprovalDigest,
+  projectModeRecordProblem,
   readProjectModeApprovals,
   recordProjectModeApprovals,
   unconfirmedProjectModes,
@@ -142,6 +143,14 @@ export default function modeExtension(pi: ExtensionAPI) {
     return loaded;
   }
 
+  // The record is read only when it can matter: a selected mode is project-scoped.
+  function approvalsFor(selection: ModeSelection, modes: readonly ResolvedMode[]) {
+    const project = selectedKeys(selection).some(
+      (key) => modes.find((mode) => mode.key === key)?.scope === "project",
+    );
+    return project ? projectApprovals(modes) : new Map<string, string>();
+  }
+
   function replay(ctx: AnyContext, modes = currentModes(ctx).modes) {
     return selectionFromEntries(ctx.sessionManager.getBranch(), modes);
   }
@@ -166,7 +175,10 @@ export default function modeExtension(pi: ExtensionAPI) {
     const resolved = resolveModeSelection(
       replayed.selection,
       loaded.modes,
-      resolutionPolicy(replayed.state, known.approvals ?? projectApprovals(loaded.modes)),
+      resolutionPolicy(
+        replayed.state,
+        known.approvals ?? approvalsFor(replayed.selection, loaded.modes),
+      ),
     );
     const effective: ModeSelection = {
       baseKey: resolved.base?.key ?? null,
@@ -213,7 +225,7 @@ export default function modeExtension(pi: ExtensionAPI) {
     });
     pi.appendEntry(MODE_STATE_TYPE_V3, state);
     activeSelection = cloneModeSelection(selection);
-    const approvals = projectApprovals(loaded.modes);
+    const approvals = approvalsFor(selection, loaded.modes);
     updateStatus(ctx, { loaded, approvals });
     if (!ctx.hasUI) return;
     const done = message ?? `Prompt modes activated: ${selectionLabel(selection)}`;
@@ -285,6 +297,8 @@ export default function modeExtension(pi: ExtensionAPI) {
     cachedModes: () => cachedModes,
     activeSelection: () => cloneModeSelection(activeSelection),
     projectModeApprovals: (modes) => projectApprovals(modes),
+    recordedProjectModeApprovals: () => readProjectModeApprovals(approvalsPath()),
+    projectModeRecordProblem: () => projectModeRecordProblem(approvalsPath()),
     recordProjectModeApprovals: (modes) => recordProjectModeApprovals(approvalsPath(), modes),
   };
   registerModeCommands(pi, services);
@@ -385,10 +399,7 @@ export default function modeExtension(pi: ExtensionAPI) {
     // Enforced here, where prompt text reaches the model: activation commands only record
     // confirmations, so no path (drift policy, migration, resume, older sessions) bypasses it. The
     // record is read only when a selected mode is project-scoped.
-    const projectSelected = selectedKeys(replayed.selection).some(
-      (key) => loaded.modes.find((mode) => mode.key === key)?.scope === "project",
-    );
-    const approvals = projectSelected ? projectApprovals(loaded.modes) : new Map<string, string>();
+    const approvals = approvalsFor(replayed.selection, loaded.modes);
     activeSelection = replayed.selection;
     updateStatus(ctx, { loaded, replayed, approvals });
     const composed = composeModeSelection(
