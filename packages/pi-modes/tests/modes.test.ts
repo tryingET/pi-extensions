@@ -398,6 +398,7 @@ test("composes one replace_base with flat ordered append overlays", () => {
     compositionModes,
     promptOptions,
     "HOST PROMPT",
+    new Map(),
   );
   assert.match(result.prompt, /^BUILDER BASE/);
   assert.doesNotMatch(result.prompt, /HOST PROMPT/);
@@ -413,6 +414,7 @@ test("native base supports ordered overlays without rebuilding host context", ()
     compositionModes,
     promptOptions,
     "HOST PROMPT",
+    new Map(),
   );
   assert.match(result.prompt, /^HOST PROMPT/);
   assert.ok(result.prompt.indexOf("Explain More") < result.prompt.indexOf("Review"));
@@ -424,6 +426,7 @@ test("replace_final remains exact and omits malformed overlays", () => {
     compositionModes,
     promptOptions,
     "HOST PROMPT",
+    new Map(),
   );
   assert.equal(result.prompt, "EXACT FINAL");
   assert.equal(result.resolved.overlays.length, 0);

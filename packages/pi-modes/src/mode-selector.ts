@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { MODE_SELECTION_MAX_OVERLAYS, type ModeSelection, type ResolvedMode } from "./modes.ts";
+import { displaySafe } from "./project-mode-approvals.ts";
 
 const MAX_VISIBLE_SELECTOR_ROWS = 18;
 
@@ -70,13 +71,13 @@ export async function selectModeComposition(
         ...bases.filter(matchesFilter).map((mode) => ({
           kind: "base" as const,
           key: mode.key,
-          label: `${mode.label} [${mode.promptStrategy}/${mode.scope}]`,
+          label: `${displaySafe(mode.label)} [${mode.promptStrategy}/${mode.scope}]`,
         })),
       ];
       const overlayRows: SelectorRow[] = overlays.filter(matchesFilter).map((mode) => ({
         kind: "overlay" as const,
         key: mode.key,
-        label: `${mode.label} [append/${mode.scope}]`,
+        label: `${displaySafe(mode.label)} [append/${mode.scope}]`,
       }));
       return [
         ...baseRows,
@@ -266,9 +267,17 @@ export async function selectModeComposition(
       add(theme.fg("muted", "Details / live composition diff"));
       if (selectedMode) {
         add(
-          theme.fg("text", `${selectedMode.key}: ${selectedMode.description ?? "No description"}`),
+          theme.fg(
+            "text",
+            `${selectedMode.key}: ${selectedMode.description ? displaySafe(selectedMode.description) : "No description"}`,
+          ),
         );
-        add(theme.fg("dim", `source: ${selectedMode.path ?? "built-in"}`));
+        add(
+          theme.fg(
+            "dim",
+            `source: ${selectedMode.path ? displaySafe(selectedMode.path) : "built-in"}`,
+          ),
+        );
         const contracts = [
           selectedMode.requires?.length ? `requires=${selectedMode.requires.join(",")}` : "",
           selectedMode.conflictsWith?.length

@@ -4,6 +4,7 @@ import {
   type DriftPolicy,
   type ModeDefinition,
   type ModeSelection,
+  type ModeStateV3,
   modeDefinitionFingerprint,
   normalizeModeSelection,
   type ResolvedMode,
@@ -11,6 +12,7 @@ import {
   type SelectionDiagnostic,
   selectedKeys,
 } from "./modes.ts";
+import { displaySafe, isProjectModeApproved } from "./project-mode-approvals.ts";
 
 export const PI_HOST_COMPATIBILITY = ">=0.84.2 <0.85.0";
 
@@ -30,6 +32,29 @@ export function composeModePrompt(
 export interface ResolutionPolicy {
   fingerprints?: DefinitionFingerprints;
   driftPolicy?: DriftPolicy;
+  // When given, a project mode whose exact definition was not confirmed blocks the resolution under
+  // every drift policy (AK6201). The status bar and activation messages pass it, so they say what the
+  // model gets. Structural checks (persisting, reapproval, policy, presets, the selector's starting
+  // selection) leave it out: trust is confirmed separately and must not stall edits.
+  projectApprovals?: ReadonlyMap<string, string>;
+}
+
+/**
+ * Which project definitions a composition may use: the confirmed ones, or "review" for text shown to
+ * the operator (previews) and never sent to the model. Required, so no caller composes unconfirmed
+ * text by leaving it out.
+ */
+export type ProjectTrust = ReadonlyMap<string, string> | "review";
+
+/** The recorded drift state of a selection, plus confirmed project definitions when given. */
+export function resolutionPolicy(
+  state: Pick<ModeStateV3, "fingerprints" | "driftPolicy"> | undefined,
+  projectApprovals?: ReadonlyMap<string, string>,
+): ResolutionPolicy {
+  return {
+    ...(state ? { fingerprints: state.fingerprints, driftPolicy: state.driftPolicy } : {}),
+    ...(projectApprovals ? { projectApprovals } : {}),
+  };
 }
 
 export function resolveModeSelection(
@@ -111,6 +136,20 @@ export function resolveModeSelection(
       }
     }
   }
+  const approvals = policy.projectApprovals;
+  const unconfirmed = approvals
+    ? components.filter((mode) => !isProjectModeApproved(mode, approvals))
+    : [];
+  if (unconfirmed.length > 0) {
+    for (const mode of unconfirmed) {
+      diagnostics.push({
+        key: mode.key,
+        message: `project mode from ${mode.path ? displaySafe(mode.path) : "an unknown file"} is not confirmed; review it with /mode-preview, then confirm it with /mode-reapprove (--confirm-project headless)`,
+      });
+    }
+    diagnostics.push({ message: "composition blocked until its project modes are confirmed" });
+    return { overlays: [], diagnostics, driftedKeys, blocked: true };
+  }
   if (base?.promptStrategy === "replace_final" && driftedKeys.includes(base.key)) {
     diagnostics.push({
       key: base.key,
@@ -189,9 +228,13 @@ export function composeModeSelection(
   modes: readonly ResolvedMode[],
   options: BuildSystemPromptOptions,
   assembledPrompt: string,
-  policy: ResolutionPolicy = {},
+  trust: ProjectTrust,
+  policy: Omit<ResolutionPolicy, "projectApprovals"> = {},
 ): { prompt: string; resolved: ResolvedModeSelection } {
-  const resolved = resolveModeSelection(selection, modes, policy);
+  const resolved = resolveModeSelection(selection, modes, {
+    ...policy,
+    ...(trust === "review" ? {} : { projectApprovals: trust }),
+  });
   if (resolved.blocked) return { prompt: assembledPrompt, resolved };
   let prompt = assembledPrompt;
   if (resolved.base?.promptStrategy === "replace_base") {

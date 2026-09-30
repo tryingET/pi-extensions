@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ConfirmActivation } from "./mode-activation-gate.ts";
 import { parseScopedArguments } from "./mode-authoring.ts";
 import type { ModeCommandServices } from "./mode-command-handlers.ts";
 import {
@@ -13,21 +14,11 @@ import {
 } from "./mode-presets.ts";
 import {
   cloneModeSelection,
-  type DefinitionFingerprints,
-  type LoadedModes,
-  type ModeSelection,
+  formatDiagnostics,
+  resolutionPolicy,
   resolveModeSelection,
 } from "./modes.ts";
-import { selectionDefinitionFingerprint } from "./selection-commands.ts";
-
-export type ConfirmExact = (
-  ctx: ExtensionCommandContext,
-  current: ModeSelection,
-  next: ModeSelection,
-  modes: LoadedModes["modes"],
-  explicit: boolean,
-  approvedFingerprints?: DefinitionFingerprints,
-) => Promise<boolean>;
+import { parseActivationFlags, selectionDefinitionFingerprint } from "./selection-commands.ts";
 
 function writeMachineOutput(value: unknown): void {
   console.log(JSON.stringify(value));
@@ -38,7 +29,7 @@ export async function handlePresetCommand(
   rest: string,
   ctx: ExtensionCommandContext,
   services: ModeCommandServices,
-  confirmExact: ConfirmExact,
+  confirmActivation: ConfirmActivation,
 ): Promise<boolean> {
   if (!["save", "use", "export", "import", "presets"].includes(operation)) return false;
   const loaded = services.currentModes(ctx);
@@ -72,13 +63,11 @@ export async function handlePresetCommand(
     const resolution = resolveModeSelection(
       replayed.selection,
       loaded.modes,
-      replayed.state
-        ? { fingerprints: replayed.state.fingerprints, driftPolicy: replayed.state.driftPolicy }
-        : {},
+      resolutionPolicy(replayed.state),
     );
     if (resolution.blocked || resolution.diagnostics.length > 0) {
       throw new Error(
-        `Cannot save invalid composition: ${resolution.diagnostics.map((item) => item.message).join("; ")}`,
+        `Cannot save invalid composition: ${formatDiagnostics(resolution.diagnostics)}`,
       );
     }
     if (scoped.scope === "project" && !ctx.isProjectTrusted()) {
@@ -113,29 +102,26 @@ export async function handlePresetCommand(
   }
 
   if (operation === "use") {
-    if (
-      scoped.scope !== "global" ||
-      tokens.length > 2 ||
-      (tokens.length === 2 && tokens[1] !== "--confirm-exact")
-    ) {
-      throw new Error("Usage: /mode use <preset-key> [--confirm-exact]");
+    const flags = parseActivationFlags(tokens.slice(1));
+    if (scoped.scope !== "global" || flags.error || flags.rest.length > 0) {
+      throw new Error("Usage: /mode use <preset-key> [--confirm-exact] [--confirm-project]");
     }
     const preset = presets.presets.find((candidate) => candidate.key === key);
     if (!preset) throw new Error(`Unknown composition preset: ${key}`);
     const resolution = resolveModeSelection(preset.selection, loaded.modes);
     if (resolution.blocked || resolution.diagnostics.length > 0) {
       throw new Error(
-        `Preset is not currently valid: ${resolution.diagnostics.map((item) => item.message).join("; ")}`,
+        `Preset is not currently valid: ${formatDiagnostics(resolution.diagnostics)}`,
       );
     }
     const confirmedFingerprint = selectionDefinitionFingerprint(preset.selection, loaded.modes);
     if (
-      !(await confirmExact(
+      !(await confirmActivation(
         ctx,
         replayed.selection,
         preset.selection,
         loaded.modes,
-        tokens.includes("--confirm-exact"),
+        { exact: flags.exact, project: flags.project },
         replayed.state?.fingerprints,
       ))
     )
@@ -192,7 +178,7 @@ export async function handlePresetCommand(
   const resolution = resolveModeSelection(preset.selection, loaded.modes);
   if (resolution.blocked || resolution.diagnostics.length > 0) {
     throw new Error(
-      `Imported preset is not currently valid: ${resolution.diagnostics.map((item) => item.message).join("; ")}`,
+      `Imported preset is not currently valid: ${formatDiagnostics(resolution.diagnostics)}`,
     );
   }
   const dir =

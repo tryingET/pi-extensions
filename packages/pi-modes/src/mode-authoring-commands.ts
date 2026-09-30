@@ -5,6 +5,7 @@ import { modeTemplate, parseScopedArguments } from "./mode-authoring.ts";
 import type { ModeCommandServices } from "./mode-command-handlers.ts";
 import {
   deleteMode,
+  formatDiagnostics,
   modePath,
   parseModeDefinition,
   resolveModeSelection,
@@ -139,9 +140,7 @@ export function registerModeAuthoringCommands(
       if (resolution.blocked || resolution.diagnostics.length > 0) {
         services.updateStatus(ctx);
         ctx.ui.notify(
-          `Deleted ${key}; active state remains blocked: ${resolution.diagnostics
-            .map((item) => item.message)
-            .join("; ")}`,
+          `Deleted ${key}; active state remains blocked: ${formatDiagnostics(resolution.diagnostics)}`,
           "warning",
         );
         return;

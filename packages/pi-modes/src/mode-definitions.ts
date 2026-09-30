@@ -35,6 +35,10 @@ export interface ModeDefinition {
 export interface ResolvedMode extends ModeDefinition {
   scope: ModeScope;
   path?: string;
+  // A project mode that took over a key defined earlier: built-in, global, or an outer project
+  // directory (`shadowedPath`). Not part of the fingerprint.
+  shadows?: ModeScope;
+  shadowedPath?: string;
 }
 
 export interface ModeDiagnostic {
@@ -346,7 +350,19 @@ export function loadModes(options: {
     for (const projectDir of projectDirs) {
       const project = loadModeDirectory(projectDir, "project");
       diagnostics.push(...project.diagnostics);
-      for (const mode of project.modes) byKey.set(mode.key, mode);
+      for (const mode of project.modes) {
+        const previous = byKey.get(mode.key);
+        byKey.set(
+          mode.key,
+          previous
+            ? {
+                ...mode,
+                shadows: previous.scope,
+                ...(previous.path ? { shadowedPath: previous.path } : {}),
+              }
+            : mode,
+        );
+      }
     }
   }
   return {

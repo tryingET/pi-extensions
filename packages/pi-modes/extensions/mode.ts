@@ -14,6 +14,7 @@ import {
   registerModeCommands,
 } from "../src/mode-command-handlers.ts";
 import { ancestorPresetDirectories, loadModePresets } from "../src/mode-presets.ts";
+import { selectedKeys } from "../src/mode-state.ts";
 import {
   ancestorModeDirectories,
   BUILTIN_MODES,
@@ -21,23 +22,48 @@ import {
   composeModeSelection,
   createModeState,
   EMPTY_MODE_SELECTION,
+  formatDiagnostics,
   type LoadedModes,
   loadModes,
   MODE_STATE_TYPE_V3,
   type ModeSelection,
   type ModeStateV3,
   type ResolvedMode,
+  resolutionPolicy,
   resolveInitialSelection,
   resolveModeSelection,
   type SelectionDiagnostic,
   selectionFromEntries,
 } from "../src/modes.ts";
+import {
+  describeProjectModes,
+  displaySafe,
+  PROJECT_MODE_APPROVALS_FILE,
+  projectApprovalDigest,
+  readProjectModeApprovals,
+  recordProjectModeApprovals,
+  unconfirmedProjectModes,
+} from "../src/project-mode-approvals.ts";
 import { PI_HOST_COMPATIBILITY } from "../src/prompt-composition.ts";
 export { PI_HOST_COMPATIBILITY };
 
 import { selectionDefinitionFingerprint, selectionLabel } from "../src/selection-commands.ts";
 
 type AnyContext = ExtensionContext | ExtensionCommandContext;
+
+// Project definitions accepted with PI_MODE_CONFIRM_PROJECT=1 at startup: kept for the process only
+// (never recorded), and on globalThis so /reload, which re-imports this module, keeps them.
+const SESSION_ACKNOWLEDGEMENTS = Symbol.for("tryinget.pi.modes.project-acknowledgements.v1");
+function acknowledgedForProcess(): Map<string, string> {
+  const store = globalThis as { [SESSION_ACKNOWLEDGEMENTS]?: Map<string, string> };
+  store[SESSION_ACKNOWLEDGEMENTS] ??= new Map();
+  return store[SESSION_ACKNOWLEDGEMENTS];
+}
+
+// Outside modes/, which is read as mode definitions.
+function approvalsPath(): string {
+  return join(getAgentDir(), PROJECT_MODE_APPROVALS_FILE);
+}
 
 function directories(ctx: AnyContext) {
   return {
@@ -57,6 +83,19 @@ export default function modeExtension(pi: ExtensionAPI) {
     scope: "builtin" as const,
   }));
   const warnedDiagnostics = new Set<string>();
+
+  // Recorded confirmations, plus this process's startup acknowledgements where they still match the
+  // current definition: a stale acknowledgement must not hide a newer recorded confirmation.
+  function projectApprovals(modes: readonly ResolvedMode[]): Map<string, string> {
+    const approvals = readProjectModeApprovals(approvalsPath());
+    const acknowledged = acknowledgedForProcess();
+    for (const mode of modes) {
+      if (!mode.path || !acknowledged.has(mode.path)) continue;
+      const digest = projectApprovalDigest(mode);
+      if (acknowledged.get(mode.path) === digest) approvals.set(mode.path, digest);
+    }
+    return approvals;
+  }
 
   pi.registerEntryRenderer<ModeStatusEntryData>(
     MODE_STATUS_ENTRY_TYPE,
@@ -103,10 +142,18 @@ export default function modeExtension(pi: ExtensionAPI) {
     return selectionFromEntries(ctx.sessionManager.getBranch(), modes);
   }
 
-  function updateStatus(ctx: AnyContext): void {
+  // Callers that already loaded the modes, replayed the branch or read the approvals pass them in.
+  function updateStatus(
+    ctx: AnyContext,
+    known: {
+      loaded?: LoadedModes;
+      replayed?: ReturnType<typeof replay>;
+      approvals?: ReadonlyMap<string, string>;
+    } = {},
+  ): void {
     if (!ctx.hasUI) return;
-    const loaded = currentModes(ctx);
-    const replayed = replay(ctx, loaded.modes);
+    const loaded = known.loaded ?? currentModes(ctx);
+    const replayed = known.replayed ?? replay(ctx, loaded.modes);
     activeSelection = replayed.selection;
     if (!activeSelection.baseKey && activeSelection.overlayKeys.length === 0) {
       ctx.ui.setStatus("pi-modes", undefined);
@@ -115,9 +162,7 @@ export default function modeExtension(pi: ExtensionAPI) {
     const resolved = resolveModeSelection(
       replayed.selection,
       loaded.modes,
-      replayed.state
-        ? { fingerprints: replayed.state.fingerprints, driftPolicy: replayed.state.driftPolicy }
-        : {},
+      resolutionPolicy(replayed.state, known.approvals ?? projectApprovals(loaded.modes)),
     );
     const effective: ModeSelection = {
       baseKey: resolved.base?.key ?? null,
@@ -156,9 +201,7 @@ export default function modeExtension(pi: ExtensionAPI) {
     }
     const resolution = resolveModeSelection(selection, loaded.modes);
     if (resolution.blocked || resolution.diagnostics.length > 0) {
-      throw new Error(
-        `Invalid mode composition: ${resolution.diagnostics.map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`).join("; ")}`,
-      );
+      throw new Error(`Invalid mode composition: ${formatDiagnostics(resolution.diagnostics)}`);
     }
     const state = createModeState(selection, loaded.modes, source, {
       ...(options.fingerprints ? { fingerprints: options.fingerprints } : {}),
@@ -166,26 +209,32 @@ export default function modeExtension(pi: ExtensionAPI) {
     });
     pi.appendEntry(MODE_STATE_TYPE_V3, state);
     activeSelection = cloneModeSelection(selection);
-    updateStatus(ctx);
-    if (ctx.hasUI)
-      ctx.ui.notify(message ?? `Prompt modes activated: ${selectionLabel(selection)}`, "info");
+    const approvals = projectApprovals(loaded.modes);
+    updateStatus(ctx, { loaded, approvals });
+    if (!ctx.hasUI) return;
+    const done = message ?? `Prompt modes activated: ${selectionLabel(selection)}`;
+    // Recorded, but a project mode waiting for confirmation still keeps the composition blocked.
+    const unconfirmed = unconfirmedProjectModes(selectedKeys(selection), loaded.modes, approvals);
+    if (unconfirmed.length === 0) ctx.ui.notify(done, "info");
+    else
+      ctx.ui.notify(
+        `${done}, but not used until confirmed: ${describeProjectModes(unconfirmed)}. Review with /mode-preview, then run /mode-reapprove`,
+        "warning",
+      );
   }
 
+  // /mode-reapprove validated the composition before asking; persistSelection checks it again.
   function reapprove(ctx: AnyContext, expectedDefinitionFingerprint: string): void {
-    const loaded = currentModes(ctx);
-    const replayed = replay(ctx, loaded.modes);
-    const resolution = resolveModeSelection(replayed.selection, loaded.modes);
-    if (resolution.blocked || resolution.diagnostics.length > 0) {
-      throw new Error(
-        `Cannot reapprove invalid composition: ${resolution.diagnostics.map((item) => item.message).join("; ")}`,
-      );
-    }
+    const replayed = replay(ctx);
     persistSelection(
       replayed.selection,
       ctx,
       "reapprove",
       "Reapproved active prompt mode definitions",
-      { expectedDefinitionFingerprint },
+      {
+        expectedDefinitionFingerprint,
+        ...(replayed.state ? { driftPolicy: replayed.state.driftPolicy } : {}),
+      },
     );
   }
 
@@ -195,9 +244,7 @@ export default function modeExtension(pi: ExtensionAPI) {
     const resolution = resolveModeSelection(replayed.selection, loaded.modes);
     if (resolution.blocked || resolution.diagnostics.length > 0) {
       throw new Error(
-        `Cannot set drift policy for an invalid composition: ${resolution.diagnostics
-          .map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`)
-          .join("; ")}`,
+        `Cannot set drift policy for an invalid composition: ${formatDiagnostics(resolution.diagnostics)}`,
       );
     }
     const state = createModeState(replayed.selection, loaded.modes, "policy", {
@@ -233,6 +280,8 @@ export default function modeExtension(pi: ExtensionAPI) {
     projectPresetDir: (ctx) => directories(ctx).projectPresetDir,
     cachedModes: () => cachedModes,
     activeSelection: () => cloneModeSelection(activeSelection),
+    projectModeApprovals: (modes) => projectApprovals(modes),
+    recordProjectModeApprovals: (modes) => recordProjectModeApprovals(approvalsPath(), modes),
   };
   registerModeCommands(pi, services);
 
@@ -260,16 +309,41 @@ export default function modeExtension(pi: ExtensionAPI) {
       const exactConfirmationMissing =
         resolution.base?.promptStrategy === "replace_final" &&
         process.env.PI_MODE_CONFIRM_EXACT !== "1";
+      // A startup key can resolve to a project file that shadows the mode the operator meant.
+      const unconfirmedProject = unconfirmedProjectModes(
+        selectedKeys(initial.selection),
+        loaded.modes,
+        projectApprovals(loaded.modes),
+      );
+      const projectAcknowledged = process.env.PI_MODE_CONFIRM_PROJECT === "1";
+      const projectConfirmationMissing = unconfirmedProject.length > 0 && !projectAcknowledged;
       const fallback =
-        resolution.blocked || resolution.diagnostics.length > 0 || exactConfirmationMissing;
+        resolution.blocked ||
+        resolution.diagnostics.length > 0 ||
+        exactConfirmationMissing ||
+        projectConfirmationMissing;
+      if (!fallback) {
+        // Acknowledged for this run only: a blanket flag must not approve files for later sessions.
+        for (const mode of unconfirmedProject) {
+          if (mode.path) acknowledgedForProcess().set(mode.path, projectApprovalDigest(mode));
+        }
+      }
       const safeSelection = fallback ? cloneModeSelection(EMPTY_MODE_SELECTION) : initial.selection;
-      const startupError =
-        initial.error ??
-        (exactConfirmationMissing
-          ? "Startup replace_final activation requires PI_MODE_CONFIRM_EXACT=1"
-          : fallback
-            ? `Startup composition is invalid: ${resolution.diagnostics.map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`).join("; ")}`
-            : undefined);
+      // Every reason at once, so confirming a mode does not uncover a composition error only then.
+      const reasons = [
+        ...(resolution.blocked || resolution.diagnostics.length > 0
+          ? [`Startup composition is invalid: ${formatDiagnostics(resolution.diagnostics)}`]
+          : []),
+        ...(exactConfirmationMissing
+          ? ["Startup replace_final activation requires PI_MODE_CONFIRM_EXACT=1"]
+          : []),
+        ...(projectConfirmationMissing
+          ? [
+              `Startup project mode(s) not confirmed: ${describeProjectModes(unconfirmedProject)}; confirm once with /mode, or set PI_MODE_CONFIRM_PROJECT=1 to accept them for this run`,
+            ]
+          : []),
+      ];
+      const startupError = initial.error ?? (reasons.length > 0 ? reasons.join("; ") : undefined);
       pi.appendEntry(MODE_STATE_TYPE_V3, createModeState(safeSelection, loaded.modes, "startup"));
       activeSelection = safeSelection;
       const startupMessage = startupError
@@ -304,19 +378,27 @@ export default function modeExtension(pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     const loaded = currentModes(ctx);
     const replayed = replay(ctx, loaded.modes);
+    // Enforced here, where prompt text reaches the model: activation commands only record
+    // confirmations, so no path (drift policy, migration, resume, older sessions) bypasses it. The
+    // record is read only when a selected mode is project-scoped.
+    const projectSelected = selectedKeys(replayed.selection).some(
+      (key) => loaded.modes.find((mode) => mode.key === key)?.scope === "project",
+    );
+    const approvals = projectSelected ? projectApprovals(loaded.modes) : new Map<string, string>();
     activeSelection = replayed.selection;
-    updateStatus(ctx);
+    updateStatus(ctx, { loaded, replayed, approvals });
     const composed = composeModeSelection(
       replayed.selection,
       loaded.modes,
       event.systemPromptOptions,
       event.systemPrompt,
-      replayed.state
-        ? { fingerprints: replayed.state.fingerprints, driftPolicy: replayed.state.driftPolicy }
-        : {},
+      approvals,
+      resolutionPolicy(replayed.state),
     );
     const diagnostics: SelectionDiagnostic[] = [
-      ...loaded.diagnostics.map((item) => ({ message: `${item.path}: ${item.message}` })),
+      ...loaded.diagnostics.map((item) => ({
+        message: displaySafe(`${item.path}: ${item.message}`),
+      })),
       ...replayed.diagnostics,
       ...composed.resolved.diagnostics,
     ];

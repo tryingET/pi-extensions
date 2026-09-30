@@ -2,6 +2,7 @@ import {
   cloneModeSelection,
   type DefinitionFingerprints,
   EMPTY_MODE_SELECTION,
+  formatDiagnostics,
   type ModeSelection,
   modeDefinitionFingerprint,
   normalizeModeSelection,
@@ -14,6 +15,8 @@ export interface DirectSelectionResult {
   selection?: ModeSelection;
   error?: string;
   confirmExact?: boolean;
+  // Headless acknowledgement that unconfirmed project modes in the selection were reviewed.
+  confirmProject?: boolean;
 }
 
 export function selectionLabel(selection: ModeSelection): string {
@@ -50,13 +53,36 @@ function validateCandidate(
   }
   const resolved = resolveModeSelection(normalized, modes);
   if (resolved.blocked || resolved.diagnostics.length > 0) {
-    return {
-      error: resolved.diagnostics
-        .map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`)
-        .join("; "),
-    };
+    return { error: formatDiagnostics(resolved.diagnostics) };
   }
   return { selection: normalized, ...(confirmExact ? { confirmExact: true } : {}) };
+}
+
+const ACTIVATION_FLAGS = ["--confirm-exact", "--confirm-project"] as const;
+
+/**
+ * Separates the headless acknowledgements from the other tokens: case-insensitive, each at most
+ * once. Every activation command parses them here.
+ */
+export function parseActivationFlags(tokens: readonly string[]): {
+  exact: boolean;
+  project: boolean;
+  rest: string[];
+  error?: string;
+} {
+  const lowered = tokens.map((token) => token.toLowerCase());
+  for (const flag of ACTIVATION_FLAGS) {
+    if (lowered.filter((token) => token === flag).length > 1) {
+      return { exact: false, project: false, rest: [], error: `${flag} may appear only once` };
+    }
+  }
+  return {
+    exact: lowered.includes("--confirm-exact"),
+    project: lowered.includes("--confirm-project"),
+    rest: tokens.filter(
+      (_, index) => !(ACTIVATION_FLAGS as readonly string[]).includes(lowered[index] ?? ""),
+    ),
+  };
 }
 
 export function parseDirectSelection(
@@ -64,12 +90,19 @@ export function parseDirectSelection(
   modes: readonly ResolvedMode[],
   current: ModeSelection,
 ): DirectSelectionResult {
+  const flags = parseActivationFlags(args.trim().split(/\s+/).filter(Boolean));
+  if (flags.error) return { error: flags.error };
+  const result = parseSelectionTokens(flags.rest.join(" "), modes, current, flags.exact);
+  return flags.project && result.selection ? { ...result, confirmProject: true } : result;
+}
+
+function parseSelectionTokens(
+  args: string,
+  modes: readonly ResolvedMode[],
+  current: ModeSelection,
+  confirmExact: boolean,
+): DirectSelectionResult {
   const rawTokens = args.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const confirmIndex = rawTokens.indexOf("--confirm-exact");
-  const confirmExact = confirmIndex >= 0;
-  if (confirmExact) rawTokens.splice(confirmIndex, 1);
-  if (rawTokens.includes("--confirm-exact"))
-    return { error: "--confirm-exact may appear only once" };
   const input = rawTokens.join(" ");
   if (!input) return {};
   if (["off", "default", "none"].includes(input)) {
@@ -196,5 +229,8 @@ export function modeArgumentCompletions(
 }
 
 function usageError(): DirectSelectionResult {
-  return { error: "Usage: /mode set <base-key|native> [--overlay <key>]... [--confirm-exact]" };
+  return {
+    error:
+      "Usage: /mode set <base-key|native> [--overlay <key>]... [--confirm-exact] [--confirm-project]",
+  };
 }

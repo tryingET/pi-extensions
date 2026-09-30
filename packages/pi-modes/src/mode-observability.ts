@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import type { ModeSelection, ModeStateV3, ResolvedMode, ResolvedModeSelection } from "./modes.ts";
+import {
+  formatDiagnostic,
+  type ModeSelection,
+  type ModeStateV3,
+  type ResolvedMode,
+  type ResolvedModeSelection,
+} from "./modes.ts";
 
 export interface CompositionComponentReport {
   key: string;
@@ -83,9 +89,7 @@ export function createCompositionReport(options: {
     },
     blocked: options.resolved.blocked,
     driftedKeys: [...options.resolved.driftedKeys],
-    diagnostics: options.resolved.diagnostics.map(
-      (item) => `${item.key ? `${item.key}: ` : ""}${item.message}`,
-    ),
+    diagnostics: options.resolved.diagnostics.map(formatDiagnostic),
     composition: {
       sha256: sha256(options.prompt),
       utf8Bytes: Buffer.byteLength(options.prompt, "utf8"),

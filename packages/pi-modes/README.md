@@ -32,13 +32,13 @@ Mode activation changes prompt policy only. It never grants tools, mutation, con
 | `/mode set <base\|native> [--overlay <key>]...` | Apply an exact composition in listed order. |
 | `/mode off` | Clear base and overlays. |
 | `/mode save [--project] <preset>` | Save the active composition as a named preset without embedding prompt text. |
-| `/mode use <preset> [--confirm-exact]` | Validate and atomically activate a preset. |
+| `/mode use <preset> [--confirm-exact] [--confirm-project]` | Validate and atomically activate a preset. |
 | `/mode export <preset>` | Export strict JSON plus a portable base64url payload. |
 | `/mode import [--project] <preset> [--data <base64url>]` | Import without activation; TUI callers may edit JSON. |
 | `/mode presets` | List discovered named compositions and diagnostics. |
 | `/mode-status [--json]` | Show selection, effective components, hashes, estimates, provenance, drift, and fallback. |
 | `/mode-preview [--json] [selection]` | Preview components and the composed prompt without activation. |
-| `/mode-reapprove [--confirm-exact]` | Explicitly accept changed active definitions and refresh fingerprints. |
+| `/mode-reapprove [--confirm-exact] [--confirm-project]` | Explicitly accept changed active definitions and refresh fingerprints. |
 | `/mode-policy <block\|warn\|allow>` | Choose what later definition drift does; `block` is the default. |
 | `/mode-new [--project] <key>` | Save a new strict mode without activating it. |
 | `/mode-edit <key>` | Edit a custom mode; active edits become blocked drift until reapproved. |
@@ -61,6 +61,24 @@ Selecting or reapproving a new or drifted `replace_final` definition always requ
 ```
 
 Pi currently may report transport-level command acceptance after an extension command emits `extension_error`; automation must inspect the error event/stderr rather than exit/success alone.
+
+### Project mode confirmation
+
+Pi trusts a repository without asking when its only Pi configuration is `.pi/modes`, so a cloned repository can bring its own modes, or replace a built-in, global or outer-directory mode by reusing its key (a project `review.json` replaces the built-in `review`). Only project mode definitions you confirmed ever reach the system prompt:
+
+- The TUI asks when you add one, showing its source file, what its strategy does, a definition digest, the start of its prompt (with a note when it is cut short), and which mode it replaces. Characters a terminal hides, blanks or reorders (controls, bidirectional overrides, zero-width, default-ignorable and Unicode tag characters) are shown as a counted `⟨n hidden⟩` marker with a warning, in the prompt and in the label, which the model reads as the prompt's heading. Cancel and run `/mode-preview` to read all of it.
+- Headless/RPC activation needs `--confirm-project`, which accepts the definitions as they are at that moment: review them with `/mode-preview` first.
+- The confirmation is remembered per file, content and what it replaces in `~/.pi/agent/mode-approvals.json` (`PI_CODING_AGENT_DIR` moves it; a symlinked record, chains included, is written through), so your own project modes ask again only after they change, or once they take over a mode that appeared after you confirmed them.
+- It is enforced every turn, whatever the drift policy: an unconfirmed or changed project definition blocks the composition, falls back to the native prompt with a warning, and the status bar (`!`), `/mode-status` and every activation message say why. `/mode-preview` shows the files as they are now, also for an active selection whose definitions changed (it says which), so the text can be reviewed before confirming it.
+- Only modes an activation adds are asked about, so removing or adding other modes never stalls on an active project mode whose file changed. Confirm that one with `/mode-reapprove`, which validates the composition first, also asks about any other changed definition, and keeps your drift policy. Passing `--confirm-project` to `/mode` or `/mode use` covers every project mode in the result, active ones included. The `/mode` selector starts with every selected mode checked except those whose definition changed under the `block` policy; checking one of those again asks like a new mode, and applying never drops the modes around it.
+
+```text
+/mode +review --confirm-project
+/mode use team --confirm-project
+/mode-reapprove --confirm-project
+```
+
+Built-in and global modes never ask. A session that already used a project mode before this rule falls back until you confirm it once with `/mode-reapprove`. To withdraw a confirmation, delete its entry (or the file); it takes effect on the next turn. A malformed record counts as no confirmations; the next confirmation saves its exact content to `mode-approvals.json.invalid-<time>-<id>` before rewriting it. A record in a newer format, larger than 1 MiB, or unreadable is left alone, and confirming refuses to write it. An entry is dropped when its directory is visible and the file is gone; entries for files out of view (another checkout, a sandbox) are kept. The record keeps the 2048 most recently confirmed files within 1 MiB and forgets older ones, those out of view first; a forgotten file is only asked about again. Two sessions confirming at the same instant can lose one confirmation, which is then asked again. Project presets are not gated themselves: they may only combine modes that are confirmed, built-in or global.
 
 ### Headless observability
 
@@ -87,6 +105,12 @@ Startup `replace_final` is also fail-closed and requires a separate explicit ack
 ```bash
 PI_MODE=exact-minimal PI_MODE_CONFIRM_EXACT=1 pi
 PI_MODES='{"baseKey":"exact-minimal","overlayKeys":[]}' PI_MODE_CONFIRM_EXACT=1 pi
+```
+
+Startup activation of a project mode that was never confirmed falls back the same way unless `PI_MODE_CONFIRM_PROJECT=1` is set. That accepts the startup definitions for this Pi process only (through `/reload`, but not after the file changes) and records nothing; a startup key can resolve to a project file that replaces the mode you meant:
+
+```bash
+PI_MODE=review PI_MODE_CONFIRM_PROJECT=1 pi
 ```
 
 Startup precedence:
@@ -212,6 +236,7 @@ Status/preview expose effective component hashes, final composition hash, UTF-8 
 - Mode/preset files are parsed independently with deterministic bounds.
 - Saves use same-directory temporary files and atomic rename.
 - Authoring does not activate implicitly.
+- Project-scoped mode text reaches the prompt only while its exact definition is confirmed (see Project mode confirmation).
 - State changes append one validated entry; discovery never silently repairs state.
 - `/mode off`, package disable/removal, or native host are the rollback surfaces.
 - Downgrading to a pre-v3 release may expose an older v2 entry; explicitly use that version's `/mode off` or disable the package.

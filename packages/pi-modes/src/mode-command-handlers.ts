@@ -1,4 +1,10 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import {
+  confirmExact,
+  confirmProjectModes,
+  createConfirmActivation,
+  type ProjectApprovalStore,
+} from "./mode-activation-gate.ts";
 import { registerModeAuthoringCommands } from "./mode-authoring-commands.ts";
 import { compactCompositionSummary, createCompositionReport } from "./mode-observability.ts";
 import { handlePresetCommand } from "./mode-preset-commands.ts";
@@ -8,14 +14,21 @@ import {
   composeModeSelection,
   type DefinitionFingerprints,
   type DriftPolicy,
+  formatDiagnostic,
+  formatDiagnostics,
   type LoadedModes,
   type ModeSelection,
   type ModeStateV3,
   modeSelectionsEqual,
+  type ProjectTrust,
+  resolutionPolicy,
   resolveModeSelection,
+  selectedKeys,
 } from "./modes.ts";
+import { displaySafe, unconfirmedProjectModes } from "./project-mode-approvals.ts";
 import {
   modeArgumentCompletions,
+  parseActivationFlags,
   parseDirectSelection,
   requiresReplaceFinalConfirmation,
   selectionDefinitionFingerprint,
@@ -31,7 +44,7 @@ export interface ModeStatusEntryData {
   diagnostics: string[];
 }
 
-export interface ModeCommandServices {
+export interface ModeCommandServices extends ProjectApprovalStore {
   currentModes(ctx: ExtensionCommandContext): LoadedModes;
   currentPresets(ctx: ExtensionCommandContext): LoadedModePresets;
   replay(
@@ -69,32 +82,15 @@ function reportError(ctx: ExtensionCommandContext, message: string): void {
   else throw new Error(message);
 }
 
-async function confirmExact(
-  ctx: ExtensionCommandContext,
-  current: ModeSelection,
-  next: ModeSelection,
-  modes: LoadedModes["modes"],
-  explicit: boolean,
-  approvedFingerprints?: DefinitionFingerprints,
-): Promise<boolean> {
-  if (!requiresReplaceFinalConfirmation(current, next, modes, approvedFingerprints)) return true;
-  const mode = modes.find((candidate) => candidate.key === next.baseKey);
-  if (ctx.mode === "tui") {
-    return ctx.ui.confirm(
-      `Activate exact-final mode ${mode?.label ?? next.baseKey}?`,
-      "This removes the host envelope, context, skills, date, cwd, and overlays for future turns.",
-    );
-  }
-  if (explicit) return true;
-  throw new Error("replace_final activation requires --confirm-exact in headless/RPC mode");
-}
-
 function reportFor(
   ctx: ExtensionCommandContext,
   selection: ModeSelection,
   state: ModeStateV3 | undefined,
   modes: LoadedModes["modes"],
   includePrompt: boolean,
+  // Status passes the confirmed project definitions so it reports what a turn really composes;
+  // previews pass "review", because reading an unconfirmed prompt is how it gets reviewed.
+  trust: ProjectTrust,
 ) {
   const hostPrompt = ctx.getSystemPrompt();
   const composed = composeModeSelection(
@@ -102,7 +98,8 @@ function reportFor(
     modes,
     ctx.getSystemPromptOptions(),
     hostPrompt,
-    state ? { fingerprints: state.fingerprints, driftPolicy: state.driftPolicy } : {},
+    trust,
+    resolutionPolicy(state),
   );
   return createCompositionReport({
     selection,
@@ -119,6 +116,7 @@ function writeMachineOutput(value: unknown): void {
 }
 
 export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServices): void {
+  const confirmActivation = createConfirmActivation(services);
   pi.registerCommand("mode", {
     description: "Compose prompt modes or manage named compositions",
     getArgumentCompletions: (prefix) =>
@@ -138,7 +136,7 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
             rest.join(" "),
             ctx,
             services,
-            confirmExact,
+            confirmActivation,
           )
         )
           return;
@@ -147,23 +145,26 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
         if (!trimmed) {
           if (ctx.mode !== "tui")
             throw new Error("The /mode selector requires TUI mode; use direct syntax");
-          const initialResolution = resolveModeSelection(
+          // The valid part of the selection, minus definitions that changed while blocked, which the
+          // operator checks again to accept. Trust is not considered: a mode waiting for
+          // confirmation stays checked. Either way, applying keeps the modes around them.
+          const structural = resolveModeSelection(replayed.selection, loaded.modes);
+          const drift = resolveModeSelection(
             replayed.selection,
             loaded.modes,
-            replayed.state
-              ? {
-                  fingerprints: replayed.state.fingerprints,
-                  driftPolicy: replayed.state.driftPolicy,
-                }
-              : {},
+            resolutionPolicy(replayed.state),
           );
+          const unchecked = new Set(drift.blocked ? drift.driftedKeys : []);
           const initial = {
-            baseKey: initialResolution.base?.key ?? null,
-            overlayKeys: initialResolution.overlays.map((mode) => mode.key),
+            baseKey:
+              structural.base && !unchecked.has(structural.base.key) ? structural.base.key : null,
+            overlayKeys: structural.overlays
+              .map((mode) => mode.key)
+              .filter((key) => !unchecked.has(key)),
           };
           const draft = await selectModeComposition(ctx, loaded.modes, initial, {
             preview: (selection) => {
-              const report = reportFor(ctx, selection, undefined, loaded.modes, false);
+              const report = reportFor(ctx, selection, undefined, loaded.modes, false, "review");
               return [
                 compactCompositionSummary(report),
                 `Δ host: ${report.composition.hostDeltaBytes >= 0 ? "+" : ""}${report.composition.hostDeltaBytes} B`,
@@ -185,13 +186,14 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
             );
           }
           const confirmedFingerprint = selectionDefinitionFingerprint(draft, fresh.modes);
+          // Measured against what the selector showed, so a mode checked again there is asked about.
           if (
-            !(await confirmExact(
+            !(await confirmActivation(
               ctx,
-              replayed.selection,
+              initial,
               draft,
               fresh.modes,
-              false,
+              { exact: false, project: false },
               replayed.state?.fingerprints,
             ))
           )
@@ -207,21 +209,16 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
         const activeResolution = resolveModeSelection(
           replayed.selection,
           loaded.modes,
-          replayed.state
-            ? {
-                fingerprints: replayed.state.fingerprints,
-                driftPolicy: replayed.state.driftPolicy,
-              }
-            : {},
+          resolutionPolicy(replayed.state),
         );
         const confirmedFingerprint = selectionDefinitionFingerprint(parsed.selection, loaded.modes);
         if (
-          !(await confirmExact(
+          !(await confirmActivation(
             ctx,
             replayed.selection,
             parsed.selection,
             loaded.modes,
-            parsed.confirmExact ?? false,
+            { exact: parsed.confirmExact ?? false, project: parsed.confirmProject ?? false },
             replayed.state?.fingerprints,
           ))
         )
@@ -236,10 +233,20 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
               : undefined,
             { expectedDefinitionFingerprint: confirmedFingerprint },
           );
-        } else if (ctx.mode === "tui") {
+        } else {
+          // --confirm-project may just have recorded a confirmation for the active selection.
+          services.updateStatus(ctx);
+          if (ctx.mode !== "tui") return;
+          const now = resolveModeSelection(
+            replayed.selection,
+            loaded.modes,
+            resolutionPolicy(replayed.state, services.projectModeApprovals(loaded.modes)),
+          );
           ctx.ui.notify(
-            `Prompt modes already active: ${selectionLabel(replayed.selection)}`,
-            "info",
+            now.blocked
+              ? `Prompt modes already selected but blocked: ${formatDiagnostics(now.diagnostics)}`
+              : `Prompt modes already active: ${selectionLabel(replayed.selection)}`,
+            now.blocked ? "warning" : "info",
           );
         }
       } catch (error) {
@@ -251,17 +258,24 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
   pi.registerCommand("mode-reapprove", {
     description: "Explicitly accept current definitions and refresh fingerprints",
     getArgumentCompletions: (prefix) =>
-      ["--confirm-exact"]
+      ["--confirm-exact", "--confirm-project"]
         .filter((value) => value.startsWith(prefix.trim().toLowerCase()))
         .map((value) => ({ value, label: value })),
     handler: async (args, ctx) => {
       try {
-        const trimmed = args.trim().toLowerCase();
-        if (trimmed && trimmed !== "--confirm-exact") {
-          throw new Error("Usage: /mode-reapprove [--confirm-exact]");
+        const flags = parseActivationFlags(args.trim().split(/\s+/).filter(Boolean));
+        if (flags.error || flags.rest.length > 0) {
+          throw new Error("Usage: /mode-reapprove [--confirm-exact] [--confirm-project]");
         }
         const loaded = services.currentModes(ctx);
         const replayed = services.replay(ctx, loaded.modes);
+        // Refused before any question: a reapproval that cannot persist must not ask for trust.
+        const structural = resolveModeSelection(replayed.selection, loaded.modes);
+        if (structural.blocked || structural.diagnostics.length > 0) {
+          throw new Error(
+            `Cannot reapprove invalid composition: ${formatDiagnostics(structural.diagnostics)}`,
+          );
+        }
         const needsExactConfirmation = requiresReplaceFinalConfirmation(
           replayed.selection,
           replayed.selection,
@@ -272,27 +286,49 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
           replayed.selection,
           loaded.modes,
         );
+        // Reapproval is where an active project mode whose file changed gets confirmed.
+        const unconfirmed = unconfirmedProjectModes(
+          selectedKeys(replayed.selection),
+          loaded.modes,
+          services.projectModeApprovals(loaded.modes),
+        );
+        const { driftedKeys } = resolveModeSelection(
+          replayed.selection,
+          loaded.modes,
+          resolutionPolicy(replayed.state),
+        );
+        const shown = new Set([
+          ...unconfirmed.map((mode) => mode.key),
+          ...(needsExactConfirmation && replayed.selection.baseKey
+            ? [replayed.selection.baseKey]
+            : []),
+        ]);
+        const unshownDrift = driftedKeys.filter((key) => !shown.has(key));
+        if (!(await confirmProjectModes(ctx, unconfirmed, flags.project))) return;
         if (
-          needsExactConfirmation &&
           !(await confirmExact(
             ctx,
             replayed.selection,
             replayed.selection,
             loaded.modes,
-            trimmed === "--confirm-exact",
+            flags.exact,
             replayed.state?.fingerprints,
           ))
         )
           return;
+        // Any other change the dialogs above did not show still needs its own confirmation.
         if (
-          !needsExactConfirmation &&
           ctx.mode === "tui" &&
+          (unshownDrift.length > 0 || shown.size === 0) &&
           !(await ctx.ui.confirm(
             "Reapprove active prompt mode definitions?",
-            "Preview first if the drift was unexpected.",
+            unshownDrift.length > 0
+              ? `Changed since activation: ${unshownDrift.join(", ")}. Preview first if that was unexpected.`
+              : "Preview first if the drift was unexpected.",
           ))
         )
           return;
+        if (unconfirmed.length > 0) services.recordProjectModeApprovals(unconfirmed);
         services.reapprove(ctx, confirmedFingerprint);
       } catch (error) {
         reportError(ctx, error instanceof Error ? error.message : String(error));
@@ -337,10 +373,17 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
       }
       const loaded = services.currentModes(ctx);
       const replayed = services.replay(ctx, loaded.modes);
-      const report = reportFor(ctx, replayed.selection, replayed.state, loaded.modes, false);
+      const report = reportFor(
+        ctx,
+        replayed.selection,
+        replayed.state,
+        loaded.modes,
+        false,
+        services.projectModeApprovals(loaded.modes),
+      );
       const diagnostics = [
-        ...loaded.diagnostics.map((item) => `${item.path}: ${item.message}`),
-        ...replayed.diagnostics.map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`),
+        ...loaded.diagnostics.map((item) => displaySafe(`${item.path}: ${item.message}`)),
+        ...replayed.diagnostics.map(formatDiagnostic),
         ...report.diagnostics,
       ];
       if (ctx.mode !== "tui" || args.trim() === "--json") {
@@ -384,7 +427,35 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
         const state = modeSelectionsEqual(parsed.selection, replayed.selection)
           ? replayed.state
           : undefined;
-        const report = reportFor(ctx, parsed.selection, state, loaded.modes, true);
+        // The current definitions, as activating or reapproving them would compose: drift is
+        // reported, not applied, so a changed or unconfirmed prompt can be read before accepting it.
+        const composed = reportFor(ctx, parsed.selection, undefined, loaded.modes, true, "review");
+        const { driftedKeys } = resolveModeSelection(
+          parsed.selection,
+          loaded.modes,
+          resolutionPolicy(state),
+        );
+        const report = {
+          ...composed,
+          ...(state
+            ? {
+                activation: {
+                  source: state.source,
+                  activatedAt: state.activatedAt,
+                  driftPolicy: state.driftPolicy,
+                },
+              }
+            : {}),
+          ...(driftedKeys.length > 0
+            ? {
+                driftedKeys,
+                diagnostics: [
+                  ...composed.diagnostics,
+                  `changed since activation: ${driftedKeys.join(", ")}; shown as the files are now, which the active composition uses only once reapproved`,
+                ],
+              }
+            : {}),
+        };
         if (json) writeMachineOutput(report);
         else {
           ctx.ui.notify(compactCompositionSummary(report), report.blocked ? "warning" : "info");

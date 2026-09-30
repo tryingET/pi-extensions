@@ -14,6 +14,8 @@ export {
   buildCustomBasePrompt,
   composeModePrompt,
   composeModeSelection,
+  type ProjectTrust,
+  resolutionPolicy,
   resolveModeSelection,
 } from "./prompt-composition.ts";
 

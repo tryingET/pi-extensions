@@ -76,6 +76,14 @@ export interface SelectionDiagnostic {
   message: string;
 }
 
+export function formatDiagnostic(item: SelectionDiagnostic): string {
+  return `${item.key ? `${item.key}: ` : ""}${item.message}`;
+}
+
+export function formatDiagnostics(diagnostics: readonly SelectionDiagnostic[]): string {
+  return diagnostics.map(formatDiagnostic).join("; ");
+}
+
 export interface ResolvedModeSelection {
   base?: ResolvedMode;
   overlays: ResolvedMode[];

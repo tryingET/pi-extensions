@@ -96,6 +96,7 @@ test("composition report provides stable hashes, estimates, provenance, and opti
     modes,
     { cwd: "/tmp", selectedTools: ["read"] },
     "HOST",
+    new Map(),
     { fingerprints: state.fingerprints, driftPolicy: state.driftPolicy },
   );
   const report = createCompositionReport({

@@ -29,6 +29,7 @@ test("replace_final preserves leading and trailing configured whitespace", () =>
     [exact],
     options,
     "HOST",
+    new Map(),
   );
   assert.equal(result.prompt, "  EXACT\n");
 });
@@ -56,7 +57,7 @@ test("a later v2 snapshot freezes slot semantics across strategy drift", () => {
   const replayed = selectionFromEntries(entries, [drifted]);
   assert.equal(replayed.stateVersion, "v2");
   assert.deepEqual(replayed.selection, { baseKey: null, overlayKeys: ["same"] });
-  const composed = composeModeSelection(replayed.selection, [drifted], options, "HOST");
+  const composed = composeModeSelection(replayed.selection, [drifted], options, "HOST", new Map());
   assert.equal(composed.prompt, "HOST");
   assert.match(composed.resolved.diagnostics[0]?.message ?? "", /cannot be an overlay/);
 });
