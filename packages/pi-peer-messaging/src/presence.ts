@@ -1,7 +1,7 @@
 // ---
-// summary: normalizes peer registration and presence updates including runtime fallback aliases
+// summary: normalizes peer registration and presence updates including runtime fallback aliases, and finds a peer by id or address label
 // read_when:
-//   - changing peer names, address labels, status, or activity timestamps
+//   - changing peer names, address labels, status, activity timestamps, or how a target is matched
 // ---
 import type { PeerPresence } from "./contracts.ts";
 
@@ -83,4 +83,23 @@ export function applyPresenceUpdate(
       updates.status === undefined ? presence.status : normalizeOptionalString(updates.status),
     lastActivity: updates.lastActivity ?? now,
   };
+}
+
+/** The id of the one peer `to` names: its exact session id, or else its address label (any case). */
+export function resolvePeerTarget(peers: readonly PeerPresence[], to: string): string {
+  const byId = peers.find((peer) => peer.id === to);
+  if (byId) {
+    return byId.id;
+  }
+
+  const lowerTarget = to.toLowerCase();
+  const byAddressLabel = peers.filter((peer) => peer.addressLabel.toLowerCase() === lowerTarget);
+  if (byAddressLabel.length > 1) {
+    throw new Error(`Multiple peers matched "${to}". Use the exact session id instead.`);
+  }
+  const [resolvedPeer] = byAddressLabel;
+  if (!resolvedPeer) {
+    throw new Error(`No peer matched "${to}".`);
+  }
+  return resolvedPeer.id;
 }
