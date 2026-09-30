@@ -63,6 +63,19 @@ Decision-level guardrails kept visible by the package:
   (`no_reply`, `ask_in_flight`, `cancelled`); `peerAskOutcome(error)` classifies by shape
 - `timeoutMs` above 2,147,483,647 is capped there, the longest delay a timer supports
 - runtime fallback aliases are addressability-only and non-persistent
+- `disconnect()` is final for work already under way: an operation started before it never
+  reconnects or re-registers the session afterwards; a later call reconnects as usual
+- `disconnect()` waits up to 2 seconds for a connect it interrupted to close, and the next connect
+  waits for that, so the next connection under the same stable id is not evicted by it; a connect
+  still stuck after 2 seconds is not waited for, so shutdown is never held up longer
+- a recoverable failure caught during a request (a timed-out listing on a connection that is still
+  open, or a reset from a broker that died mid-request) re-registers the session under the id it
+  had, so the broker replaces the old connection without a ghost registration and without telling
+  peers it left; an ask waiting on it keeps its reply path, and fails if the id could not be kept.
+  A connection already seen closed (for example an idle session whose broker died) reconnects as a
+  new registration, under a new id unless the session has a stable one
+- `status()`, `send()` and `updatePresence()` report and act on the connection that answered, not one
+  captured before a retry replaced it
 
 ## Intercom-compatible adapter second
 

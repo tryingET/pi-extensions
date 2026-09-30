@@ -3,6 +3,8 @@
 // read_when:
 //   - changing the managed runtime lifecycle, targeting, reconnection, or ask semantics
 // ---
+
+import { setTimeout as sleep } from "node:timers/promises";
 import { PeerMessagingClient } from "./client.ts";
 import {
   DEFAULT_ASK_TIMEOUT_MS,
@@ -44,7 +46,16 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+// How long disconnect() waits for a connect it interrupted to close itself. The client's own connect
+// timeout is 10 s; a shutdown should not wait that long.
+const DISCONNECT_WAIT_MS = 2_000;
+
 function isRecoverableClientError(error: unknown): boolean {
+  // A broker that died mid-request resets the connection or breaks the pipe.
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code === "ECONNRESET" || code === "EPIPE") {
+    return true;
+  }
   const message = error instanceof Error ? error.message : String(error);
   return (
     message.includes("not connected") ||
@@ -65,8 +76,13 @@ class PeerMessagingRuntimeManager {
   private client: PeerMessagingClient | null = null;
   private connectPromise: Promise<PeerMessagingClient> | null = null;
   private activeAsk: ActiveAsk | null = null;
-  // Bumped by disconnect(): work started before it must not reconnect this session afterwards.
+  // Bumped by disconnect(): work started before it must not reconnect this session afterwards. Each
+  // public operation samples it once, on entry, and passes it down.
   private generation = 0;
+  // Settles when the last disconnect() has closed the connection and any connect it interrupted.
+  private disconnecting: Promise<void> | null = null;
+  // Connections being replaced by a re-registration under their own id: their close is expected.
+  private readonly replaced = new WeakSet<PeerMessagingClient>();
 
   constructor(options: CreatePeerMessagingRuntimeOptions) {
     this.paths = options.paths ?? resolvePeerMessagingPaths({ runtimeDir: options.runtimeDir });
@@ -101,13 +117,29 @@ class PeerMessagingRuntimeManager {
 
     const client = this.client;
     this.client = null;
-    // A connect still in flight sees the new generation and closes itself instead of becoming this.client.
+    // A connect still in flight sees the new generation and closes itself instead of becoming
+    // this.client. It is awaited (bounded, so shutdown is not held up by a hung connect): otherwise
+    // a later connect under the same stable id could register first and then be evicted by it.
+    const interrupted = this.connectPromise;
     this.connectPromise = null;
-    if (!client) {
-      return;
+    // Chained: a second disconnect() must not cut short the first one's wait.
+    const previous = this.disconnecting;
+    const closing = (async () => {
+      await previous;
+      if (interrupted) {
+        await Promise.race([
+          interrupted.catch(() => {}),
+          sleep(DISCONNECT_WAIT_MS, undefined, { ref: false }),
+        ]);
+      }
+      await client?.disconnect();
+    })();
+    this.disconnecting = closing;
+    try {
+      await closing;
+    } finally {
+      if (this.disconnecting === closing) this.disconnecting = null;
     }
-
-    await client.disconnect();
   }
 
   async updatePresence(updates: PeerPresenceUpdate): Promise<PeerPresence> {
@@ -121,15 +153,18 @@ class PeerMessagingRuntimeManager {
       this.registration.model = updates.model;
     }
     this.registration.lastActivity = updates.lastActivity ?? Date.now();
+    const generation = this.generation;
 
-    const client = await this.ensureConnected();
-    client.updatePresence({
-      ...updates,
-      lastActivity: this.registration.lastActivity,
+    // A reconnect on the way registers the updated presence itself; the update is then repeated.
+    await this.withConnectedClient(generation, async (client) => {
+      client.updatePresence({ ...updates, lastActivity: this.registration.lastActivity });
     });
-
-    const peers = await this.withConnectedClient((connectedClient) => connectedClient.listPeers());
-    const selfPresence = peers.find((peer) => peer.id === client.sessionId);
+    // The listing and the id come from the same connection, whichever one answered.
+    const { peers, selfId } = await this.withConnectedClient(generation, async (client) => ({
+      peers: await client.listPeers(),
+      selfId: client.sessionId,
+    }));
+    const selfPresence = peers.find((peer) => peer.id === selfId);
     if (!selfPresence) {
       throw new Error("Peer-messaging runtime could not find its own presence after update.");
     }
@@ -138,23 +173,27 @@ class PeerMessagingRuntimeManager {
   }
 
   async listPeers(): Promise<PeerPresence[]> {
-    return this.withConnectedClient((client) => client.listPeers());
+    return this.withConnectedClient(this.generation, (client) => client.listPeers());
   }
 
   async status(): Promise<PeerRuntimeStatus> {
-    const client = await this.ensureConnected();
-    const peers = await this.withConnectedClient((connectedClient) => connectedClient.listPeers());
-    return {
-      connected: client.isConnected(),
-      selfId: client.sessionId ?? undefined,
-      activePeerCount: peers.length,
-    } satisfies PeerRuntimeStatus;
+    // Reported from the connection that answered, not one captured before a retry replaced it.
+    return this.withConnectedClient(this.generation, async (client) => {
+      const peers = await client.listPeers();
+      return {
+        connected: client.isConnected(),
+        selfId: client.sessionId ?? undefined,
+        activePeerCount: peers.length,
+      } satisfies PeerRuntimeStatus;
+    });
   }
 
   async send(request: { to: string; message: PeerMessage }): Promise<DeliveryResult> {
+    const generation = this.generation;
     try {
-      const client = await this.ensureConnected();
-      const targetId = await this.resolveTarget(request.to);
+      const targetId = await this.resolveTarget(generation, request.to);
+      // Taken after resolving, which may have reconnected; the send itself is never retried.
+      const client = await this.ensureConnected(generation);
       if (targetId === client.sessionId) {
         return {
           delivered: false,
@@ -228,22 +267,22 @@ class PeerMessagingRuntimeManager {
       return outcome;
     }
 
-    void this.sendAsk(ask, request.message);
+    void this.sendAsk(ask, request.message, this.generation);
     return outcome;
   }
 
-  private async sendAsk(ask: ActiveAsk, message: PeerMessage): Promise<void> {
+  private async sendAsk(ask: ActiveAsk, message: PeerMessage, generation: number): Promise<void> {
     try {
       // An ask that already ended (cancelled, timed out, disconnected) does no connect or send work.
       if (this.activeAsk !== ask) {
         return;
       }
-      const targetId = await this.resolveTarget(ask.targetInput);
+      const targetId = await this.resolveTarget(generation, ask.targetInput);
       if (this.activeAsk !== ask) {
         return;
       }
       // Take the client after resolving: resolving may have reconnected.
-      const client = await this.ensureConnected();
+      const client = await this.ensureConnected(generation);
       if (this.activeAsk !== ask) {
         return;
       }
@@ -271,6 +310,115 @@ class PeerMessagingRuntimeManager {
     } catch (error) {
       this.finishAsk(ask, { error: toError(error) });
     }
+  }
+
+  /**
+   * Starts the broker if needed and registers a new connection (under `requestedId` when replacing
+   * one); a connection that disconnect() overtook is closed again instead of being returned.
+   */
+  private async connectClient(
+    generation: number,
+    requestedId?: string,
+  ): Promise<PeerMessagingClient> {
+    if (generation !== this.generation) {
+      throw new Error("PeerMessagingRuntime disconnected while connecting.");
+    }
+    if (this.autoStartBroker) {
+      await spawnBrokerIfNeeded({
+        paths: this.paths,
+        packageRoot: this.packageRoot,
+        runtimeDir: this.paths.runtimeDir,
+        idleShutdownMs: this.idleShutdownMs,
+      });
+    }
+    if (generation !== this.generation) {
+      throw new Error("PeerMessagingRuntime disconnected while connecting.");
+    }
+    const client = new PeerMessagingClient({ paths: this.paths });
+    client.on("disconnected", (error: Error) => {
+      if (this.client === client) {
+        this.client = null;
+      }
+      // Only the connection the question went out on can take its reply path away; one replaced
+      // under its own id hands the reply path to its replacement.
+      const ask = this.activeAsk;
+      if (ask?.client === client && !this.replaced.has(client)) {
+        this.finishAsk(ask, {
+          error: lostAskError(
+            ask,
+            "runtime_disconnected",
+            `Peer-messaging runtime disconnected (${error.message})`,
+          ),
+        });
+      }
+    });
+    client.on("error", () => {
+      // Transport errors surface through disconnected/retry behavior.
+    });
+    client.on("message", (from: PeerPresence, message: PeerMessage) => {
+      this.emitMessage(from, message);
+    });
+    client.on("session_left", (sessionId: string) => {
+      const ask = this.activeAsk;
+      if (ask?.targetId === sessionId) {
+        this.finishAsk(ask, { error: lostAskError(ask, "peer_disconnected") });
+      }
+    });
+    client.on("presence_update", (presence: PeerPresence) => {
+      if (presence.id === client.sessionId) {
+        this.registration.name = presence.name;
+        this.registration.model = presence.model;
+        this.registration.status = presence.status;
+        this.registration.lastActivity = presence.lastActivity;
+      }
+    });
+
+    await client.connect({
+      ...this.registration,
+      ...(requestedId ? { id: requestedId } : {}),
+      lastActivity: this.registration.lastActivity ?? Date.now(),
+    });
+    if (generation !== this.generation) {
+      // disconnect() ran while this connect was in flight; do not leave the session registered.
+      await client.disconnect();
+      throw new Error("PeerMessagingRuntime disconnected while connecting.");
+    }
+    return client;
+  }
+
+  /** A replaced connection is no longer current, and its close no longer fails an ask. */
+  private markReplaced(client: PeerMessagingClient): void {
+    this.replaced.add(client);
+    if (this.client === client) this.client = null;
+  }
+
+  /**
+   * Lets go of a connection that was replaced (or could not be): an ask waiting on it moves to `next`
+   * only when that kept its session id, since replies are addressed to it, and fails otherwise. Its
+   * socket is closed without holding up the operation that asked for the new connection.
+   */
+  private retire(
+    replacement: { client: PeerMessagingClient; sessionId: string | null },
+    next?: PeerMessagingClient,
+    error?: unknown,
+  ): void {
+    const { client: old, sessionId } = replacement;
+    this.markReplaced(old);
+    const ask = this.activeAsk;
+    if (ask?.client === old) {
+      if (next && sessionId && next.sessionId === sessionId) {
+        ask.client = next;
+      } else {
+        this.finishAsk(ask, {
+          error: lostAskError(
+            ask,
+            "runtime_disconnected",
+            `Peer-messaging runtime could not keep its session (${error ? toError(error).message : "reconnected under a new session id"})`,
+          ),
+        });
+      }
+    }
+    void old.disconnect().catch(() => {});
   }
 
   /** Settles `ask` once; later outcomes for an ask that already ended are ignored. */
@@ -318,8 +466,8 @@ class PeerMessagingRuntimeManager {
     }
   }
 
-  private async resolveTarget(to: string): Promise<string> {
-    const peers = await this.withConnectedClient((connectedClient) => connectedClient.listPeers());
+  private async resolveTarget(generation: number, to: string): Promise<string> {
+    const peers = await this.withConnectedClient(generation, (client) => client.listPeers());
     const byId = peers.find((peer) => peer.id === to);
     if (byId) {
       return byId.id;
@@ -344,106 +492,73 @@ class PeerMessagingRuntimeManager {
   }
 
   private async withConnectedClient<T>(
+    generation: number,
     action: (client: PeerMessagingClient) => Promise<T>,
-    allowRetry: boolean = true,
   ): Promise<T> {
-    const generation = this.generation;
-    const client = await this.ensureConnected();
+    const client = await this.ensureConnected(generation);
+    // Taken now: a connection reset clears the client's id before the failure arrives here.
+    const sessionId = client.sessionId;
     try {
       return await action(client);
     } catch (error) {
-      // A disconnect() since this call started is final for it: never reconnect behind the caller.
-      if (!allowRetry || !isRecoverableClientError(error) || generation !== this.generation) {
+      // A disconnect() since the operation started is final for it: never reconnect behind it.
+      if (!isRecoverableClientError(error) || generation !== this.generation) {
         throw error;
       }
-
-      this.client = null;
-      const reconnectedClient = await this.ensureConnected(true);
+      // Re-register under the same id, so the broker replaces the old connection silently: no ghost
+      // registration left behind (a duplicate name would then fail closed) and no session_left that
+      // would fail peers' asks.
+      const reconnectedClient = await this.ensureConnected(generation, { client, sessionId });
       return action(reconnectedClient);
     }
   }
 
-  private async ensureConnected(forceReconnect: boolean = false): Promise<PeerMessagingClient> {
-    if (!forceReconnect && this.client?.isConnected()) {
+  private async ensureConnected(
+    generation: number,
+    replacement?: { client: PeerMessagingClient; sessionId: string | null },
+  ): Promise<PeerMessagingClient> {
+    const replacing = replacement?.client;
+    if (generation !== this.generation) {
+      throw new Error("PeerMessagingRuntime disconnected.");
+    }
+    if (!replacing && this.client?.isConnected()) {
+      return this.client;
+    }
+    // Another operation may already have replaced it.
+    if (replacing && this.client && this.client !== replacing && this.client.isConnected()) {
       return this.client;
     }
 
     if (this.connectPromise) {
-      return this.connectPromise;
+      if (!replacement) return this.connectPromise;
+      // Joins a connect already under way; the connection being replaced is let go either way.
+      try {
+        const client = await this.connectPromise;
+        this.retire(replacement, client);
+        return client;
+      } catch (error) {
+        this.retire(replacement, undefined, error);
+        throw error;
+      }
     }
 
-    const generation = this.generation;
     const connecting = (async () => {
-      if (forceReconnect && this.client) {
-        try {
-          await this.client.disconnect();
-        } catch {
-          // Best-effort disconnect before recreating the client.
-        }
-        this.client = null;
+      // A connect interrupted by the last disconnect() must be closed before this one registers.
+      if (this.disconnecting) {
+        await this.disconnecting;
       }
-
-      if (this.autoStartBroker) {
-        await spawnBrokerIfNeeded({
-          paths: this.paths,
-          packageRoot: this.packageRoot,
-          runtimeDir: this.paths.runtimeDir,
-          idleShutdownMs: this.idleShutdownMs,
-        });
+      // Its close is expected from here on: it must not fail an ask that moves to the replacement.
+      if (replacing) this.markReplaced(replacing);
+      try {
+        const client = await this.connectClient(generation, replacement?.sessionId ?? undefined);
+        this.client = client;
+        if (replacement) this.retire(replacement, client);
+        return client;
+      } catch (error) {
+        // Not replaced after all: the old connection is closed rather than left registered.
+        if (replacement) this.retire(replacement, undefined, error);
+        throw error;
       }
-
-      if (generation !== this.generation) {
-        throw new Error("PeerMessagingRuntime disconnected while connecting.");
-      }
-      const client = new PeerMessagingClient({ paths: this.paths });
-      client.on("disconnected", (error: Error) => {
-        if (this.client === client) {
-          this.client = null;
-        }
-        // Only the connection the question went out on can take its reply path away.
-        const ask = this.activeAsk;
-        if (ask?.client === client) {
-          this.finishAsk(ask, {
-            error: lostAskError(
-              ask,
-              "runtime_disconnected",
-              `Peer-messaging runtime disconnected (${error.message})`,
-            ),
-          });
-        }
-      });
-      client.on("error", () => {
-        // Transport errors surface through disconnected/retry behavior.
-      });
-      client.on("message", (from: PeerPresence, message: PeerMessage) => {
-        this.emitMessage(from, message);
-      });
-      client.on("session_left", (sessionId: string) => {
-        const ask = this.activeAsk;
-        if (ask?.targetId === sessionId) {
-          this.finishAsk(ask, { error: lostAskError(ask, "peer_disconnected") });
-        }
-      });
-      client.on("presence_update", (presence: PeerPresence) => {
-        if (presence.id === client.sessionId) {
-          this.registration.name = presence.name;
-          this.registration.model = presence.model;
-          this.registration.status = presence.status;
-          this.registration.lastActivity = presence.lastActivity;
-        }
-      });
-
-      await client.connect({
-        ...this.registration,
-        lastActivity: this.registration.lastActivity ?? Date.now(),
-      });
-      if (generation !== this.generation) {
-        // disconnect() ran while this connect was in flight; do not leave the session registered.
-        await client.disconnect();
-        throw new Error("PeerMessagingRuntime disconnected while connecting.");
-      }
-      this.client = client;
-      return client;
     })().finally(() => {
       if (this.connectPromise === connecting) {
         this.connectPromise = null;
