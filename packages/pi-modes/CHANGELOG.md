@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.4.2](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.4.1...pi-modes-v0.4.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **pi-modes:** close the gaps left in project-mode confirmation (AK6285) ([5faf7e1](https://github.com/tryingET/pi-extensions/commit/5faf7e1392d0dce7b478fe786d7961129e236e9c))
+* **pi-modes:** show repository text inertly in previews and status (AK6283) ([217788e](https://github.com/tryingET/pi-extensions/commit/217788ecd71f1df403047fca00e1fc0bf64a751a))
+
 ## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.4.0...pi-modes-v0.4.1) (2026-09-30)
 
 

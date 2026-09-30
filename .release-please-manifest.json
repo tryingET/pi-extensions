@@ -17,7 +17,7 @@
   "packages/pi-interaction/pi-trigger-adapter": "0.2.4",
   "packages/pi-little-helpers": "0.10.4",
   "packages/pi-model-selection": "0.3.1",
-  "packages/pi-modes": "0.4.1",
+  "packages/pi-modes": "0.4.2",
   "packages/pi-ontology-workflows": "0.5.2",
   "packages/pi-peer-messaging": "0.4.2",
   "packages/pi-prompt-template-accelerator": "0.3.1",
