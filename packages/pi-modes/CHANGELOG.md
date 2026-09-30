@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.4.0...pi-modes-v0.4.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **pi-modes:** confirm project modes before their text reaches the prompt (AK6201) ([1fa2769](https://github.com/tryingET/pi-extensions/commit/1fa27697aaed07dde95b6646d8df647ba490dc53))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.3.1...pi-modes-v0.4.0) (2026-08-29)
 
 
