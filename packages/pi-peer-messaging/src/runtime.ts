@@ -8,6 +8,8 @@ import {
   DEFAULT_ASK_TIMEOUT_MS,
   type DeliveryResult,
   definePeerMessagingRuntime,
+  PeerAskCancelledError,
+  PeerAskInFlightError,
   type PeerMessage,
   type PeerMessagingRuntime,
   type PeerPresence,
@@ -15,6 +17,7 @@ import {
 } from "./contracts.ts";
 import { type PeerMessagingPaths, resolvePeerMessagingPaths } from "./paths.ts";
 import type { PeerPresenceUpdate, PeerRegistration } from "./presence.ts";
+import { type ActiveAsk, lostAskError, MAX_TIMER_DELAY_MS } from "./runtime-ask.ts";
 import { spawnBrokerIfNeeded } from "./spawn.ts";
 
 export interface CreatePeerMessagingRuntimeOptions
@@ -35,15 +38,6 @@ export interface ManagedPeerMessagingRuntime extends PeerMessagingRuntime {
   updatePresence(updates: PeerPresenceUpdate): Promise<PeerPresence>;
   getPaths(): PeerMessagingPaths;
   onMessage(listener: PeerMessageListener): () => void;
-}
-
-interface PendingAsk {
-  targetId: string;
-  targetInput: string;
-  messageId: string;
-  resolve: (message: PeerMessage) => void;
-  reject: (error: Error) => void;
-  timeout: NodeJS.Timeout;
 }
 
 function toError(error: unknown): Error {
@@ -70,7 +64,9 @@ class PeerMessagingRuntimeManager {
   private readonly messageListeners = new Set<PeerMessageListener>();
   private client: PeerMessagingClient | null = null;
   private connectPromise: Promise<PeerMessagingClient> | null = null;
-  private pendingAsk: PendingAsk | null = null;
+  private activeAsk: ActiveAsk | null = null;
+  // Bumped by disconnect(): work started before it must not reconnect this session afterwards.
+  private generation = 0;
 
   constructor(options: CreatePeerMessagingRuntimeOptions) {
     this.paths = options.paths ?? resolvePeerMessagingPaths({ runtimeDir: options.runtimeDir });
@@ -97,10 +93,15 @@ class PeerMessagingRuntimeManager {
   }
 
   async disconnect(): Promise<void> {
-    this.rejectPendingAsk(new Error("PeerMessagingRuntime disconnected while waiting for reply."));
+    this.generation += 1;
+    const ask = this.activeAsk;
+    if (ask) {
+      this.finishAsk(ask, { error: lostAskError(ask, "runtime_disconnected") });
+    }
 
     const client = this.client;
     this.client = null;
+    // A connect still in flight sees the new generation and closes itself instead of becoming this.client.
     this.connectPromise = null;
     if (!client) {
       return;
@@ -176,99 +177,135 @@ class PeerMessagingRuntimeManager {
     to: string;
     message: PeerMessage;
     timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<PeerMessage> {
-    if (this.pendingAsk) {
-      throw new Error("Already waiting for a reply.");
+    if (this.activeAsk) {
+      throw new PeerAskInFlightError();
     }
 
-    const client = await this.ensureConnected();
-    const targetId = await this.resolveTarget(request.to);
-    if (targetId === client.sessionId) {
-      throw new Error("Cannot ask the current session.");
-    }
+    // The record exists, and its timer runs, before the first await: asks started in the same tick
+    // cannot all pass the check above (AK5928), and disconnect or abort can end this one at any point.
+    const timeoutMs = request.timeoutMs ?? DEFAULT_ASK_TIMEOUT_MS;
+    let resolve!: (reply: PeerMessage) => void;
+    let reject!: (error: Error) => void;
+    const outcome = new Promise<PeerMessage>((resolveOutcome, rejectOutcome) => {
+      resolve = resolveOutcome;
+      reject = rejectOutcome;
+    });
+    // The caller awaits `outcome`; this only keeps an early rejection from counting as unhandled.
+    outcome.catch(() => {});
 
-    const replyPromise = this.createPendingAsk(
-      targetId,
-      request.to,
-      request.message.id,
-      request.timeoutMs ?? DEFAULT_ASK_TIMEOUT_MS,
-    );
-
+    const signal = request.signal;
+    const onAbort = () => {
+      this.finishAsk(ask, { error: new PeerAskCancelledError(request.message.id) });
+    };
+    const ask: ActiveAsk = {
+      messageId: request.message.id,
+      targetInput: request.to,
+      timeoutMs,
+      targetId: null,
+      client: null,
+      delivered: false,
+      resolve,
+      reject,
+      timeout: setTimeout(
+        () => {
+          this.finishAsk(ask, { error: lostAskError(ask, "timeout") });
+        },
+        Math.min(timeoutMs, MAX_TIMER_DELAY_MS),
+      ),
+      detachAbort: () => signal?.removeEventListener("abort", onAbort),
+    };
+    this.activeAsk = ask;
     try {
-      const delivery = await client.sendMessage(targetId, request.message);
-      if (!delivery.delivered) {
-        this.rejectPendingAsk(
-          new Error(
-            delivery.reason
-              ? `Message to "${request.to}" was not delivered: ${delivery.reason}`
-              : `Message to "${request.to}" was not delivered.`,
-          ),
-        );
+      if (signal?.aborted) {
+        onAbort();
+      } else {
+        signal?.addEventListener("abort", onAbort, { once: true });
       }
     } catch (error) {
-      this.rejectPendingAsk(toError(error));
+      this.finishAsk(ask, { error: toError(error) });
+      return outcome;
     }
 
-    return replyPromise;
+    void this.sendAsk(ask, request.message);
+    return outcome;
   }
 
-  private createPendingAsk(
-    targetId: string,
-    targetInput: string,
-    messageId: string,
-    timeoutMs: number,
-  ): Promise<PeerMessage> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.rejectPendingAsk(new Error(`No reply from "${targetInput}" within ${timeoutMs}ms.`));
-      }, timeoutMs);
-
-      this.pendingAsk = {
-        targetId,
-        targetInput,
-        messageId,
-        resolve,
-        reject,
-        timeout,
-      };
-    });
-  }
-
-  private resolvePendingAsk(message: PeerMessage): void {
-    const pendingAsk = this.pendingAsk;
-    if (!pendingAsk) {
-      return;
-    }
-
-    clearTimeout(pendingAsk.timeout);
-    this.pendingAsk = null;
-    pendingAsk.resolve(message);
-  }
-
-  private rejectPendingAsk(error: Error): void {
-    const pendingAsk = this.pendingAsk;
-    if (!pendingAsk) {
-      return;
-    }
-
-    clearTimeout(pendingAsk.timeout);
-    this.pendingAsk = null;
-    pendingAsk.reject(error);
-  }
-
-  private emitMessage(from: PeerPresence, message: PeerMessage): void {
-    const pendingAsk = this.pendingAsk;
-    if (pendingAsk && message.replyTo === pendingAsk.messageId) {
-      if (from.id !== pendingAsk.targetId) {
-        this.rejectPendingAsk(
-          new Error(
-            `Received ambiguous reply for ask ${pendingAsk.messageId} from unexpected peer ${from.id}.`,
-          ),
-        );
+  private async sendAsk(ask: ActiveAsk, message: PeerMessage): Promise<void> {
+    try {
+      // An ask that already ended (cancelled, timed out, disconnected) does no connect or send work.
+      if (this.activeAsk !== ask) {
+        return;
+      }
+      const targetId = await this.resolveTarget(ask.targetInput);
+      if (this.activeAsk !== ask) {
+        return;
+      }
+      // Take the client after resolving: resolving may have reconnected.
+      const client = await this.ensureConnected();
+      if (this.activeAsk !== ask) {
+        return;
+      }
+      if (targetId === client.sessionId) {
+        this.finishAsk(ask, { error: new Error("Cannot ask the current session.") });
         return;
       }
 
-      this.resolvePendingAsk(message);
+      ask.targetId = targetId;
+      ask.client = client;
+      const delivery = await client.sendMessage(targetId, message, {
+        onDelivered: () => {
+          ask.delivered = true;
+        },
+      });
+      if (!delivery.delivered) {
+        this.finishAsk(ask, {
+          error: new Error(
+            delivery.reason
+              ? `Message to "${ask.targetInput}" was not delivered: ${delivery.reason}`
+              : `Message to "${ask.targetInput}" was not delivered.`,
+          ),
+        });
+      }
+    } catch (error) {
+      this.finishAsk(ask, { error: toError(error) });
+    }
+  }
+
+  /** Settles `ask` once; later outcomes for an ask that already ended are ignored. */
+  private finishAsk(ask: ActiveAsk, outcome: { reply: PeerMessage } | { error: Error }): void {
+    if (this.activeAsk !== ask) {
+      return;
+    }
+    this.activeAsk = null;
+    clearTimeout(ask.timeout);
+    if ("reply" in outcome) {
+      ask.resolve(outcome.reply);
+    } else {
+      ask.reject(outcome.error);
+    }
+    try {
+      ask.detachAbort();
+    } catch {
+      // A signal without a working removeEventListener has nothing to detach; the ask is settled.
+    }
+  }
+
+  private emitMessage(from: PeerPresence, message: PeerMessage): void {
+    const ask = this.activeAsk;
+    // Before the question is sent (targetId null) nothing can be replying to it yet.
+    if (ask?.targetId && message.replyTo === ask.messageId) {
+      if (from.id !== ask.targetId) {
+        this.finishAsk(ask, {
+          error: new Error(
+            `Received ambiguous reply for ask ${ask.messageId} from unexpected peer ${from.id}.`,
+          ),
+        });
+        return;
+      }
+
+      this.finishAsk(ask, { reply: message });
       return;
     }
 
@@ -310,11 +347,13 @@ class PeerMessagingRuntimeManager {
     action: (client: PeerMessagingClient) => Promise<T>,
     allowRetry: boolean = true,
   ): Promise<T> {
+    const generation = this.generation;
     const client = await this.ensureConnected();
     try {
       return await action(client);
     } catch (error) {
-      if (!allowRetry || !isRecoverableClientError(error)) {
+      // A disconnect() since this call started is final for it: never reconnect behind the caller.
+      if (!allowRetry || !isRecoverableClientError(error) || generation !== this.generation) {
         throw error;
       }
 
@@ -333,7 +372,8 @@ class PeerMessagingRuntimeManager {
       return this.connectPromise;
     }
 
-    this.connectPromise = (async () => {
+    const generation = this.generation;
+    const connecting = (async () => {
       if (forceReconnect && this.client) {
         try {
           await this.client.disconnect();
@@ -352,17 +392,25 @@ class PeerMessagingRuntimeManager {
         });
       }
 
+      if (generation !== this.generation) {
+        throw new Error("PeerMessagingRuntime disconnected while connecting.");
+      }
       const client = new PeerMessagingClient({ paths: this.paths });
       client.on("disconnected", (error: Error) => {
         if (this.client === client) {
           this.client = null;
         }
-        this.rejectPendingAsk(
-          new Error(
-            `Peer-messaging runtime disconnected while waiting for reply: ${error.message}`,
-            { cause: error },
-          ),
-        );
+        // Only the connection the question went out on can take its reply path away.
+        const ask = this.activeAsk;
+        if (ask?.client === client) {
+          this.finishAsk(ask, {
+            error: lostAskError(
+              ask,
+              "runtime_disconnected",
+              `Peer-messaging runtime disconnected (${error.message})`,
+            ),
+          });
+        }
       });
       client.on("error", () => {
         // Transport errors surface through disconnected/retry behavior.
@@ -371,11 +419,9 @@ class PeerMessagingRuntimeManager {
         this.emitMessage(from, message);
       });
       client.on("session_left", (sessionId: string) => {
-        const pendingAsk = this.pendingAsk;
-        if (pendingAsk?.targetId === sessionId) {
-          this.rejectPendingAsk(
-            new Error(`Peer "${pendingAsk.targetInput}" disconnected before replying.`),
-          );
+        const ask = this.activeAsk;
+        if (ask?.targetId === sessionId) {
+          this.finishAsk(ask, { error: lostAskError(ask, "peer_disconnected") });
         }
       });
       client.on("presence_update", (presence: PeerPresence) => {
@@ -391,13 +437,21 @@ class PeerMessagingRuntimeManager {
         ...this.registration,
         lastActivity: this.registration.lastActivity ?? Date.now(),
       });
+      if (generation !== this.generation) {
+        // disconnect() ran while this connect was in flight; do not leave the session registered.
+        await client.disconnect();
+        throw new Error("PeerMessagingRuntime disconnected while connecting.");
+      }
       this.client = client;
       return client;
     })().finally(() => {
-      this.connectPromise = null;
+      if (this.connectPromise === connecting) {
+        this.connectPromise = null;
+      }
     });
+    this.connectPromise = connecting;
 
-    return this.connectPromise;
+    return connecting;
   }
 }
 

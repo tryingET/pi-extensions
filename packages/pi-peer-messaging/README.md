@@ -52,7 +52,16 @@ Decision-level guardrails kept visible by the package:
 - exact session id targeting wins over name-like targeting
 - `ask` uses explicit reply correlation
 - `ask` keeps a bounded documented default timeout
-- one in-flight `ask` per local session in the first stable contract
+- one in-flight `ask` per local session in the first stable contract: the slot is claimed when `ask` is
+  called, so asks started together (for example parallel tool calls) are refused at once with
+  `PeerAskInFlightError` (`code: "ask_in_flight"`, `Already waiting for a reply.`) and never sent
+- an `ask` rejects with `PeerAskNoReplyError` (`code: "no_reply"`, `reason` `timeout`,
+  `peer_disconnected` or `runtime_disconnected`, and the question's `messageId`) only after the broker
+  confirmed delivery; before that, losing the target or the connection is a send failure
+- an optional `signal` cancels an `ask` with `PeerAskCancelledError` (`code: "ask_cancelled"`) and frees
+  the slot; the intercom tool passes its abort signal, and reports each case as `details.outcome`
+  (`no_reply`, `ask_in_flight`, `cancelled`); `peerAskOutcome(error)` classifies by shape
+- `timeoutMs` above 2,147,483,647 is capped there, the longest delay a timer supports
 - runtime fallback aliases are addressability-only and non-persistent
 
 ## Intercom-compatible adapter second

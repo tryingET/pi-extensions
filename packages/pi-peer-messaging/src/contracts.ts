@@ -4,6 +4,85 @@ read_when:
   - "Changing peer message shapes, boundary guarantees, ask timeouts, or runtime validation behavior."
 */
 export const DEFAULT_ASK_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** Why an ask ended without a correlated reply after the broker confirmed delivery of the question. */
+export const PEER_ASK_NO_REPLY_REASONS = [
+  "timeout",
+  "peer_disconnected",
+  "runtime_disconnected",
+] as const;
+export type PeerAskNoReplyReason = (typeof PEER_ASK_NO_REPLY_REASONS)[number];
+
+/** The question was delivered, but no correlated reply arrived. */
+export class PeerAskNoReplyError extends Error {
+  readonly code = "no_reply";
+  readonly reason: PeerAskNoReplyReason;
+  readonly messageId: string;
+
+  constructor(
+    reason: PeerAskNoReplyReason,
+    messageId: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "PeerAskNoReplyError";
+    this.reason = reason;
+    this.messageId = messageId;
+  }
+}
+
+/** Another ask from this session is still waiting; this one was refused before sending anything. */
+export class PeerAskInFlightError extends Error {
+  readonly code = "ask_in_flight";
+
+  constructor(message = "Already waiting for a reply.") {
+    super(message);
+    this.name = "PeerAskInFlightError";
+  }
+}
+
+/** The caller aborted the ask; the question may or may not have been delivered. */
+export class PeerAskCancelledError extends Error {
+  readonly code = "ask_cancelled";
+  readonly messageId: string;
+
+  constructor(messageId: string, message = "Ask cancelled before a reply arrived.") {
+    super(message);
+    this.name = "PeerAskCancelledError";
+    this.messageId = messageId;
+  }
+}
+
+/**
+ * Classifies an ask failure by shape, not class identity: the package can load from more than one path
+ * or realm at once. Anything else is a failure to send the question.
+ */
+export function peerAskOutcome(error: unknown): "no_reply" | "ask_in_flight" | "cancelled" | null {
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+  const candidate = error as { code?: unknown; reason?: unknown; messageId?: unknown };
+  if (
+    candidate.code === "no_reply" &&
+    typeof candidate.messageId === "string" &&
+    (PEER_ASK_NO_REPLY_REASONS as readonly unknown[]).includes(candidate.reason)
+  ) {
+    return "no_reply";
+  }
+  if (candidate.code === "ask_in_flight") {
+    return "ask_in_flight";
+  }
+  if (candidate.code === "ask_cancelled" && typeof candidate.messageId === "string") {
+    return "cancelled";
+  }
+  return null;
+}
+
+export function isPeerAskNoReply(error: unknown): error is PeerAskNoReplyError {
+  return peerAskOutcome(error) === "no_reply";
+}
+
 export const PEER_ATTACHMENT_TYPES = ["file", "snippet", "context"] as const;
 
 export type PeerAttachmentType = (typeof PEER_ATTACHMENT_TYPES)[number];
@@ -52,7 +131,12 @@ export interface PeerRuntimeStatus {
 export interface PeerMessagingRuntime {
   listPeers(): Promise<PeerPresence[]>;
   send(request: { to: string; message: PeerMessage }): Promise<DeliveryResult>;
-  ask(request: { to: string; message: PeerMessage; timeoutMs?: number }): Promise<PeerMessage>;
+  ask(request: {
+    to: string;
+    message: PeerMessage;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  }): Promise<PeerMessage>;
   status(): Promise<PeerRuntimeStatus>;
 }
 
@@ -235,6 +319,7 @@ function assertAskRequest(value: unknown): {
   to: string;
   message: PeerMessage;
   timeoutMs?: number;
+  signal?: AbortSignal;
 } {
   const record = assertRecord(value, "PeerMessagingRuntime.ask request");
   const to = assertNonEmptyString(record.to, "PeerMessagingRuntime.ask request.to");
@@ -252,10 +337,23 @@ function assertAskRequest(value: unknown): {
     }
   }
 
+  const signal = record.signal;
+  if (
+    signal !== undefined &&
+    (typeof signal !== "object" ||
+      signal === null ||
+      typeof (signal as AbortSignal).aborted !== "boolean" ||
+      typeof (signal as AbortSignal).addEventListener !== "function" ||
+      typeof (signal as AbortSignal).removeEventListener !== "function")
+  ) {
+    throw new TypeError("PeerMessagingRuntime.ask request.signal must be an AbortSignal.");
+  }
+
   return {
     to,
     message: record.message,
     timeoutMs: record.timeoutMs as number | undefined,
+    signal: signal as AbortSignal | undefined,
   };
 }
 

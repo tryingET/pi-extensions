@@ -5,13 +5,16 @@
 // ---
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  DeliveryResult,
-  PeerAttachment,
-  PeerMessage,
-  PeerMessagingRuntime,
-  PeerPresence,
-  PeerRuntimeStatus,
+import {
+  type DeliveryResult,
+  PeerAskCancelledError,
+  PeerAskInFlightError,
+  PeerAskNoReplyError,
+  type PeerAttachment,
+  type PeerMessage,
+  type PeerMessagingRuntime,
+  type PeerPresence,
+  type PeerRuntimeStatus,
 } from "../index.ts";
 import {
   createIntercomCompatibleAdapter,
@@ -83,13 +86,19 @@ function createMessage(
 class FakePeerMessagingRuntime implements PeerMessagingRuntime {
   readonly peers: PeerPresence[];
   readonly sendCalls: Array<{ to: string; message: PeerMessage }> = [];
-  readonly askCalls: Array<{ to: string; message: PeerMessage; timeoutMs?: number }> = [];
+  readonly askCalls: Array<{
+    to: string;
+    message: PeerMessage;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  }> = [];
   statusValue: PeerRuntimeStatus;
   sendResult: DeliveryResult = {
     delivered: true,
     messageId: "delivery-1",
   };
   askResult: PeerMessage = createMessage("All good.", { id: "reply-1", replyTo: "request-1" });
+  askError: Error | null = null;
 
   constructor(peers: PeerPresence[]) {
     this.peers = peers;
@@ -113,8 +122,12 @@ class FakePeerMessagingRuntime implements PeerMessagingRuntime {
     to: string;
     message: PeerMessage;
     timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<PeerMessage> {
     this.askCalls.push(request);
+    if (this.askError) {
+      throw this.askError;
+    }
     return this.askResult;
   }
 
@@ -154,6 +167,71 @@ test("adapter delegates ask to the stable core and formats reply attachments", a
   assert.equal(runtime.askCalls[0]?.to, "worker");
   assert.equal(runtime.askCalls[0]?.message.content.text, "Should I ship this?");
   assert.equal(runtime.askCalls[0]?.timeoutMs, 250);
+});
+
+test("adapter reports a missing reply as a typed no_reply outcome, distinct from a failed send", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 1_700_000_000_000 });
+
+  runtime.askError = new PeerAskNoReplyError(
+    "timeout",
+    "request-7",
+    'No reply from "worker" within 250ms.',
+  );
+  const noReply = await adapter.execute(runtime, {
+    action: "ask",
+    to: "worker",
+    message: "Still there?",
+    timeoutMs: 250,
+  });
+  assert.equal(noReply.isError, true);
+  assert.equal(noReply.content[0]?.text, 'No reply from "worker" within 250ms.');
+  assert.deepEqual(noReply.details, {
+    outcome: "no_reply",
+    reason: "timeout",
+    messageId: "request-7",
+    to: "worker",
+  });
+
+  runtime.askError = new Error('Message to "worker" was not delivered.');
+  const failed = await adapter.execute(runtime, {
+    action: "ask",
+    to: "worker",
+    message: "Still there?",
+  });
+  assert.equal(failed.isError, true);
+  assert.match(failed.content[0]?.text ?? "", /^Failed: Message to "worker" was not delivered\./);
+  assert.deepEqual(failed.details, {
+    outcome: "send_failed",
+    messageId: runtime.askCalls.at(-1)?.message.id,
+    to: "worker",
+  });
+
+  runtime.askError = new PeerAskInFlightError();
+  const refused = await adapter.execute(runtime, { action: "ask", to: "worker", message: "Too?" });
+  assert.equal(refused.isError, true);
+  assert.deepEqual(refused.details, { outcome: "ask_in_flight", to: "worker" });
+  assert.match(refused.content[0]?.text ?? "", /^Not sent: another ask/);
+
+  runtime.askError = new PeerAskCancelledError("request-8");
+  const cancelled = await adapter.execute(runtime, {
+    action: "ask",
+    to: "worker",
+    message: "Stop",
+  });
+  assert.deepEqual(cancelled.details, {
+    outcome: "cancelled",
+    messageId: runtime.askCalls.at(-1)?.message.id,
+    to: "worker",
+  });
+});
+
+test("adapter forwards the tool's abort signal to the runtime ask", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 1_700_000_000_000 });
+  const controller = new AbortController();
+  await adapter.execute(runtime, { action: "ask", to: "worker", message: "Hi" }, controller.signal);
+  assert.equal(runtime.askCalls[0]?.signal, controller.signal);
 });
 
 test("adapter surfaces duplicate-name ambiguity with exact session ids", async () => {

@@ -29,6 +29,7 @@ interface PendingSendRequest {
   resolve: (result: DeliveryResult) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
+  onDelivered?: () => void;
 }
 
 function assertRecord(value: unknown, label: string): Record<string, unknown> {
@@ -301,7 +302,12 @@ export class PeerMessagingClient extends EventEmitter {
     });
   }
 
-  async sendMessage(to: string, message: PeerMessage): Promise<DeliveryResult> {
+  /** `onDelivered` runs while the ack frame is parsed, before later frames of the same read. */
+  async sendMessage(
+    to: string,
+    message: PeerMessage,
+    options: { onDelivered?: () => void } = {},
+  ): Promise<DeliveryResult> {
     const socket = this.requireSocket();
     assertPeerMessage(message);
 
@@ -326,6 +332,7 @@ export class PeerMessagingClient extends EventEmitter {
           reject(error);
         },
         timeout,
+        onDelivered: options.onDelivered,
       });
 
       try {
@@ -424,6 +431,11 @@ export class PeerMessagingClient extends EventEmitter {
         } satisfies DeliveryResult;
         assertDeliveryResult(result);
         pending.resolve(result);
+        try {
+          pending.onDelivered?.();
+        } catch {
+          // resolve() above already settled the send; a throwing callback must not drop the socket.
+        }
         return null;
       }
 

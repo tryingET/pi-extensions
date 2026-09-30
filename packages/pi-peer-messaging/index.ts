@@ -5,6 +5,7 @@
 // ---
 export type {
   DeliveryResult,
+  PeerAskNoReplyReason,
   PeerAttachment,
   PeerAttachmentType,
   PeerMessage,
@@ -22,8 +23,14 @@ export {
   createStubPeerMessagingRuntime,
   DEFAULT_ASK_TIMEOUT_MS,
   definePeerMessagingRuntime,
+  isPeerAskNoReply,
+  PEER_ASK_NO_REPLY_REASONS,
   PEER_ATTACHMENT_TYPES,
   PEER_MESSAGING_BOUNDARY,
+  PeerAskCancelledError,
+  PeerAskInFlightError,
+  PeerAskNoReplyError,
+  peerAskOutcome,
 } from "./src/contracts.ts";
 export type { PeerMessagingPaths } from "./src/paths.ts";
 export {

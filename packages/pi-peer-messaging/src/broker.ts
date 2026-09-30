@@ -223,7 +223,8 @@ export class PeerMessagingBroker {
 
     socket.on("data", reader);
     socket.on("close", () => {
-      if (!sessionId) {
+      // A socket replaced by a re-registration no longer owns its id; leave the new session alone.
+      if (!sessionId || this.sessions.get(sessionId)?.socket !== socket) {
         return;
       }
 
@@ -293,8 +294,10 @@ export class PeerMessagingBroker {
 
       case "unregister": {
         const sessionId = currentSessionId ?? "";
-        this.sessions.delete(sessionId);
-        this.broadcast({ type: "session_left", sessionId }, sessionId);
+        if (this.sessions.get(sessionId)?.socket === socket) {
+          this.sessions.delete(sessionId);
+          this.broadcast({ type: "session_left", sessionId }, sessionId);
+        }
         setSessionId(null);
         this.scheduleIdleShutdown();
         break;

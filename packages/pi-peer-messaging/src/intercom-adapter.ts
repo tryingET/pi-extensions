@@ -5,12 +5,14 @@
 // ---
 import { randomUUID } from "node:crypto";
 
-import type {
-  DeliveryResult,
-  PeerAttachment,
-  PeerMessage,
-  PeerMessagingRuntime,
-  PeerPresence,
+import {
+  type DeliveryResult,
+  type PeerAskNoReplyError,
+  type PeerAttachment,
+  type PeerMessage,
+  type PeerMessagingRuntime,
+  type PeerPresence,
+  peerAskOutcome,
 } from "./contracts.ts";
 import {
   buildAmbiguousTargetReason,
@@ -141,7 +143,7 @@ export class IntercomCompatibleAdapter {
       case "send":
         return this.send(runtime, request);
       case "ask":
-        return this.ask(runtime, request);
+        return this.ask(runtime, request, observationSignal);
       case "reply":
         return this.reply(runtime, request);
       case "pending":
@@ -368,21 +370,25 @@ export class IntercomCompatibleAdapter {
   private async ask(
     runtime: PeerMessagingRuntime,
     request: IntercomToolRequest,
+    signal?: AbortSignal,
   ): Promise<IntercomToolResponse> {
     if (!request.to || !request.message) {
       return textResult("Missing 'to' or 'message' parameter", { isError: true });
     }
 
+    let questionId: string | undefined;
     try {
       const outboundMessage = createPeerMessage(request.message, {
         attachments: request.attachments,
         replyTo: request.replyTo,
         now: this.now,
       });
+      questionId = outboundMessage.id;
       const reply = await runtime.ask({
         to: request.to,
         message: outboundMessage,
         timeoutMs: request.timeoutMs,
+        signal,
       });
       const replyText = `${reply.content.text}${formatAttachments(reply.content.attachments)}`;
 
@@ -394,8 +400,40 @@ export class IntercomCompatibleAdapter {
         },
       });
     } catch (error) {
+      const outcome = peerAskOutcome(error);
+      if (outcome === "no_reply") {
+        // The broker confirmed delivery of the question; only the reply is missing.
+        const noReply = error as PeerAskNoReplyError;
+        return textResult(noReply.message, {
+          isError: true,
+          details: {
+            outcome: "no_reply",
+            reason: noReply.reason,
+            messageId: noReply.messageId,
+            to: request.to,
+          },
+        });
+      }
+      if (outcome === "ask_in_flight") {
+        return textResult(
+          "Not sent: another ask from this session is still waiting for its reply. Send to more peers instead, or ask again after that reply.",
+          { isError: true, details: { outcome: "ask_in_flight", to: request.to } },
+        );
+      }
+      // Cancelled or failed questions may still reach the peer; the id lets a late reply be matched.
+      if (outcome === "cancelled") {
+        return textResult(`Ask to ${request.to} cancelled.`, {
+          isError: true,
+          details: { outcome: "cancelled", messageId: questionId, to: request.to },
+        });
+      }
       const reason = await this.resolveActionFailureReason(runtime, request.to, error);
-      return textResult(`Failed: ${reason}`, { isError: true });
+      return textResult(`Failed: ${reason}`, {
+        isError: true,
+        details: questionId
+          ? { outcome: "send_failed", messageId: questionId, to: request.to }
+          : undefined,
+      });
     }
   }
 
