@@ -37,7 +37,6 @@ import {
 } from "../src/modes.ts";
 import {
   describeProjectModes,
-  displaySafe,
   PROJECT_MODE_APPROVALS_FILE,
   projectApprovalDigest,
   readProjectModeApprovals,
@@ -48,6 +47,7 @@ import { PI_HOST_COMPATIBILITY } from "../src/prompt-composition.ts";
 export { PI_HOST_COMPATIBILITY };
 
 import { selectionDefinitionFingerprint, selectionLabel } from "../src/selection-commands.ts";
+import { displaySafe } from "../src/untrusted-text.ts";
 
 type AnyContext = ExtensionContext | ExtensionCommandContext;
 
@@ -106,18 +106,22 @@ export default function modeExtension(pi: ExtensionAPI) {
         details: [],
         diagnostics: [],
       };
+      // Saved lines carry repository paths and may predate sanitizing (or come from an edited
+      // session file), so they are made safe here, where they reach the terminal.
       const lines = [
-        `${theme.fg("accent", "[mode]")} ${data.summary}`,
+        `${theme.fg("accent", "[mode]")} ${displaySafe(data.summary)}`,
         theme.fg(
           "dim",
           `${data.available.length} available · ${data.diagnostics.length} diagnostic(s)`,
         ),
       ];
       if (expanded) {
-        lines.push(...data.details.map((line) => theme.fg("muted", line)));
+        lines.push(...data.details.map((line) => theme.fg("muted", displaySafe(line))));
         if (data.available.length > 0)
-          lines.push(theme.fg("dim", `available: ${data.available.join(", ")}`));
-        lines.push(...data.diagnostics.map((line) => theme.fg("warning", `warning: ${line}`)));
+          lines.push(theme.fg("dim", `available: ${displaySafe(data.available.join(", "))}`));
+        lines.push(
+          ...data.diagnostics.map((line) => theme.fg("warning", `warning: ${displaySafe(line)}`)),
+        );
         lines.push(theme.fg("dim", `supported Pi host: ${PI_HOST_COMPATIBILITY}`));
       }
       const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));

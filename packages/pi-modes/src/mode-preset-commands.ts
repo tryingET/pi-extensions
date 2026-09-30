@@ -19,9 +19,10 @@ import {
   resolveModeSelection,
 } from "./modes.ts";
 import { parseActivationFlags, selectionDefinitionFingerprint } from "./selection-commands.ts";
+import { inertJson } from "./untrusted-text.ts";
 
 function writeMachineOutput(value: unknown): void {
-  console.log(JSON.stringify(value));
+  console.log(inertJson(value));
 }
 
 export async function handlePresetCommand(

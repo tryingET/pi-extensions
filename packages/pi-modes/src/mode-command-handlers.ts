@@ -25,7 +25,7 @@ import {
   resolveModeSelection,
   selectedKeys,
 } from "./modes.ts";
-import { displaySafe, unconfirmedProjectModes } from "./project-mode-approvals.ts";
+import { unconfirmedProjectModes } from "./project-mode-approvals.ts";
 import {
   modeArgumentCompletions,
   parseActivationFlags,
@@ -34,6 +34,7 @@ import {
   selectionDefinitionFingerprint,
   selectionLabel,
 } from "./selection-commands.ts";
+import { inertJson, revealHidden } from "./untrusted-text.ts";
 
 export const MODE_STATUS_ENTRY_TYPE = "pi-mode-status.v3";
 
@@ -112,7 +113,7 @@ function reportFor(
 }
 
 function writeMachineOutput(value: unknown): void {
-  console.log(JSON.stringify(value));
+  console.log(inertJson(value));
 }
 
 export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServices): void {
@@ -382,7 +383,7 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
         services.projectModeApprovals(loaded.modes),
       );
       const diagnostics = [
-        ...loaded.diagnostics.map((item) => displaySafe(`${item.path}: ${item.message}`)),
+        ...loaded.diagnostics.map((item) => `${item.path}: ${item.message}`),
         ...replayed.diagnostics.map(formatDiagnostic),
         ...report.diagnostics,
       ];
@@ -458,8 +459,17 @@ export function registerModeCommands(pi: ExtensionAPI, services: ModeCommandServ
         };
         if (json) writeMachineOutput(report);
         else {
-          ctx.ui.notify(compactCompositionSummary(report), report.blocked ? "warning" : "info");
-          await ctx.ui.editor(`Preview: ${selectionLabel(report.effective)}`, report.prompt ?? "");
+          // Diagnostics name what changed or is waiting for confirmation; their paths are safe.
+          ctx.ui.notify(
+            [compactCompositionSummary(report), ...report.diagnostics].join("\n"),
+            report.blocked || report.diagnostics.length > 0 ? "warning" : "info",
+          );
+          // Repository text, shown inertly: escape sequences and invisible characters spelled out.
+          const hidden = report.composition.hiddenCharacters;
+          await ctx.ui.editor(
+            `Preview: ${selectionLabel(report.effective)}${hidden > 0 ? ` · ${hidden} hidden character${hidden === 1 ? "" : "s"} in the whole prompt, shown as ⟨U+…⟩ or ⟨tags "…"⟩` : ""}`,
+            revealHidden(report.prompt ?? ""),
+          );
         }
       } catch (error) {
         reportError(ctx, error instanceof Error ? error.message : String(error));

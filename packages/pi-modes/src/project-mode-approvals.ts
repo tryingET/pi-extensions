@@ -18,6 +18,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { modeDefinitionFingerprint, type ResolvedMode } from "./mode-definitions.ts";
+import { countHiddenCharacters, displaySafe } from "./untrusted-text.ts";
 
 export const PROJECT_MODE_APPROVALS_FILE = "mode-approvals.json";
 const SCHEMA_VERSION = 1;
@@ -249,29 +250,6 @@ const EFFECT: Record<ResolvedMode["promptStrategy"], string> = {
   replace_final: "replaces the entire system prompt",
 };
 
-// What a terminal hides, blanks or reorders: controls, format characters (bidirectional overrides,
-// zero-width characters, the tag characters of "ASCII smuggling"), line and paragraph separators,
-// default-ignorable characters (Hangul fillers, variation selectors) and the braille blank. The
-// model still reads all of them.
-const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}⠀]+/gu;
-
-/** Repository text for the operator's terminal: hidden characters become a visible, counted marker. */
-export function displaySafe(text: string): string {
-  return text
-    .replace(/[\t\n\r]+/g, " ")
-    .replace(HIDDEN, (run) => `⟨${[...run].length} hidden⟩`)
-    .replace(/ {2,}/g, " ")
-    .trim();
-}
-
-function hiddenCharacters(text: string): number {
-  let count = 0;
-  for (const match of text.replace(/[\t\n\r]/g, "").matchAll(HIDDEN)) {
-    count += [...match[0]].length;
-  }
-  return count;
-}
-
 /** What a project mode takes over, in the words every message uses. */
 export function describeReplacement(mode: ResolvedMode): string {
   if (!mode.shadows) return "";
@@ -283,7 +261,7 @@ export function describeReplacement(mode: ResolvedMode): string {
 
 // The label reaches the model too, as the heading of the mode's prompt text.
 function hiddenWarning(mode: ResolvedMode): string {
-  const hidden = hiddenCharacters(mode.label) + hiddenCharacters(mode.systemPrompt);
+  const hidden = countHiddenCharacters(mode.label) + countHiddenCharacters(mode.systemPrompt);
   return hidden > 0 ? `${hidden} hidden character${hidden === 1 ? "" : "s"} the model reads` : "";
 }
 

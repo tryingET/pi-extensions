@@ -6,6 +6,7 @@ import {
   type ResolvedMode,
   type ResolvedModeSelection,
 } from "./modes.ts";
+import { countHiddenCharacters } from "./untrusted-text.ts";
 
 export interface CompositionComponentReport {
   key: string;
@@ -27,6 +28,8 @@ export interface CompositionReport {
     sha256: string;
     utf8Bytes: number;
     characters: number;
+    // Characters a terminal would not show; the model reads them.
+    hiddenCharacters: number;
     estimatedTokens: number;
     hostDeltaBytes: number;
   };
@@ -94,6 +97,7 @@ export function createCompositionReport(options: {
       sha256: sha256(options.prompt),
       utf8Bytes: Buffer.byteLength(options.prompt, "utf8"),
       characters: options.prompt.length,
+      hiddenCharacters: countHiddenCharacters(options.prompt),
       estimatedTokens: estimateTokens(options.prompt),
       hostDeltaBytes:
         Buffer.byteLength(options.prompt, "utf8") - Buffer.byteLength(options.hostPrompt, "utf8"),

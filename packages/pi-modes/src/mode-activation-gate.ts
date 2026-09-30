@@ -8,13 +8,13 @@ import type { ResolvedMode } from "./mode-definitions.ts";
 import { selectedKeys } from "./mode-state.ts";
 import type { DefinitionFingerprints, LoadedModes, ModeSelection } from "./modes.ts";
 import {
-  displaySafe,
   projectConfirmationBody,
   projectConfirmationError,
   projectConfirmationTitle,
   unconfirmedProjectModes,
 } from "./project-mode-approvals.ts";
 import { requiresReplaceFinalConfirmation } from "./selection-commands.ts";
+import { displaySafe } from "./untrusted-text.ts";
 
 /** Exact project mode definitions the operator confirmed (path -> digest), and recording new ones. */
 export interface ProjectApprovalStore {

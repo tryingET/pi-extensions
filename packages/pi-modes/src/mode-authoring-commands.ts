@@ -13,6 +13,7 @@ import {
   selectedKeys,
 } from "./modes.ts";
 import { selectionLabel } from "./selection-commands.ts";
+import { countHiddenCharacters, displaySafe } from "./untrusted-text.ts";
 
 function reportError(ctx: ExtensionCommandContext, message: string): void {
   if (ctx.mode === "tui") ctx.ui.notify(message, "error");
@@ -73,10 +74,16 @@ export function registerModeAuthoringCommands(
           "warning",
         );
       }
-      const edited = await ctx.ui.editor(
-        `Edit ${mode.scope} mode: ${mode.key}`,
-        readFileSync(mode.path, "utf8"),
-      );
+      const text = readFileSync(mode.path, "utf8");
+      // The editor would show them raw: escape sequences live, invisible text unseen.
+      const hidden = countHiddenCharacters(text);
+      if (hidden > 0) {
+        return reportError(
+          ctx,
+          `${mode.key} contains ${hidden} hidden character${hidden === 1 ? "" : "s"}; review it with /mode-preview and edit ${displaySafe(mode.path)} in an editor that shows them`,
+        );
+      }
+      const edited = await ctx.ui.editor(`Edit ${mode.scope} mode: ${mode.key}`, text);
       if (!edited) return;
       try {
         const next = parseModeDefinition(JSON.parse(edited));

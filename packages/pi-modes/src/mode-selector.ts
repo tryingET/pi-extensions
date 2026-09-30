@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { MODE_SELECTION_MAX_OVERLAYS, type ModeSelection, type ResolvedMode } from "./modes.ts";
-import { displaySafe } from "./project-mode-approvals.ts";
+import { displaySafe } from "./untrusted-text.ts";
 
 const MAX_VISIBLE_SELECTOR_ROWS = 18;
 

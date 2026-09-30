@@ -12,7 +12,8 @@ import {
   type SelectionDiagnostic,
   selectedKeys,
 } from "./modes.ts";
-import { displaySafe, isProjectModeApproved } from "./project-mode-approvals.ts";
+import { isProjectModeApproved } from "./project-mode-approvals.ts";
+import { displaySafe } from "./untrusted-text.ts";
 
 export const PI_HOST_COMPATIBILITY = ">=0.84.2 <0.85.0";
 
