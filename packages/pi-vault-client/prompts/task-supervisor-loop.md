@@ -7,7 +7,7 @@ description: Supervise an AK-backed queue by launching one fresh worker session 
 system4d:
   container: "Supervisor contract for bounded autonomous task execution in a brownfield repo."
   compass: "Advance the queue safely through fresh worker sessions, preserve AK as canonical queue state, and stop cleanly on blockers."
-  engine: "Release expired -> pick ready -> claim -> launch worker -> record evidence -> complete/fail -> stop or continue."
+  engine: "Pick ready -> claim as this session -> launch worker -> record evidence -> complete/fail/release -> stop or continue."
   fog: "Main risk is letting the supervisor become an implementation agent instead of a queue orchestrator."
 ---
 
@@ -24,16 +24,13 @@ The trailing input must be a JSON object with this shape:
 ```json
 {
   "repo_path": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-vault-client",
-  "agent_kernel_root": "/home/tryinget/ai-society/softwareco/owned/agent-kernel",
-  "ak_env": "/home/tryinget/ai-society/softwareco/owned/agent-kernel/.ak-env-v2",
-  "ak_wrapper": "/home/tryinget/ai-society/softwareco/owned/agent-kernel/scripts/ak-v2.sh",
+  "ak_repo_root": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
   "worker_prompt_path": "prompts/task-worker-loop.md",
   "context_docs": [
     "README.md",
     "docs/dev/vault-execution-receipts.md",
     "next_session_prompt.md"
   ],
-  "agent_id": "pi-vault-supervisor",
   "worker_agent_id": "pi-vault-worker",
   "max_tasks": 3,
   "mode": "execute",
@@ -50,11 +47,16 @@ The trailing input must be a JSON object with this shape:
 - `execute` — claim tasks, launch workers, mutate AK task state
 - `dry_run` — inspect queue and simulate actions without claiming/completing tasks
 
+`ak_repo_root` defaults to the pi-extensions monorepo root that contains `repo_path`. Older envelopes may still carry `agent_kernel_root`, `ak_env`, `ak_wrapper` or `agent_id`; ignore them (the AK wrapper and env file no longer exist, and the claimant is your session).
+
 If the input envelope is invalid, stop immediately and return `outcome="blocked"`.
 
 ## NON-NEGOTIABLE RULES
 
 - AK task rows are the canonical queue state.
+- Use the installed `ak` on PATH, run from `ak_repo_root`: the monorepo root owns the AK repo identity, not the package folder. There is no AK wrapper or env file to source.
+- You are the claimant. Every AK lifecycle call names your own Pi session: `--agent session-$PI_SESSION_ID`. AK refuses generic names such as `pi-vault-worker`, and only the claiming session may complete, fail or release its claim. `worker_agent_id` labels the worker envelope only.
+- Workers never claim, complete, fail or release AK tasks; you stay accountable for the claim while a worker runs.
 - AK task rows are also the canonical detailed task payload for this repo.
 - Repo docs are supporting context, not a shadow backlog system.
 - Launch **one fresh worker session per task**.
@@ -66,13 +68,12 @@ If the input envelope is invalid, stop immediately and return `outcome="blocked"
 ## REQUIRED LOOP
 
 ### 1. PREFLIGHT
-- Confirm repo path exists.
-- Confirm AK env/wrapper paths exist.
-- In `execute` mode, release expired claims before starting with:
-  - `./scripts/ak-v2.sh task release-expired`
-- Inspect ready tasks from AK and filter to this repo with the actual supported command:
-  - `./scripts/ak-v2.sh task ready -F json`
-- Do not invent unsupported AK flags or subcommands.
+- Confirm `repo_path` and `ak_repo_root` exist and `ak --version` runs.
+- Confirm `$PI_SESSION_ID` is set (Pi exposes it to bash tool commands). If it is empty, stop with `outcome="blocked"`: AK needs the claiming session's id.
+- Do not release other sessions' expired claims. A claim whose lease ran out is a broken commitment that AK records; AK's lease timer releases claims lapsed for more than 24 h (owner ruling 2026-10-01, agent-kernel AK6386). A lapsed claim is not in the ready queue; if you need that task, claim it directly: a claim lands over a lapsed lease and records the lapse.
+- Inspect ready tasks from `ak_repo_root` and keep those for this package (title or scope names `pi-vault-client`):
+  - `ak task ready -F json`
+- Do not invent unsupported AK flags or subcommands; check `ak task <command> --help` when unsure.
 
 ### 2. PICK NEXT TASK
 - Choose the next ready task for `repo_path`.
@@ -80,8 +81,9 @@ If the input envelope is invalid, stop immediately and return `outcome="blocked"
 - If no ready tasks remain, stop successfully.
 
 ### 3. CLAIM
-- In `execute` mode, claim the task with the exact supported form:
-  - `./scripts/ak-v2.sh task claim <id> --agent <worker_agent_id> --lease 3600`
+- In `execute` mode, claim the task as this session, with a lease that covers the worker run:
+  - `ak task claim <id> --agent session-$PI_SESSION_ID --lease 7200`
+- AK has no lease renewal. Completion is refused once the lease has run out: claim the task again first (the claim records the lapse), then complete it.
 - In `dry_run` mode, simulate the claim only.
 
 ### 4. PREPARE WORKER ENVELOPE
@@ -110,7 +112,7 @@ If the worker output is malformed or the sentinel block is missing, treat that a
 
 ### 7. RECORD EVIDENCE
 In `execute` mode, record AK evidence with the supported form:
-- `./scripts/ak-v2.sh evidence record --task <id> --check-type <type> --result pass|fail|skip --details '<json>'`
+- `ak evidence record --task <id> --check-type <type> --result pass|fail|skip --details '<json>'`
 Record evidence from the worker result, including where applicable:
 - deep review outcome
 - nexus completion
@@ -120,10 +122,10 @@ Record evidence from the worker result, including where applicable:
 
 ### 8. TRANSITION TASK STATE
 Use the supported AK task commands only:
-- `done` -> `./scripts/ak-v2.sh task complete <id> --result '<json>'`
-- `blocked` -> `./scripts/ak-v2.sh task fail <id> --error '<message>'` or `./scripts/ak-v2.sh task unclaim <id>` depending on whether the blocker should return to queue immediately
-- `needs_human` -> fail with explicit message or unclaim with a clear human gate, but do not pretend progress
-- worker execution failure -> `./scripts/ak-v2.sh task fail <id> --error '<message>'`
+- `done` -> `ak task complete <id> --agent session-$PI_SESSION_ID --result '<json>'`
+- `blocked` -> `ak task fail <id> --agent session-$PI_SESSION_ID --error '<message>'`, or release it with `ak task unclaim <id> --agent session-$PI_SESSION_ID --reason '<why>'` when the blocker should return it to the queue immediately
+- `needs_human` -> fail with an explicit message or release with a clear human gate as the reason, but do not pretend progress
+- worker execution failure -> `ak task fail <id> --agent session-$PI_SESSION_ID --error '<message>'`
 
 ### 9. FOLLOW-UPS
 For each non-blocking follow-up proposed by the worker:

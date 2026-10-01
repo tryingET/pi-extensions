@@ -115,14 +115,14 @@ If the ready task touches the active prompt-plane seam / continuation-contract w
 If continuing the bounded `src/vaultDb.ts` decomposition after the feedback seam, prefer separating execution logging helpers next rather than widening query behavior.
 
 ### 3. AK queue truth
-From `~/ai-society/softwareco/owned/agent-kernel`:
+From the pi-extensions monorepo root, which owns the AK repo identity (installed `ak`; there is no wrapper or env file):
 
 ```bash
-cd ~/ai-society/softwareco/owned/agent-kernel
-source ./.ak-env-v2
-./scripts/ak-v2.sh task release-expired
-./scripts/ak-v2.sh task ready -F json
+cd ~/ai-society/softwareco/owned/pi-extensions
+ak task ready -F json
 ```
+
+Do not release other sessions' expired claims. A lapsed claim is a recorded broken commitment, and AK's lease timer releases claims lapsed for more than 24 h (agent-kernel AK6386). A lapsed task is not in the ready queue; claim it directly if you need it.
 
 ### 4. Interpret truth
 Apply these rules strictly:
@@ -137,18 +137,18 @@ Apply these rules strictly:
 Example shape:
 
 ```bash
-cd ~/ai-society/softwareco/owned/agent-kernel
-source ./.ak-env-v2
-./scripts/ak-v2.sh task claim <task-id> --agent pi-vault-worker --lease 3600
+cd ~/ai-society/softwareco/owned/pi-extensions
+ak task claim <task-id> --agent session-$PI_SESSION_ID --lease 7200
 ```
 
+Claim, complete, fail and unclaim all name this session (`--agent session-$PI_SESSION_ID`); AK refuses generic agent names.
+
 ### 2. Read the claimed AK task payload and immediate inputs
-After claiming the task, retrieve the full task payload from AK using the supported verbose list command and filter to the claimed task id:
+After claiming the task, retrieve the full task payload from AK:
 
 ```bash
-cd ~/ai-society/softwareco/owned/agent-kernel
-source ./.ak-env-v2
-./scripts/ak-v2.sh task list -F json --verbose
+cd ~/ai-society/softwareco/owned/pi-extensions
+ak task show <task-id> -F json
 ```
 
 Use the claimed task row as the canonical task payload.
