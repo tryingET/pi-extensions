@@ -56,6 +56,12 @@ function busctlListRows() {
   for (const fields of parsed) {
     assert.ok(fields.length >= 5, "malformed bus row");
     const [name, pid, , , connection] = fields;
+    if (
+      /^:[0-9]+\.[0-9]+$/.test(name) &&
+      fields.length === 8 &&
+      fields.slice(1).every((field) => field === "-")
+    )
+      continue;
     assert.match(
       name,
       /^(?::[0-9]+\.[0-9]+|[A-Za-z_-][A-Za-z0-9_-]*(?:\.[A-Za-z_-][A-Za-z0-9_-]*)+)$/,
@@ -205,6 +211,43 @@ test(
     );
     console.log(
       `reality: controller-family assertions ${JSON.stringify(Object.fromEntries(familyCounts))}`,
+    );
+  },
+);
+
+test(
+  "reality: repeated live bus listings keep proving the originating controller",
+  {
+    skip:
+      baseSkip ??
+      (recognizedLiveControllers.length === 0
+        ? "no recognized live Ghostty Pi controllers"
+        : undefined),
+  },
+  async () => {
+    const controller = recognizedLiveControllers[0];
+    const expected = expectedReceiver(rows, controller);
+    let vanishedRows = 0;
+    const countingRunner = (command, args, options) => {
+      const result = realExecRunner(command, args, options);
+      vanishedRows += result.stdout
+        .split("\n")
+        .filter((line) => /^:[0-9]+\.[0-9]+(?:\s+-){7}\s*$/.test(line.trim())).length;
+      return result;
+    };
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const target = await resolveControllerGhosttyDbusTarget({
+        execRunner: countingRunner,
+        controllerGhostty: controller.ancestor,
+        surfaceId: controller.surfaceId,
+      });
+      assert.ok(target, `live listing ${attempt} must prove the controller`);
+      assert.equal(target.busName, expected.busName);
+      assert.equal(target.ownerPid, expected.pid);
+      assert.equal(target.surfaceId, expected.surfaceId);
+    }
+    console.log(
+      `reality: 300 real listings resolved; observed ${vanishedRows} vanished unique rows`,
     );
   },
 );

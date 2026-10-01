@@ -110,6 +110,23 @@ const daemonRows =
 const originRow = ":1.99 111 ghostty user :1.99 unit - -\n";
 const readableBuild = (pid) => (pid === 111 || pid === 222 ? ORIGIN_EXE : undefined);
 
+const vanishedRow = ":1.88 - - - - - - -\n";
+for (const rows of [originRow, daemonRows]) {
+  test("vanished unique connection does not prevent proving a live Ghostty target", async () => {
+    const resolveRows = (listing) =>
+      resolveControllerGhosttyDbusTarget({
+        controllerGhostty: { pid: 111, exe: ORIGIN_EXE },
+        surfaceId: SURFACE,
+        readProcessExecutable: readableBuild,
+        execRunner: busctlList(listing),
+      });
+    const expected = await resolveRows(rows);
+    assert.ok(expected);
+    assert.deepEqual(await resolveRows(vanishedRow + rows), expected);
+    assert.deepEqual(await resolveRows(rows + vanishedRow), expected);
+  });
+}
+
 for (const marker of ["-", "(activatable)"]) {
   test(`inactive well-known ${marker} rows are absence, never a Ghostty process identity`, async () => {
     const inactive = `com.mitchellh.ghostty - - - ${marker} - - -\n`;
@@ -184,6 +201,32 @@ const refusalCases = [
     surfaceId,
   })),
   { name: "empty listing", rows: "" },
+  { name: "vanished unique connection alone is not a target", rows: vanishedRow },
+  ...Array.from({ length: 7 }, (_, index) => ({
+    name: `short vanished row with ${index + 1} fields`,
+    rows: `${originRow + [":1.88", ...Array(index).fill("-")].join(" ")}\n`,
+  })),
+  ...Array.from({ length: 7 }, (_, index) => {
+    const fields = [":1.88", ...Array(7).fill("-")];
+    fields[index + 1] = "not-absent";
+    return {
+      name: `partially vanished row with field ${index + 1} present`,
+      rows: `${originRow + fields.join(" ")}\n`,
+    };
+  }),
+  { name: "duplicate vanished row", rows: originRow + vanishedRow + vanishedRow },
+  {
+    name: "live then vanished duplicate",
+    rows: originRow + vanishedRow.replace(":1.88", ":1.99"),
+  },
+  {
+    name: "vanished then live duplicate",
+    rows: vanishedRow.replace(":1.88", ":1.99") + originRow,
+  },
+  {
+    name: "well-known owner references vanished connection",
+    rows: `${originRow + vanishedRow}com.example.Other 222 ghostty user :1.88 unit - -\n`,
+  },
   {
     name: "unique name cannot be activatable",
     rows: `${originRow}:1.88 - - - (activatable) - - -\n`,
