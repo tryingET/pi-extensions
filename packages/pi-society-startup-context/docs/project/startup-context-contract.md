@@ -42,12 +42,12 @@ The extension uses two Pi lifecycle hooks:
    - starts the full read-only snapshot refresh in the background
    - may show a terse UI status/notification
 2. `before_agent_start`
-   - uses the full packet when it is ready
+   - uses only current-generation/current-config context; completion alone is not readiness
    - otherwise performs a bounded wait (`PI_SOCIETY_CONTEXT_FULL_WAIT_MS`, default `250`)
    - appends the rendered markdown packet to the system prompt for the next LLM turn
    - does not persist the packet into AK
 
-The manual `/society-context refresh` command reruns the full read-only probes and opens the rendered packet in the Pi editor.
+The manual `/society-context refresh` command requests a read-only refresh and opens the current rendered packet in the Pi editor (or prints headlessly). Concurrent requests coalesce. Manual requests may bypass age/backoff, not generation/identity/shutdown checks. A superseded waiting command/prompt emits no obsolete packet.
 
 ## Authority model
 
@@ -76,7 +76,11 @@ The automatic path may run only bounded read commands:
 | Decisions | `ak decision list --machine --limit 10` | relevant active decision warnings |
 | Decision passport | `ak decision passport <id> --machine` | only for a small number of active relevant decisions |
 
-The implementation uses `execFile`, not a shell, and bounds command execution with `PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS`. It validates exact `repo.resolve` v1 and `startup.snapshot` v1 envelope surface/schema/payload-kind fields. It invokes installed/configured `ak`, inherits an explicitly supplied `AK_DB`, and neither injects a backing filename nor prefers a local build.
+The extracted runner uses `spawn` without a shell. Within a refresh, AK calls are serial; git may proceed independently. Defaults are 45 s per AK command, 120 s per collection, and a separate 250 ms prompt wait. Git root/status retain 2 s/3 s bounds. Check abort before each stage; collection-budget expiry cancels the active reader and suppresses all later launches. Command diagnostics report external elapsed time (including admission), not internal AK timings.
+
+Every machine read requires process success and exact envelope surface/schema/payload-kind agreement. Rejected responses never supply authority-bearing fields. Independently check consumed payload semantics: canonical repo registration/scope, snapshot counts/ready sample, direction node collections and typed check reports, decision arrays/count agreement and decision/passport identity. Snapshot IDs/counts are nonnegative safe integers; derived claimed-plus-running totals must also be safe. Ready priorities are integers 0–4. Validate original emitted optional values before projection (`claimed_by`: string/null, task statuses: pending/claimed/running/done/failed/blocked, and typed metadata); wrong types cannot silently become omitted or null facts. Missing/rejected direction-check evidence is unknown, not drift. Passport failures contribute to health and warning count, not only summary text.
+
+Invoke installed/configured `ak`, inherit explicit caller `AK_DB`, and neither inject a backing filename nor prefer a local build. Caller `AK_DB` is part of configuration identity only: the published gate unsets it and selects its owner-controlled database.
 
 ## Compression rule
 
@@ -117,10 +121,35 @@ The packet degrades fail-open for orientation but fail-closed for authority clai
 - AK missing or timed out: warning plus unavailable AK section
 - repo not registered: warning; no bootstrap
 - machine surface unavailable: warning; no human-output parsing fallback
-- direction check fails: warning; no repair
+- direction check unavailable/rejected: unknown plus warning, not inferred drift; an accepted negative check reports observed drift only
 - git unavailable: dirty posture unavailable
 
-The packet includes `captured_at` so readers know it is a snapshot, not live truth.
+The packet keeps `packet_tier` / `full_refresh_status` for valid public projections and adds independent dimensions:
+
+- `source_health`: `healthy`, `degraded`, `not_checked`; completed collections with unavailable required sources (including requested passports or git) are degraded. Unregistered repos are degraded orientation, not healthy canonical observation.
+- `freshness`: `fresh`, `stale`; measured monotonically from collection start, default TTL 5 min. Prior stale facts may be displayed only as stale orientation, never current authority.
+- `refresh_state`: `idle`, `refreshing`, `backoff`, `blocked_cleanup`; readiness/checkmark requires a healthy fresh full packet and no refresh in progress.
+- `warningCount`: total before display truncation; source health cannot be repaired by truncating warnings.
+
+`captured_at` remains a wall-clock snapshot label, not the scheduling clock. Source health measures availability of semantically checked observations, not decision authorization or direction conformance.
+
+## Lifecycle and recovery
+
+Each controller has a generation-safe single flight, shared by startup, prompts and manual commands. Cwd/config change cancels and invalidates the prior generation; replacements wait for its actual reader cleanup. Publication, bounded-wait completion and immediate rendering/injection all recheck identity/generation/shutdown. Shutdown awaits bounded cleanup receipts and suppresses late results; a failed receipt is not settlement. Unresolved owned-resource handles are retained separately from completed promises. They block manual/automatic/config-replacement collections until demand-time observation proves settlement; config invalidation, controller restart and new extension factories never discard them. The adapter supplies reload-stable readers from a process/realm-local `globalThis`/`Symbol.for` registry keyed by source-module URL and the host's stable `SessionManager` object (retained across the pinned Pi host's reload/new/resume/fork). Distinct host managers remain isolated even with identical cwd/session-id strings. Minimal injected adapters without a host manager fall back to their own API object; that fallback is not a host reload proof. Weak owner maps hold only ownership registries, not packets/flights or AK facts; unresolved receipts additionally pin their owner until settlement observation. Config changes do not grow namespace entries. Default serial collection aborts at the first cleanup failure and launches no further readers while blocked, bounding outstanding receipts per controller; unresolved owners cannot be safely capped/evicted on age, shutdown or GC. This is not cross-process recovery, nor a fence for a changed module-owner path/manager identity. `blocked_cleanup` exposes only degraded/stale unknown-source orientation. Unavailable ownership proof remains blocked, not permission to signal an unowned group or forget a reader.
+
+Effective configuration is snapshotted once per generation. Fingerprint normalized cwd/home, resolved executable (including PATH effects), inherited caller `AK_DB`, enable/limits, prompt/command/refresh/TTL/retry budgets and outside-packet flags. It is not an AK database authority token.
+
+Retries are demand-driven on subsequent prompts/commands, with exponential 15 s base, 0–25% injectable jitter applied **before** the 120 s cap. Only healthy collection resets failure backoff. Manual refresh bypasses age/backoff but coalesces in-flight work. No idle polling, cross-controller mutex or shared authority cache is created. The only idle timer is a generation-bound one-shot footer expiry update at the healthy TTL deadline (no probes/retries), canceled on replacement, new collection and shutdown. It rechecks the monotonic deadline and current identity before clearing readiness. Clock/random suppliers are injectable for tests.
+
+## Owned-reader cleanup and limits
+
+POSIX readers get a detached process group. Record cancellation, command timeout, refresh timeout, nonzero exit, launch failure, malformed machine/payload failure and unproven cleanup distinctly. Send TERM to the owned group, wait 250 ms and escalate to SIGKILL independently of leader exit/pipe closure. Settlement requires both the direct child and no live owned group members; verification is bounded to 2 s after escalation. Successful transport additionally waits for both stdout/stderr EOF within a bounded 2 s drain budget (also subject to cancellation/command budget); incomplete output is `output_incomplete`, never success. Failure to establish settlement reports `cleanup_failure`, never successful cleanup; later AK stages are suppressed.
+
+Linux `/proc` observations check leader start time, session and UID so another invocation/pre-existing group is not knowingly signalled. A non-atomic empty census cannot retire a group or suppress TERM/KILL. Corroborate it with atomic kernel group-existence checks. Only observed atomic absence is cached; zombie-only settlement requires a successfully delivered, ownership-guarded SIGKILL and then two stable nonempty PID/start-time-matched censuses. Matching zombie-only observations while the kernel group exists are not sufficient before escalation; TERM/KILL cannot be bypassed. ESRCH during signalling is not counted as successful SIGKILL delivery; atomic absence may still establish actual settlement independently. Ownership/PID reuse or unavailable observations stay fail-closed. Non-Linux POSIX uses group existence without equivalent `/proc` proof; Windows has direct-child-only fallback. Deliberately escaped process groups/sessions are not contained. Controlled AK readers must not daemonize; the adversarial escape regression demonstrates the limitation and explicitly cleans its own escaped fixture.
+
+## Local candidate verification
+
+Exactly the four imported transport/config/payload/lifecycle modules are named in the packed `files` manifest, not the entire `src` directory. Regressions cover source schemas, warning truncation, failure/recovery/TTL/backoff, registered adapter races/coalescing/shutdown, real controlled groups and an extracted tarball on a separately installed production Pi host with no repo/dev-dependency fallback. Compatibility preserves valid public imports/projections, not rejected-data consumption. Local checks do not establish live AK capacity, producer optimization, deployed generation or Ghostty behavior; those require parent-owned inspection/dogfood/publication.
 
 ## Disable/configure
 

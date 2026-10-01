@@ -204,10 +204,10 @@ if (args[0] === "repo" && args[1] === "resolve") {
 } else if (args[0] === "direction" && args[1] === "export") {
   emit("direction.export", "direction_graph", { nodes: [{ display_id: "AK.V5.SG01", title: "Bounded direction", state: "active" }] });
 } else if (args[0] === "direction" && args[1] === "check") {
-  if (mode === "malformed") emit("decision.list", "decision_collection", { decisions: [] });
+  if (mode === "malformed") emit("decision.list", "decision_collection", { count: 0, decisions: [] });
   else emit("direction.check", "direction_check_report", { ok: true, imported_node_count: 1, parsed_node_count: 1, issues: [] });
 } else if (args[0] === "decision" && args[1] === "list") {
-  emit("decision.list", "decision_collection", { decisions: [] });
+  emit("decision.list", "decision_collection", { count: 0, decisions: [] });
 } else {
   console.error("unexpected args: " + args.join(" "));
   process.exit(1);
@@ -234,6 +234,8 @@ if (args[0] === "repo" && args[1] === "resolve") {
       .split("\n")
       .map((line) => JSON.parse(line) as { args: string[]; akDb: string | null });
 
+    assert.equal(packet.sourceHealth, "healthy");
+    assert.equal(packet.warningCount, 0);
     assert.equal(packet.ak?.repoRegistered, true);
     assert.equal(packet.ak?.canonicalRepoPath, repoRoot);
     assert.deepEqual(packet.ak?.machineSurfaces, ["repo.resolve v1", "startup.snapshot v1"]);
@@ -273,7 +275,7 @@ if (args[0] === "repo" && args[1] === "resolve") {
     process.env.PI_SOCIETY_CONTEXT_TEST_MODE = "malformed";
     const malformed = await buildStartupContextPacket(packageRoot);
     assert.equal(malformed.readyTaskCount, undefined);
-    assert.equal(malformed.direction?.checkOk, false);
+    assert.equal(malformed.direction?.checkOk, undefined);
     assert.ok(malformed.warnings.some((warning) => /ready_sample was not an array/.test(warning)));
     assert.ok(
       malformed.warnings.some((warning) => /expected surface direction\.check/.test(warning)),

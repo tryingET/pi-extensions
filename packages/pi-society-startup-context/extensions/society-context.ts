@@ -3,17 +3,35 @@
 // read_when:
 //   - changing startup packet collection, rendering, refresh lifecycle, or Pi integration.
 // ---
-import { execFile } from "node:child_process";
+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { performance } from "node:perf_hooks";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  cancellationReason,
+  OwnedReaders,
+  reloadStableReaders,
+  runCommand,
+} from "../src/command-runner.ts";
+import { type ContextConfig, snapshotConfig } from "../src/config.ts";
+import {
+  type DecisionSummary,
+  type DirectionSummary,
+  type FullRefreshStatus,
+  type GitSummary,
+  payloadProblem,
+  type RepoIdentity,
+  type StartupContextPacket,
+  type TaskSummary,
+} from "../src/payload-check.ts";
 
-const DEFAULT_COMMAND_TIMEOUT_MS = 4_000;
-const DEFAULT_FULL_PACKET_WAIT_MS = 250;
+export type { StartupContextPacket } from "../src/payload-check.ts";
+
+import { RefreshLifecycle } from "../src/refresh-lifecycle.ts";
+
 const DEFAULT_MAX_TASKS = 5;
-const DEFAULT_MAX_GIT_LINES = 12;
-const DEFAULT_MAX_WARNINGS = 10;
 const ACTIVE_DECISION_STATES = new Set([
   "proposed",
   "review_pending",
@@ -63,21 +81,6 @@ const DECISION_PASSPORT_CONTRACT: MachineContract = {
 
 type JsonRecord = Record<string, unknown>;
 
-type CommandResult =
-  | {
-      ok: true;
-      stdout: string;
-      stderr: string;
-    }
-  | {
-      ok: false;
-      stdout: string;
-      stderr: string;
-      error: string;
-      timedOut?: boolean;
-      code?: number | null;
-    };
-
 type MachineRead<T = unknown> =
   | {
       ok: true;
@@ -86,121 +89,9 @@ type MachineRead<T = unknown> =
   | {
       ok: false;
       warning: string;
-      value?: T;
       stdout?: string;
       stderr?: string;
     };
-
-interface RepoIdentity {
-  company?: string;
-  lane?: string;
-  repo?: string;
-  relativePath: string;
-}
-
-interface TaskSummary {
-  id: number | null;
-  title: string;
-  status?: string;
-  priority?: number | null;
-  claimedBy?: string | null;
-}
-
-interface DecisionSummary {
-  id: number | null;
-  title: string;
-  state: string;
-  outcome?: string | null;
-  repoScope?: string | null;
-}
-
-interface DirectionSummary {
-  exportOk?: boolean;
-  checkOk?: boolean;
-  nodeCount?: number;
-  importedNodeCount?: number;
-  parsedNodeCount?: number;
-  activeNodes: string[];
-  issues: string[];
-}
-
-interface AkSummary {
-  executable: string;
-  machineSurfaces: string[];
-  runtimeSchemaVersion?: number;
-  canonicalRepoPath?: string;
-  repoRegistered: boolean | null;
-  repoMetadata: string[];
-  snapshotGeneratedAt?: string;
-  activeDeferralCount?: number;
-  expiredLeaseCount?: number;
-}
-
-interface GitSummary {
-  available: boolean;
-  dirty: boolean | null;
-  changedCount: number;
-  sample: string[];
-  warning?: string;
-}
-
-type StartupPacketTier = "fast" | "full";
-type FullRefreshStatus = "not_applicable" | "pending" | "complete" | "failed";
-
-interface StartupContextPacket {
-  applicable: boolean;
-  disabled: boolean;
-  packetTier: StartupPacketTier;
-  fullRefreshStatus: FullRefreshStatus;
-  capturedAt: string;
-  cwd: string;
-  aiSocietyRoot: string;
-  repoRoot?: string;
-  identity?: RepoIdentity;
-  authoritativeRuntime: string[];
-  git?: GitSummary;
-  ak?: AkSummary;
-  direction?: DirectionSummary;
-  readyTasks: TaskSummary[];
-  readyTaskCount?: number;
-  activeTasks: TaskSummary[];
-  activeTaskCount?: number;
-  blockedTasks: TaskSummary[];
-  blockedTaskCount?: number;
-  activeDecisions: DecisionSummary[];
-  decisionSampleChecked?: boolean;
-  decisionPassports: string[];
-  readFirstHints: string[];
-  capabilityHints: string[];
-  recommendedNext: string[];
-  warnings: string[];
-}
-
-interface ExtensionState {
-  packet?: StartupContextPacket;
-  inFlight?: Promise<StartupContextPacket>;
-  inFlightCwd?: string;
-  refreshController?: AbortController;
-  generation: number;
-}
-
-function readBooleanEnv(name: string, defaultValue: boolean): boolean {
-  const value = process.env[name]?.trim().toLowerCase();
-  if (!value) return defaultValue;
-  if (["0", "false", "no", "off", "disabled"].includes(value)) return false;
-  if (["1", "true", "yes", "on", "enabled"].includes(value)) return true;
-  return defaultValue;
-}
-
-function readPositiveIntegerEnv(name: string, defaultValue: number): number {
-  const parsed = Number.parseInt(process.env[name] || "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
-}
-
-function readNonNegativeIntegerEnv(name: string, defaultValue: number): number {
-  const parsed = Number.parseInt(process.env[name] || "", 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
-}
 
 function getAiSocietyRoot(homeDir = os.homedir()): string {
   return path.join(homeDir, "ai-society");
@@ -258,105 +149,40 @@ function machineErrorSummary(parsed: JsonRecord): string | undefined {
 
 function parseJsonMachine(
   stdout: string,
-  surfaceLabel: string,
+  label: string,
   contract?: MachineContract,
 ): MachineRead<JsonRecord> {
-  if (!stdout.trim()) {
-    return { ok: false, warning: `${surfaceLabel}: no machine output emitted` };
-  }
-
+  const reject = (reason: string): MachineRead<JsonRecord> => ({
+    ok: false,
+    warning: `${label}: malformed machine envelope: ${reason}`,
+  });
   try {
-    const parsed = JSON.parse(stdout) as unknown;
-    const record = asRecord(parsed);
-    if (!record) {
-      return { ok: false, warning: `${surfaceLabel}: machine output was not a JSON object` };
-    }
-    if (record.ok !== true) {
-      return {
-        ok: false,
-        warning: `${surfaceLabel}: ${machineErrorSummary(record) || `expected ok=true, received ${String(record.ok)}`}`,
-        value: record,
-      };
-    }
+    const record = asRecord(JSON.parse(stdout));
+    if (!record) return reject("machine output was not a JSON object");
+    if (record.ok !== true)
+      return reject(
+        machineErrorSummary(record) || `expected ok=true, received ${String(record.ok)}`,
+      );
     if (contract) {
-      if (record.surface !== contract.surface) {
-        return {
-          ok: false,
-          warning: `${surfaceLabel}: expected surface ${contract.surface}, received ${String(record.surface)}`,
-          value: record,
-        };
-      }
-      if (record.schema_version !== contract.schemaVersion) {
-        return {
-          ok: false,
-          warning: `${surfaceLabel}: expected envelope schema ${contract.schemaVersion}, received ${String(record.schema_version)}`,
-          value: record,
-        };
-      }
-      if (record.payload_kind !== contract.payloadKind) {
-        return {
-          ok: false,
-          warning: `${surfaceLabel}: expected payload kind ${contract.payloadKind}, received ${String(record.payload_kind)}`,
-          value: record,
-        };
-      }
-      if (!asRecord(record.payload)) {
-        return {
-          ok: false,
-          warning: `${surfaceLabel}: machine envelope omitted its payload object`,
-          value: record,
-        };
-      }
+      if (record.surface !== contract.surface)
+        return reject(`expected surface ${contract.surface}, received ${String(record.surface)}`);
+      if (record.schema_version !== contract.schemaVersion)
+        return reject(
+          `expected envelope schema ${contract.schemaVersion}, received ${String(record.schema_version)}`,
+        );
+      if (record.payload_kind !== contract.payloadKind)
+        return reject(
+          `expected payload kind ${contract.payloadKind}, received ${String(record.payload_kind)}`,
+        );
+      const payload = asRecord(record.payload);
+      if (!payload) return reject("machine envelope omitted its payload object");
+      const problem = payloadProblem(contract.surface, payload);
+      if (problem) return { ok: false, warning: `${label}: ${problem}` };
     }
     return { ok: true, value: record };
   } catch (error) {
-    return {
-      ok: false,
-      warning: `${surfaceLabel}: failed to parse JSON (${error instanceof Error ? error.message : String(error)})`,
-      stdout: stdout.slice(0, 400),
-    };
+    return reject(`failed to parse JSON (${String(error)})`);
   }
-}
-
-function runCommand(
-  command: string,
-  args: string[],
-  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal } = {},
-): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    execFile(
-      command,
-      args,
-      {
-        cwd: options.cwd,
-        env: options.env,
-        timeout: options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
-        maxBuffer: 1024 * 1024,
-        signal: options.signal,
-      },
-      (error, stdout, stderr) => {
-        const stdoutText = stdout;
-        const stderrText = stderr;
-        if (!error) {
-          resolve({ ok: true, stdout: stdoutText, stderr: stderrText });
-          return;
-        }
-
-        const errorRecord = asRecord(error);
-        const codeValue = errorRecord ? errorRecord.code : undefined;
-        const signalValue = errorRecord ? errorRecord.signal : undefined;
-        const timedOut = signalValue === "SIGTERM" || codeValue === "ETIMEDOUT";
-        resolve({
-          ok: false,
-          stdout: stdoutText,
-          stderr: stderrText,
-          error: error instanceof Error ? error.message : String(error),
-          timedOut,
-          code: asNumber(errorRecord?.code),
-        });
-      },
-    );
-  });
 }
 
 async function runJsonCommand(
@@ -369,46 +195,43 @@ async function runJsonCommand(
     env?: NodeJS.ProcessEnv;
     signal?: AbortSignal;
     contract?: MachineContract;
+    diagnostics?: NonNullable<StartupContextPacket["commandDiagnostics"]>;
+    resources?: OwnedReaders;
   } = {},
 ): Promise<MachineRead<JsonRecord>> {
   const result = await runCommand(command, args, options);
-  if (!result.ok) {
-    const parsed = parseJsonMachine(result.stdout, label, options.contract);
-    const reason = result.timedOut
-      ? "timed out"
-      : result.code !== null && result.code !== undefined
-        ? `exited with code ${result.code}`
-        : result.error;
-    if (parsed.ok) {
-      return {
-        ok: false,
-        warning: `${label}: process ${reason} despite an ok=true machine envelope`,
-        value: parsed.value,
-        stdout: result.stdout.slice(0, 400),
-        stderr: result.stderr.slice(0, 400),
-      };
-    }
-    if (parsed.value) return parsed;
-
+  const parsed = parseJsonMachine(result.stdout, label, options.contract);
+  options.diagnostics?.push({
+    label,
+    elapsedMs: result.elapsedMs,
+    reason: result.reason || (!parsed.ok ? "malformed_machine_or_payload" : undefined),
+    cleanup: result.cleanup,
+  });
+  if (!result.ok)
     return {
       ok: false,
-      warning: `${label}: ${reason}`,
+      warning: `${label}: ${result.reason}: ${result.error}${parsed.ok ? " despite an ok=true machine envelope" : ""}`,
       stdout: result.stdout.slice(0, 400),
       stderr: result.stderr.slice(0, 400),
     };
-  }
-  return parseJsonMachine(result.stdout, label, options.contract);
+  return parsed;
 }
 
 async function findGitRepoRoot(
   cwd: string,
   signal?: AbortSignal,
+  env?: NodeJS.ProcessEnv,
+  onCleanupFailure?: () => void,
+  resources?: OwnedReaders,
 ): Promise<{ repoRoot: string; warning?: string }> {
   const result = await runCommand("git", ["rev-parse", "--show-toplevel"], {
     cwd,
     timeoutMs: 2_000,
     signal,
+    env,
+    resources,
   });
+  if (result.reason === "cleanup_failure") onCleanupFailure?.();
   if (!result.ok) {
     return { repoRoot: cwd, warning: `git repo root unavailable: ${result.error}` };
   }
@@ -416,12 +239,21 @@ async function findGitRepoRoot(
   return { repoRoot: repoRoot || cwd };
 }
 
-async function readGitStatus(repoRoot: string, signal?: AbortSignal): Promise<GitSummary> {
+async function readGitStatus(
+  repoRoot: string,
+  signal?: AbortSignal,
+  config = snapshotConfig(repoRoot),
+  onCleanupFailure?: () => void,
+  resources?: OwnedReaders,
+): Promise<GitSummary> {
   const result = await runCommand("git", ["status", "--short"], {
     cwd: repoRoot,
     timeoutMs: 3_000,
     signal,
+    env: config.env,
+    resources,
   });
+  if (result.reason === "cleanup_failure") onCleanupFailure?.();
   if (!result.ok) {
     return {
       available: false,
@@ -440,20 +272,8 @@ async function readGitStatus(repoRoot: string, signal?: AbortSignal): Promise<Gi
     available: true,
     dirty: lines.length > 0,
     changedCount: lines.length,
-    sample: lines.slice(
-      0,
-      readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_GIT_LINES", DEFAULT_MAX_GIT_LINES),
-    ),
+    sample: lines.slice(0, config.maxGitLines),
   };
-}
-
-function resolveAkExecutable(): string {
-  const explicit = process.env.PI_SOCIETY_CONTEXT_AK || process.env.AGENT_KERNEL;
-  return explicit?.trim() || "ak";
-}
-
-function buildAkEnv(): NodeJS.ProcessEnv {
-  return { ...process.env };
 }
 
 function deriveRepoIdentityFromRelativePath(relativePath: string): RepoIdentity {
@@ -575,21 +395,17 @@ function summarizeDirection(
     warnings.push(exportRead.warning);
   }
 
-  const checkRecord = checkRead.value;
-  if (checkRecord) {
-    const payload = asRecord(checkRecord.payload) || checkRecord;
-    summary.checkOk = checkRead.ok && payload.ok === true;
+  if (checkRead.ok) {
+    const payload = asRecord(checkRead.value.payload) || {};
+    summary.checkOk = payload.ok === true;
     summary.importedNodeCount = asNumber(payload.imported_node_count) ?? undefined;
     summary.parsedNodeCount = asNumber(payload.parsed_node_count) ?? undefined;
     summary.issues = asArray(payload.issues)
       .slice(0, 5)
       .map((issue) => (typeof issue === "string" ? issue : JSON.stringify(issue).slice(0, 180)));
-    if (!checkRead.ok) {
-      warnings.push(checkRead.warning);
-    }
   } else {
-    summary.checkOk = false;
-    warnings.push(!checkRead.ok ? checkRead.warning : "ak direction check: no payload");
+    // No accepted check report means unknown, never observed drift.
+    warnings.push(checkRead.warning);
   }
 
   return { summary, warnings };
@@ -605,24 +421,25 @@ function toTaskSummary(task: unknown): TaskSummary | undefined {
     title,
     status: asString(record.status),
     priority: asNumber(record.priority),
-    claimedBy: asString(record.claimed_by) || null,
+    claimedBy: asString(record.claimed_by) ?? null,
   };
 }
 
 function readSnapshotStatusCount(counts: JsonRecord, status: string): number | undefined {
   if (!(status in counts)) return 0;
   const value = asNumber(counts[status]);
-  return value !== null && Number.isInteger(value) && value >= 0 ? value : undefined;
+  return value !== null && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
 
 function asNonNegativeInteger(value: unknown): number | undefined {
   const number = asNumber(value);
-  return number !== null && Number.isInteger(number) && number >= 0 ? number : undefined;
+  return number !== null && Number.isSafeInteger(number) && number >= 0 ? number : undefined;
 }
 
 function summarizeStartupSnapshot(
   read: MachineRead<JsonRecord>,
   expectedRepoScope: string,
+  maxTasks = DEFAULT_MAX_TASKS,
 ): {
   readyTasks: TaskSummary[];
   readyTaskCount?: number;
@@ -681,7 +498,10 @@ function summarizeStartupSnapshot(
     readyTasks.length !== readyRows.length ||
     readyTasks.length > readyTaskCount ||
     readyTasks.some(
-      (task) => task.id === null || task.priority === null || task.priority === undefined,
+      (task) =>
+        asNonNegativeInteger(task.id) === undefined ||
+        task.priority === null ||
+        task.priority === undefined,
     )
   ) {
     return {
@@ -691,10 +511,7 @@ function summarizeStartupSnapshot(
   }
 
   return {
-    readyTasks: readyTasks.slice(
-      0,
-      readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_TASKS", DEFAULT_MAX_TASKS),
-    ),
+    readyTasks: readyTasks.slice(0, maxTasks),
     readyTaskCount,
     activeTaskCount: claimedCount + runningCount,
     blockedTaskCount,
@@ -854,6 +671,10 @@ function createNotApplicablePacket(
     disabled,
     packetTier: "fast",
     fullRefreshStatus: "not_applicable",
+    sourceHealth: "not_checked",
+    freshness: "stale",
+    refreshState: "idle",
+    warningCount: 0,
     capturedAt: new Date().toISOString(),
     cwd,
     aiSocietyRoot,
@@ -877,9 +698,10 @@ export function createFastStartupContextPacket(
   homeDir = os.homedir(),
   fullRefreshStatus: FullRefreshStatus = "pending",
   extraWarnings: string[] = [],
+  config = snapshotConfig(cwd),
 ): StartupContextPacket {
   const aiSocietyRoot = getAiSocietyRoot(homeDir);
-  if (!readBooleanEnv("PI_SOCIETY_STARTUP_CONTEXT", true)) {
+  if (!config.enabled) {
     return createNotApplicablePacket(cwd, aiSocietyRoot, true);
   }
 
@@ -904,6 +726,11 @@ export function createFastStartupContextPacket(
     disabled: false,
     packetTier: "fast",
     fullRefreshStatus,
+    sourceHealth: fullRefreshStatus === "failed" ? "degraded" : "not_checked",
+    freshness: "stale",
+    refreshState: "refreshing",
+    warningCount: warnings.length,
+    configFingerprint: config.fingerprint,
     capturedAt: new Date().toISOString(),
     cwd,
     aiSocietyRoot,
@@ -924,10 +751,7 @@ export function createFastStartupContextPacket(
     decisionPassports: [],
     readFirstHints: repoRoot ? collectReadFirstHints(repoRoot, cwd) : [],
     capabilityHints: collectCapabilityHints(aiSocietyRoot, identity),
-    warnings: warnings.slice(
-      0,
-      readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_WARNINGS", DEFAULT_MAX_WARNINGS),
-    ),
+    warnings: warnings.slice(0, config.maxWarnings),
   } satisfies Omit<StartupContextPacket, "recommendedNext">;
 
   return {
@@ -939,36 +763,91 @@ export function createFastStartupContextPacket(
 export async function buildStartupContextPacket(
   cwd: string,
   signal?: AbortSignal,
+  config = snapshotConfig(cwd),
+  resources = new OwnedReaders(),
 ): Promise<StartupContextPacket> {
-  const aiSocietyRoot = getAiSocietyRoot();
-  if (!readBooleanEnv("PI_SOCIETY_STARTUP_CONTEXT", true)) {
+  const started = performance.now();
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal?.reason);
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) abort();
+  if (config.refreshTimeoutMs === 0) controller.abort("refresh_timeout");
+  const timer = setTimeout(() => controller.abort("refresh_timeout"), config.refreshTimeoutMs);
+  try {
+    const packet = await collectPacket(config.cwd, controller, config, started, resources);
+    return {
+      ...packet,
+      collectionElapsedMs: performance.now() - started,
+      collectionStartedMonoMs: started,
+      configFingerprint: config.fingerprint,
+    };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
+async function collectPacket(
+  cwd: string,
+  controller: AbortController,
+  config: ContextConfig,
+  started: number,
+  resources: OwnedReaders,
+): Promise<StartupContextPacket> {
+  const signal = controller.signal;
+  const aiSocietyRoot = getAiSocietyRoot(config.home);
+  if (!config.enabled) {
     return createNotApplicablePacket(cwd, aiSocietyRoot, true);
   }
-  if (!isInsideAiSocietyPath(cwd)) {
+  if (!isInsideAiSocietyPath(cwd, config.home)) {
     return createNotApplicablePacket(cwd, aiSocietyRoot);
   }
 
   const warnings: string[] = [];
-  const { repoRoot, warning: repoRootWarning } = await findGitRepoRoot(cwd, signal);
+  const checkBudget = () => {
+    if (performance.now() - started >= config.refreshTimeoutMs && !signal.aborted)
+      controller.abort("refresh_timeout");
+  };
+  const cleanupFailed = () => controller.abort("cleanup_failure");
+  checkBudget();
+  const { repoRoot, warning: repoRootWarning } = await findGitRepoRoot(
+    cwd,
+    signal,
+    config.env,
+    cleanupFailed,
+    resources,
+  );
   if (repoRootWarning) warnings.push(repoRootWarning);
 
-  const akExecutable = resolveAkExecutable();
-  const akEnv = buildAkEnv();
-  const commandTimeoutMs = readPositiveIntegerEnv(
-    "PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS",
-    DEFAULT_COMMAND_TIMEOUT_MS,
-  );
-  const runAkJson = (args: string[], label: string, contract?: MachineContract) =>
-    runJsonCommand(akExecutable, args, label, {
+  const akExecutable = config.executable;
+  const diagnostics: NonNullable<StartupContextPacket["commandDiagnostics"]> = [];
+  const runAkJson = async (
+    args: string[],
+    label: string,
+    contract?: MachineContract,
+  ): Promise<MachineRead<JsonRecord>> => {
+    checkBudget();
+    if (signal.aborted)
+      return {
+        ok: false,
+        warning: `${label}: ${cancellationReason(signal)} before stage launch (${String(signal.reason)})`,
+      };
+    const read = await runJsonCommand(akExecutable, args, label, {
       cwd: repoRoot,
-      env: akEnv,
-      timeoutMs: commandTimeoutMs,
+      env: config.env,
+      timeoutMs: config.commandTimeoutMs,
       signal,
       contract,
+      diagnostics,
+      resources,
     });
+    if (diagnostics.at(-1)?.reason === "cleanup_failure") controller.abort("cleanup_failure");
+    return read;
+  };
 
+  checkBudget();
   const [git, repoRead] = await Promise.all([
-    readGitStatus(repoRoot, signal),
+    readGitStatus(repoRoot, signal, config, cleanupFailed, resources),
     runAkJson(["repo", "resolve", cwd, "--machine"], "ak repo resolve", REPO_RESOLVE_CONTRACT),
   ]);
   if (git.warning) warnings.push(git.warning);
@@ -983,71 +862,73 @@ export async function buildStartupContextPacket(
     warnings: [],
   };
   let direction: ReturnType<typeof summarizeDirection> = {
-    summary: { exportOk: false, checkOk: false, activeNodes: [], issues: [] },
+    summary: { exportOk: false, activeNodes: [], issues: [] },
     warnings: [],
   };
   let decisions: ReturnType<typeof summarizeDecisions> = { active: [], warnings: [] };
   let decisionSampleChecked = false;
   let snapshotRead: MachineRead<JsonRecord> | undefined;
-  let passportReads: Array<{ decision: DecisionSummary; read: MachineRead<JsonRecord> }> = [];
+  const passportReads: Array<{ decision: DecisionSummary; read: MachineRead<JsonRecord> }> = [];
 
   if (akScope) {
-    const readySample = readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_TASKS", DEFAULT_MAX_TASKS);
-    const [snapshot, directionExportRead, directionCheckRead, decisionListRead] = await Promise.all(
+    const readySample = config.maxTasks;
+    const snapshot = await runAkJson(
       [
-        runAkJson(
-          [
-            "startup",
-            "snapshot",
-            "--repo",
-            akScope,
-            "--ready-sample",
-            String(readySample),
-            "--machine",
-          ],
-          "ak startup snapshot",
-          STARTUP_SNAPSHOT_CONTRACT,
-        ),
-        runAkJson(
-          ["direction", "export", "--repo", akScope, "--machine"],
-          "ak direction export",
-          DIRECTION_EXPORT_CONTRACT,
-        ),
-        runAkJson(
-          ["direction", "check", "--repo", akScope, "--machine"],
-          "ak direction check",
-          DIRECTION_CHECK_CONTRACT,
-        ),
-        runAkJson(
-          ["decision", "list", "--machine", "--limit", "10"],
-          "ak decision list",
-          DECISION_LIST_CONTRACT,
-        ),
+        "startup",
+        "snapshot",
+        "--repo",
+        akScope,
+        "--ready-sample",
+        String(readySample),
+        "--machine",
       ],
+      "ak startup snapshot",
+      STARTUP_SNAPSHOT_CONTRACT,
+    );
+    const directionExportRead = await runAkJson(
+      ["direction", "export", "--repo", akScope, "--machine"],
+      "ak direction export",
+      DIRECTION_EXPORT_CONTRACT,
+    );
+    let directionCheckRead = await runAkJson(
+      ["direction", "check", "--repo", akScope, "--machine"],
+      "ak direction check",
+      DIRECTION_CHECK_CONTRACT,
+    );
+    if (directionCheckRead.ok) {
+      const scope = getPathValue(directionCheckRead.value, ["payload", "repo_scope"]);
+      if (scope !== undefined && scope !== akScope)
+        directionCheckRead = { ok: false, warning: "ak direction check: repo scope mismatch" };
+    }
+    const decisionListRead = await runAkJson(
+      ["decision", "list", "--machine", "--limit", "10"],
+      "ak decision list",
+      DECISION_LIST_CONTRACT,
     );
 
     snapshotRead = snapshot;
-    tasks = summarizeStartupSnapshot(snapshot, akScope);
+    tasks = summarizeStartupSnapshot(snapshot, akScope, config.maxTasks);
     warnings.push(...tasks.warnings);
     direction = summarizeDirection(directionExportRead, directionCheckRead);
     warnings.push(...direction.warnings);
     decisions = summarizeDecisions(decisionListRead, akScope);
     warnings.push(...decisions.warnings);
-    decisionSampleChecked = decisionListRead.ok;
+    decisionSampleChecked = decisionListRead.ok && decisions.warnings.length === 0;
 
-    passportReads = await Promise.all(
-      decisions.active
-        .filter((decision) => decision.id !== null)
-        .slice(0, 2)
-        .map(async (decision) => ({
-          decision,
-          read: await runAkJson(
-            ["decision", "passport", String(decision.id), "--machine"],
-            `ak decision passport #${decision.id}`,
-            DECISION_PASSPORT_CONTRACT,
-          ),
-        })),
-    );
+    for (const decision of decisions.active.filter((item) => item.id !== null).slice(0, 2)) {
+      let read = await runAkJson(
+        ["decision", "passport", String(decision.id), "--machine"],
+        `ak decision passport #${decision.id}`,
+        DECISION_PASSPORT_CONTRACT,
+      );
+      if (read.ok && getPathValue(read.value, ["payload", "decision", "id"]) !== decision.id)
+        read = {
+          ok: false,
+          warning: `ak decision passport #${decision.id}: decision identity mismatch`,
+        };
+      if (!read.ok) warnings.push(read.warning);
+      passportReads.push({ decision, read });
+    }
   } else {
     warnings.push(
       repo.registered === false
@@ -1056,16 +937,24 @@ export async function buildStartupContextPacket(
     );
   }
 
+  checkBudget();
+  if (signal.aborted)
+    warnings.push(`collection ${cancellationReason(signal)} (${String(signal.reason)})`);
   const machineSurfaces = [
     repoRead.ok && repo.registered !== null ? "repo.resolve v1" : undefined,
-    snapshotRead?.ok ? "startup.snapshot v1" : undefined,
+    snapshotRead?.ok && tasks.warnings.length === 0 ? "startup.snapshot v1" : undefined,
   ].filter((item): item is string => Boolean(item));
 
   const packetWithoutRecommendations = {
     applicable: true,
     disabled: false,
     packetTier: "full",
-    fullRefreshStatus: "complete",
+    fullRefreshStatus: signal.aborted ? "failed" : "complete",
+    sourceHealth: warnings.length === 0 && repo.registered === true ? "healthy" : "degraded",
+    freshness: performance.now() - started < config.ttlMs ? "fresh" : "stale",
+    refreshState: "idle",
+    warningCount: warnings.length,
+    commandDiagnostics: diagnostics,
     capturedAt: new Date().toISOString(),
     cwd,
     aiSocietyRoot,
@@ -1103,10 +992,7 @@ export async function buildStartupContextPacket(
     decisionPassports: passportReads.map(({ decision, read }) => summarizePassport(read, decision)),
     readFirstHints: collectReadFirstHints(repoRoot, cwd),
     capabilityHints: collectCapabilityHints(aiSocietyRoot, identity),
-    warnings: warnings.slice(
-      0,
-      readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_WARNINGS", DEFAULT_MAX_WARNINGS),
-    ),
+    warnings: warnings.slice(0, config.maxWarnings),
   } satisfies Omit<StartupContextPacket, "recommendedNext">;
 
   return {
@@ -1137,6 +1023,7 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
       `- cwd: \`${packet.cwd}\``,
       `- ai-society root: \`${packet.aiSocietyRoot}\``,
       `- status: ${packet.disabled ? "disabled" : "not applicable outside ~/ai-society"}`,
+      `- source_health: ${packet.sourceHealth || "not_checked"}; refresh_state: ${packet.refreshState || "idle"}`,
       "- automatic startup mutation status: no AK, git, docs, task, decision, projection, receipt, evidence, or session-derived canonical-state mutation was performed.",
       "",
       "### Recommended next legal actions",
@@ -1153,6 +1040,20 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
     `- captured_at: ${packet.capturedAt}`,
     `- packet_tier: ${isFastTier ? "fast/minimal" : "full"}`,
     `- full_refresh_status: ${packet.fullRefreshStatus}`,
+    `- source_health: ${packet.sourceHealth || "not_checked"}`,
+    `- freshness: ${packet.freshness || "stale"}`,
+    `- refresh_state: ${packet.refreshState || "idle"}`,
+    `- source warning count (before truncation): ${packet.warningCount ?? packet.warnings.length}`,
+    ...(packet.collectionElapsedMs === undefined
+      ? []
+      : [
+          `- collection elapsed: ${Math.round(packet.collectionElapsedMs)} ms (external wall time, including admission; not AK internal timing)`,
+        ]),
+    ...(packet.freshness !== "fresh" && !isFastTier
+      ? [
+          "- stale orientation only: prior facts below are NOT current authority; read AK explicitly before acting.",
+        ]
+      : []),
     `- cwd: \`${packet.cwd}\``,
     `- repo_root: \`${packet.repoRoot || "unresolved"}\``,
     `- detected identity: ${formatIdentity(packet.identity)}`,
@@ -1221,7 +1122,7 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
   if (packet.direction) {
     lines.push(
       `- export: ${packet.direction.exportOk ? `ok (${packet.direction.nodeCount ?? "?"} nodes)` : "unavailable"}`,
-      `- check: ${packet.direction.checkOk ? "ok" : "not ok or unavailable"}`,
+      `- check: ${packet.direction.checkOk === true ? "ok" : packet.direction.checkOk === false ? "not ok (observed drift)" : "unknown / unavailable"}`,
     );
     if (
       packet.direction.importedNodeCount !== undefined ||
@@ -1312,6 +1213,15 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
   if (packet.warnings.length > 0) {
     lines.push("", "### Bounded warnings", ...packet.warnings.map((warning) => `- ${warning}`));
   }
+  if (packet.commandDiagnostics?.length)
+    lines.push(
+      "",
+      "### Collection diagnostics",
+      ...packet.commandDiagnostics.map(
+        (item) =>
+          `- ${item.label}: ${Math.round(item.elapsedMs)} ms; ${item.reason || "read completed"}; cleanup=${item.cleanup}`,
+      ),
+    );
 
   lines.push(
     "",
@@ -1322,158 +1232,130 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
   return lines.join("\n");
 }
 
-function summarizeRefreshError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function waitForPacket(
-  promise: Promise<StartupContextPacket>,
-  timeoutMs: number,
-): Promise<StartupContextPacket | undefined> {
-  if (timeoutMs <= 0) return Promise.resolve(undefined);
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), timeoutMs);
-    promise.then((packet) => {
-      clearTimeout(timer);
-      resolve(packet);
-    });
-  });
-}
-
-function startFullRefresh(state: ExtensionState, cwd: string): Promise<StartupContextPacket> {
-  state.refreshController?.abort();
-  const controller = new AbortController();
-  const generation = state.generation + 1;
-  state.generation = generation;
-  state.inFlightCwd = cwd;
-  state.refreshController = controller;
-  let refreshPromise: Promise<StartupContextPacket>;
-  refreshPromise = buildStartupContextPacket(cwd, controller.signal)
-    .catch((error: unknown) =>
-      createFastStartupContextPacket(cwd, os.homedir(), "failed", [
-        `background full refresh failed: ${summarizeRefreshError(error)}`,
-      ]),
-    )
-    .then((packet) => {
-      if (
-        state.generation === generation &&
-        state.inFlight === refreshPromise &&
-        state.inFlightCwd === cwd
-      ) {
-        state.packet = packet;
-      }
-      return packet;
-    })
-    .finally(() => {
-      if (state.generation === generation && state.inFlight === refreshPromise) {
-        state.inFlight = undefined;
-        state.inFlightCwd = undefined;
-        state.refreshController = undefined;
-      }
-    });
-  state.inFlight = refreshPromise;
-  return refreshPromise;
-}
-
-async function ensurePacket(state: ExtensionState, cwd: string): Promise<StartupContextPacket> {
-  if (state.packet?.cwd === cwd && state.packet.packetTier === "full") return state.packet;
-
-  if (!state.packet || state.packet.cwd !== cwd) {
-    state.packet = createFastStartupContextPacket(cwd);
-  }
-
-  if (state.packet.applicable && (!state.inFlight || state.inFlightCwd !== cwd)) {
-    startFullRefresh(state, cwd);
-  }
-
-  if (state.inFlight && state.inFlightCwd === cwd) {
-    const packet = await waitForPacket(
-      state.inFlight,
-      readNonNegativeIntegerEnv("PI_SOCIETY_CONTEXT_FULL_WAIT_MS", DEFAULT_FULL_PACKET_WAIT_MS),
-    );
-    if (packet) return packet;
-  }
-
-  return state.packet;
-}
-
-function summarizeStartupForStatus(packet: StartupContextPacket): string {
+export function summarizeStartupForStatus(packet: StartupContextPacket): string {
+  if (packet.refreshState === "blocked_cleanup")
+    return "Society ctx blocked cleanup: owned readers unresolved; authority unknown";
   if (!packet.applicable) return packet.disabled ? "Society ctx disabled" : "Society ctx n/a";
-  const warningSuffix = packet.warnings.length > 0 ? `, ${packet.warnings.length} warning(s)` : "";
-  const tier = packet.packetTier === "full" ? "ready" : "fast/minimal";
-  return `Society ctx ${tier}: ${formatIdentity(packet.identity)}${warningSuffix}`;
+  const count = packet.warningCount ?? packet.warnings.length;
+  const ready =
+    packet.packetTier === "full" &&
+    packet.sourceHealth === "healthy" &&
+    packet.freshness === "fresh";
+  const tier =
+    packet.refreshState === "refreshing"
+      ? "refreshing"
+      : ready
+        ? "✓ ready"
+        : `${packet.sourceHealth || "not_checked"}/${packet.freshness || "stale"}`;
+  return `Society ctx ${tier}: ${formatIdentity(packet.identity)}${count ? `, ${count} warning(s)` : ""}`;
 }
 
-export default function societyStartupContextExtension(pi: ExtensionAPI) {
-  const state: ExtensionState = { generation: 0 };
-
+export interface SocietyContextDependencies {
+  collect?: typeof buildStartupContextPacket;
+  config?: typeof snapshotConfig;
+  now?: () => number;
+  random?: () => number;
+}
+export default function societyStartupContextExtension(
+  pi: ExtensionAPI,
+  dependencies: SocietyContextDependencies = {},
+) {
+  let context: ExtensionContext | undefined;
+  const configure = dependencies.config || snapshotConfig;
+  const update = (packet: StartupContextPacket | undefined) => {
+    if (!context?.hasUI) return;
+    context.ui?.setStatus?.(
+      "society-context",
+      packet && (packet.applicable || packet.refreshState === "blocked_cleanup")
+        ? summarizeStartupForStatus(packet)
+        : undefined,
+    );
+  };
+  let lifecycle: RefreshLifecycle<StartupContextPacket> | undefined;
+  const controller = (ctx: ExtensionContext) => {
+    if (lifecycle) return lifecycle;
+    lifecycle = new RefreshLifecycle<StartupContextPacket>({
+      // The host retains this manager object across reload/new/resume/fork, unlike pi or ctx.
+      // Minimal injected adapters without a host manager remain isolated by their API object.
+      resources: reloadStableReaders(ctx.sessionManager || pi),
+      fast: (config, error) =>
+        createFastStartupContextPacket(
+          config.cwd,
+          config.home,
+          error === undefined ? "pending" : "failed",
+          error === undefined ? [] : [`background full refresh failed: ${String(error)}`],
+          config,
+        ),
+      collect: (config, signal, resources) =>
+        (dependencies.collect || buildStartupContextPacket)(config.cwd, signal, config, resources),
+      now: dependencies.now,
+      random: dependencies.random,
+      changed: update,
+    });
+    return lifecycle;
+  };
   pi.on("session_start", async (_event, ctx) => {
-    const fastPacket = createFastStartupContextPacket(ctx.cwd);
-    state.packet = fastPacket;
-
-    if (ctx.hasUI) {
-      ctx.ui?.setStatus?.("society-context", fastPacket.applicable ? "Society ctx…" : undefined);
-      if (!fastPacket.applicable && readBooleanEnv("PI_SOCIETY_CONTEXT_NOTIFY_OUTSIDE", false)) {
-        ctx.ui?.notify?.(
-          summarizeStartupForStatus(fastPacket),
-          fastPacket.warnings.length > 0 ? "warning" : "info",
-        );
-      }
+    const lifecycle = controller(ctx);
+    lifecycle.restart();
+    context = ctx;
+    const current = () => configure(ctx.cwd);
+    const fast = lifecycle.consume(await lifecycle.request(current, false, 0), current);
+    if (!fast) return;
+    update(fast);
+    if (!fast?.applicable) {
+      if (ctx.hasUI && current().notifyOutside && fast)
+        ctx.ui?.notify?.(summarizeStartupForStatus(fast), "info");
+      return;
     }
-
-    if (!fastPacket.applicable) return;
-
-    const refresh = startFullRefresh(state, ctx.cwd);
-    const refreshGeneration = state.generation;
-    void refresh.then((packet) => {
-      if (state.generation !== refreshGeneration || packet.cwd !== ctx.cwd) return;
-      if (ctx.hasUI) {
-        ctx.ui?.setStatus?.("society-context", packet.applicable ? "Society ctx✓" : undefined);
-        ctx.ui?.notify?.(
-          summarizeStartupForStatus(packet),
-          packet.warnings.length > 0 ? "warning" : "info",
-        );
-      }
+    void lifecycle.waitCurrent(current).then((result) => {
+      const packet = lifecycle.consume(result, current);
+      if (!packet || !ctx.hasUI) return;
+      ctx.ui?.notify?.(
+        summarizeStartupForStatus(packet),
+        packet.sourceHealth === "healthy" ? "info" : "warning",
+      );
     });
   });
-
   pi.on("session_shutdown", async () => {
-    state.generation += 1;
-    state.refreshController?.abort();
-    state.refreshController = undefined;
-    state.inFlight = undefined;
-    state.inFlightCwd = undefined;
-  });
-
-  pi.on("before_agent_start", async (event, ctx) => {
-    const packet = await ensurePacket(state, ctx.cwd);
-    if (!packet.applicable && !readBooleanEnv("PI_SOCIETY_CONTEXT_INJECT_OUTSIDE", false)) {
-      return undefined;
+    const cleanup = lifecycle?.shutdown();
+    try {
+      update(undefined);
+    } finally {
+      context = undefined;
+      await cleanup;
     }
-
-    return {
-      systemPrompt: `${event.systemPrompt}\n\n${renderStartupContextPacket(packet)}`,
-    };
   });
-
+  pi.on("before_agent_start", async (event, ctx) => {
+    const lifecycle = controller(ctx);
+    context = ctx;
+    const current = () => configure(ctx.cwd);
+    const packet = lifecycle.consume(await lifecycle.request(current), current);
+    if (!packet) return undefined;
+    update(packet);
+    if (packet.disabled || (!packet.applicable && !configure(ctx.cwd).injectOutside))
+      return undefined;
+    return { systemPrompt: `${event.systemPrompt}\n\n${renderStartupContextPacket(packet)}` };
+  });
   pi.registerCommand("society-context", {
     description: "Show or refresh the read-only AI Society startup context packet",
     handler: async (args, ctx) => {
-      if (args.trim() === "refresh") {
-        state.packet = await startFullRefresh(state, ctx.cwd);
-      }
-      const packet = await ensurePacket(state, ctx.cwd);
+      const lifecycle = controller(ctx);
+      context = ctx;
+      const current = () => configure(ctx.cwd);
+      const packet = lifecycle.consume(
+        await lifecycle.request(current, args.trim() === "refresh"),
+        current,
+      );
+      if (!packet) return;
+      update(packet);
       const rendered = renderStartupContextPacket(packet);
-      if (ctx.hasUI && ctx.ui?.editor) {
-        await ctx.ui.editor("AI Society Startup Context", rendered);
-      } else if (ctx.hasUI) {
+      if (ctx.hasUI && ctx.ui?.editor) await ctx.ui.editor("AI Society Startup Context", rendered);
+      else if (ctx.hasUI)
         ctx.ui?.notify?.(
           summarizeStartupForStatus(packet),
-          packet.warnings.length > 0 ? "warning" : "info",
+          packet.sourceHealth === "healthy" ? "info" : "warning",
         );
-      } else {
-        console.log(rendered);
-      }
+      else console.log(rendered);
     },
   });
 }

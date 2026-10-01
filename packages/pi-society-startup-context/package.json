@@ -49,6 +49,10 @@
   },
   "files": [
     "extensions/society-context.ts",
+    "src/command-runner.ts",
+    "src/config.ts",
+    "src/payload-check.ts",
+    "src/refresh-lifecycle.ts",
     "prompts",
     "examples",
     "policy/security-policy.json",

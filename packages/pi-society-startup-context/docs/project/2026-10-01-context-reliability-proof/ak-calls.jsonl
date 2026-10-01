@@ -1,0 +1,20 @@
+{"at": 1790862473.4552798, "pid": 457056, "argv": ["repo", "resolve", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862473.9466083, "pid": 458216, "argv": ["startup", "snapshot", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--ready-sample", "5", "--machine"]}
+{"at": 1790862519.2287345, "pid": 470795, "argv": ["direction", "export", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862520.3945255, "pid": 477741, "argv": ["direction", "check", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862521.0825438, "pid": 480795, "argv": ["decision", "list", "--machine", "--limit", "10"]}
+{"at": 1790862557.8948498, "pid": 490623, "argv": ["repo", "resolve", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862558.3806372, "pid": 491736, "argv": ["startup", "snapshot", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--ready-sample", "5", "--machine"]}
+{"at": 1790862564.636777, "pid": 493946, "argv": ["direction", "export", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862567.5127006, "pid": 503049, "argv": ["direction", "check", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862568.203774, "pid": 506116, "argv": ["decision", "list", "--machine", "--limit", "10"]}
+{"at": 1790862569.963082, "pid": 507435, "argv": ["repo", "resolve", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862570.4483087, "pid": 508557, "argv": ["startup", "snapshot", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--ready-sample", "5", "--machine"]}
+{"at": 1790862576.5855405, "pid": 510801, "argv": ["direction", "export", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862579.4703107, "pid": 519965, "argv": ["direction", "check", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862580.1760597, "pid": 523022, "argv": ["decision", "list", "--machine", "--limit", "10"]}
+{"at": 1790862870.154911, "pid": 602030, "argv": ["repo", "resolve", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862870.6459992, "pid": 603144, "argv": ["startup", "snapshot", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--ready-sample", "5", "--machine"]}
+{"at": 1790862876.7834249, "pid": 605190, "argv": ["direction", "export", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862879.6888409, "pid": 614373, "argv": ["direction", "check", "--repo", "/home/tryinget/ai-society/softwareco/owned/pi-extensions", "--machine"]}
+{"at": 1790862880.3754077, "pid": 617424, "argv": ["decision", "list", "--machine", "--limit", "10"]}

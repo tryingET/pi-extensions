@@ -1,0 +1,70 @@
+{
+  "schema": "ak6391.candidate-proof-retention.v1",
+  "run": {
+    "driverPid": 456766,
+    "piPid": 456785,
+    "runId": "d13eb592-22ee-4a13-9085-0cf4fe04b153",
+    "surfaceId": "0x702a721f3b3c593e",
+    "startedAt": 1790862472.9878047
+  },
+  "exit": {
+    "piPid": 456785,
+    "exitStatus": 0,
+    "at": 1790862881.9785416
+  },
+  "archive": "/home/tryinget/.local/state/pi-quests/evidence/ak6391/d13eb592-22ee-4a13-9085-0cf4fe04b153",
+  "manifestSha256": "6972d13892afa636cf033a8aca45ac19a5fe36736e32726f6c255ccad360d744",
+  "files": [
+    {
+      "path": "driver.json",
+      "sha256": "5e8940e6ba06de62d9095fbdb22e4a0656f8f62183b57ad5aa6fc3d7f98f6131"
+    },
+    {
+      "path": "exit.json",
+      "sha256": "8f7667cfd1b94e9a534321a76134116cb602d3444c68b24fc40124cd3a11dad8"
+    },
+    {
+      "path": "events.jsonl",
+      "sha256": "7847962c7fa4ab44ed08c6f16b70d5846a8a164247fb3be270d1abea89c06870"
+    },
+    {
+      "path": "ak-calls.jsonl",
+      "sha256": "2b681db43bd52202270d09d4d9cc32595a289754630ea3a4b0d25339ba684363"
+    },
+    {
+      "path": "report.json",
+      "sha256": "d9c9efa9d88507fa668e703867a0007b32e375ffa594dc5ef4204f9223bf5d19"
+    },
+    {
+      "path": "verified.json",
+      "sha256": "b2f630cbdd6a65ae704542ea8d75933fd84880da93e432b7a6c622ec8931d00e"
+    },
+    {
+      "path": "driver.py",
+      "sha256": "8909dc982d3469b8ab53b8b3d895e90e969e30811aeeb53818819b288fe4abf9"
+    },
+    {
+      "path": "observe.ts",
+      "sha256": "fd6fbed59340eb7ed4289a29dfc209eca1afd36fc7e2d421137990e28906ef54"
+    },
+    {
+      "path": "ak-proxy.py",
+      "sha256": "642e38a9f766895abd4301f073c78062e41a53dbe97744844b843f8540637da8"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "9c95e804444fbf5b6b4218026a2cd017a6c36f52b06261edb24d23ddf190c289"
+    },
+    {
+      "path": "terminal.log",
+      "sha256": "b67d9d5872b4185ef0d6be4eba88fdbc4d3f8845e9295f63da81e26c5c19cd36"
+    },
+    {
+      "path": "stage.json",
+      "sha256": "53a64c6066f23e682194c5be9f0b5bdd39d62dcc19d6d316929ddccf9ee63ff2"
+    }
+  ],
+  "retention": "Named proof artifacts retained outside TMPDIR, files read-only; same-user immutability is cooperative. No credential directory retained.",
+  "runtimeModules": "Extension hash observed at both loads; imported-module hashes were inspected after execution, not separately recorded at load.",
+  "publication": "Candidate TUI only, not promoted runtime or producer proof."
+}

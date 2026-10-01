@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "runId": "d13eb592-22ee-4a13-9085-0cf4fe04b153",
+  "sourceSha256": "72efe0925b47369479ea4fa329e70cd781af087d2e46551d9bb122974362cbc6",
+  "piExitStatus": 0,
+  "promptWaitsMs": [252.15605800000048, 252.55911300001026, 252.0032389999833],
+  "defaultTimeoutDegradation": true,
+  "demandRecovery": true,
+  "actualReload": true,
+  "idleFiveMinuteExpiryWithoutProbes": true,
+  "expiryDemandRecovery": true,
+  "factoryInstances": 2,
+  "singleStartupRegistrationPerFactory": true,
+  "limitations": [
+    "This proves one real TUI controller, not arbitrary cross-session capacity or physical pixel placement.",
+    "Factory registration count alone is not proof of cross-controller single-flight; deterministic tests cover concurrency.",
+    "Producer candidate and promoted runtime are separate proofs."
+  ]
+}
