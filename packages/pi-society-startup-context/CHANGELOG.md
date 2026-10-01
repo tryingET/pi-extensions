@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.1...pi-society-startup-context-v0.3.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* **pi-society-startup-context:** bounded truthful recovery and generation-safe refresh (AK6391) ([5e29ac9](https://github.com/tryingET/pi-extensions/commit/5e29ac9ef9379c46c9a9a57bf394ca7dcca9ac2a))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.0...pi-society-startup-context-v0.3.1) (2026-09-01)
 
 
