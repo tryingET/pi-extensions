@@ -4,7 +4,7 @@ import { checkProjectionFreshness, classifyDispatchPosture, formatDispatchPostur
 import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { receiptVisibleToCompany } from "./vaultReceipts.js";
 import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
-import { DEFAULT_VAULT_QUERY_LIMIT, MAX_VAULT_QUERY_LIMIT, renderTextPreview, } from "./vaultTypes.js";
+import { DEFAULT_VAULT_QUERY_LIMIT, MAX_VAULT_QUERY_LIMIT, renderTextPreview, VAULT_DIR, } from "./vaultTypes.js";
 function normalizeStringArray(value) {
     return (value || [])
         .map(String)
@@ -169,11 +169,15 @@ Reports the compatible schema range, actual migration version, compatibility epo
                 const allActive = runtime.listTemplates({}, { currentCompany: executionContext.currentCompany, requireExplicitCompany: true }, { includeContent: true });
                 const activeExported = allActive.filter((t) => t.export_to_pi && t.status === "active" && t.content);
                 projectionResults = activeExported.map((t) => {
-                    const result = checkProjectionFreshness(t);
+                    const result = checkProjectionFreshness(t, {
+                        vaultDir: process.env.VAULT_DIR?.trim() || VAULT_DIR,
+                    });
                     return {
                         template_name: result.template_name,
                         status: result.status,
                         message: result.message,
+                        freshness_scope: result.freshness_scope,
+                        global_freshness: result.global_freshness,
                     };
                 });
             }

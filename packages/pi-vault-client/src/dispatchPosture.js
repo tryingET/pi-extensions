@@ -358,7 +358,140 @@ export function formatDispatchPosture(result) {
 }
 const PI_PROMPTS_DIR =
   process.env.PI_PROMPTS_DIR || path.join(process.env.HOME || "/home/user", ".pi/agent/prompts");
-export function checkProjectionFreshness(template) {
+function readOwnedProjectionFile(filePath) {
+  const ancestors = [];
+  for (let parent = path.dirname(filePath); ; parent = path.dirname(parent)) {
+    const entry = fs.lstatSync(parent);
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw new Error("Projection directory contains a symlink or non-directory.");
+    }
+    ancestors.push({ path: parent, dev: entry.dev, ino: entry.ino });
+    if (parent === path.dirname(parent)) break;
+  }
+  const descriptor = fs.openSync(
+    filePath,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
+  );
+  try {
+    const before = fs.fstatSync(descriptor);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      (process.getuid && before.uid !== process.getuid())
+    )
+      throw new Error("Projection evidence is not an owned regular file with one link.");
+    const text = fs.readFileSync(descriptor, "utf8");
+    const after = fs.fstatSync(descriptor);
+    const current = fs.lstatSync(filePath);
+    if (
+      current.isSymbolicLink() ||
+      current.dev !== before.dev ||
+      current.ino !== before.ino ||
+      current.nlink !== 1 ||
+      after.size !== before.size ||
+      after.mtimeMs !== before.mtimeMs ||
+      after.ctimeMs !== before.ctimeMs ||
+      current.mtimeMs !== after.mtimeMs ||
+      current.ctimeMs !== after.ctimeMs
+    )
+      throw new Error("Projection evidence changed during inspection.");
+    for (const ancestor of ancestors) {
+      const entry = fs.lstatSync(ancestor.path);
+      if (entry.isSymbolicLink() || entry.dev !== ancestor.dev || entry.ino !== ancestor.ino) {
+        throw new Error("Projection directory changed during inspection.");
+      }
+    }
+    return text;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+function checkScopedProjection(template, receiptPath, localPath, vaultDir) {
+  const result = {
+    template_name: template.name,
+    status: "error",
+    db_version: template.version ?? null,
+    db_content_sha256: sha256Hex(template.content),
+    local_file_path: localPath,
+    local_content_sha256: null,
+    freshness_scope: "template",
+    global_freshness: "not_checked",
+    message: "Scoped projection evidence is invalid.",
+  };
+  try {
+    const receipt = JSON.parse(readOwnedProjectionFile(receiptPath));
+    if (
+      !receipt ||
+      receipt.schema !== "prompt-vault/pi-scoped-template-receipt/v1" ||
+      receipt.policy !== "prompt-vault/raw-pi-projection-policy/v1" ||
+      receipt.state !== "complete"
+    )
+      throw new Error(
+        "Scoped receipt is malformed or incomplete; inspect or recover it before use.",
+      );
+    if (!vaultDir || !Number.isSafeInteger(template.id) || Number(template.id) <= 0) {
+      throw new Error(
+        "Scoped freshness requires the current source Vault directory and template ID.",
+      );
+    }
+    if (
+      receipt.source?.vault_dir !== fs.realpathSync(vaultDir) ||
+      receipt.source?.template_id !== template.id ||
+      receipt.target?.templates_dir !== path.resolve(PI_PROMPTS_DIR) ||
+      receipt.template?.name !== template.name ||
+      receipt.template?.path !== `${template.name}.md`
+    )
+      throw new Error("Scoped receipt belongs to another Vault, template, or target directory.");
+    const supportedLevel =
+      template.formalization_level === "bounded" ||
+      (template.artifact_kind === "cognitive" &&
+        ["napkin", "structured"].includes(template.formalization_level ?? ""));
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u.test(template.name) ||
+      template.name.includes("..") ||
+      template.control_mode !== "one_shot" ||
+      !supportedLevel ||
+      projectionQuarantineReason(template)
+    ) {
+      throw new Error("Current template policy does not permit a scoped raw projection.");
+    }
+    const projected = `${template.content.replace(/\n+$/u, "")}\n`;
+    const expected = {
+      schema: "prompt-vault/pi-scoped-template-receipt/v1",
+      state: "complete",
+      policy: "prompt-vault/raw-pi-projection-policy/v1",
+      source: { vault_dir: fs.realpathSync(vaultDir), template_id: template.id },
+      target: { templates_dir: path.resolve(PI_PROMPTS_DIR) },
+      template: {
+        name: template.name,
+        path: `${template.name}.md`,
+        version: template.version,
+        content_sha256: result.db_content_sha256,
+        projected_sha256: sha256Hex(projected),
+        facets: {
+          artifact_kind: template.artifact_kind,
+          control_mode: template.control_mode,
+          formalization_level: template.formalization_level,
+          owner_company: template.owner_company,
+          visibility_companies: template.visibility_companies,
+          controlled_vocabulary: template.controlled_vocabulary ?? null,
+        },
+      },
+    };
+    const localContent = readOwnedProjectionFile(localPath);
+    result.local_content_sha256 = sha256Hex(localContent);
+    const exact =
+      canonicalJcsBytes(receipt).equals(canonicalJcsBytes(expected)) && localContent === projected;
+    result.status = exact ? "fresh" : "stale";
+    result.message = exact
+      ? `Scoped receipt and file are fresh (v${template.version}); global inventory freshness was not checked.`
+      : "Scoped receipt or file differs from current DB content, version, or governance.";
+  } catch (error) {
+    result.message = error instanceof Error ? error.message : String(error);
+  }
+  return result;
+}
+export function checkProjectionFreshness(template, options = {}) {
   const { name, content, version, status } = template;
   if (template.export_to_pi !== true || status !== "active") {
     return {
@@ -376,6 +509,25 @@ export function checkProjectionFreshness(template) {
     : null;
   const receiptPath = path.join(PI_PROMPTS_DIR, ".prompt-vault-export-state.json");
   const sourceDigest = sha256Hex(content);
+  if (localPath !== null) {
+    const scopedPath = path.join(PI_PROMPTS_DIR, `.prompt-vault-scoped-${name}.json`);
+    try {
+      fs.lstatSync(scopedPath);
+      return checkScopedProjection(template, scopedPath, localPath, options.vaultDir);
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        return {
+          template_name: name,
+          status: "error",
+          db_version: version ?? null,
+          db_content_sha256: sourceDigest,
+          local_file_path: localPath,
+          local_content_sha256: null,
+          message: "Scoped receipt could not be inspected.",
+        };
+      }
+    }
+  }
   let receipt = null;
   try {
     receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));

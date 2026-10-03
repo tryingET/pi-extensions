@@ -37,6 +37,8 @@ export interface ProjectionFreshnessResult {
   local_file_path: string | null;
   local_content_sha256: string | null;
   message: string;
+  freshness_scope?: "template";
+  global_freshness?: "not_checked";
 }
 
 export declare function canonicalJcsBytes(value: unknown): Buffer;
@@ -68,19 +70,23 @@ export declare function classifyDispatchPosture(
 export declare function isTextOk(posture: DispatchPosture): boolean;
 export declare function isOrchestratorGateRequired(posture: DispatchPosture): boolean;
 export declare function formatDispatchPosture(result: DispatchPostureResult): string;
-export declare function checkProjectionFreshness(template: {
-  name: string;
-  content: string;
-  artifact_kind?: string;
-  control_mode?: string;
-  formalization_level?: string;
-  owner_company?: string;
-  visibility_companies?: string[];
-  controlled_vocabulary?: unknown;
-  export_to_pi?: boolean;
-  version?: number | null;
-  status?: string | null;
-}): ProjectionFreshnessResult;
+export declare function checkProjectionFreshness(
+  template: {
+    id?: number;
+    name: string;
+    content: string;
+    artifact_kind?: string;
+    control_mode?: string;
+    formalization_level?: string;
+    owner_company?: string;
+    visibility_companies?: string[];
+    controlled_vocabulary?: unknown;
+    export_to_pi?: boolean;
+    version?: number | null;
+    status?: string | null;
+  },
+  options?: { vaultDir?: string },
+): ProjectionFreshnessResult;
 export declare function formatProjectionFreshness(result: ProjectionFreshnessResult): string;
 export declare function getKnownLoopBindings(): Readonly<
   Record<string, Readonly<ExecutionBinding>>

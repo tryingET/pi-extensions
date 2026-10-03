@@ -23,6 +23,7 @@ import {
   DEFAULT_VAULT_QUERY_LIMIT,
   MAX_VAULT_QUERY_LIMIT,
   renderTextPreview,
+  VAULT_DIR,
 } from "./vaultTypes.js";
 
 function normalizeStringArray(value: unknown): string[] {
@@ -226,11 +227,15 @@ Reports the compatible schema range, actual migration version, compatibility epo
           (t) => t.export_to_pi && t.status === "active" && t.content,
         );
         projectionResults = activeExported.map((t) => {
-          const result = checkProjectionFreshness(t);
+          const result = checkProjectionFreshness(t, {
+            vaultDir: process.env.VAULT_DIR?.trim() || VAULT_DIR,
+          });
           return {
             template_name: result.template_name,
             status: result.status,
             message: result.message,
+            freshness_scope: result.freshness_scope,
+            global_freshness: result.global_freshness,
           };
         });
       } catch (error) {
