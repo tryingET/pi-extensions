@@ -836,7 +836,7 @@ function listTemplatesDetailed(filters, context, options) {
         whereClauses.push(`control_mode = '${escapeSql(filters.control_mode)}'`);
     if (filters?.formalization_level)
         whereClauses.push(`formalization_level = '${escapeSql(filters.formalization_level)}'`);
-    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(options?.includeContent ?? false)} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name`);
+    const result = queryVaultJsonDetailed(`SELECT ${buildSelectColumns(options?.includeContent ?? false, options?.includeContent ?? false)} FROM prompt_templates WHERE ${whereClauses.join(" AND ")} ORDER BY artifact_kind, control_mode, formalization_level, owner_company, name`);
     if (!result.ok)
         return result;
     return { ok: true, value: parseTemplateRows(result.value), error: null };

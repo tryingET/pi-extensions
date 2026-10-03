@@ -369,6 +369,17 @@ test("vault runtime supports end-to-end execution-bound feedback in a real temp 
     assert.ok(template);
     if (!template) return;
 
+    const contentListing = runtime.listTemplates(
+      {},
+      { currentCompany: "software" },
+      { includeContent: true },
+    );
+    assert.equal(
+      contentListing.find((row) => row.name === "demo-template")?.id,
+      template.id,
+      "content listings used by projection diagnostics must carry exact source identity",
+    );
+
     runtime.logExecution(template, "unit-test-model", "ctx");
 
     const executionLookup = runtime.queryVaultJsonDetailed(`

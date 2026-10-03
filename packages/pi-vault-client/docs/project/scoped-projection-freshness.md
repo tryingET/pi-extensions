@@ -19,6 +19,7 @@ global inventory. It checks source Vault identity, template ID/name, destination
 current version, original content hash, normalized file bytes and all governed
 facets. Callers of `checkProjectionFreshness` supply the active source Vault
 directory; the diagnostics tool uses the same configuration as its DB reader.
+Content-bearing template listings include the source ID needed by this check.
 
 Scoped evidence reports `freshness_scope: template` and
 `global_freshness: not_checked`. A fresh selected template says nothing about
