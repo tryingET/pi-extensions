@@ -372,7 +372,7 @@ test("vault runtime supports end-to-end execution-bound feedback in a real temp 
     runtime.logExecution(template, "unit-test-model", "ctx");
 
     const executionLookup = runtime.queryVaultJsonDetailed(`
-      SELECT id, entity_version FROM executions
+      SELECT id, entity_version, success FROM executions
       WHERE entity_type = 'template' AND entity_id = ${template.id}
       ORDER BY created_at DESC, id DESC
       LIMIT 1
@@ -380,6 +380,11 @@ test("vault runtime supports end-to-end execution-bound feedback in a real temp 
     assert.equal(executionLookup.ok, true);
     if (!executionLookup.ok) return;
     assert.equal(executionLookup.value.rows.length, 1);
+    assert.equal(
+      executionLookup.value.rows[0].success ?? null,
+      null,
+      "submitting a template must not claim successful requested work",
+    );
 
     const executionId = Number(executionLookup.value.rows[0].id);
     const firstRating = runtime.rateTemplate(executionId, 5, true, "solid", {

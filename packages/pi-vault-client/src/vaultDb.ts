@@ -1483,14 +1483,14 @@ function logExecution(
       '${escapedModel}',
       'none',
       NULL,
-      true,
+      NULL,
       NOW()
     )
   `);
   if (!inserted || inserted.rowCount !== 1 || !inserted.insertId) {
     return { ok: false, message: "Failed to log template execution." } as const;
   }
-  commitVault(`Log template execution: ${Number(template.id)}`, ["executions"]);
+  commitVault(`Log template submission (outcome unknown): ${Number(template.id)}`, ["executions"]);
   return {
     ok: true,
     executionId: inserted.insertId,
