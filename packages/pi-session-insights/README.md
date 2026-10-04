@@ -136,3 +136,11 @@ From the monorepo root:
 ```bash
 bash ./scripts/package-quality-gate.sh ci packages/pi-session-insights
 ```
+
+### Local landing is distinct from remote push
+
+For this package-only, non-loop change, the scoped package check above verifies the package. Develop in an isolated worktree, then use the canonical checkout's `scripts/land-canonical.sh <exact-commit>` to land on local `main`. That owner script performs changed-package dependency installation, whole-canonical install health, and the default Pi extension-load smoke with rollback on failure. Preserve unrelated dirty work; do not merge/reset manually or override the smoke.
+
+Full monorepo CI remains required by the remote pre-push contract and by an explicitly selected `just loop-landing-check`. A failed full check is not a passing check or a waiver; it also must not be misreported as a failed scoped package test. Missing unrelated installs in a development worktree do not establish a package defect. Do not provision the whole fleet merely by conflating those three verification subjects.
+
+Canonical sources: [engineering scope](../../docs/engineering.local.md) and [canonical movement / pre-push inputs](../../docs/project/pre-push-inputs.md). This guidance does not change their requirements or authorize push, skill projection refresh, package publication, or AK lifecycle closure.
