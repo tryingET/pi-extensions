@@ -19,6 +19,7 @@ const { statePath, controllerInstanceId } = parseArguments(process.argv.slice(2)
 let terminalSeenAt;
 let disconnectedSeenAt;
 let unavailableSeenAt;
+let lastKnownState;
 let lastRendered = "";
 
 const timer = setInterval(tick, POLL_MS);
@@ -37,6 +38,7 @@ async function tick() {
       shutdown();
       return;
     }
+    lastKnownState = state;
     unavailableSeenAt = undefined;
     const controllerAlive = state.controllerActive === true && processAlive(state.ownerPid);
     const now = Date.now();
@@ -63,16 +65,7 @@ async function tick() {
   } catch (error) {
     const now = Date.now();
     unavailableSeenAt ??= now;
-    const message = error instanceof Error ? error.message : String(error);
-    const rendered = [
-      "ASC execution observer",
-      "",
-      "state: unavailable",
-      `reason: ${singleLine(message, 180)}`,
-      "",
-      "Execution may still be running. This observer is not execution authority.",
-      "Closing this tab does not cancel work.",
-    ].join("\n");
+    const rendered = renderUnavailable(error, now);
     if (rendered !== lastRendered) {
       process.stdout.write(`\u001b[2J\u001b[H${rendered}\n`);
       lastRendered = rendered;
@@ -81,7 +74,41 @@ async function tick() {
   }
 }
 
-function renderState(state, now, controllerAlive) {
+function renderUnavailable(error, now) {
+  // Never infer expiration, controller death or execution failure from a read error.
+  const explanation =
+    error?.code === "ENOENT"
+      ? "The observer status file is no longer available."
+      : "The observer cannot read its status updates.";
+  // JSON parser diagnostics can contain snapshot contents; do not display those excerpts.
+  const message =
+    error instanceof SyntaxError
+      ? "State snapshot is not valid JSON."
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  const remaining = Math.max(0, DISCONNECTED_HOLD_MS - (now - unavailableSeenAt));
+  return [
+    "ASC execution observer",
+    "",
+    "Progress updates unavailable",
+    explanation,
+    "Check the parent Pi session for the execution result.",
+    "Closing this tab does not cancel work.",
+    "",
+    ...(lastKnownState
+      ? [renderState(lastKnownState, now, false, true)]
+      : ["No progress snapshot has been read yet."]),
+    "",
+    ...(lastKnownState
+      ? ["Progress updates unavailable — all progress above is stale, not live."]
+      : []),
+    `observer closes in: ${Math.ceil(remaining / 1000)}s`,
+    `Technical details: ${singleLine(message, 180)}`,
+  ].join("\n");
+}
+
+function renderState(state, now, controllerAlive, stale = false) {
   const terminal = normalizeTerminal(state.terminal);
   const observationAt = numberOrUndefined(state.lastObservationAt) ?? Date.parse(state.updatedAt);
   const heartbeatAgeMs = Number.isFinite(observationAt)
@@ -107,11 +134,16 @@ function renderState(state, now, controllerAlive) {
   const groupLabel = singleLine(state.group.label, 120) || "execution";
   const activeDispatch = normalizeActiveDispatch(state.activeDispatch);
   const lines = [
+    stale ? "Last known progress (stale — no longer live)" : undefined,
     `ASC execution observer · ${groupLabel}`,
     "═".repeat(Math.min(72, Math.max(24, groupLabel.length + 24))),
-    `status: ${normalizeStatus(state.status)}`,
-    `supervision: ${supervision}`,
-    `elapsed: ${formatDuration(now - Date.parse(state.createdAt))}`,
+    `${stale ? "last known status" : "status"}: ${normalizeStatus(state.status)}`,
+    stale
+      ? `snapshot age: ${formatDuration(now - Date.parse(state.updatedAt))}`
+      : `supervision: ${supervision}`,
+    stale
+      ? `elapsed at last snapshot: ${formatDuration(Date.parse(state.updatedAt) - Date.parse(state.createdAt))}`
+      : `elapsed: ${formatDuration(now - Date.parse(state.createdAt))}`,
     heartbeatAgeMs === undefined
       ? undefined
       : `telemetry heartbeat: ${formatDuration(heartbeatAgeMs)} ago`,
@@ -151,25 +183,29 @@ function renderState(state, now, controllerAlive) {
   }
 
   if (terminal) {
-    lines.push(`terminal: ${terminal.ok ? "settled successfully" : terminal.status}`);
+    lines.push(
+      `${stale ? "last known terminal" : "terminal"}: ${terminal.ok ? "settled successfully" : terminal.status}`,
+    );
     if (terminal.failureKind) lines.push(`failure: ${terminal.failureKind}`);
     if (terminal.effectDisposition) {
       lines.push(`last ASC dispatch effect disposition: ${terminal.effectDisposition}`);
     }
-    const remaining = Math.max(
-      0,
-      (terminal.ok ? SUCCESS_HOLD_MS : FAILURE_HOLD_MS) - (now - (terminalSeenAt ?? now)),
-    );
-    lines.push(`observer closes in: ${Math.ceil(remaining / 1000)}s`);
-  } else if (!controllerAlive) {
+    if (!stale) {
+      const remaining = Math.max(
+        0,
+        (terminal.ok ? SUCCESS_HOLD_MS : FAILURE_HOLD_MS) - (now - (terminalSeenAt ?? now)),
+      );
+      lines.push(`observer closes in: ${Math.ceil(remaining / 1000)}s`);
+    }
+  } else if (!stale && !controllerAlive) {
     lines.push("The controller is inactive. No cancellation or effect conclusion is inferred.");
     const remaining = Math.max(0, DISCONNECTED_HOLD_MS - (now - (disconnectedSeenAt ?? now)));
     lines.push(`observer closes in: ${Math.ceil(remaining / 1000)}s`);
-  } else {
+  } else if (!stale) {
     lines.push("Progress state is observational only; ASC owns execution and effect receipts.");
   }
 
-  lines.push("Closing this tab does not cancel the agent.");
+  if (!stale) lines.push("Closing this tab does not cancel the agent.");
   return lines.join("\n");
 }
 

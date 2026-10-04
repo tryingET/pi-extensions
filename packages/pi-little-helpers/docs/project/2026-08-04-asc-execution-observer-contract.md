@@ -144,7 +144,8 @@ The observer reuses the visible-session launch primitives but selects a stricter
 - Resumed progress defensively clears stale non-authoritative terminal UI state; execution/checkpoint legality still comes only from the orchestrator and ASC receipt.
 - Successful terminal state remains visible briefly, then the observer exits.
 - Failure state remains visible longer for inspection.
-- Missing/inactive controller state is shown as disconnected and the renderer exits after a bounded hold; no effect conclusion is inferred.
+- An inactive controller is shown as disconnected. Unreadable/missing snapshots instead show `Progress updates unavailable`, direct the operator to the parent Pi session, and retain the last successfully checked matching-generation progress as `stale — no longer live`. If none has been read, no progress is invented. Technical details appear below the progress; JSON parser diagnostics never expose snapshot contents.
+- Stale progress includes snapshot age and elapsed time at that snapshot, not an advancing execution clock or a current health/completion classification. Successful reads restore normal rendering; a replacement controller generation still exits the old renderer. Unavailable/inactive state retains the bounded exit hold; no execution or effect conclusion is inferred.
 - Closing the observer tab terminates only the renderer. It does not send a signal or cancellation request.
 - Cancellation stays explicit through ASC/controller surfaces.
 

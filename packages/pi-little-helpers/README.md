@@ -62,6 +62,10 @@ into the aggregate build identity. Preserving Decision151 source does not preser
 artifact, profile or publication identity. Any future build/pack needs fresh hashes,
 closure checks and owner proof; old publication evidence is historical, not proof for a
 rebuilt artifact. Runtime, activation, CI and landing remain **HOLD** for this reconciliation.
+This is not a blanket freeze on separately owner-authorized observer-renderer maintenance:
+AK6626 admits renderer-only verification, canonical landing and activation without rebuilding
+Decision151 artifacts or changing task-session publication/enrollment. That bounded admission
+does not release the shared-resolver/task-session reconciliation hold.
 
 Targeting reconciliation: a tab request now requires a valid controller PID with readable
 executable identity matching the configured absolute executable after path normalization,
