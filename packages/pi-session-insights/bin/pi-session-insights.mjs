@@ -14,12 +14,12 @@ const DEFAULT_MAX_CHAIN = 512;
 function usage() {
   return `Usage: pi-session-insights [options] <session.jsonl>
 
-Deterministically extracts a bounded pi.session-insights.v1 object.
+Deterministically extracts a bounded pi.session-insights.v2 object.
 The wrapper never parses JSONL; jq owns all session-content inspection.
 
 Options:
   --attribution <file>   Source-qualified pi.session-insights.attribution.v1 JSON
-  --max-text-chars <n>   Cap latest operator/assistant text (default: ${DEFAULT_MAX_TEXT_CHARS})
+  --max-text-chars <n>   Cap latest user-role/assistant text (default: ${DEFAULT_MAX_TEXT_CHARS})
   --max-chain <n>        Cap emitted active-parent-chain ids (default: ${DEFAULT_MAX_CHAIN})
   --pretty               Pretty-print JSON instead of compact output
   --jq-bin <path>        jq executable (default: PI_SESSION_INSIGHTS_JQ or jq)

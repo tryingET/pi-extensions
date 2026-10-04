@@ -47,7 +47,7 @@ test("extracts the active branch, retained tail, attribution, and observed mutat
 
     const result = runSession(session, "--attribution", join(fixtures, "attribution.json"));
 
-    assert.equal(result.schema, "pi.session-insights.v1");
+    assert.equal(result.schema, "pi.session-insights.v2");
     assert.equal(result.bounded_output, true);
     assert.equal(result.session_id, "session-controller");
     assert.equal(
@@ -57,8 +57,8 @@ test("extracts the active branch, retained tail, attribution, and observed mutat
     assert.equal(result.session_role, "controller");
     assert.equal(result.latest_meaningful_activity.entry_id, "a0000003");
     assert.equal(result.latest_meaningful_activity.timestamp, "2026-08-03T10:00:11.000Z");
-    assert.equal(result.latest_operator_message.source, "compaction.retainedTail");
-    assert.equal(result.latest_operator_message.text, "Continue AK-4610 only.");
+    assert.equal(result.latest_user_message.source, "compaction.retainedTail");
+    assert.equal(result.latest_user_message.text, "Continue AK-4610 only.");
     assert.equal(result.latest_assistant_text.entry_id, "a0000003");
     assert.equal(result.latest_assistant_text.text, "Final active-branch assistant text.");
     assert.equal(result.active_leaf.id, "a0000003");
@@ -91,20 +91,18 @@ test("extracts the active branch, retained tail, attribution, and observed mutat
 test("classifies scout, subagent, and fork sessions without treating boot prompts as operators", () => {
   const scout = runSession(join(fixtures, "scout.jsonl"));
   assert.equal(scout.session_role, "scout");
-  assert.equal(scout.latest_operator_message, null);
+  assert.equal(scout.latest_user_message, null);
   assert.equal(scout.latest_assistant_text.text, "Scout findings for AK-4611.");
-  assert.ok(
-    scout.uncertainties.includes("spawn_boot_prompt_excluded_from_latest_operator_message"),
-  );
+  assert.ok(scout.uncertainties.includes("spawn_boot_prompt_excluded_from_latest_user_message"));
 
   const subagent = runSession(join(fixtures, "subagent.jsonl"));
   assert.equal(subagent.session_role, "subagent");
-  assert.equal(subagent.latest_operator_message, null);
+  assert.equal(subagent.latest_user_message, null);
   assert.deepEqual(subagent.ak_task_ids, [4609]);
 
   const fork = runSession(join(fixtures, "fork.jsonl"));
   assert.equal(fork.session_role, "fork");
-  assert.equal(fork.latest_operator_message.text, "Continue the forked analysis for AK-4607.");
+  assert.equal(fork.latest_user_message.text, "Continue the forked analysis for AK-4607.");
 });
 
 test("distinguishes actual fork boot prompts from controller text that names dispatch_subagent", () => {
@@ -148,7 +146,7 @@ test("distinguishes actual fork boot prompts from controller text that names dis
     const controllerResult = runSession(controller);
     assert.equal(controllerResult.session_role, "controller");
     assert.equal(
-      controllerResult.latest_operator_message.text,
+      controllerResult.latest_user_message.text,
       "Explain the dispatch_subagent API for AK-4625.",
     );
 
@@ -191,9 +189,9 @@ test("distinguishes actual fork boot prompts from controller text that names dis
 
     const forkResult = runSession(forkBoot);
     assert.equal(forkResult.session_role, "fork");
-    assert.equal(forkResult.latest_operator_message, null);
+    assert.equal(forkResult.latest_user_message, null);
     assert.ok(
-      forkResult.uncertainties.includes("spawn_boot_prompt_excluded_from_latest_operator_message"),
+      forkResult.uncertainties.includes("spawn_boot_prompt_excluded_from_latest_user_message"),
     );
   });
 });
@@ -245,8 +243,8 @@ test("filters spawn language only in the first boot message", () => {
 
     const result = runSession(session);
     assert.equal(result.session_role, "controller");
-    assert.equal(result.latest_operator_message.entry_id, "later-user");
-    assert.equal(result.latest_operator_message.text, "Review objective: reassess AK-4625.");
+    assert.equal(result.latest_user_message.entry_id, "later-user");
+    assert.equal(result.latest_user_message.text, "Review objective: reassess AK-4625.");
   });
 });
 
@@ -362,7 +360,7 @@ test("handles Pi firstKeptEntryId compactions and excludes hidden thinking from 
     assert.ok(result.ak_task_ids.includes(4611));
     assert.ok(result.ak_task_ids.includes(1000));
     assert.ok(!result.ak_task_ids.includes(9999));
-    assert.equal(result.latest_operator_message.entry_id, "kept-user");
+    assert.equal(result.latest_user_message.entry_id, "kept-user");
   });
 });
 
@@ -420,10 +418,8 @@ test("does not reclassify a retainedTail copy of a spawn boot prompt as operator
     const result = runSession(session);
     assert.equal(result.session_role, "subagent");
     assert.equal(result.retained_tail_compaction_count, 1);
-    assert.equal(result.latest_operator_message, null);
-    assert.ok(
-      result.uncertainties.includes("spawn_boot_prompt_excluded_from_latest_operator_message"),
-    );
+    assert.equal(result.latest_user_message, null);
+    assert.ok(result.uncertainties.includes("spawn_boot_prompt_excluded_from_latest_user_message"));
   });
 });
 

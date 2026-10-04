@@ -44,6 +44,7 @@ for (const path of [
   "lib/session-insights.jq",
   "skills/pi-session-jsonl/SKILL.md",
   "tests/session-insights.test.mjs",
+  "tests/claim-boundaries.test.mjs",
 ]) {
   requireFile(path);
 }
@@ -89,7 +90,7 @@ const expectedScripts = {
   fix: "bash ./scripts/quality-gate.sh fix",
   lint: "bash ./scripts/quality-gate.sh lint",
   typecheck: "bash ./scripts/quality-gate.sh typecheck",
-  "fixtures:test": "node --test tests/session-insights.test.mjs",
+  "fixtures:test": "node --test tests/*.test.mjs",
   "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
   "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
   "quality:ci": "bash ./scripts/quality-gate.sh ci",

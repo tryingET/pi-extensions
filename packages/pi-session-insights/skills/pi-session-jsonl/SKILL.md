@@ -86,18 +86,28 @@ The extractor emits bounded JSON, but jq currently uses `--slurp`, so its memory
 
 ## Read the output
 
-The `pi.session-insights.v1` object includes:
+The `pi.session-insights.v2` object includes (v1 consumers must migrate):
 
 - session file/id/header cwd/role/start;
 - latest meaningful activity from persisted timestamps, not filesystem mtime;
-- latest non-spawn operator message and active-branch assistant text, both capped;
+- latest eligible user-role message with unknown authorship and active-branch assistant text labelled as unverified, both capped;
 - last-appended active leaf plus bounded root-to-leaf parent chain;
 - Pi-native `firstKeptEntryId` and newer harness `retainedTail` compaction facts, plus branch-summary, custom-entry, model, and thinking-level-change facts;
 - deterministic AK task references and path-observed mutation roots;
 - explicit authority/runtime/KES/propagation attribution or conservative null/default values;
 - uncertainties explaining truncation, attribution gaps, ambiguous leaves, and unparsed Bash effects.
 
-A recognized first scout/subagent/fork boot prompt, including an exact copy embedded in `retainedTail`, is classified as boot context and is not presented as an independent operator objective. Spawn-like wording in later real operator messages remains visible.
+`latest_user_message` replaces `latest_operator_message`. Existing heuristic exclusions remove recognized first scout/subagent/fork boot prompts, peer-injected protocol messages, and retained-tail text equal to the first user message. Later spawn-like wording remains eligible. This filtering does not establish authorship: every emitted user record has `authorship: "unknown"`, and `session_role_basis` is `heuristic_not_authorship`.
+
+## Synthesis claim boundaries
+
+- Do not count user-role records as confirmed human behavior. Generated, pasted, and unresolved-origin content can share that role. Phrase patterns are not authorship proof.
+- `latest_assistant_text.claim_status` is `unverified_assistant_text`. Preserve that distinction when quoting a completion claim, including after compaction.
+- `tool_result_observations` counts persisted active-branch results, excluding retained-tail copies. It records only capped entry references and structural `isError` status, never tool bodies. Counts are observations, not proof of tool success or research fulfillment.
+- `research_completion: "not_established"` is a limitation of the extractor, not a failure verdict. Disclose known failed attempts and unresolved coverage; neither a successful return nor a later assertion erases them. Obtain separate evidence of sources actually obtained and used before claiming completed research.
+- Do not turn a retrieval attempt into a claim that a Vault prompt was applied or web sources were consulted. Report unavailable research explicitly; identify any source-independent advice as such.
+- No report generator or runtime enforcement is provided here. These rules guide synthesis; the machine fields prevent the extractor itself from asserting unsupported authorship/completion.
+- This single-file extractor does not deduplicate forked history or establish causality. Those limitations preclude claims of unique human-message counts or causal personal diagnoses from its output alone.
 
 ## Propagation review
 
