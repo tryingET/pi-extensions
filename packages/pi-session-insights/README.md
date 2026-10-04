@@ -19,7 +19,7 @@ The package exists because long-lived sessions can reach tens of megabytes and t
 ```text
 Pi session JSONL
 -> lib/session-insights.jq
--> bounded pi.session-insights.v1 JSON
+-> bounded pi.session-insights.v2 JSON
 -> optional source-qualified attribution
 -> optional LLM synthesis
 ```
@@ -64,10 +64,10 @@ The current jq implementation uses `--slurp`: emitted output is bounded, and obs
 
 ## Output contract
 
-`pi.session-insights.v1` includes:
+`pi.session-insights.v2` includes:
 
 - `session_file`, `session_id`, `session_header_cwd`, `session_role`, `session_start`;
-- `latest_meaningful_activity`, `latest_operator_message`, `latest_assistant_text`;
+- `latest_meaningful_activity`, `latest_user_message`, `latest_assistant_text`;
 - `active_leaf`, `active_parent_chain`, total/truncation metadata;
 - Pi-native `firstKeptEntryId` and newer harness `retainedTail` compaction facts, plus branch-summary, custom-entry, model, and thinking-level-change facts;
 - `ak_task_ids`, `observed_mutation_roots`;
@@ -76,7 +76,19 @@ The current jq implementation uses `--slurp`: emitted output is bounded, and obs
 
 The active chain is reconstructed from `id`/`parentId`. The persisted last appended tree entry is the leaf derivation because JSONL has no independent durable leaf pointer. Multiple leaves are reported as an uncertainty. Filesystem mtime is never used as activity truth.
 
-Latest operator text excludes a recognized first scout/subagent/fork boot prompt and peer-injected protocol messages. Spawn-like wording in a later real operator message is retained. Latest assistant text comes from the active branch. Both are capped; full chronology, tool output, provider payloads, and hidden thinking are not emitted or searched for AK references.
+`latest_user_message` is the latest eligible user-role record, not verified human input. It retains the existing heuristic exclusions for first scout/subagent/fork boot prompts, peer-injected protocol messages, and retained-tail text equal to the first user message. Later spawn-like wording remains eligible. Every selected user record has `authorship: "unknown"`; neither wording, role, cwd, nor an arbitrary in-message authorship field authenticates a human. `session_role_basis: "heuristic_not_authorship"` qualifies the session-role classification.
+
+Latest assistant text comes from the active branch and carries `claim_status: "unverified_assistant_text"`. Both text fields are capped. Tool-result bodies, provider payloads, and hidden thinking are not emitted or searched for AK references. The extractor does not verify assertions in visible text or summaries.
+
+### v2 migration and evidence limits
+
+v2 intentionally removes `latest_operator_message`; consumers must require v2 and use `latest_user_message` without treating it as human-authored. The related boot-exclusion uncertainty marker is also renamed. No legacy operator alias or v1 output mode is provided. The separate owner-attribution input schema remains `pi.session-insights.attribution.v1`; it does not authenticate message authorship.
+
+`tool_result_observations` reports persisted active-branch tool-result metadata only: fixed counters for `reported_error`, `reported_no_error`, `missing`, and `invalid` `isError` values, plus the last 128 `{entry_id, status}` references in branch order. Entry IDs are capped at 256 characters (plus a truncation suffix), so truncated IDs are not exact locators. `total` and `truncated` describe record coverage; counters cover all results in this view. Tool names, arguments, details, and bodies are not exposed. Retained-tail copies and abandoned branches are excluded; this is not the effective post-compaction context or a cross-session ledger. Missing parents and cycles limit coverage as reported in `uncertainties`.
+
+`research_completion: "not_established"` means **this extractor cannot establish completion**, not that research failed. Even `isError: false` means only that the stored result reports no tool error. It does not prove useful sources were obtained, read, applied, or sufficient. An absent result is not success; a summary or assistant completion claim cannot supply that proof.
+
+These labels constrain this package's output, not arbitrary downstream prose. A synthesis must disclose failed/unresolved research and obtain separate source-backed evidence before claiming completion or human behavior. This package does not enforce arbitrary LLM answers, authenticate authorship, deduplicate forks, or classify causal behavior.
 
 `bounded_output: true` is backed by explicit limits for text, parent IDs, task IDs, mutation roots, custom-entry types, metadata strings, and uncertainties. Truncation totals/flags and uncertainty markers remain visible. The jq program rejects caller-supplied text/chain limits above the CLI maxima.
 

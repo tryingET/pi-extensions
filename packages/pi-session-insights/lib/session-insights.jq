@@ -180,11 +180,37 @@ def public_message_record:
       timestamp: (.timestamp | cap_optional_string(128)),
       source: (.source | cap_required_string(64; "unknown")),
       text
-    }
+    } + (if .role == "user" then {authorship: "unknown"}
+         elif .role == "assistant" then {claim_status: "unverified_assistant_text"}
+         else {} end)
   end;
 
+# Status observations are not tool success, fulfillment, or research completion.
+# Do not read content/details, infer research tool names, or count retained copies.
+def tool_result_status:
+  if (has("isError") | not) then "missing"
+  elif .isError == true then "reported_error"
+  elif .isError == false then "reported_no_error"
+  else "invalid" end;
+
+def tool_result_observations($chain):
+  [$chain[]
+   | select(.type == "message" and .message?.role == "toolResult")
+   | {entry_id: (.id | cap_required_string(256; "invalid-entry-id")),
+      status: (.message | tool_result_status)}] as $results
+  | {
+      scope: "persisted_active_branch_excluding_retained_tail",
+      total: ($results | length),
+      counts: (reduce $results[] as $result
+        ({reported_error: 0, reported_no_error: 0, missing: 0, invalid: 0};
+         .[$result.status] += 1)),
+      records: $results[-128:],
+      truncated: (($results | length) > 128)
+    };
+
 def entry_search_text:
-  if .type == "message" and (.message? | type) == "object" then
+  if .type == "message" and (.message? | type) == "object"
+      and (.message.role == "user" or .message.role == "assistant") then
     (.message.content? | reference_content_text)
   elif .type == "custom_message" then
     (.content? | reference_content_text)
@@ -331,6 +357,7 @@ def valid_propagation_state:
         | ($entries[-1] // null) as $leaf
         | chain_descending($entry_by_id; $leaf; {}) as $descending_chain
         | ($descending_chain.entries | reverse) as $active_chain
+        | tool_result_observations($active_chain) as $tool_results
         | [
             $active_chain
             | to_entries[]
@@ -458,6 +485,10 @@ def valid_propagation_state:
             | unique) as $all_observed_mutation_roots
         | ([$all_observed_mutation_roots[0:128][] | cap_text(4096)]) as $observed_mutation_roots
         | (([
+            "user_role_does_not_establish_human_authorship",
+            "assistant_text_is_not_completion_evidence",
+            "tool_result_status_does_not_establish_research_completion",
+            if $tool_results.truncated then "tool_result_observations_truncated" else empty end,
             if ($active_chain | length) > $chain_limit then "active_parent_chain_truncated" else empty end,
             if $descending_chain.cycle then "active_parent_chain_cycle_detected" else empty end,
             if $descending_chain.missing_parent then
@@ -549,19 +580,20 @@ def valid_propagation_state:
             if $session_role == "unknown" then "session_role_unresolved" else empty end,
             if ($session_role == "scout" or $session_role == "subagent" or $session_role == "fork")
                 and $latest_operator == null then
-              "spawn_boot_prompt_excluded_from_latest_operator_message"
+              "spawn_boot_prompt_excluded_from_latest_user_message"
             else empty end
           ] + bounded_attr_uncertainties($attr))
           | map(select(is_nonblank_string) | cap_text(1000))
           | unique
           | .[0:128]) as $uncertainties
         | {
-            schema: "pi.session-insights.v1",
+            schema: "pi.session-insights.v2",
             bounded_output: true,
             output_limits: {
               latest_text_chars: $text_limit,
               active_parent_chain_ids: $chain_limit,
               task_ids: 128,
+              tool_result_records: 128,
               mutation_roots: 128,
               custom_entry_types: 128,
               uncertainties: 128,
@@ -571,6 +603,7 @@ def valid_propagation_state:
             session_id: ($header.id | cap_required_string(256; "invalid-session-id")),
             session_header_cwd: (($header.cwd // null) | cap_optional_string(4096)),
             session_role: $session_role,
+            session_role_basis: "heuristic_not_authorship",
             session_start: (($header.timestamp // null) | cap_optional_string(128)),
             latest_meaningful_activity: (
               if $latest_activity == null then null else {
@@ -579,7 +612,9 @@ def valid_propagation_state:
                 timestamp: ($latest_activity.timestamp | cap_optional_string(128))
               } end
             ),
-            latest_operator_message: ($latest_operator | public_message_record),
+            latest_user_message: ($latest_operator | public_message_record),
+            research_completion: "not_established",
+            tool_result_observations: $tool_results,
             latest_assistant_text: ($latest_assistant | public_message_record),
             active_leaf: (
               if $leaf == null then null else {
