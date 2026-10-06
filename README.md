@@ -124,7 +124,7 @@ just doctor
 
 # CI lanes / canonical root validation
 ./scripts/quality-gate.sh pre-commit   # root smoke + staged package pre-commit fan-out
-./scripts/quality-gate.sh pre-push
+./scripts/quality-gate.sh pre-push    # reuses a recorded pass for the exact same clean tree; PI_EXT_FULL_PREPUSH=1 forces a full run
 ./scripts/quality-gate.sh ci
 ./scripts/ci/smoke.sh                  # root infrastructure smoke checks
 ./scripts/ci/full.sh                   # root infrastructure + canonical package checks

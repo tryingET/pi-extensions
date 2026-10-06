@@ -61,7 +61,7 @@ if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.j
 fi
 
 node --test ./scripts/root-package-install-contract.test.mjs
-node --test ./scripts/gate-inputs.test.mjs ./scripts/file-budget-audit.test.mjs
+node --test ./scripts/gate-inputs.test.mjs ./scripts/file-budget-audit.test.mjs ./scripts/prepush-verified-tree.test.mjs
 node --test ./scripts/package-install-health.test.mjs
 node --test ./scripts/sync-release-locks.test.mjs
 node --test ./scripts/canonical-runtime-guards.test.mjs
