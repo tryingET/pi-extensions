@@ -13,7 +13,7 @@ import test from 'node:test';
 import { computeKey, gateInputs } from './prepush-verified-tree.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const STUB_FULL = '#!/bin/sh\necho full >> "$COUNT_FILE"\nexit "${FULL_EXIT:-0}"\n';
+const STUB_FULL = '#!/bin/sh\necho full >> "$COUNT_FILE"\nif [ -n "${ARTIFACT:-}" ]; then echo built > artifact.out; fi\nexit "${FULL_EXIT:-0}"\n';
 const STUB_INSTALLS = 'import fs from "node:fs";\nfs.appendFileSync(process.env.COUNT_FILE, "installs\\n");\nprocess.exit(Number(process.env.INSTALLS_EXIT || 0));\n';
 
 function write(root, rel, text, mode = 0o644) {
@@ -116,6 +116,25 @@ test('Scenario: a failing full check is never recorded', (t) => {
   assert.deepEqual(records(fx), []);
   push(fx);
   assert.equal(runs(fx, 'full'), 2, 'the next push runs the full check again');
+});
+
+test('Scenario: the inputs recorded are the ones the full check started from', (t) => {
+  // Given a full check that leaves an untracked artifact behind
+  const fx = fixture(t);
+  push(fx, { ARTIFACT: '1' });
+  // When the next push starts from the tree plus that artifact, it was never verified that way
+  push(fx, { ARTIFACT: '1' });
+  assert.equal(runs(fx, 'full'), 2, 'the post-run state is not the verified one');
+  // Then the third push, whose starting state the second run verified, reuses it
+  assert.match(push(fx, { ARTIFACT: '1' }).out, /reusing verification/);
+  assert.equal(runs(fx, 'full'), 2);
+});
+
+test('Scenario: a forced full run still records its pass', (t) => {
+  const fx = fixture(t);
+  push(fx, { PI_EXT_FULL_PREPUSH: '1' });
+  assert.equal(records(fx).length, 1);
+  assert.match(push(fx).out, /reusing verification/);
 });
 
 test('Scenario: PI_EXT_FULL_PREPUSH=1 forces the full check', (t) => {

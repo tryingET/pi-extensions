@@ -4,8 +4,11 @@
 //   - "A push printed 'reusing verification' or 'prepush verification cache: miss'."
 //   - "Changing what the pre-push full check depends on (toolchain, gate scripts, behavior env)."
 //
-// usage: node scripts/prepush-verified-tree.mjs check    exit 0 = reuse (prints the record), 1 = run the full check
-//        node scripts/prepush-verified-tree.mjs record   after a passing full check; records only a clean tree
+// usage: node scripts/prepush-verified-tree.mjs check --save <file>   exit 0 = reuse (prints the record), 1 = run the full check
+//        node scripts/prepush-verified-tree.mjs record --from <file>  after a passing full check
+// check saves the inputs it computed before the full check starts; record writes exactly those
+// inputs, and only while HEAD's tree is unchanged and clean, so a record never names a state that
+// the full check did not start from (e.g. untracked artifacts the check itself left behind).
 //
 // The key covers everything the full check reads that the tree does not: the tree sha itself, the
 // untracked files (name, type and content), the Node and npm versions, the gate scripts, and the
@@ -95,10 +98,11 @@ function readRecord(file, key, inputs) {
   return null;
 }
 
-function check(root, env) {
-  if (env.PI_EXT_FULL_PREPUSH === '1') return { reuse: false, reason: 'PI_EXT_FULL_PREPUSH=1' };
+function check(root, env, save) {
   const inputs = gateInputs(root, env);
   if (!inputs.clean) return { reuse: false, reason: inputs.reason };
+  if (save) fs.writeFileSync(save, `${JSON.stringify(inputs.key)}\n`, { mode: 0o600 });
+  if (env.PI_EXT_FULL_PREPUSH === '1') return { reuse: false, reason: 'PI_EXT_FULL_PREPUSH=1' };
   const key = computeKey(inputs.key);
   const file = path.join(storeDir(env), `${key}.json`);
   if (!fs.existsSync(path.dirname(file))) return { reuse: false, reason: 'no recorded pass yet' };
@@ -106,9 +110,13 @@ function check(root, env) {
   return problem ? { reuse: false, reason: problem } : { reuse: true, file };
 }
 
-function record(root, env) {
-  const inputs = gateInputs(root, env);
-  if (!inputs.clean) return { recorded: false, reason: inputs.reason };
+function record(root, env, from) {
+  let started;
+  try { started = JSON.parse(fs.readFileSync(from, 'utf8')); } catch { return { recorded: false, reason: 'no clean starting inputs were saved' }; }
+  const now = gateInputs(root, env);
+  if (!now.clean) return { recorded: false, reason: 'the full check left tracked changes' };
+  if (now.key.tree !== started.tree) return { recorded: false, reason: 'HEAD moved during the full check' };
+  const inputs = { key: started };
   const key = computeKey(inputs.key);
   const dir = storeDir(env);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -127,8 +135,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const root = git(process.cwd(), 'rev-parse', '--show-toplevel').trim();
   const mode = process.argv[2];
   try {
+    const option = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
     if (mode === 'check') {
-      const result = check(root, process.env);
+      const result = check(root, process.env, option('--save'));
       if (result.reuse) {
         console.log(`prepush: reusing verification ${result.file} (same tree and gate inputs already passed)`);
         process.exit(0);
@@ -136,7 +145,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`prepush verification cache: miss (${result.reason}); running the full check`);
       process.exit(1);
     } else if (mode === 'record') {
-      const result = record(root, process.env);
+      const result = record(root, process.env, option('--from'));
       console.log(result.recorded ? `prepush: recorded pass ${result.file}` : `prepush: pass not recorded (${result.reason})`);
     } else {
       console.error('usage: node scripts/prepush-verified-tree.mjs check|record');

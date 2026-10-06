@@ -43,18 +43,20 @@ case "$stage" in
     # admission still runs first. Any miss, or PI_EXT_FULL_PREPUSH=1, runs the full check, and only
     # a passing full check is recorded. See scripts/prepush-verified-tree.mjs.
     . ./scripts/select-gate-node.sh
+    started="$(mktemp "$TMP_ROOT/prepush-inputs.XXXXXX")"
+    trap 'rm -f "$started"' EXIT
     if [ "${PI_SKIP_PACKAGES:-0}" = "1" ] || {
       node ./scripts/validate-package-installs.mjs >/dev/null 2>&1 &&
         node ./scripts/validate-local-package-links.mjs >/dev/null 2>&1
     }; then
-      if node ./scripts/prepush-verified-tree.mjs check; then
+      if node ./scripts/prepush-verified-tree.mjs check --save "$started"; then
         exit 0
       fi
     else
       echo "prepush verification cache: install admission did not pass; running the full check"
     fi
     ./scripts/ci/full.sh
-    node ./scripts/prepush-verified-tree.mjs record || true
+    node ./scripts/prepush-verified-tree.mjs record --from "$started" || true
     ;;
   ci|check|full)
     exec ./scripts/ci/full.sh
