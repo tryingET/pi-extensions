@@ -32,6 +32,20 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.10.5](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.10.4...pi-little-helpers-v0.10.5) (2026-10-01)
+
+
+### Bug Fixes
+
+* **pi-little-helpers:** tolerate vanished unique bus connections (AK6372) ([ad737d5](https://github.com/tryingET/pi-extensions/commit/ad737d50fa6147fd0dbda2aea921b6ba4ed47f75))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * peerDependencies
+    * @tryinget/pi-peer-messaging bumped from 0.4.2 to 0.4.3
+
 ## [0.10.4](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.10.3...pi-little-helpers-v0.10.4) (2026-09-30)
 
 

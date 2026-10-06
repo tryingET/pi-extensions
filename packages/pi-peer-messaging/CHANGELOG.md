@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.3](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.2...pi-peer-messaging-v0.4.3) (2026-10-01)
+
+
+### Bug Fixes
+
+* **ci:** bound every package test file on Node 22 and 26 (AK6249) ([9a2ef7e](https://github.com/tryingET/pi-extensions/commit/9a2ef7eb084a380a54fdf5eda60df406d31ffe61))
+* **pi-peer-messaging:** close connection lifecycle races (AK6242) ([2e491ad](https://github.com/tryingET/pi-extensions/commit/2e491ada9d3cacf59a7c29b9ea71f6a53bd57380))
+
 ## [0.4.2](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.1...pi-peer-messaging-v0.4.2) (2026-09-30)
 
 

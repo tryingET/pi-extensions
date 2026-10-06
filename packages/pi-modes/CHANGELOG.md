@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.4.2...pi-modes-v0.5.0) (2026-10-01)
+
+
+### Features
+
+* **pi-modes:** keep a mode's prompt in a sibling &lt;key&gt;.md (AK6338) ([9fc98eb](https://github.com/tryingET/pi-extensions/commit/9fc98eb7ead3092004f0b4b06abf34113d239009))
+
 ## [0.4.2](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.4.1...pi-modes-v0.4.2) (2026-09-30)
 
 
