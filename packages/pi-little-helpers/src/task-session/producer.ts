@@ -32,10 +32,22 @@ const CLOSURE = {
   protocol_sha256: "docs/project/contracts/task-session-protocol-v1.json",
   deployment_schema_sha256: "docs/project/contracts/task-session-deployment-v1.json",
 } as const;
+/**
+ * `ak` runs the published AK runtime bundle, never a working checkout (AK6059): the owner gate,
+ * helpers, protocol and policy are the active bundle's, resolved once here. Each AK rotation is a
+ * new bundle with its own paths and policy, so the bindings refuse until the owner republishes
+ * `producer.json` for it (AK6744).
+ */
 export function ownerInstallation() {
   const home = userInfo().homedir;
+  let root: string;
+  try {
+    root = realpathSync(join(home, ".local/libexec/agent-kernel/runtime/current"));
+  } catch {
+    refuse("producer_runtime_unavailable");
+  }
   return {
-    root: join(home, "ai-society/softwareco/owned/agent-kernel"),
+    root,
     host: join(home, ".local/libexec/pi-task-sessions/host-v1"),
   };
 }

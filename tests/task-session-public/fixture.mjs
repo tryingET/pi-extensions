@@ -1,7 +1,15 @@
 // New task5480 fixtures; prior task5513 packets/reports are never modified.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, cpSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { available, native, setup as seedSetup, wait } from "../task-session-native/fixture.mjs";
@@ -29,7 +37,9 @@ export async function setup(packet, scenario = "complete") {
   );
   const home = join(f.root, "home"),
     ns = join(home, ".local/state/pi-task-sessions"),
-    owner = join(home, "ai-society/softwareco/owned/agent-kernel");
+    // The published AK runtime bundle layout (AK6059): runtime/<commit>, selected by `current`.
+    runtimeParent = join(home, ".local/libexec/agent-kernel/runtime"),
+    owner = join(runtimeParent, manifest.commit);
   mkdirSync(ns, { recursive: true, mode: 0o700 });
   for (const name of ["profiles", "credentials", "attempts"]) {
     cpSync(join(f.root, name), join(ns, name), { recursive: true });
@@ -65,6 +75,7 @@ export async function setup(packet, scenario = "complete") {
     cpSync(join(packet.workerRoot, name), target);
     chmodSync(target, identity.mode);
   }
+  symlinkSync(manifest.commit, join(runtimeParent, "current"));
   const host = join(home, ".local/libexec/pi-task-sessions/host-v1");
   mkdirSync(resolve(host, ".."), { recursive: true, mode: 0o700 });
   writeFileSync(
