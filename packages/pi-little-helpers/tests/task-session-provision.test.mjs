@@ -5,6 +5,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -19,8 +20,23 @@ import { accountLocator, readSnapshot } from "../dist/task-session/state.js";
 
 const script = fileURLToPath(new URL("../scripts/task-session-provision.mjs", import.meta.url));
 
+const akFixtures =
+  "/home/tryinget/ai-society/softwareco/owned/agent-kernel/docs/project/contracts/task-session-deployment-v1.fixtures.json";
+const disabledDescriptor = {
+  authority: false,
+  bindings: null,
+  database_locked: false,
+  database_opened: false,
+  operations: [],
+  platform: "linux",
+  reason: "not_configured",
+  schema: "ak.task-session.descriptor.v1",
+  state: "disabled",
+  worker_test_support: null,
+};
+
 /** A synthetic OS account home, a git checkout in it, and an `ak` stub that owns task 7. */
-function world(t) {
+function world(t, descriptor = disabledDescriptor) {
   const base = mkdtempSync(join(tmpdir(), "task5480-provision-"));
   const home = join(base, "home");
   const checkout = join(base, "repo");
@@ -28,9 +44,11 @@ function world(t) {
   mkdirSync(join(checkout, ".git"), { recursive: true });
   const bin = join(base, "bin");
   mkdirSync(bin);
+  writeFileSync(join(base, "descriptor.json"), JSON.stringify(descriptor));
   writeFileSync(
     join(bin, "ak"),
-    `#!/bin/sh\n[ "$1 $2 $4 $5" = "task show -F json" ] || exit 64\n` +
+    `#!/bin/sh\n[ "$1 $2" = "task-session describe" ] && exec cat ${join(base, "descriptor.json")}\n` +
+      `[ "$1 $2 $4 $5" = "task show -F json" ] || exit 64\n` +
       `case "$3" in 7) echo '{"id":7,"repo":"${checkout}"}';; 8) echo '{"id":8,"repo":"/elsewhere"}';; *) exit 1;; esac\n`,
     { mode: 0o755 },
   );
@@ -53,7 +71,7 @@ function world(t) {
       encoding: "utf8",
       env: { PATH: `${bin}:/usr/bin:/bin`, TEST_HOME: home },
     });
-  return { home, checkout, run };
+  return { home, checkout, run, root: join(home, ".local/state/pi-task-sessions") };
 }
 const mode = (path) => lstatSync(path).mode & 0o777;
 const legacyRequest = (checkout, taskIds) => ({
@@ -134,3 +152,29 @@ test("unknown arguments are refused before anything is created", (t) => {
   assert.equal(existsSync(join(w.home, ".local/state/pi-task-sessions")), false);
   assert.equal(existsSync(join(w.home, ".config/pi-task-sessions")), false);
 });
+
+test("producer refuses while AK publishes no enabled task-session section", (t) => {
+  const w = world(t);
+  assert.equal(w.run("init").status, 0);
+  const out = w.run("producer");
+  assert.notEqual(out.status, 0);
+  assert.match(out.stderr, /producer_not_published/);
+  assert.equal(existsSync(join(w.root, "producer.json")), false);
+});
+
+test(
+  "producer sets aside a publication whose artifacts fail the host's identity check",
+  { skip: !existsSync(akFixtures) && "agent-kernel fixtures not present" },
+  (t) => {
+    const enabled = JSON.parse(readFileSync(akFixtures, "utf8")).descriptor;
+    const w = world(t, enabled);
+    assert.equal(w.run("init").status, 0);
+    const out = w.run("producer");
+    assert.notEqual(out.status, 0);
+    assert.equal(existsSync(join(w.root, "producer.json")), false);
+    assert.equal(
+      readdirSync(w.root).filter((n) => n.startsWith("producer.json.rejected-")).length,
+      1,
+    );
+  },
+);

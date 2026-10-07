@@ -4,6 +4,7 @@
 //   node scripts/task-session-provision.mjs init [--namespace ID]
 //   node scripts/task-session-provision.mjs enroll --task ID --checkout DIR [--ak-instance ID]
 //   node scripts/task-session-provision.mjs withdraw
+//   node scripts/task-session-provision.mjs producer
 //   node scripts/task-session-provision.mjs show
 //
 // init creates the OS account's namespace (~/.local/state/pi-task-sessions, its lock, private
@@ -16,7 +17,9 @@
 // One enrolled domain also protects its whole checkout and Git family from legacy launches.
 // Enrolling is the owner's positive custody statement for that checkout: see softwareco/owned
 // docs/project/2026-09-07-visible-task-session-lane-custody.md. withdraw stops new admissions and
-// keeps every attempt, enrollment and history. No command deletes anything.
+// keeps every attempt, enrollment and history. producer copies the bindings AK publishes
+// (`ak task-session describe`, enabled) into producer.json and has the installed producer check
+// every pinned artifact; run it again after each AK rotation (AK6744). No command deletes anything.
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
@@ -27,12 +30,15 @@ import {
   mkdirSync,
   openSync,
   realpathSync,
+  renameSync,
 } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { commonGit } from "../dist/task-session/git.js";
 import { digest, id, refuse } from "../dist/task-session/json.js";
 import { native } from "../dist/task-session/native.js";
+import { installedProducerPins } from "../dist/task-session/producer.js";
+import { interpretTaskSessionDescriptor } from "../dist/task-session/producer-adapter.js";
 import {
   accountLocator,
   durableWrite,
@@ -185,8 +191,40 @@ function enroll() {
   );
 }
 
+function producer() {
+  noMoreArguments();
+  const descriptor = interpretTaskSessionDescriptor(
+    JSON.parse(execFileSync("ak", ["task-session", "describe"], { encoding: "utf8", input: "{}" })),
+  );
+  if (descriptor.state !== "enabled" || !descriptor.bindings) refuse("producer_not_published");
+  const locator = accountLocator();
+  const published = join(locator.root, "producer.json");
+  durableWrite(published, {
+    schema: "pi.task-session.producer-binding.v1",
+    publication: "owner-approved",
+    bindings: descriptor.bindings,
+  });
+  // The same identity check the host runs before any owner entrypoint: closure, worker, host.
+  // A publication that fails it is set aside, never left in place and never deleted.
+  let bindings;
+  try {
+    ({ bindings } = installedProducerPins(locator));
+  } catch (error) {
+    renameSync(published, `${published}.rejected-${Date.now()}`);
+    throw error;
+  }
+  return {
+    published: true,
+    policy_generation: bindings.policy_generation,
+    policy_sha256: bindings.policy_sha256,
+    gate_path: bindings.gate_path,
+    worker_sha256: bindings.worker.sha256,
+    host_build_digest: bindings.host_build_digest,
+  };
+}
+
 let result;
-if (command === "withdraw" || command === "show") noMoreArguments();
+if (command === "withdraw" || command === "show" || command === "producer") noMoreArguments();
 if (command === "init") result = init();
 else if (command === "enroll") result = enroll();
 else if (command === "withdraw")
@@ -196,5 +234,6 @@ else if (command === "withdraw")
     }),
   );
 else if (command === "show") result = summary(readSnapshot(accountLocator()));
-else throw new Error("usage: task-session-provision.mjs init|enroll|withdraw|show");
+else if (command === "producer") result = producer();
+else throw new Error("usage: task-session-provision.mjs init|enroll|withdraw|show|producer");
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
