@@ -5,6 +5,8 @@
 //   node scripts/task-session-provision.mjs enroll --task ID --checkout DIR [--ak-instance ID]
 //   node scripts/task-session-provision.mjs withdraw
 //   node scripts/task-session-provision.mjs producer
+//   node scripts/task-session-provision.mjs profile --task ID --model ID --reasoning LEVEL
+//        [--run-seconds N] [--agent-dir DIR]
 //   node scripts/task-session-provision.mjs show
 //
 // init creates the OS account's namespace (~/.local/state/pi-task-sessions, its lock, private
@@ -19,8 +21,14 @@
 // docs/project/2026-09-07-visible-task-session-lane-custody.md. withdraw stops new admissions and
 // keeps every attempt, enrollment and history. producer copies the bindings AK publishes
 // (`ak task-session describe`, enabled) into producer.json and has the installed producer check
-// every pinned artifact; run it again after each AK rotation (AK6744). No command deletes anything.
+// every pinned artifact; run it again after each AK rotation (AK6744). profile pins one
+// openai-codex model from the pinned SDK catalog, the account's current OAuth credential from
+// Pi's auth store (copied, content-addressed, never refreshed), the producer bindings and the
+// database identity AK's plan reports for an enrolled task; the host's own preflight then checks
+// it. The credential's lifetime bounds the profile: provision again before it runs out. No
+// command deletes anything.
 import { execFileSync } from "node:child_process";
+import { timingSafeEqual } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -29,16 +37,21 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readFileSync,
   realpathSync,
   renameSync,
 } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { commonGit } from "../dist/task-session/git.js";
-import { digest, id, refuse } from "../dist/task-session/json.js";
+import { bytesDigest, digest, id, refuse } from "../dist/task-session/json.js";
 import { native } from "../dist/task-session/native.js";
 import { installedProducerPins } from "../dist/task-session/producer.js";
-import { interpretTaskSessionDescriptor } from "../dist/task-session/producer-adapter.js";
+import {
+  interpretTaskSessionDescriptor,
+  interpretTaskSessionOwnerPlan,
+} from "../dist/task-session/producer-adapter.js";
+import { preflightProfile } from "../dist/task-session/profile.js";
 import {
   accountLocator,
   durableWrite,
@@ -223,6 +236,82 @@ function producer() {
   };
 }
 
+async function profile() {
+  const taskId = Number(option("--task"));
+  const model = option("--model");
+  const reasoning = option("--reasoning");
+  const runSeconds = Number(option("--run-seconds", "3600"));
+  const agentDir = realpathSync(option("--agent-dir", join(home, ".pi/agent")));
+  noMoreArguments();
+  if (!Number.isSafeInteger(taskId) || taskId < 1) refuse("invalid_task");
+  const locator = accountLocator();
+  const { bindings } = installedProducerPins(locator);
+  // The database identity the owner's plan reports, exactly as the host will compare it.
+  const plan = JSON.parse(
+    execFileSync(bindings.gate_path, ["--", "task-session", "plan"], {
+      encoding: "utf8",
+      input: JSON.stringify({ task_id: taskId }),
+      env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
+    }),
+  );
+  const { databaseIdentity } = interpretTaskSessionOwnerPlan(plan, bindings);
+  // The account's current openai-codex OAuth credential, exactly the four fields the host reads.
+  const store = JSON.parse(readFileSync(join(home, ".pi/agent/auth.json"), "utf8"))["openai-codex"];
+  if (!store || store.type !== "oauth") refuse("codex_oauth_missing");
+  const credential = {
+    type: "oauth",
+    access: store.access,
+    refresh: store.refresh,
+    expires: store.expires,
+  };
+  const account = JSON.parse(
+    Buffer.from(credential.access.split(".")[1], "base64url").toString("utf8"),
+  )["https://api.openai.com/auth"].chatgpt_account_id;
+  // Account ids are identifiers, not secrets; compared in constant time anyway.
+  const stored = Buffer.from(String(store.accountId ?? account));
+  const claimed = Buffer.from(String(account));
+  if (stored.length !== claimed.length || !timingSafeEqual(stored, claimed))
+    refuse("credential_account_mismatch");
+  const { getModel } = await import("@earendil-works/pi-ai/compat");
+  const sdkModel = getModel("openai-codex", model);
+  if (!sdkModel) refuse("model_not_in_pinned_catalog");
+  const credentialDigest = digest(credential);
+  const credentialPath = join(locator.root, "credentials", `${credentialDigest}.json`);
+  if (!existsSync(credentialPath)) durableWrite(credentialPath, credential, true);
+  const pin = {
+    schema: "pi.task-session.profile.v1",
+    provider: "openai-codex",
+    model,
+    reasoning,
+    account,
+    modelDigest: bytesDigest(JSON.stringify(sdkModel)),
+    credentialDigest,
+    agentDir,
+    runSeconds,
+    producer: {
+      executable: bindings.gate_path,
+      entrypointDigest: bindings.gate_sha256,
+      akBinaryDigest: bindings.worker.sha256,
+      policyDigest: bindings.policy_sha256,
+      databaseIdentity,
+      hostBuildDigest: bindings.host_build_digest,
+    },
+  };
+  const reference = digest(pin);
+  const profilePath = join(locator.root, "profiles", `${reference}.json`);
+  if (!existsSync(profilePath)) durableWrite(profilePath, pin, true);
+  await preflightProfile(locator, reference);
+  return {
+    profile: reference,
+    provider: pin.provider,
+    model,
+    reasoning,
+    runSeconds,
+    credentialExpires: new Date(credential.expires).toISOString(),
+    policyGeneration: bindings.policy_generation,
+  };
+}
+
 let result;
 if (command === "withdraw" || command === "show" || command === "producer") noMoreArguments();
 if (command === "init") result = init();
@@ -235,5 +324,7 @@ else if (command === "withdraw")
   );
 else if (command === "show") result = summary(readSnapshot(accountLocator()));
 else if (command === "producer") result = producer();
-else throw new Error("usage: task-session-provision.mjs init|enroll|withdraw|show|producer");
+else if (command === "profile") result = await profile();
+else
+  throw new Error("usage: task-session-provision.mjs init|enroll|withdraw|show|producer|profile");
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
