@@ -4,7 +4,7 @@
 //   node scripts/task-session-install.mjs [--root DIR] [--bin-dir DIR] [--allow-dirty]
 //
 // Lays out <root>/runtime/<host build digest>/ as a packed consumer install (the audited
-// pack-proof recipe: this package and pi-society-orchestrator packed, SDK 0.84.4, --omit=dev,
+// pack-proof recipe: this package and pi-society-orchestrator packed, SDK 1.1.0, --omit=dev,
 // --ignore-scripts), then replaces the fixed launchers <root>/host-v1 and <root>/view-v1 and
 // <bin-dir>/pi-task-session. Defaults: ~/.local/libexec/pi-task-sessions and ~/.local/bin.
 //
@@ -27,7 +27,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SDK_VERSION = "0.84.4";
+const SDK_VERSION = "1.1.0";
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 function option(name, fallback) {
@@ -80,7 +80,10 @@ try {
       "--no-audit",
       "--no-fund",
       ...packed,
-      ...["pi-coding-agent", "pi-ai", "pi-tui"].map((n) => `@earendil-works/${n}@${SDK_VERSION}`),
+      // All four SDK packages the host identity pins; pi 1.x declares its companions as ^ ranges.
+      ...["pi-coding-agent", "pi-ai", "pi-agent-core", "pi-tui"].map(
+        (n) => `@earendil-works/${n}@${SDK_VERSION}`,
+      ),
     ],
     staging,
   );
