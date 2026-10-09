@@ -84,3 +84,31 @@ test("the service export rebuilds a host transcript's revisions for a fresh serv
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("the service export repairs the same caller slips as the Pi tools", async () => {
+  const { normalizeEditArguments } = await import("@tryinget/pi-snapshot-edit/service");
+  const args = {
+    path: "a.txt",
+    base: " revision:amber ",
+    edits: [
+      { oldText: "x", newText: "y" },
+      { anchorText: "z", newText: "!" },
+      { oldText: "a", anchorText: "b", newText: "c" },
+    ],
+  };
+  assert.deepEqual(normalizeEditArguments(args), {
+    path: "a.txt",
+    base: "amber",
+    edits: [
+      { op: "replace", oldText: "x", newText: "y" },
+      { op: "insert_after", anchorText: "z", newText: "!" },
+      { oldText: "a", anchorText: "b", newText: "c" },
+    ],
+  });
+  const clean = {
+    path: "a.txt",
+    base: "amber",
+    edits: [{ op: "replace", oldText: "x", newText: "y" }],
+  };
+  assert.equal(normalizeEditArguments(clean), clean);
+});

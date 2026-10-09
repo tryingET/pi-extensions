@@ -4,8 +4,11 @@
 //   - "changing snapshot service limits, mutation safety, or read and edit responses"
 //   - "changing when a revision is valid (its bytes) or how forgotten aliases rehydrate"
 // ---
+
+import { normalizeRevisionAlias } from "./edit-arguments.js";
 import { digestBytes, SnapshotStore } from "./snapshot-store.js";
 
+export { normalizeEditArguments, normalizeRevisionAlias } from "./edit-arguments.js";
 export { revisionsFromEntries, revisionsFromMessages } from "./session-revisions.js";
 
 import {
@@ -21,16 +24,6 @@ const DEFAULT_MAX_LINES = 2000;
 const DEFAULT_MAX_BYTES = 50 * 1024;
 const EDIT_PREVIEW_MAX_BYTES = 8 * 1024;
 const PREVIEW_CONTEXT_LINES = 2;
-
-/**
- * Models naturally copy the rendered `revision:<alias>` header line. Accept both
- * forms by stripping one optional header prefix and surrounding whitespace.
- */
-export function normalizeRevisionAlias(value) {
-  if (typeof value !== "string") return value;
-  const trimmed = value.trim();
-  return trimmed.startsWith("revision:") ? trimmed.slice("revision:".length).trim() : trimmed;
-}
 
 export class SnapshotEditService {
   /**

@@ -47,6 +47,13 @@ export function revisionsFromEntries(entries: readonly unknown[], cwd: string): 
 export function normalizeRevisionAlias(value: string): string;
 
 /**
+ * Repairs deterministic caller slips before a host's schema validation: a 'revision:' prefix on
+ * base, and a missing op when exactly one of oldText/anchorText is present. Ambiguous shapes are
+ * returned unchanged so validation still fails closed.
+ */
+export function normalizeEditArguments<T>(args: T): T;
+
+/**
  * Reads a text file into a revision, and edits a file only against the revision it was read as.
  * A revision is valid exactly while its file holds the bytes it names (content-addressed).
  */

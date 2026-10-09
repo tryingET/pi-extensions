@@ -14,9 +14,10 @@ import {
 import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { liftClipboardImages } from "../src/clipboard-image-attach.js";
+import { normalizeEditArguments as normalizeSharedEditArguments } from "../src/edit-arguments.js";
 import { runPackedReleaseSmoke } from "../src/release-smoke.js";
 import { revisionsFromEntries } from "../src/session-revisions.js";
-import { normalizeRevisionAlias, SnapshotEditService } from "../src/snapshot-service.js";
+import { SnapshotEditService } from "../src/snapshot-service.js";
 
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
 const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";
@@ -220,44 +221,9 @@ function prepareLegacyEditArguments(args: unknown): EditParams {
   };
 }
 
-/**
- * Runs before host schema validation (agent-loop prepareToolCallArguments), so it
- * removes deterministic caller slips instead of failing them: strip the rendered
- * 'revision:' header prefix from base, and infer a missing 'op' when exactly one
- * selector field (oldText or anchorText) is present. Ambiguous shapes are left
- * untouched so schema validation still fails closed.
- */
+/** Caller slips repaired before schema validation (src/edit-arguments.js, shared with other hosts). */
 function normalizeEditArguments(args: unknown): EditParams {
-  if (!args || typeof args !== "object" || Array.isArray(args)) return args as EditParams;
-  const input = args as Record<string, unknown>;
-  let changed = false;
-  const next: Record<string, unknown> = { ...input };
-
-  if (typeof input.base === "string") {
-    const normalizedBase = normalizeRevisionAlias(input.base);
-    if (normalizedBase !== input.base) {
-      next.base = normalizedBase;
-      changed = true;
-    }
-  }
-
-  if (Array.isArray(input.edits)) {
-    const normalizedEdits = input.edits.map((operation) => {
-      if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
-        return operation;
-      }
-      const edit = operation as Record<string, unknown>;
-      if (typeof edit.op === "string" && edit.op.length > 0) return operation;
-      const hasOldText = typeof edit.oldText === "string";
-      const hasAnchorText = typeof edit.anchorText === "string";
-      if (hasOldText === hasAnchorText) return operation;
-      changed = true;
-      return { ...edit, op: hasOldText ? "replace" : "insert_after" };
-    });
-    if (changed) next.edits = normalizedEdits;
-  }
-
-  return changed ? (next as EditParams) : (args as EditParams);
+  return normalizeSharedEditArguments(args) as EditParams;
 }
 
 function prepareStandardEditArguments(args: unknown): EditParams {
