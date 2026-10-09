@@ -57,7 +57,10 @@ export function createSidequestVisibleLoopAdapter({
   options: SidequestVisibleLoopOptions;
   defaultPiBin: string;
 }) {
-  function createVisibleLoopContinuation(ctx: PiCommandContext): ContinueVisibleLoopInNewSession {
+  // Only what a launch and its notice read: the completion tool passes its tool context here.
+  function createVisibleLoopContinuation(
+    ctx: Pick<PiCommandContext, "cwd" | "hasUI" | "model" | "ui">,
+  ): ContinueVisibleLoopInNewSession {
     return async ({ config, configPath, nextIteration, claimToken }) => {
       const titlePrefix = config.title ?? "Visible loop";
       const launch = await launchPiQuestSession({
@@ -383,7 +386,7 @@ export function createSidequestVisibleLoopAdapter({
           ctx,
           options.env ?? process.env,
           {
-            continueInNewSession: createVisibleLoopContinuation(ctx as PiCommandContext),
+            continueInNewSession: createVisibleLoopContinuation(ctx),
             createPeerRuntime: options.createPeerRuntime,
             candidateCloseout: request.candidateCloseout,
           },
