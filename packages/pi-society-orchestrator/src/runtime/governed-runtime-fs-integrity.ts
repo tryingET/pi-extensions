@@ -17,10 +17,6 @@ import {
   realpathSync,
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import {
-  GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES,
-  GOVERNED_RUNTIME_HOST_VERSION,
-} from "./governed-runtime-constants.ts";
 import { GovernedRuntimeMaterializationError } from "./governed-runtime-proofs.ts";
 
 export function readRegularFileNoFollow(
@@ -103,28 +99,6 @@ export function assertNoEscapingSymlinks(root: string): void {
     }
   };
   visit(root);
-}
-
-export function codingAgentShrinkwrapPackageName(lockPath: string): string | undefined {
-  const prefix = "node_modules/@earendil-works/pi-coding-agent/node_modules/";
-  if (!lockPath.startsWith(prefix)) return undefined;
-  const packageName = lockPath.slice(prefix.length);
-  return GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES.find(
-    (candidate) => candidate === packageName,
-  );
-}
-
-export function isExactCodingAgentShrinkwrapEntry(
-  lockPath: string,
-  entry: { version?: string; resolved?: string },
-): boolean {
-  const packageName = codingAgentShrinkwrapPackageName(lockPath);
-  if (!packageName || entry.version !== GOVERNED_RUNTIME_HOST_VERSION) return false;
-  const tarballName = packageName.slice(packageName.indexOf("/") + 1);
-  return (
-    entry.resolved ===
-    `https://registry.npmjs.org/${packageName}/-/${tarballName}-${GOVERNED_RUNTIME_HOST_VERSION}.tgz`
-  );
 }
 
 export function gitRaw(

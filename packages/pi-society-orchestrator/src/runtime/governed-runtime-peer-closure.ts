@@ -14,9 +14,7 @@ import {
 } from "./governed-runtime-constants.ts";
 import {
   assertNoEscapingSymlinks,
-  codingAgentShrinkwrapPackageName,
   digestDirectory,
-  isExactCodingAgentShrinkwrapEntry,
   ownerPackageRoot,
   pathInside,
   readJsonNoFollow,
@@ -79,14 +77,10 @@ export function verifyGovernedRuntimePeerClosure(
   const installed = Object.entries(hiddenLock.packages ?? {}).filter(([key]) => Boolean(key));
   const lockedPackagePaths = installed
     .map(([key, value]) => {
-      if (
-        value.link ||
-        !value.version ||
-        (!value.integrity && !isExactCodingAgentShrinkwrapEntry(key, value))
-      ) {
+      if (value.link || !value.version || !value.integrity) {
         throw new GovernedRuntimeMaterializationError(
           "materialization_closure_package_proof_missing",
-          `Installed closure package lacks exact SRI or the one bounded Pi ${GOVERNED_RUNTIME_HOST_VERSION} coding-agent shrinkwrap identity: ${key}.`,
+          `Installed closure package lacks exact SRI: ${key}.`,
         );
       }
       return key;
@@ -112,17 +106,6 @@ export function verifyGovernedRuntimePeerClosure(
           throw new GovernedRuntimeMaterializationError(
             "materialization_closure_package_manifest_invalid",
             `Installed closure manifest version does not match its hidden lock: ${lockPath}.`,
-          );
-        }
-        if (
-          locked &&
-          !locked.integrity &&
-          (!isExactCodingAgentShrinkwrapEntry(lockPath, locked) ||
-            owner.name !== codingAgentShrinkwrapPackageName(lockPath))
-        ) {
-          throw new GovernedRuntimeMaterializationError(
-            "materialization_closure_package_proof_missing",
-            `Installed closure shrinkwrap owner drifted: ${lockPath}.`,
           );
         }
         physicalPackagePaths.push(lockPath);
@@ -344,7 +327,7 @@ export function classifyGovernedRuntimeHostLockEvidence(
   if (modes.size !== 1) {
     throw new GovernedRuntimeMaterializationError(
       "materialization_host_lock_mixed_provenance",
-      "Governed host lock mixes registry and cache provenance across the four Pi packages.",
+      "Governed host lock mixes registry and cache provenance across the pinned Pi packages.",
     );
   }
   const [kind] = [...modes];

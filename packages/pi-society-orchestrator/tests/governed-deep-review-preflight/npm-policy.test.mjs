@@ -27,6 +27,7 @@ import {
 } from "../../../../scripts/governed-deep-review-canary.mjs";
 import {
   GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
+  GOVERNED_RUNTIME_HOST_VERSION,
   GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS,
   GOVERNED_RUNTIME_PACKAGES,
   GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH,
@@ -208,9 +209,10 @@ test("npm effects and receipts bind exact executable bytes, sanitized policy, ar
       ),
     ];
     const hostSource = { kind: "verified_cache_tarballs" };
+    // 14 package installs, 8 host cache packs (the coding agent and its 7 companions), 1 peer install.
     assert.equal(
       verifyGovernedRuntimeNpmEffectReceipts(root, npm, hostSource, receipts).length,
-      19,
+      23,
     );
     const forgedExecutable = structuredClone(receipts);
     forgedExecutable[0].npmExecutable.sha256 = "0".repeat(64);
@@ -320,6 +322,39 @@ test("peer closure proof rejects links outside the materialized closure", () => 
     assert.throws(
       () => verifyGovernedRuntimePeerClosure(root),
       (error) => error?.failureClass === "materialization_closure_symlink_escape",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("peer closure proof refuses every lock entry without SRI, a nested host package included", () => {
+  const root = mkdtempSync(`${tmpdir()}/governed-peer-closure-sri-`);
+  try {
+    const peerLayer = resolve(root, GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH);
+    const nodeModules = resolve(peerLayer, "node_modules");
+    mkdirSync(nodeModules, { recursive: true });
+    writeFileSync(resolve(peerLayer, "package.json"), '{"private":true}\n');
+    writeFileSync(resolve(peerLayer, "package-lock.json"), '{"lockfileVersion":3}\n');
+    // Pi 0.84.4's shrinkwrap left nested host packages without integrity and the
+    // proof admitted them by exact URL; Pi 1.x has no shrinkwrap, so none is exempt.
+    const nested =
+      "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai";
+    writeFileSync(
+      resolve(nodeModules, ".package-lock.json"),
+      `${JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          [nested]: {
+            version: GOVERNED_RUNTIME_HOST_VERSION,
+            resolved: `https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-${GOVERNED_RUNTIME_HOST_VERSION}.tgz`,
+          },
+        },
+      })}\n`,
+    );
+    assert.throws(
+      () => verifyGovernedRuntimePeerClosure(root),
+      (error) => error?.failureClass === "materialization_closure_package_proof_missing",
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

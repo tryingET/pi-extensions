@@ -24,13 +24,18 @@ export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.3.7";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
 
-export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.4";
+export const GOVERNED_RUNTIME_HOST_VERSION = "1.1.0";
 
-export const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
+// Every package the coding agent depends on from its own release line. Pi 1.x
+// ships no shrinkwrap and declares these as ^ ranges, so the peer layer pins
+// each one to the host version (dependency and override) and installs it with
+// registry-verified SRI like any other closure package.
+export const GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES = [
+  "@earendil-works/chord",
   "@earendil-works/pi-agent-core",
   "@earendil-works/pi-ai",
-  "@earendil-works/pi-client",
-  "@earendil-works/pi-protocol",
+  "@earendil-works/pi-codemode",
+  "@earendil-works/pi-mcp",
   "@earendil-works/pi-telemetry",
   "@earendil-works/pi-tui",
 ] as const;
@@ -38,17 +43,17 @@ export const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
 export const GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS = 7;
 // npm matches registry package names, not Git repository ownership. Exempt:
 // the owned public scope, plus the governed Pi host line - the coding agent
-// and its shrinkwrap closure, all pinned to exact versions with registry-
-// verified SRI integrity (GOVERNED_RUNTIME_HOST_CACHE_TARBALLS and
-// GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES), so the pin itself is
-// the vetting and the age gate adds no protection while blocking deliberate
-// promotions of young host lines (operator-authorized 2026-08-29, AK-5125).
+// and its companions, all pinned to exact versions with registry-verified SRI
+// integrity (GOVERNED_RUNTIME_HOST_CACHE_TARBALLS and
+// GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES), so the pin itself is the vetting
+// and the age gate adds no protection while blocking deliberate promotions of
+// young host lines (operator-authorized 2026-08-29, AK-5125).
 // Dependencies outside that closure remain age-gated unless they also match.
 
 export const GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS = [
   "@tryinget/*",
   "@earendil-works/pi-coding-agent",
-  ...GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES,
+  ...GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES,
 ] as const;
 
 export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
@@ -68,7 +73,7 @@ export const GOVERNED_RUNTIME_ASC_COMPILER = {
 export const GOVERNED_RUNTIME_HOST_PEERS = {
   "@earendil-works/pi-ai": {
     integrity:
-      "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==",
+      "sha512-1T7LAkc/5Bvc0v6w4vAGVdCrli0o/E0pEmYKTnixu95vSFArBjvbhS/G4ZwI0RUePgf0Imcu0VyqlM4EcXxqfw==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -84,12 +89,12 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-agent-core": {
     integrity:
-      "sha512-HyUnjaOXj6oN/6SNcr8A1J/ElRQA50FtIE0XUTSKAQVqmdlb9qdojOyUQwF/jULE5+yOEtGuVgi/N1RnBiNG+g==",
+      "sha512-aX1KZomNCPmwYnXa3OivF3VYLJ+WPUkIJlEIZTgwdOZdY/+oToWTQ334WYpQeOz9POpiYFNMJLPwIhXQ4e48kg==",
     consumers: [],
   },
   "@earendil-works/pi-coding-agent": {
     integrity:
-      "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==",
+      "sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -106,7 +111,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-tui": {
     integrity:
-      "sha512-nPUnwDkLtupPXnZQYrCwPFcuTydCDqTY6ZbFqhsL4S4kVq0AT418kPa/6uXwtaCD+MjBNBltb7ScTYX65yeE1w==",
+      "sha512-v7wkS0y2ErZvZkSfemqd9RrBZJ5x6p8Ujsv7NdJj01IXJyFM0kNL6rMdcKcvTe7EVTd6ugvDB9VPZSoaBF9QxQ==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-society-orchestrator",
@@ -122,27 +127,51 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
 export const GOVERNED_RUNTIME_HOST_CACHE_TARBALLS = {
   "@earendil-works/pi-ai": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.4.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.1.0.tgz",
     integrity:
-      "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==",
+      "sha512-1T7LAkc/5Bvc0v6w4vAGVdCrli0o/E0pEmYKTnixu95vSFArBjvbhS/G4ZwI0RUePgf0Imcu0VyqlM4EcXxqfw==",
   },
   "@earendil-works/pi-agent-core": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.84.4.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.1.0.tgz",
     integrity:
-      "sha512-HyUnjaOXj6oN/6SNcr8A1J/ElRQA50FtIE0XUTSKAQVqmdlb9qdojOyUQwF/jULE5+yOEtGuVgi/N1RnBiNG+g==",
+      "sha512-aX1KZomNCPmwYnXa3OivF3VYLJ+WPUkIJlEIZTgwdOZdY/+oToWTQ334WYpQeOz9POpiYFNMJLPwIhXQ4e48kg==",
   },
   "@earendil-works/pi-coding-agent": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.4.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.1.0.tgz",
     integrity:
-      "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==",
+      "sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg==",
   },
   "@earendil-works/pi-tui": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.84.4.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.1.0.tgz",
     integrity:
-      "sha512-nPUnwDkLtupPXnZQYrCwPFcuTydCDqTY6ZbFqhsL4S4kVq0AT418kPa/6uXwtaCD+MjBNBltb7ScTYX65yeE1w==",
+      "sha512-v7wkS0y2ErZvZkSfemqd9RrBZJ5x6p8Ujsv7NdJj01IXJyFM0kNL6rMdcKcvTe7EVTd6ugvDB9VPZSoaBF9QxQ==",
+  },
+  "@earendil-works/pi-telemetry": {
+    version: GOVERNED_RUNTIME_HOST_VERSION,
+    url: "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.1.0.tgz",
+    integrity:
+      "sha512-8gAK05/2pPozZZz6hCLOi8x2vsqzvsmO9gG92kbvuvTPm0qMHaFlaXX98ndXsrOi5pmzha7vNLguuG4+0Rgxjw==",
+  },
+  "@earendil-works/chord": {
+    version: GOVERNED_RUNTIME_HOST_VERSION,
+    url: "https://registry.npmjs.org/@earendil-works/chord/-/chord-1.1.0.tgz",
+    integrity:
+      "sha512-gsHzKfyQ3t0ZIQ3cLBjJ5Vqy1TYnFyruHIV3g3BwmulCDYe5BW4yT9vaJk9QzN6YANILIO75uzuq+Gdxtzz1og==",
+  },
+  "@earendil-works/pi-mcp": {
+    version: GOVERNED_RUNTIME_HOST_VERSION,
+    url: "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.1.0.tgz",
+    integrity:
+      "sha512-xGKwvu3SvVTeoIx8Z7UGoJprB4VK20wKORMhufcWGx61fIauhu3J+UqfB5eeoF1oE/geYBA598K6nh1SdABQkg==",
+  },
+  "@earendil-works/pi-codemode": {
+    version: GOVERNED_RUNTIME_HOST_VERSION,
+    url: "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.1.0.tgz",
+    integrity:
+      "sha512-8Asc2AzhoNaXS1snmRFa96OhcWIlFM5k1Kuiz6p2DvIYgi5QHQccRAmDVY9oO92TzWrizpvQpconZGQ7JhlI7Q==",
   },
 } as const;
 

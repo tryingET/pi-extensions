@@ -12,6 +12,7 @@ import {
   classifyGovernedRuntimeHostLockEvidence,
   GOVERNED_RUNTIME_ASC_REGISTRY_OWNER,
   GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
+  GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES,
   GOVERNED_RUNTIME_HOST_PEERS,
   GOVERNED_RUNTIME_HOST_VERSION,
   GOVERNED_RUNTIME_LOCAL_EDGES,
@@ -22,7 +23,7 @@ import {
 } from "../../src/runtime/governed-runtime-materialization.ts";
 import { createHostLockFixture, SOURCE_ROOT } from "./helpers.mjs";
 
-test("governed runtime pins match the Pi 0.84.4 lock identities", () => {
+test("governed runtime pins match the Pi 1.1.0 lock identities", () => {
   const lock = JSON.parse(
     readFileSync(
       resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package-lock.json"),
@@ -31,7 +32,7 @@ test("governed runtime pins match the Pi 0.84.4 lock identities", () => {
   );
   const lockedPackages = lock.packages ?? {};
 
-  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "0.84.4");
+  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "1.1.0");
   for (const [name, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
     const direct = lockedPackages[`node_modules/${name}`];
     const nested = Object.entries(lockedPackages).find(([packagePath]) =>
@@ -49,13 +50,41 @@ test("governed runtime pins match the Pi 0.84.4 lock identities", () => {
   assert.equal(lockedTypebox?.integrity, GOVERNED_RUNTIME_TYPEBOX_INTEGRITY);
 });
 
-test("cache-backed host closure pins all four Pi 0.84.4 runtime owners", () => {
+test("cache-backed host closure pins the Pi 1.1.0 coding agent and every companion", () => {
   assert.deepEqual(Object.keys(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS), [
     "@earendil-works/pi-ai",
     "@earendil-works/pi-agent-core",
     "@earendil-works/pi-coding-agent",
     "@earendil-works/pi-tui",
+    "@earendil-works/pi-telemetry",
+    "@earendil-works/chord",
+    "@earendil-works/pi-mcp",
+    "@earendil-works/pi-codemode",
   ]);
+  assert.deepEqual(
+    [...GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES].sort(),
+    Object.keys(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS)
+      .filter((name) => name !== "@earendil-works/pi-coding-agent")
+      .sort(),
+  );
+  // The coding agent's own manifest names exactly these companions; a new one
+  // in a later host line must join the pinned closure before the pin moves.
+  const codingAgent = JSON.parse(
+    readFileSync(
+      resolve(
+        SOURCE_ROOT,
+        "packages/pi-society-orchestrator/node_modules/@earendil-works/pi-coding-agent/package.json",
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(codingAgent.version, GOVERNED_RUNTIME_HOST_VERSION);
+  const declaredCompanions = Object.keys(codingAgent.dependencies ?? {}).filter((name) =>
+    name.startsWith("@earendil-works/"),
+  );
+  for (const name of declaredCompanions) {
+    assert.ok(GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES.includes(name), name);
+  }
   for (const expected of Object.values(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS)) {
     assert.equal(expected.version, GOVERNED_RUNTIME_HOST_VERSION);
     assert.match(expected.url, /^https:\/\/registry\.npmjs\.org\//u);
@@ -118,7 +147,7 @@ test("ASC registry handoff atomically binds selector, regular lock, hidden lock,
   );
 });
 
-test("host provenance is derived from all four regular and hidden lock entries", () => {
+test("host provenance is derived from every pinned regular and hidden lock entry", () => {
   const registry = createHostLockFixture("registry_resolution");
   assert.equal(
     classifyGovernedRuntimeHostLockEvidence(registry.manifest, registry.regular, registry.hidden)

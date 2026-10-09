@@ -580,9 +580,11 @@ function materializePeerLayer(sourceRoot, modulesByPackage, verifiedHostCache, n
       tarballs ? `file:tarballs/${basename(tarballs[packageName].filePath)}` : expected.version,
     ]),
   );
+  // Pi 1.x declares its companions as ^ ranges and ships no shrinkwrap: every
+  // one is overridden to the pinned host package so the closure stays exact.
   const hostOverrides = Object.fromEntries(
-    ["@earendil-works/pi-ai", "@earendil-works/pi-agent-core", "@earendil-works/pi-tui"].map(
-      (packageName) => [packageName, hostDependencies[packageName]],
+    Object.entries(hostDependencies).filter(
+      ([packageName]) => packageName !== "@earendil-works/pi-coding-agent",
     ),
   );
   writeFileSync(
@@ -1057,7 +1059,7 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
     const piLoaderRequire = createRequire(realpathSync(piExtensionLoaderPath));
     const jitiPackagePath = piLoaderRequire.resolve("jiti/package.json");
     const { createJiti } = await import(
-      pathToFileURL(join(dirname(jitiPackagePath), "lib/jiti-static.mjs")).href,
+      pathToFileURL(join(dirname(jitiPackagePath), "lib/jiti-static.mjs")).href
     );
     const ascOwnerEntryPath = realpathSync(ascExtensionPath);
     const ascJiti = createJiti(pathToFileURL(ascOwnerEntryPath).href, { moduleCache: false });
