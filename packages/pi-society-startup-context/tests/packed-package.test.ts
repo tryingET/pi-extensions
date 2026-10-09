@@ -23,7 +23,13 @@ test(
         | Array<{ filename: string; files: Array<{ path: string }> }>
         | Record<string, { filename: string; files: Array<{ path: string }> }>;
       const packed = Array.isArray(rawPack) ? rawPack : Object.values(rawPack);
-      for (const module of ["command-runner", "config", "payload-check", "refresh-lifecycle"])
+      for (const module of [
+        "command-runner",
+        "config",
+        "context-message",
+        "payload-check",
+        "refresh-lifecycle",
+      ])
         assert.ok(
           packed[0].files.some((item) => item.path === `src/${module}.ts`),
           module,

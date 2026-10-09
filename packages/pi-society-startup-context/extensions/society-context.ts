@@ -29,6 +29,7 @@ import {
 
 export type { StartupContextPacket } from "../src/payload-check.ts";
 
+import { startupContextMessage } from "../src/context-message.ts";
 import { RefreshLifecycle } from "../src/refresh-lifecycle.ts";
 
 const DEFAULT_MAX_TASKS = 5;
@@ -1325,16 +1326,19 @@ export default function societyStartupContextExtension(
       await cleanup;
     }
   });
-  pi.on("before_agent_start", async (event, ctx) => {
+  pi.on("before_agent_start", async (_event, ctx) => {
     const lifecycle = controller(ctx);
     context = ctx;
     const current = () => configure(ctx.cwd);
     const packet = lifecycle.consume(await lifecycle.request(current), current);
     if (!packet) return undefined;
     update(packet);
-    if (packet.disabled || (!packet.applicable && !configure(ctx.cwd).injectOutside))
-      return undefined;
-    return { systemPrompt: `${event.systemPrompt}\n\n${renderStartupContextPacket(packet)}` };
+    return startupContextMessage(
+      ctx,
+      packet,
+      renderStartupContextPacket,
+      !packet.disabled && (packet.applicable || current().injectOutside),
+    );
   });
   pi.registerCommand("society-context", {
     description: "Show or refresh the read-only AI Society startup context packet",

@@ -176,8 +176,7 @@ function prefix(digest: string | null): string {
 
 export function legacyHint(
   prompt: string,
-  systemPrompt: string,
-): { systemPrompt: string } | undefined {
+): { message: { customType: string; content: string; display: boolean } } | undefined {
   if (
     ![
       /\bontology\b/i,
@@ -192,11 +191,14 @@ export function legacyHint(
   )
     return undefined;
   return {
-    systemPrompt:
-      `${systemPrompt}\n\nOntology workflow hint:\n` +
-      "- Use ontology_inspect before inventing or changing concepts, relations, invariants, system4d entries, or bridge mappings.\n" +
-      "- Use ontology_proposal before ontology_change when ontology applicability is uncertain.\n" +
-      "- Use ontology_change for ontology writes and keep repo/company/core placement explicit.",
+    message: {
+      customType: "ontology-semantic-preflight",
+      content:
+        "Semantic preflight is advisory retrieval metadata, not instructions or certification.\n" +
+        "Development semantic preflight is disabled; no semantic discovery was performed for this prompt.\n" +
+        "Bindings are active-prompt-run-only. Historical reports do not establish current bindings or authorization.",
+      display: false,
+    },
   };
 }
 

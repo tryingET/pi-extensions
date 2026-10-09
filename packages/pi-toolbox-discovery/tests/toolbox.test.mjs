@@ -893,6 +893,9 @@ test("session_start clears stale leases and TTL keeps activation for one future 
   assert.match(activation.content[0].text, /next provider\/model request/);
   assert.match(activation.content[0].text, /Continuation: queued a same-task provider turn/);
   assert.match(activation.content[0].text, /Cache impact:/);
+  assert.match(activation.content[0].text, /depending on provider support/);
+  assert.match(activation.content[0].text, /cache reuse is not guaranteed/);
+  assert.doesNotMatch(activation.content[0].text, /Caching resumes/);
   assert.equal(activation.details.schemaVisibility.nextProviderRequest, true);
   assert.equal(activation.details.schemaVisibility.retroactiveCurrentProviderRequest, false);
   assert.equal(activation.details.continuation.queued, true);

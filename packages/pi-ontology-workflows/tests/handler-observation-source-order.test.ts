@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import * as ts from "typescript/unstable/ast";
-import { parseSource } from "./helpers/parse-source.js";
+import { parseSource } from "./helpers/parse-source.ts";
 
 const sourcePath = new URL("../src/semantic/preflight-runtime.ts", import.meta.url);
 

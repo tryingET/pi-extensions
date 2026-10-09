@@ -96,13 +96,18 @@ Examples:
   - does **not** run ROCS validate, build, or discovery
   - resets every development grant on reload, new, resume, and fork
 - `before_agent_start`
-  - keeps the existing workflow hint while development preflight is disabled
+  - installs fixed routing directives as a SYSTEM section on every run, even when toolbox leaves all ontology tools inactive; the bytes are independent of keywords and grants
+  - while development preflight is disabled, keyword prompts append a persistent advisory custom context message describing disabled discovery and active-prompt-run-only binding scope; they never return a full-system override
   - when explicitly enabled in TUI, passes the exact expanded prompt bytes to verified ROCS discovery within one 750 ms boundary
   - appends one canonical structural-only advisory block to the current chained `systemPrompt`; it adds no custom message and never injects definitions, snippets, Markdown, paths, labels, or arbitrary ontology prose
   - stores exact candidate ID/snapshot/document bindings only for the active prompt run so `ontology_inspect kind=pack` can use verified bound-pack retrieval
   - fails open with compact visible status when readiness, capability, timeout, process, or protocol checks fail
 
-Automatic semantic preflight never runs in RPC, JSON, or print mode. Those modes retain explicit `ontology_inspect` machine results only.
+Automatic semantic discovery never runs in RPC, JSON, or print mode. Those modes retain explicit `ontology_inspect` machine results and the same static SYSTEM routing directives.
+
+The development pin is **Pi 1.1**. Guidance uses mutable `event.systemPromptOptions.sections`, preserving later `pi-modes` native, append-overlay, and replace-base composition. An explicit fallback appends the same fixed bytes through mutable `appendSystemPrompt` when sections are unavailable. Hosts exposing neither supported mutable seam report an error visibly; immutable/text-only older hosts are unsupported, not silently omitted. A deliberate later `replace_final` owns the complete replacement and can exclude these sections.
+
+**LIMITATION:** the enabled-development grant path retains the accepted Decision89 whole-system dynamic report append and observer semantics, including positive preparation/match/mismatch behavior where host capabilities support it. This patch fixes default/no-grant keyword churn only; it does **not** fix all ontology prompt churn or migrate Decision89 architecture. `/ontology-preflight observation` remains capability-gated and proves at most Pi agent-state equality, never provider delivery or model receipt. Historical reports grant no current bindings or authorization. The controller owns the separate until-decision AK deferral (owner, trigger, deadline); this package change makes no lifecycle decision.
 
 ### Development dogfood boundary
 

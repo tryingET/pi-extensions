@@ -120,7 +120,7 @@ export const ACTIVATION_CONTINUATION_MESSAGE = [
 ].join(" ");
 export const CACHE_IMPACT_CONTRACT = [
   "Cache impact: changing active tools changes the provider tool-schema prefix, so the first follow-up provider request for a new active-tool combination may miss or write a new cache entry.",
-  "Caching resumes for later requests with the same active-tool combination; avoid repeated activate/deactivate oscillation if prompt-cache stability matters.",
+  "Later requests with the same active-tool combination may reuse cached prefixes, depending on provider support, transcript/prompt stability, cache retention, and checkpoint behavior; cache reuse is not guaranteed. Avoid repeated activate/deactivate oscillation if prompt-cache stability matters.",
 ].join(" ");
 export const MISSING_REGISTRATION_CONTRACT = [
   "Toolbox cannot register missing owner tools or make them callable by importing owner packages.",

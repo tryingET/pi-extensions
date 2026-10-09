@@ -27,7 +27,7 @@ function harness(
 ) {
   const handlers = new Map<
     string,
-    (event: never, ctx: never) => Promise<{ systemPrompt: string } | undefined>
+    (event: never, ctx: never) => Promise<{ message: { content: string } } | undefined>
   >();
   let command: { handler: (args: string, ctx: never) => Promise<unknown> } | undefined;
   const statuses: string[] = [];
@@ -139,9 +139,9 @@ test(
     now = 1_000_000; // Demand is due, not just within backoff.
     config = { ...config, fingerprint: "changed-cwd/db/executable-config" };
     const blocked = await second.event("before_agent_start", { systemPrompt: "base" });
-    assert.match(blocked?.systemPrompt || "", /source_health: degraded/);
-    assert.match(blocked?.systemPrompt || "", /refresh_state: blocked_cleanup/);
-    assert.doesNotMatch(blocked?.systemPrompt || "", /ready queue: (77|2)/);
+    assert.match(blocked?.message?.content || "", /source_health: degraded/);
+    assert.match(blocked?.message?.content || "", /refresh_state: blocked_cleanup/);
+    assert.doesNotMatch(blocked?.message?.content || "", /ready queue: (77|2)/);
     await second.manual();
     assert.equal(calls, 1);
     assert.ok(second.editors.every((value) => !/ready queue: (77|2)/.test(value)));

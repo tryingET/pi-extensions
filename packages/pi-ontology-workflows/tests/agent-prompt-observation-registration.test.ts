@@ -8,7 +8,7 @@ import {
   type PiHostCapabilities,
   type RuntimeContext,
 } from "../src/semantic/preflight-runtime.ts";
-import { parseSource } from "./helpers/parse-source.js";
+import { parseSource } from "./helpers/parse-source.ts";
 
 const capability = "prompt.agent-state.observation.v1";
 const digest = `sha256:${"a".repeat(64)}`;

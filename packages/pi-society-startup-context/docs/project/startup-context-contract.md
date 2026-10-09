@@ -6,7 +6,7 @@ read_when:
 system4d:
   container: "Read-only startup orientation contract for Pi sessions in AI Society repos."
   compass: "Orient the LLM without turning startup into a hidden rebaseline or authority layer."
-  engine: "Detect repo -> read canonical surfaces -> parse machine output -> render compact markdown -> inject into prompt."
+  engine: "Detect repo -> read canonical surfaces -> parse machine output -> render compact markdown -> append persistent context message."
   fog:
     risks:
       - "Automatic startup accidentally mutates AK, git, projections, or decisions."
@@ -44,7 +44,13 @@ The extension uses two Pi lifecycle hooks:
 2. `before_agent_start`
    - uses only current-generation/current-config context; completion alone is not readiness
    - otherwise performs a bounded wait (`PI_SOCIETY_CONTEXT_FULL_WAIT_MS`, default `250`)
-   - appends the rendered markdown packet to the system prompt for the next LLM turn
+   - returns a hidden, persistent `society-startup-context` custom message for the next LLM turn, leaving the original system prompt exactly intact
+   - compares the complete semantic snapshot content/evidence (including exact `capturedAt`, freshness, config and cwd) against the last active `society-startup-context` custom message from `ctx.sessionManager.buildContextEntries()`; excludes only local controller generation/monotonic scheduling origin
+   - skips an identical active snapshot; re-emits if matching evidence exists only before compaction or on an abandoned branch; honors message omissions/replacements on hosts with context edits
+   - uses no in-memory last-injection cache and never edits old messages; minimal adapters without a session manager append safely without deduplication
+   - withdraws prior active advice with a single minimal superseding marker when injection is disabled or cwd leaves eligible scope; repeated withdrawn prompts are quiet, no AK/git probes are added, and re-enabling emits current advice
+   - marks the latest snapshot as superseding earlier advisory snapshots (including other cwd/config identities); all snapshots are observations, never authorization or task claims
+   - labels health/freshness at injection time, not as a continuing authority grant; current AK authority must still be read before acting
    - does not persist the packet into AK
 
 The manual `/society-context refresh` command requests a read-only refresh and opens the current rendered packet in the Pi editor (or prints headlessly). Concurrent requests coalesce. Manual requests may bypass age/backoff, not generation/identity/shutdown checks. A superseded waiting command/prompt emits no obsolete packet.
@@ -95,6 +101,8 @@ The extension parses machine/json output and emits semantic markdown bullets:
 - bounded warnings, not full stderr dumps
 
 If parsing fails, the packet reports a warning and omits that surface's canonical claims.
+
+Automatic custom-message content is limited to **32 KiB in UTF-8 bytes**. Existing transport/sample bounds alone do not bound combined markdown bytes. If the full message exceeds this ceiling, withhold its entire body, never a silently truncated decision/grant or partial claim. Emit an explicit oversized-body notice, source health/freshness/refresh state, uncapped warning total and collection diagnostics when they fit. If even these diagnostics exceed the ceiling, explicitly withhold them too. All omitted semantic fields remain covered by the model-visible evidence SHA-256 digest, so changed omitted evidence still emits a new marker. Neither digest nor packet supplies authorization. Manual refresh/render behavior is unchanged and exposes the full packet.
 
 ## Mutation prohibitions
 
@@ -149,10 +157,10 @@ Linux `/proc` observations check leader start time, session and UID so another i
 
 ## Local candidate verification
 
-Exactly the four imported transport/config/payload/lifecycle modules are named in the packed `files` manifest, not the entire `src` directory. Regressions cover source schemas, warning truncation, failure/recovery/TTL/backoff, registered adapter races/coalescing/shutdown, real controlled groups and an extracted tarball on a separately installed production Pi host with no repo/dev-dependency fallback. Compatibility preserves valid public imports/projections, not rejected-data consumption. Local checks do not establish live AK capacity, producer optimization, deployed generation or Ghostty behavior; those require parent-owned inspection/dogfood/publication.
+The five imported transport/config/message/payload/lifecycle modules are named in the packed `files` manifest, not the entire `src` directory. Regressions cover source schemas, warning truncation, failure/recovery/TTL/backoff, registered adapter races/coalescing/shutdown, real controlled groups and an extracted tarball on a separately installed production Pi host with no repo/dev-dependency fallback. Compatibility preserves valid public imports/projections, not rejected-data consumption. Local checks do not establish live AK capacity, producer optimization, deployed generation or Ghostty behavior; those require parent-owned inspection/dogfood/publication.
 
 ## Disable/configure
 
-Set `PI_SOCIETY_STARTUP_CONTEXT=0` to disable automatic startup probing and injection.
+Set `PI_SOCIETY_STARTUP_CONTEXT=0` to disable automatic startup probes and snapshots. One minimal withdrawal marker supersedes prior active startup advice; no marker is emitted without prior active advice.
 
 Other bounded knobs are documented in [README](../../README.md#configuration).

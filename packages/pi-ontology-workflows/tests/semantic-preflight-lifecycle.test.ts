@@ -630,14 +630,14 @@ test("expiry uses no timer and clears on the next validity evaluation", async ()
   assert.equal(h.runtime.snapshot().grant, false);
 });
 
-test("disabled legacy behavior creates no observation", async () => {
+test("disabled keyword advisory creates no override or observation", async () => {
   const h = await harness();
   await emit(h, "session_start", { reason: "startup" });
   const [rawResult] = await emit(h, "before_agent_start", {
     prompt: "ontology task",
     systemPrompt: "BASE",
   });
-  assert.match(promptResult(rawResult).systemPrompt, /Ontology workflow hint/);
+  assert.ok(rawResult && !("systemPrompt" in (rawResult as object)));
   assert.equal(h.runtime.latestObservation(), undefined);
 });
 

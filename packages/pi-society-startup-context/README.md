@@ -6,7 +6,7 @@ read_when:
 system4d:
   container: "Pi extension package for read-only AI Society session-start orientation."
   compass: "Give fresh Pi sessions compact runtime context without creating shadow authority or startup mutations."
-  engine: "session_start read-only probes -> compact semantic packet -> before_agent_start prompt injection."
+  engine: "session_start read-only probes -> compact semantic packet -> before_agent_start persistent context message."
   fog: "The main risks are treating projections as authority, parsing raw human CLI output, or hiding degraded AK state."
 ---
 
@@ -29,7 +29,7 @@ On `session_start`, the extension checks whether `ctx.cwd` is under `~/ai-societ
 Outside `~/ai-society`:
 - it stays quiet by default
 - it does not run AK or git probes
-- no context is injected unless `PI_SOCIETY_CONTEXT_INJECT_OUTSIDE=1` is set
+- no snapshot is injected unless `PI_SOCIETY_CONTEXT_INJECT_OUTSIDE=1` is set; a prior active snapshot gets one minimal withdrawal marker
 
 Inside `~/ai-society`, startup is two-tiered:
 
@@ -53,6 +53,12 @@ The background full packet gathers the richer compact packet with:
 - bounded warnings for unavailable tools, unregistered repos, timeouts, or missing machine surfaces
 - recommended next legal reads/actions
 - an explicit statement that startup performed no mutations
+
+`before_agent_start` returns a hidden, persistent `society-startup-context` custom message only when the current snapshot differs from the last active message of that type in `ctx.sessionManager.buildContextEntries()`. Equality includes the full semantic content/evidence, freshness, exact capture timestamp, config fingerprint and cwd, not controller generation or monotonic scheduling origin. No in-memory last-injection cache is used. Branch/resume/reload reuse active evidence; compacted or abandoned snapshots cannot suppress re-emission. Old messages are never edited. Minimal test adapters without a session manager safely append without deduplication.
+
+The latest snapshot explicitly supersedes earlier advisory snapshots, including other cwd/config identities, without granting authority. Freshness labels are observations, not continuing grants; current AK authority must still be read before acting. Disabling injection or leaving eligible scope withdraws earlier active advice with one minimal marker, without launching AK/git reads; repeated withdrawn prompts stay quiet. Re-enabling emits current advice again.
+
+Automatic messages have a **32 KiB UTF-8 ceiling**, independent of source output/sample limits. Oversized bodies are withheld whole, not silently cut across claims. The replacement retains source health, warning totals and collection diagnostics when they fit, with an explicit omission notice and SHA-256 evidence digest covering all semantic fields. Oversized diagnostics are also explicitly withheld rather than violating the ceiling. `/society-context [refresh]` still renders the complete packet unchanged.
 
 The LLM-facing packet is rendered as markdown. Raw AK machine JSON is parsed in extension code and compressed into semantic bullets before it reaches the model.
 
@@ -107,7 +113,7 @@ Environment variables:
 
 | Variable | Default | Meaning |
 |---|---:|---|
-| `PI_SOCIETY_STARTUP_CONTEXT` | `1` | Set to `0`/`false`/`off` to disable all startup probing/injection. |
+| `PI_SOCIETY_STARTUP_CONTEXT` | `1` | Set to `0`/`false`/`off` to disable startup probes/snapshots (one withdrawal if prior advice is active). |
 | `PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS` | `45000` | Per-AK-command admission-plus-execution budget; git root/status retain 2 s/3 s bounds. |
 | `PI_SOCIETY_CONTEXT_REFRESH_TIMEOUT_MS` | `120000` | Whole-collection wall budget; aborts the owned reader and prevents later launches. Cleanup can add up to 250 ms + 2 s, plus scheduling/observation overhead. |
 | `PI_SOCIETY_CONTEXT_TTL_MS` | `300000` | Freshness age from collection start. |

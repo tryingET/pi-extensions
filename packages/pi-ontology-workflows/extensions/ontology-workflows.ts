@@ -33,6 +33,7 @@ import {
   createSemanticPreflightRuntime,
   type RuntimeContext as SemanticRuntimeContext,
 } from "../src/semantic/preflight-runtime.ts";
+import { registerOntologyPromptGuidance } from "../src/semantic/prompt-guidance.ts";
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 
@@ -358,6 +359,7 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
     workspace,
     legacyRocs: rocs,
   });
+  registerOntologyPromptGuidance(pi);
   semanticPreflight.register(pi);
 
   // Preserve the bounded repo bootstrap orientation without the former startup

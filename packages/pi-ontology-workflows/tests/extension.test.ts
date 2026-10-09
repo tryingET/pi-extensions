@@ -43,6 +43,7 @@ test("extension registers the compact ontology workflow surface", () => {
   assert.deepEqual(events.sort(), [
     "agent_settled",
     "before_agent_start",
+    "before_agent_start",
     "session_shutdown",
     "session_start",
     "session_start",

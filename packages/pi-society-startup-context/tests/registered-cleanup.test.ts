@@ -16,7 +16,7 @@ test("registered adapters keep cleanup failures unknown/degraded across manual r
   let settled = false;
   const handlers = new Map<
     string,
-    (event: never, ctx: never) => Promise<{ systemPrompt: string } | undefined>
+    (event: never, ctx: never) => Promise<{ message: { content: string } } | undefined>
   >();
   let command: { handler: (args: string, ctx: never) => Promise<unknown> } | undefined;
   const statuses: string[] = [];
@@ -67,10 +67,10 @@ test("registered adapters keep cleanup failures unknown/degraded across manual r
   });
   await command.handler("refresh", ctx);
   const prompt = await handlers.get("before_agent_start")?.({ systemPrompt: "base" } as never, ctx);
-  assert.match(prompt?.systemPrompt || "", /source_health: degraded/);
-  assert.match(prompt?.systemPrompt || "", /refresh_state: blocked_cleanup/);
-  assert.match(prompt?.systemPrompt || "", /warning count \(before truncation\): [1-9]/);
-  assert.doesNotMatch(prompt?.systemPrompt || "", /ready queue: 7|### Bounded warnings/);
+  assert.match(prompt?.message?.content || "", /source_health: degraded/);
+  assert.match(prompt?.message?.content || "", /refresh_state: blocked_cleanup/);
+  assert.match(prompt?.message?.content || "", /warning count \(before truncation\): [1-9]/);
+  assert.doesNotMatch(prompt?.message?.content || "", /ready queue: 7|### Bounded warnings/);
   assert.ok(editors.every((value) => !value.includes("ready queue: 7")));
   assert.equal(calls, 1);
   settled = true;

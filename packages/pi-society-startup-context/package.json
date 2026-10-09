@@ -51,6 +51,7 @@
     "extensions/society-context.ts",
     "src/command-runner.ts",
     "src/config.ts",
+    "src/context-message.ts",
     "src/payload-check.ts",
     "src/refresh-lifecycle.ts",
     "prompts",
