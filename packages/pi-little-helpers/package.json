@@ -244,17 +244,18 @@
     "@earendil-works/pi-coding-agent": "1.1.0",
     "@earendil-works/pi-tui": "1.1.0",
     "@types/node": "22.14.0",
+    "typebox": "1.3.7",
     "typescript": "7.0.2"
   },
   "dependencies": {
-    "@tryinget/pi-session-compaction": "file:../pi-session-compaction",
-    "typebox": "1.3.7"
+    "@tryinget/pi-session-compaction": "file:../pi-session-compaction"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
-    "@tryinget/pi-peer-messaging": "0.4.3"
+    "@tryinget/pi-peer-messaging": "0.4.3",
+    "typebox": "*"
   },
   "peerDependenciesMeta": {
     "@tryinget/pi-peer-messaging": {
