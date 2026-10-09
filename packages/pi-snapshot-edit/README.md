@@ -19,6 +19,20 @@ system4d:
 - `snapshot_read` / `read` — return one `revision:<alias>` header followed by raw UTF-8 file text, without line numbers or gutters;
 - `snapshot_edit` / `edit` — apply exact replacements and anchored insertions against that immutable full-file snapshot.
 
+## Library use (hosts other than Pi)
+
+The protocol's engine is exported for hosts that are not Pi, such as the polis society host:
+
+```js
+import { SnapshotEditService } from "@tryinget/pi-snapshot-edit/service";
+
+const service = new SnapshotEditService();
+const read = await service.read({ path: "src/example.ts" }, cwd); // read.text starts with "revision:<alias>"
+await service.edit({ path: "src/example.ts", base: "amber", edits: [/* Protocol B operations */] }, cwd, signal);
+```
+
+Only `./service` (with TypeScript declarations) and `./package.json` are exported; the Pi extension is still loaded from `package.json#pi.extensions`. The license rider below applies to library use as well.
+
 ## Protocol B
 
 ```text

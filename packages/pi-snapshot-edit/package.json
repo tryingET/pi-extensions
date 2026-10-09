@@ -53,6 +53,13 @@
     "README.md",
     "LICENSE"
   ],
+  "exports": {
+    "./service": {
+      "types": "./src/snapshot-service.d.ts",
+      "default": "./src/snapshot-service.js"
+    },
+    "./package.json": "./package.json"
+  },
   "pi": {
     "extensions": [
       "./extensions/snapshot-edit.ts"
