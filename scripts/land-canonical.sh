@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# summary: Land a ref into the canonical checkout, which live Pi sessions load extensions from: move, install the packages whose manifests changed, smoke-test Pi, and move back on any failure.
+# summary: Land a ref into the canonical checkout, which live Pi sessions load extensions from: move, install the packages whose manifests changed, link host packages to the Pi on PATH, smoke-test Pi, and move back on any failure.
 # read_when:
 #   - "You want the canonical pi-extensions checkout at a newer commit (instead of pull, merge or reset by hand)."
 #   - "Pi fails with 'Failed to load extension' after the checkout moved."
@@ -65,7 +65,9 @@ smoke() {
   fi
 }
 
-check() { install_packages "$@" && node scripts/package-install-health.mjs >&2 && smoke; }
+# Host-provided packages (pi-ai, pi-agent-core, pi-coding-agent, pi-tui, typebox) installed here become links
+# to the Pi on PATH, so compiled ESM loaded natively from a sibling package shares the host's modules (AK6828).
+check() { install_packages "$@" && node scripts/link-host-packages.mjs >&2 && node scripts/package-install-health.mjs >&2 && smoke; }
 
 receipt() {
   printf '{"outcome":"%s","mode":"%s","ref":"%s","previous":"%s","head":"%s","installed":"%s"}\n' \

@@ -8,7 +8,7 @@ import test from 'node:test';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const SOURCES = ['scripts/commit-install-guard.mjs', 'scripts/land-canonical.sh', 'scripts/validate-package-installs.mjs',
-  'scripts/tracked-files.mjs', 'scripts/package-install-health.mjs'];
+  'scripts/tracked-files.mjs', 'scripts/package-install-health.mjs', 'scripts/link-host-packages.mjs'];
 
 // npm ci --prefix <dir>: install exactly what the lock names, as npm would record it
 const FAKE_NPM = `#!/usr/bin/env node
@@ -54,7 +54,7 @@ function fixture(t) {
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'f@example.test', GIT_COMMITTER_NAME: 'Fixture',
     GIT_COMMITTER_EMAIL: 'f@example.test', FAKE_NPM_LOG: path.join(base, 'npm.log'),
-    PI_SMOKE_CMD: path.join(bin, 'smoke'), LAND_NO_FETCH: '1' };
+    PI_SMOKE_CMD: path.join(bin, 'smoke'), LAND_NO_FETCH: '1', PI_HOST_BIN: path.join(base, 'no-pi') };
   const run = (cwd, command, args, extra = {}) =>
     spawnSync(command, args, { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
   const git = (cwd, ...args) => {
@@ -191,4 +191,56 @@ test('a non-fast-forward needs --reset, and --reset refuses to discard modified 
   assert.match(reset.stderr, /would discard another session's work/);
   assert.equal(git(root, 'rev-parse', 'HEAD'), mainHead);
   assert.notEqual(head, mainHead);
+});
+
+// A Pi installation as npm lays out a global one: the host packages under the coding agent.
+function fakeHost(base) {
+  const agent = path.join(base, 'host/lib/node_modules/@earendil-works/pi-coding-agent');
+  json(base, path.relative(base, path.join(agent, 'package.json')), { name: '@earendil-works/pi-coding-agent', version: '9.0.0' });
+  write(base, path.relative(base, path.join(agent, 'dist/cli.js')), '#!/usr/bin/env node\n', 0o755);
+  const roots = { '@earendil-works/pi-coding-agent': agent };
+  for (const name of ['@earendil-works/pi-ai', '@earendil-works/pi-agent-core', '@earendil-works/pi-tui', 'typebox']) {
+    roots[name] = path.join(agent, 'node_modules', name);
+    json(base, path.relative(base, path.join(roots[name], 'package.json')), { name, version: '9.0.0' });
+  }
+  return { bin: path.join(agent, 'dist/cli.js'), roots };
+}
+
+test('landing links installed host packages to the Pi on PATH, and the health check accepts the links', t => {
+  const { base, root, run, git } = fixture(t);
+  const host = fakeHost(base);
+  const wt = path.join(base, 'wt');
+  git(root, 'worktree', 'add', '-q', '-b', 'dev', wt);
+  json(wt, 'packages/demo/package.json', { name: 'demo', dependencies: { dep: '*' }, devDependencies: { '@earendil-works/pi-ai': '1.0.0' } });
+  json(wt, 'packages/demo/package-lock.json', { lockfileVersion: 3, packages: {
+    '': { name: 'demo', dependencies: { dep: '*' }, devDependencies: { '@earendil-works/pi-ai': '1.0.0' } },
+    'node_modules/dep': { version: '1.0.0', resolved: 'https://registry.example/dep-1.0.0.tgz', integrity: 'sha512-1.0.0' },
+    'node_modules/@earendil-works/pi-ai': { version: '1.0.0', resolved: 'https://registry.example/pi-ai-1.0.0.tgz', integrity: 'sha512-ai', dev: true },
+    'node_modules/@earendil-works/pi-ai/node_modules/nested': { version: '2.0.0', resolved: 'https://registry.example/nested-2.0.0.tgz', integrity: 'sha512-n', dev: true },
+  } });
+  git(wt, 'add', '.');
+  git(wt, 'commit', '-qm', 'demo tests against the host');
+  const landed = run(root, 'bash', ['scripts/land-canonical.sh', 'dev'], { PI_HOST_BIN: host.bin });
+  assert.equal(landed.status, 0, landed.stderr);
+  assert.equal(JSON.parse(landed.stdout.trim().split('\n').at(-1)).outcome, 'landed');
+  const installed = path.join(root, 'packages/demo/node_modules/@earendil-works/pi-ai');
+  assert.ok(fs.lstatSync(installed).isSymbolicLink(), 'the physical copy was replaced');
+  assert.equal(fs.realpathSync(installed), fs.realpathSync(host.roots['@earendil-works/pi-ai']));
+  assert.match(landed.stderr, /packages\/demo: @earendil-works\/pi-ai 1\.0\.0 -> host 9\.0\.0/);
+  // Not a host package: still installed and checked against the lock.
+  assert.equal(fs.lstatSync(path.join(root, 'packages/demo/node_modules/dep')).isSymbolicLink(), false);
+  const health = run(root, 'node', ['scripts/package-install-health.mjs']);
+  assert.equal(health.status, 0, health.stdout + health.stderr);
+});
+
+test('without a Pi executable the landing leaves host packages as installed', t => {
+  const { base, root, run, git } = fixture(t);
+  const wt = path.join(base, 'wt');
+  git(root, 'worktree', 'add', '-q', '-b', 'dev', wt);
+  setDep(wt, 'packages/demo', '2.0.0');
+  git(wt, 'add', '.');
+  git(wt, 'commit', '-qm', 'bump demo');
+  const landed = run(root, 'bash', ['scripts/land-canonical.sh', 'dev']);
+  assert.equal(landed.status, 0, landed.stderr);
+  assert.match(landed.stderr, /no Pi executable found; host packages stay as installed/);
 });

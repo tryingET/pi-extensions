@@ -10,6 +10,11 @@ const SCRIPT = fileURLToPath(import.meta.url);
 const DEFAULT_ROOT = path.resolve(path.dirname(SCRIPT), '..');
 const FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
+// Pi supplies these to extensions (Pi docs/packages.md). land-canonical.sh links their installs to the
+// active Pi's own copies (link-host-packages.mjs); a linked one belongs to the host, not to this lock.
+export const HOST_PACKAGES = Object.freeze([
+  '@earendil-works/pi-ai', '@earendil-works/pi-agent-core', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui', 'typebox',
+]);
 const inside = (root, target) => { const rel = path.relative(root, target); return rel === '' || (!rel.startsWith('../') && rel !== '..' && !path.isAbsolute(rel)); };
 
 function requiredNames(entry, isRoot) {
@@ -52,6 +57,23 @@ export function authoredLockIssues(manifest, lock) {
 // Match the owned install topology, not generated dist manifests or test fixtures.
 function trackedManifests(root, tracked) {
   return [...tracked].filter(file => /^(?:package\.json|packages\/[^/]+\/(?:package\.json|[^/]+\/package\.json))$/.test(path.relative(root, file))).sort();
+}
+
+/** Directories of the tracked packages that install from a tracked lock. */
+export function trackedPackageDirs(repoRoot = DEFAULT_ROOT) {
+  const root = fs.realpathSync(repoRoot);
+  const tracked = new Set(trackedFiles(root));
+  return trackedManifests(root, tracked).map(file => path.dirname(file)).filter(dir => tracked.has(path.join(dir, 'package-lock.json')));
+}
+
+// The host package a lock key installs at or under, when that install is a link out of this repo.
+function linkedHostPackage(root, dir, key) {
+  const name = HOST_PACKAGES.find(host => key === `node_modules/${host}` || key.startsWith(`node_modules/${host}/`));
+  if (!name) return undefined;
+  const installed = path.join(dir, 'node_modules', ...name.split('/'));
+  try {
+    return fs.lstatSync(installed).isSymbolicLink() && !inside(root, fs.realpathSync(installed)) ? name : undefined;
+  } catch { return undefined; }
 }
 
 /** Authored manifest/lock agreement for every tracked package; reads no node_modules. */
@@ -97,6 +119,7 @@ export function validatePackageInstalls(repoRoot = DEFAULT_ROOT) {
         // Its own tracked lock is checked separately; link structure is checked below.
         if (!key.startsWith('node_modules/')) continue;
         if (key.split('/').some(part => part === '..' || part === '.') || key.includes('\\')) throw new Error(`invalid lock path: ${key}`);
+        if (linkedHostPackage(root, dir, key)) continue;
         const installedPath = path.join(dir, key);
         // npm records a linked dependency's optional flag on its target snapshot.
         const optional = expected.optional || (expected.link && lock.packages[expected.resolved]?.optional);
