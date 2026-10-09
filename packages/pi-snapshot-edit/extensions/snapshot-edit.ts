@@ -2,6 +2,7 @@
 // summary: "registers snapshot-bound read and edit tools, clipboard image lift, override, and release-smoke commands"
 // read_when:
 //   - "changing extension tool schemas, lifecycle hooks, clipboard image lift, or standard tool overrides"
+//   - "changing how a session's earlier revisions are recognized after a reload"
 // ---
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
@@ -14,6 +15,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { liftClipboardImages } from "../src/clipboard-image-attach.js";
 import { runPackedReleaseSmoke } from "../src/release-smoke.js";
+import { revisionsFromEntries } from "../src/session-revisions.js";
 import { normalizeRevisionAlias, SnapshotEditService } from "../src/snapshot-service.js";
 
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
@@ -158,7 +160,7 @@ function createEditDefinition(
       `Use ${name} with the revision returned by ${name === "edit" ? "read" : "snapshot_read"}; pass the bare revision word as base and replace via oldText or insert via anchorText.`,
       `Omit occurrence only for a unique selector; otherwise provide its 1-indexed exact occurrence.`,
       `All operations resolve against one immutable base revision; do not account for earlier operations in the batch.`,
-      `On an unknown, expired, stale, or invalid selector, read the file again instead of guessing or rebasing.`,
+      `A failed edit reports every problem of the batch with the revision's own text (match lines, near misses, conflicting edits); correct the selectors from it and retry. If the revision is stale, use the revision the error names or read the file again; never guess.`,
       `Keep replacements and insertion points disjoint; insertion on a replacement boundary is rejected.`,
     ],
     parameters: editParameters,
@@ -406,7 +408,11 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.on("session_start", async () => {
+  pi.on("session_start", async (_event, ctx) => {
+    // Earlier revisions of this session (before a reload or resume) rehydrate from their files
+    // when the files still hold exactly their bytes.
+    const branch = ctx?.sessionManager?.getBranch?.() ?? [];
+    service.restoreRevisions(revisionsFromEntries(branch, ctx?.cwd ?? process.cwd()));
     const overrideValue = process.env[OVERRIDE_ENV]?.trim().toLowerCase();
     if (overrideValue !== undefined && OVERRIDE_OPT_OUT_VALUES.has(overrideValue)) return;
     const explicitlyEnabled =

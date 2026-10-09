@@ -366,7 +366,7 @@ test("best-effort pre-rename check rejects an adversarial non-cooperating write"
   }
 });
 
-test("rejects byte-identical inode replacement after snapshot_read", async () => {
+test("a file replaced by byte-identical bytes is the same revision; changed bytes stay stale", async () => {
   const file = await fixture("identity.txt", "same bytes\n");
   try {
     const { service } = createService();
@@ -374,17 +374,32 @@ test("rejects byte-identical inode replacement after snapshot_read", async () =>
     const replacement = join(file.directory, "replacement.txt");
     await writeFile(replacement, "same bytes\n");
     await rename(replacement, file.path);
+    const edited = await service.edit(
+      {
+        path: file.path,
+        base: read.details.revision,
+        edits: [{ op: "replace", oldText: "same", newText: "changed" }],
+      },
+      file.directory,
+    );
+    assert.match(edited.text, /^Applied 1 snapshot edit/u);
+    assert.equal(await readFile(file.path, "utf8"), "changed bytes\n");
+
+    const again = await service.read({ path: file.path }, file.directory);
+    await writeFile(replacement, "other bytes\n");
+    await rename(replacement, file.path);
     await assert.rejects(
       service.edit(
         {
           path: file.path,
-          base: read.details.revision,
-          edits: [{ op: "replace", oldText: "same", newText: "changed" }],
+          base: again.details.revision,
+          edits: [{ op: "replace", oldText: "changed", newText: "x" }],
         },
         file.directory,
       ),
-      /file identity that has been replaced/,
+      /Stale revision/,
     );
+    assert.equal(await readFile(file.path, "utf8"), "other bytes\n");
   } finally {
     await file.cleanup();
   }

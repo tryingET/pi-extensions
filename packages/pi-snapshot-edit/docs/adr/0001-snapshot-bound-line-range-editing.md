@@ -12,9 +12,9 @@ system4d:
 
 # ADR 0001: Snapshot-bound exact-selector editing
 
-- Status: amended; Protocol B replaces Protocol A
+- Status: amended; Protocol B replaces Protocol A; revisions content-addressed
 - Date: 2026-07-11
-- Amendment: AK `#3619`
+- Amendment: AK `#3619`; 2026-10-09 content-addressed revisions and self-locating failures (owner decision)
 
 ## Context
 
@@ -70,3 +70,16 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 ## Retired decision
 
 Protocol A's numbered `N│text` reads and `startLine` / `endLine` operations are retired runtime behavior. They remain only as explicitly historical benchmark terminology. Per-line hashes remain an evaluated alternative, not a live protocol.
+
+## Amendment 2026-10-09: content-addressed revisions and self-locating failures
+
+Owner decision, from Pi session evidence since Protocol B became the default (2026-07-12 to 2026-10-09: 108,038 edit calls, 6,980 failures). 1,212 failures were unknown or expired revisions; in 896 of the 1,029 that a later read could trace, the file still held exactly the revision's bytes. 1,934 were ambiguous or out-of-range selectors (1,149 with exactly two matches), 949 had no exact match, and 4,773 of all errors came from multi-operation batches that stopped at their first problem. Success previews showed the top of the file, not the change.
+
+Decisions:
+
+1. **A revision is content-addressed.** It is valid exactly while its file holds the bytes its SHA-256 names; residency in memory no longer decides. A store keeps a bounded ledger (alias, canonical path, digest) beyond the held bytes. An evicted alias, or one restored after a reload from the session's own read and edit results, rehydrates from the file when, and only when, the file's current digest is the recorded one. A file replaced by identical bytes is the same revision; identity is still checked across the commit window (queue read to rename). This amends item 10: identity drift with unchanged bytes is not stale. New aliases never reuse a ledger alias.
+2. **Failures locate themselves.** Every operation of a batch is resolved before anything is written and every problem is reported at once. Ambiguous and out-of-range selectors list their matches with lines; a missing selector names its nearest near miss (whitespace-only difference with the exact revision text, the diverging selector line, or the longest present prefix); conflicts name both edits; wrong-file and stale errors name the right revision when the session has one.
+3. **Previews show the change.** Success output shows the changed regions of the new revision with context, in raw text under `@@ lines A-B @@` headers, within the existing 8KB preview cap.
+
+Unchanged: there is still no fuzzy matching, relocation, merge, or rebase. A near miss is diagnosis, never applied; a stale revision is never applied to other bytes, and naming the revision the file holds now leaves the retry to the caller.
+

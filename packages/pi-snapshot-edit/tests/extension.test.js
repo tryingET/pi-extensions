@@ -116,7 +116,7 @@ test("extension registers host-compatible namespaced tools and edits duplicate l
     );
     assert.equal(editResult.details.baseRevision, "amber");
     const preview = editResult.content[0].text;
-    assert.match(preview, /revision:apple\nsame\nchanged\n/);
+    assert.match(preview, /New revision: apple\n\n@@ lines 1-2 @@\nsame\nchanged\n/);
     assert.doesNotMatch(preview, /\d+│/u);
     assert.equal(await readFile(path, "utf8"), "same\nchanged\n");
   } finally {
@@ -419,6 +419,126 @@ test("input handler lifts tmpdir clipboard images without snapshotting them", as
   } finally {
     if (previous === undefined) delete process.env.TMPDIR;
     else process.env.TMPDIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a reloaded extension recognizes the session's earlier revisions while their bytes are unchanged", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-edit-reload-"));
+  try {
+    const path = join(directory, "kept.txt");
+    await writeFile(path, "keep\nchange me\n");
+    const before = createMockPi();
+    snapshotEditExtension(before.api);
+    const context = { cwd: directory };
+    const read = await before.tools
+      .get("snapshot_read")
+      .execute("read-1", { path: "kept.txt" }, undefined, undefined, context);
+    const branch = [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "toolCall",
+              id: "read-1",
+              name: "snapshot_read",
+              arguments: { path: "kept.txt" },
+            },
+          ],
+        },
+      },
+      {
+        type: "message",
+        message: {
+          role: "toolResult",
+          toolCallId: "read-1",
+          toolName: "snapshot_read",
+          isError: false,
+          details: read.details,
+        },
+      },
+    ];
+
+    const after = createMockPi(); // a reload: a new process holds nothing
+    snapshotEditExtension(after.api);
+    await withOverrideEnv("off", () =>
+      after.handlers.get("session_start")(
+        {},
+        { cwd: directory, sessionManager: { getBranch: () => branch } },
+      ),
+    );
+    const edited = await after.tools.get("snapshot_edit").execute(
+      "edit-1",
+      {
+        path: "kept.txt",
+        base: read.details.revision,
+        edits: [{ op: "replace", oldText: "change me", newText: "changed" }],
+      },
+      undefined,
+      undefined,
+      context,
+    );
+    assert.equal(edited.details.baseRevision, read.details.revision);
+    assert.notEqual(edited.details.revision, read.details.revision);
+    assert.equal(await readFile(path, "utf8"), "keep\nchanged\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("revisions from results written before details carried the path resolve against the session cwd", async () => {
+  const { revisionsFromEntries } = await import("../src/session-revisions.js");
+  const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-edit-legacy-"));
+  try {
+    await writeFile(join(directory, "old.txt"), "x\n");
+    const records = revisionsFromEntries(
+      [
+        {
+          type: "message",
+          message: {
+            role: "assistant",
+            content: [{ type: "toolCall", id: "c1", name: "read", arguments: { path: "old.txt" } }],
+          },
+        },
+        {
+          type: "message",
+          message: {
+            role: "toolResult",
+            toolCallId: "c1",
+            toolName: "read",
+            isError: false,
+            details: { revision: "amber", digest: "a".repeat(64) },
+          },
+        },
+        {
+          type: "message",
+          message: {
+            role: "toolResult",
+            toolCallId: "c2",
+            toolName: "edit",
+            isError: true,
+            details: { revision: "apple", digest: "b".repeat(64) },
+          },
+        },
+        {
+          type: "message",
+          message: {
+            role: "toolResult",
+            toolCallId: "c3",
+            toolName: "bash",
+            isError: false,
+            details: { revision: "atlas", digest: "c".repeat(64) },
+          },
+        },
+      ],
+      directory,
+    );
+    assert.equal(records.length, 1);
+    assert.equal(records[0].alias, "amber");
+    assert.match(records[0].path, /old\.txt$/u);
+  } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });

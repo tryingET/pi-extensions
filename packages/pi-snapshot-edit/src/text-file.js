@@ -93,22 +93,57 @@ function normalizeEol(text, eol) {
 
 /** Resolve every exact-text selector against the same immutable snapshot, then mutate. */
 export function applyTextEdits(base, edits) {
+  return planTextEdits(base, edits).bytes;
+}
+
+/**
+ * Resolve every operation against the same immutable snapshot before anything changes. Every
+ * problem in the batch is reported at once, each with what the revision actually holds there
+ * (match lines, near misses, conflicting edits), so one corrected retry can succeed. Nothing
+ * inexact is ever applied. Returns the desired bytes and the resolved changes in base offsets.
+ */
+export function planTextEdits(base, edits) {
   if (!Array.isArray(edits) || edits.length === 0) {
     throw new Error("edits must contain at least one operation");
   }
-  const resolved = edits.map((edit, index) => resolveEdit(base, edit, index));
-  validateDisjoint(resolved);
-  resolved.sort(
-    (left, right) => right.startOffset - left.startOffset || right.endOffset - left.endOffset,
-  );
-
-  let text = base.text;
-  for (const edit of resolved) {
-    text = `${text.slice(0, edit.startOffset)}${edit.replacement}${text.slice(edit.endOffset)}`;
+  const problems = [];
+  const resolved = [];
+  edits.forEach((edit, index) => {
+    try {
+      resolved.push(resolveEdit(base, edit, index));
+    } catch (error) {
+      problems.push(error instanceof Error ? error.message : String(error));
+    }
+  });
+  problems.push(...disjointProblems(base, resolved));
+  if (problems.length === 1) throw new Error(problems[0]);
+  if (problems.length > 1) {
+    throw new Error(
+      `${problems.length} problems in ${edits.length} edit(s) against this revision; fix all of them and retry:\n${problems.map((problem) => `- ${problem}`).join("\n")}`,
+    );
   }
+  const ascending = [...resolved].sort(
+    (left, right) => left.startOffset - right.startOffset || left.endOffset - right.endOffset,
+  );
+  let text = "";
+  let cursor = 0;
+  for (const edit of ascending) {
+    text += base.text.slice(cursor, edit.startOffset) + edit.replacement;
+    cursor = edit.endOffset;
+  }
+  text += base.text.slice(cursor);
   if (text === base.text) throw new Error("Edit would make no changes");
   const payload = Buffer.from(text, "utf8");
-  return base.hasBom ? Buffer.concat([UTF8_BOM, payload]) : payload;
+  return {
+    bytes: base.hasBom ? Buffer.concat([UTF8_BOM, payload]) : payload,
+    text,
+    changes: ascending.map(({ index, startOffset, endOffset, replacement }) => ({
+      index,
+      startOffset,
+      endOffset,
+      replacement,
+    })),
+  };
 }
 
 function resolveEdit(base, edit, index) {
@@ -130,7 +165,14 @@ function resolveEdit(base, edit, index) {
   }
   const normalizedSelector = normalizeEol(selector, base.preferredEol);
   const starts = exactMatchOffsets(base.text, normalizedSelector);
-  const occurrence = resolveOccurrence(edit.occurrence, starts.length, index, selectorKey);
+  const occurrence = resolveOccurrence(
+    base,
+    edit.occurrence,
+    starts,
+    index,
+    selectorKey,
+    normalizedSelector,
+  );
   const selectedStart = starts[occurrence - 1];
   const selectedEnd = selectedStart + normalizedSelector.length;
   const replacement = normalizeEol(edit.newText, base.preferredEol);
@@ -155,16 +197,17 @@ function exactMatchOffsets(text, selector) {
   return starts;
 }
 
-function resolveOccurrence(value, matchCount, index, selectorKey) {
+function resolveOccurrence(base, value, starts, index, selectorKey, selector) {
+  const matchCount = starts.length;
   if (matchCount === 0) {
     throw new Error(
-      `edits[${index}].${selectorKey} has no exact match in the base revision; reread before retrying`,
+      `edits[${index}].${selectorKey} has no exact match in the base revision; ${nearMiss(base, selector)}`,
     );
   }
   if (value === undefined) {
     if (matchCount === 1) return 1;
     throw new Error(
-      `edits[${index}].${selectorKey} matches ${matchCount} occurrences; occurrence is required and 1-indexed`,
+      `edits[${index}].${selectorKey} matches ${matchCount} occurrences; occurrence is required and 1-indexed. ${listMatches(base, starts)}`,
     );
   }
   if (!Number.isInteger(value) || value < 1) {
@@ -172,34 +215,161 @@ function resolveOccurrence(value, matchCount, index, selectorKey) {
   }
   if (value > matchCount) {
     throw new Error(
-      `edits[${index}].occurrence ${value} is out of range for ${matchCount} match(es)`,
+      `edits[${index}].occurrence ${value} is out of range for ${matchCount} match(es). ${listMatches(base, starts)}`,
     );
   }
   return value;
 }
 
-function validateDisjoint(edits) {
+const LISTED_MATCHES = 8;
+const EXCERPT_CHARS = 96;
+
+/** 1-indexed line of a text offset, by binary search over the snapshot's line index. */
+function lineOf(base, offset) {
+  const lines = base.lines;
+  let low = 0;
+  let high = lines.length - 1;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (lines[middle].start <= offset) low = middle;
+    else high = middle - 1;
+  }
+  return low + 1;
+}
+
+function excerpt(text) {
+  const flat = text.length > EXCERPT_CHARS ? `${text.slice(0, EXCERPT_CHARS)}…` : text;
+  return JSON.stringify(flat);
+}
+
+function listMatches(base, starts) {
+  const shown = starts.slice(0, LISTED_MATCHES).map((start, position) => {
+    const line = lineOf(base, start);
+    return `#${position + 1} line ${line}: ${excerpt(base.lines[line - 1]?.text ?? "")}`;
+  });
+  const more = starts.length > LISTED_MATCHES ? `; and ${starts.length - LISTED_MATCHES} more` : "";
+  return `Matches: ${shown.join("; ")}${more}.`;
+}
+
+const squash = (line) => line.replace(/\s+/gu, " ").trim();
+
+/**
+ * Why a selector has no exact match, from the revision's own text: a whitespace-only difference,
+ * or the selector line where the closest candidate diverges. Diagnosis only; nothing is applied.
+ */
+function nearMiss(base, selector) {
+  const wanted = selector.split(base.preferredEol);
+  const lines = base.lines.map((line) => line.text);
+  if (wanted.length === 0 || lines.length === 0) return "reread the file before retrying";
+  const wantedSquashed = wanted.map(squash);
+  for (let start = 0; start + wanted.length <= lines.length; start += 1) {
+    if (sameIgnoringWhitespace(lines, start, wantedSquashed)) {
+      const held = lines.slice(start, start + wanted.length).join("\n");
+      return `it matches at line ${start + 1} if whitespace is ignored; the revision has ${excerpt(held)}`;
+    }
+  }
+  let best;
+  for (let start = 0; start < lines.length; start += 1) {
+    if (
+      !lines[start].includes(wanted[0]) &&
+      !(wanted.length > 1 && lines[start].endsWith(wanted[0]))
+    )
+      continue;
+    let agreed = 1;
+    while (
+      agreed < wanted.length &&
+      start + agreed < lines.length &&
+      (agreed === wanted.length - 1
+        ? lines[start + agreed].startsWith(wanted[agreed])
+        : lines[start + agreed] === wanted[agreed])
+    ) {
+      agreed += 1;
+    }
+    if (!best || agreed > best.agreed) best = { start, agreed };
+  }
+  if (best && wanted.length > 1 && best.agreed < wanted.length) {
+    const differing = best.start + best.agreed;
+    const held = differing < lines.length ? excerpt(lines[differing]) : "the end of the file";
+    return `its first line occurs at line ${best.start + 1}, but its line ${best.agreed + 1} differs: the revision has ${held} where it has ${excerpt(wanted[best.agreed])}`;
+  }
+  if (wanted.length === 1) {
+    const prefix = longestPresentPrefix(base.text, wanted[0]);
+    if (prefix.length >= Math.min(8, wanted[0].length - 1) && prefix.length > 0) {
+      const at = base.text.indexOf(prefix);
+      const line = lineOf(base, at);
+      return `its first ${prefix.length} of ${wanted[0].length} characters occur at line ${line}, where the revision continues ${excerpt(base.lines[line - 1]?.text ?? "")}`;
+    }
+  }
+  return "none of its lines occur in the revision; reread the file before retrying";
+}
+
+function sameIgnoringWhitespace(lines, start, wantedSquashed) {
+  const last = wantedSquashed.length - 1;
+  for (let offset = 0; offset <= last; offset += 1) {
+    const held = squash(lines[start + offset]);
+    const wanted = wantedSquashed[offset];
+    if (last === 0) {
+      if (wanted.length === 0 || !held.includes(wanted)) return false;
+    } else if (offset === 0) {
+      if (!held.endsWith(wanted)) return false;
+    } else if (offset === last) {
+      if (!held.startsWith(wanted)) return false;
+    } else if (held !== wanted) return false;
+  }
+  return true;
+}
+
+function longestPresentPrefix(text, wanted) {
+  let low = 0;
+  let high = wanted.length;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (text.includes(wanted.slice(0, middle))) low = middle;
+    else high = middle - 1;
+  }
+  return wanted.slice(0, low);
+}
+
+/** Every pair of resolved operations that would touch the same bytes or insertion point. */
+function disjointProblems(base, edits) {
+  const problems = [];
   const ascending = [...edits].sort(
     (left, right) => left.startOffset - right.startOffset || left.endOffset - right.endOffset,
   );
-  for (let index = 1; index < ascending.length; index += 1) {
-    const previous = ascending[index - 1];
-    const current = ascending[index];
-    const overlap = previous.endOffset > current.startOffset;
-    const sameInsertion =
-      previous.startOffset === previous.endOffset &&
-      current.startOffset === current.endOffset &&
-      previous.startOffset === current.startOffset;
-    const insertionOnReplacement =
-      previous.startOffset === previous.endOffset
-        ? previous.startOffset >= current.startOffset && previous.startOffset <= current.endOffset
-        : current.startOffset === current.endOffset &&
-          current.startOffset >= previous.startOffset &&
-          current.startOffset <= previous.endOffset;
-    if (overlap || sameInsertion || insertionOnReplacement) {
-      throw new Error(`edits[${previous.index}] and edits[${current.index}] overlap`);
+  for (let left = 0; left < ascending.length; left += 1) {
+    for (let right = left + 1; right < ascending.length; right += 1) {
+      const previous = ascending[left];
+      const current = ascending[right];
+      if (current.startOffset > previous.endOffset) break;
+      const kind = conflict(previous, current);
+      if (!kind) continue;
+      const [first, second] =
+        previous.index < current.index ? [previous, current] : [current, previous];
+      problems.push(
+        `edits[${first.index}] (line ${lineOf(base, first.startOffset)}) and edits[${second.index}] (line ${lineOf(base, second.startOffset)}) overlap: ${kind}; combine them into one replace or choose disjoint selectors`,
+      );
     }
   }
+  return problems;
+}
+
+function conflict(previous, current) {
+  const previousInserts = previous.startOffset === previous.endOffset;
+  const currentInserts = current.startOffset === current.endOffset;
+  if (previousInserts && currentInserts) {
+    return previous.startOffset === current.startOffset ? "two insertions at one point" : undefined;
+  }
+  if (previousInserts) {
+    return previous.startOffset >= current.startOffset && previous.startOffset <= current.endOffset
+      ? "an insertion on a replacement boundary or interior"
+      : undefined;
+  }
+  if (currentInserts) {
+    return current.startOffset >= previous.startOffset && current.startOffset <= previous.endOffset
+      ? "an insertion on a replacement boundary or interior"
+      : undefined;
+  }
+  return previous.endOffset > current.startOffset ? "overlapping replacements" : undefined;
 }
 
 export async function atomicReplace(

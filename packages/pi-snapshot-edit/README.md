@@ -31,6 +31,14 @@ const read = await service.read({ path: "src/example.ts" }, cwd); // read.text s
 await service.edit({ path: "src/example.ts", base: "amber", edits: [/* Protocol B operations */] }, cwd, signal);
 ```
 
+After a reload or resume, a host restores the revisions its transcript already holds; each rehydrates only while its file still has exactly those bytes:
+
+```js
+import { revisionsFromMessages, SnapshotEditService } from "@tryinget/pi-snapshot-edit/service";
+
+service.restoreRevisions(revisionsFromMessages(transcriptMessages, cwd));
+```
+
 Only `./service` (with TypeScript declarations) and `./package.json` are exported; the Pi extension is still loaded from `package.json#pi.extensions`. The license rider below applies to library use as well.
 
 ## Protocol B
@@ -70,12 +78,23 @@ Two deterministic caller slips are normalized instead of failing: `base` may car
 
 Selectors and `newText` normalize to the file's LF or CRLF style. Unrelated text bytes are unchanged. Missing, invalid, or out-of-range selectors; overlapping replacements; shared insertion points; insertion on a replacement boundary/interior; and no-op edits fail closed. There is no fuzzy matching or automatic rebase.
 
+### Failures that say where to look
+
+A failed edit writes nothing and reports **every** problem of the batch at once, each with what the revision actually holds there, so one corrected retry can succeed:
+
+- an ambiguous or out-of-range selector lists each match with its line and text (`Matches: #1 line 2: "return x;"; #2 line 4: "return x;"`), up to eight;
+- a selector with no exact match names its nearest near miss: a whitespace-only difference (with the revision's exact text), the selector line where the closest candidate diverges, or its longest present prefix. None of these is ever applied;
+- conflicting operations name both edits, their lines, and the kind of conflict;
+- a revision of another file names the newest revision of the file asked for; a stale revision names the revision the file holds now, if this session issued one (for example after your own edit).
+
+A successful edit previews the changed regions of the new revision, as raw text under one `@@ lines A-B @@` header per hunk with two lines of context, instead of the top of the file; details carry `changedLines`. Regions beyond the 8KB preview cap are counted, and an oversized region shows its leading lines and where it continues.
+
 Read pagination remains capped at 2,000 lines, and the complete serialized result—including the revision header and any truncation notice—is capped at 50KB. Space for framing is reserved before raw lines are added. A single line that cannot fit on that safe page fails explicitly because exact raw pagination cannot split it with a line-offset API. Edit previews contain raw text without gutters when they fit an independent bounded preview; otherwise success returns a non-throwing omission notice.
 
 ## Safety contract
 
-1. A read retains the complete canonical file bytes and binds them to a session-local alias plus SHA-256 digest.
-2. Edits bind the alias to the canonical path, file identity, and immutable snapshot text.
+1. A read retains the complete canonical file bytes and binds them to a session-local alias plus SHA-256 digest. A revision is content-addressed: it is valid exactly while its file holds the bytes it names.
+2. Edits bind the alias to the canonical path and immutable snapshot text. An alias whose bytes are no longer held (evicted, or issued before a reload) rehydrates from the file only when the file's current digest is the recorded one; a file replaced by identical bytes is the same revision.
 3. Every batch operation resolves and validates before writing.
 4. Current bytes and identity must still match inside Pi's per-file mutation queue.
 5. The desired bytes must pass the snapshot-store byte budget and text decoding validation before commit.
@@ -84,7 +103,7 @@ Read pagination remains capped at 2,000 lines, and the complete serialized resul
 
 The implementation preserves valid UTF-8 bytes outside edits, UTF-8 BOM, LF/CRLF style, final-newline shape unless explicitly selected, and mode bits. It rejects binary/non-UTF-8 files, bare-CR or mixed-EOL files, hard-linked targets, stale bytes, replaced inodes, cancellation before commit, and byte-identical no-ops.
 
-Revisions expire on reload, session shutdown, eviction, or `/snapshot-edit clear`. The last digest/identity check is best-effort pre-rename detection, not filesystem compare-and-swap: a non-cooperating writer can change the path in the residual window between that check and rename. Atomic rename also cannot preserve every ACL, xattr, sparse-file, open-descriptor, or watcher behavior. Pi's queue cannot exclude non-cooperating processes.
+Revisions survive eviction, reload, and session resume as ledger records (alias, canonical path, digest); after a reload the extension rebuilds the ledger from the session's own read and edit results, and new aliases never reuse an earlier one. `/snapshot-edit clear` drops the held bytes and the ledger of the running process. The last digest/identity check is best-effort pre-rename detection, not filesystem compare-and-swap: a non-cooperating writer can change the path in the residual window between that check and rename. Atomic rename also cannot preserve every ACL, xattr, sparse-file, open-descriptor, or watcher behavior. Pi's queue cannot exclude non-cooperating processes.
 
 ## Standard-tool ownership and dogfood
 
