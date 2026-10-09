@@ -249,13 +249,13 @@ export {
 export {
   governedRuntimeAscBuildEnvironment,
   governedRuntimeNpmEffectEnvironment,
-  governedRuntimeNpmUserConfig,
   inspectGovernedRuntimeExecutable,
   inspectGovernedRuntimeNpmPolicy,
   verifyGovernedRuntimeNpmEffectReceipts,
   verifyGovernedRuntimeNpmExecutables,
   verifyGovernedRuntimeNpmPolicy,
 } from "./governed-runtime-npm-policy.ts";
+export { governedRuntimeNpmUserConfig } from "./governed-runtime-npm-userconfig.ts";
 export {
   collectGovernedRuntimePackageInputHashes,
   verifyGovernedRuntimePackageClosures,
