@@ -13,6 +13,26 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.12.0...pi-society-orchestrator-v0.13.0) (2026-10-09)
+
+
+### Features
+
+* **pi-society-orchestrator:** an npm user config that meets the governed policy (AK6828) ([bbd92fd](https://github.com/tryingET/pi-extensions/commit/bbd92fd6995028a2f90a5c97623f283b345d86af))
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** pin the governed runtime to Pi 1.1.0 and every companion (AK6828) ([3160101](https://github.com/tryingET/pi-extensions/commit/3160101b8dd1e8fc49201d2e8174ead25618808d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.2
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.2
+
 ## [0.12.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.5...pi-society-orchestrator-v0.12.0) (2026-09-19)
 
 

@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.1](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.7.0...pi-workstation-inference-provider-v0.7.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **pi-workstation-inference-provider:** keep tools off the audio lane under Pi's transcript context (AK6828) ([f7fbb21](https://github.com/tryingET/pi-extensions/commit/f7fbb21193f0e1f6751f210e972170a5d2d7bc2e))
+
 ## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.6.0...pi-workstation-inference-provider-v0.7.0) (2026-09-27)
 
 

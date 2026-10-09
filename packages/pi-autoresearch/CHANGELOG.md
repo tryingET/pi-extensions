@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.1...pi-autoresearch-v0.5.2) (2026-10-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.2
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.0...pi-autoresearch-v0.5.1) (2026-09-01)
 
 
