@@ -19,12 +19,12 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS } from "../../src/runtime/governed-runtime-constants.ts";
 import {
   GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
   GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX,
   GOVERNED_RUNTIME_PACKAGES,
   governedRuntimeCacheTarballName,
+  governedRuntimeNpmUserConfig,
 } from "../../src/runtime/governed-runtime-materialization.ts";
 
 export const SOURCE_ROOT = resolve(import.meta.dirname, "../../../..");
@@ -194,20 +194,8 @@ export function withGovernedNpmPolicyFixture(run) {
   // relative policy. The governed proof reads min-release-age directly because
   // `npm config get before` exposes only a raw explicit cutoff, not the derived
   // flat option used by install resolution.
-  writeFileSync(
-    npmrcPath,
-    `min-release-age=7
-min-release-age-exclude[]=@tryinget/*
-${GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS.filter((entry) => entry !== "@tryinget/*")
-  .map((entry) => `min-release-age-exclude[]=${entry}`)
-  .join("\n")}
-registry=https://registry.npmjs.org/
-offline=false
-prefer-offline=false
-force=false
-cache=${cacheDir}
-`,
-  );
+  // The same user config operators materialize with (governed-deep-review-canary.mjs npmrc).
+  writeFileSync(npmrcPath, `${governedRuntimeNpmUserConfig()}cache=${cacheDir}\n`);
   // npm forbids loading one file as both user and global config; give global an
   // empty fixture so ambient /etc/npmrc cannot leak machine-local policy in.
   const globalrcPath = join(scratch, "globalrc");

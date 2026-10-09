@@ -227,6 +227,15 @@ npm run governed:runtime -- verify \
   --expected-commit <same-full-sha>
 ```
 
+The npm policy proof requires the effective release-age exclusions to equal the governed list exactly. When the operator's own npmrc exempts more (other tools, a whole scope), materialize with a user config that meets the policy and nothing more, leaving the operator's file alone (2026-10-09, AK6828):
+
+```bash
+node scripts/governed-deep-review-canary.mjs npmrc > ~/.config/pi-governed-runtime/npmrc
+npm_config_userconfig=~/.config/pi-governed-runtime/npmrc npm run governed:runtime -- materialize ...
+```
+
+Regenerate the file whenever the governed host line changes.
+
 The executable:
 
 1. requires an explicit full expected SHA, verifies that exact commit and immutable path name, rejects `assume-unchanged`/`skip-worktree`, and compares tracked working bytes and modes against a fresh alternate index populated from `HEAD` rather than trusting the live index before rejecting staged, unstaged, or ordinary untracked source;

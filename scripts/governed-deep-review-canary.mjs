@@ -45,6 +45,7 @@ import {
   GOVERNED_RUNTIME_TYPEBOX_VERSION,
   governedRuntimeAscBuildEnvironment,
   governedRuntimeNpmEffectEnvironment,
+  governedRuntimeNpmUserConfig,
   inspectGovernedRuntimeAscRuntime,
   inspectGovernedRuntimeCleanliness,
   inspectGovernedRuntimeLexicalNodeModules,
@@ -1298,6 +1299,7 @@ function help() {
   node scripts/governed-deep-review-canary.mjs verify --source-root <materialized-worktree> --expected-commit <full-sha>
   node scripts/governed-deep-review-canary.mjs canary --source-root <materialized-worktree> --expected-commit <full-sha>
   node scripts/governed-deep-review-canary.mjs test [--source-root <root>]
+  node scripts/governed-deep-review-canary.mjs npmrc   (an npm user config meeting the governed policy; materialize with npm_config_userconfig=<that file>)
 
 materialize is fresh-root/one-shot and never runs pi install, edits Pi settings, reloads Pi, or cleans another worktree; verify/canary are runtime-read-only.`);
 }
@@ -1312,6 +1314,7 @@ if (invokedAsMain) {
     else if (options.action === "verify") await verify(options);
     else if (options.action === "canary") await canary(options);
     else if (options.action === "test") await test(options);
+    else if (options.action === "npmrc") process.stdout.write(governedRuntimeNpmUserConfig());
     else help();
   } catch (error) {
     console.error(

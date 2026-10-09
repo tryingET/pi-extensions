@@ -249,6 +249,7 @@ export {
 export {
   governedRuntimeAscBuildEnvironment,
   governedRuntimeNpmEffectEnvironment,
+  governedRuntimeNpmUserConfig,
   inspectGovernedRuntimeExecutable,
   inspectGovernedRuntimeNpmPolicy,
   verifyGovernedRuntimeNpmEffectReceipts,
