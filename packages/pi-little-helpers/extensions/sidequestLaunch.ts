@@ -471,17 +471,25 @@ export async function launchAscExecutionObserverSession(
         request.statePath,
         "--controller-instance",
         request.controllerInstanceId,
+        "--session-id",
+        request.sessionId,
+        "--startup-token",
+        request.startupToken,
+        "--startup-receipt",
+        request.startupReceiptPath,
       ],
     },
   });
   return launch.ok
     ? {
         ok: true as const,
+        effectDisposition: launch.effectDisposition,
         launchMode: launch.launchMode,
         ...(launch.launchNote ? { note: launch.launchNote } : {}),
       }
     : {
         ok: false as const,
+        effectDisposition: launch.effectDisposition,
         launchMode: launch.launchMode,
         failure: launch.failure,
         ...(launch.launchNote ? { note: launch.launchNote } : {}),

@@ -12,9 +12,12 @@ import test from "node:test";
 import {
   ASC_EXECUTION_OBSERVATION_EVENT,
   ASC_EXECUTION_OBSERVER_STATE_SCHEMA,
-  createAscExecutionObserverController,
+  createAscExecutionObserverController as createObserver,
   resolveAscObserverPolicy,
 } from "../src/ascExecutionObserver.ts";
+
+const createAscExecutionObserverController = (options) =>
+  createObserver({ startupTimeoutMs: 0, ...options });
 
 function progressEvent(overrides = {}) {
   return {
@@ -108,7 +111,7 @@ test("ASC observer suppresses unchanged progress rewrites", async () => {
   }
 });
 
-test("ASC observer launches once per loop group and persists only bounded telemetry", async () => {
+test("ASC observer launches once per controller session and persists only bounded telemetry", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-"));
   const launches = [];
   try {
@@ -149,7 +152,7 @@ test("ASC observer launches once per loop group and persists only bounded teleme
     assert.equal(state.phases.length, 1);
     assert.equal(state.phases[0].status, "done");
     assert.equal(state.phases[0].effectDisposition, "settled");
-    assert.equal(state.observer.launchStatus, "launched");
+    assert.equal(state.observer.launchStatus, "unconfirmed");
     assert.equal(text.includes("must not persist"), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -411,7 +414,7 @@ test("expired terminal groups are pruned before saturated-capacity admission", a
       });
     }
     await controller.flush();
-    assert.equal(launches, 128);
+    assert.equal(launches, 1);
 
     clock += 10 * 60 * 1000 + 1;
     const nextGroup = {
@@ -432,7 +435,7 @@ test("expired terminal groups are pruned before saturated-capacity admission", a
     });
     await controller.flush();
 
-    assert.equal(launches, 129);
+    assert.equal(launches, 1);
     assert.equal(
       statSync(controller.statePathFor(nextGroup.id, "dispatch_subagent", "dispatch")).isFile(),
       true,
@@ -469,7 +472,7 @@ test("capacity admission counts queued retained groups only once", async () => {
       );
     }
     await controller.flush();
-    assert.equal(launches, 127);
+    assert.equal(launches, 1);
 
     controller.handle(
       progressEvent({
@@ -489,7 +492,7 @@ test("capacity admission counts queued retained groups only once", async () => {
     );
     await controller.flush();
 
-    assert.equal(launches, 128);
+    assert.equal(launches, 1);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

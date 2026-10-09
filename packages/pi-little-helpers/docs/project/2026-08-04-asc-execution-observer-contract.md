@@ -27,7 +27,9 @@ ASC-owned headless execution
                                 -> read-only Ghostty renderer
 ```
 
-For `loop_execute`, every phase uses the same logical loop run id, so one observer tab follows the whole run rather than opening one tab per phase.
+AK6844 changes the observer projection to one shared viewer per Pi controller session across **all** direct dispatches, loops and resumed/later batches. Each group's existing ASC identity, phases, events and execution/effect truth remain separate and unchanged. The controller synchronously reserves its singleton attempt before any transport await; group queues continue collecting telemetry while startup is pending.
+
+Receiver selection and placement limitations are described in the [package README](../../README.md#automatic-asc-execution-observer); older exact-placement claims below are historical, not verified guarantees.
 
 ## Owner split
 
@@ -84,7 +86,7 @@ ASC owns the producer-side projection helper. `pi-little-helpers` independently 
 
 ## Private observer state
 
-`pi-little-helpers` writes one non-authoritative snapshot per logical group under:
+`pi-little-helpers` retains the existing non-authoritative per-group snapshots/API and writes an additional shared session snapshot under:
 
 ```text
 $PI_ASC_OBSERVER_STATE_DIR
@@ -97,18 +99,25 @@ Safety properties:
 - state root is an owned, non-symlink directory with mode `0700`;
 - snapshots are hashed filenames, not caller-controlled paths;
 - snapshots are atomic private regular files with mode `0600`;
-- file size is bounded to 64 KiB;
+- per-group files are bounded to 64 KiB; shared session files to 8 MiB; startup receipts and session reservation records to 4 KiB;
 - event strings, phases, and arrays are bounded, with at most 128 retained groups per controller instance;
-- terminal groups and inactive/dead-controller snapshots are pruned after a bounded retention window;
-- each controller generation has an instance id, and an older renderer exits when a newer generation replaces the same state path;
-- `session_shutdown` unsubscribes the event listener, marks snapshots inactive, and disposes in-memory group/queue state;
+- terminal groups expire after 10 minutes, inactive between-dispatch groups after 24 hours, on subsequent events; capacity includes queued groups and is capped at 128; membership changes republish the shared aggregate even if the triggering progress event is redundant;
+- shared filenames bind session id plus a random controller instance; old generations cannot ACK a successor, and their inactive state never starts a delayed viewer;
+- stale inactive snapshots/receipts are pruned opportunistically after 10 minutes, orphan snapshots after 24 hours; a still-live PID/start identity protects an idle controller's files;
+- changing the session identity/cwd fences and disposes the old controller; a replacement runtime needs a fresh generation, **not** a fresh launch slot for the same session ID;
+- a stable hashed `<session-hash>.reservation.json` is created with exclusive mode-0600 `wx` before transport invocation; subsequent diagnostic status updates are atomic. It contains only the session ID, original instance ID and bounded observer status. Reading uses the same verified no-follow/nonblocking descriptor and bounded JSON reader as startup receipts. Unsafe, partial or unreadable records deny launch;
+- the reservation is never released or expired by reload, disposal, cwd changes, retention pruning or a closed/failed/unconfirmed attempt. A genuinely different Pi session ID uses a different reservation. This small diagnostic tombstone persists to prevent old sessions reclaiming slots; it is not a task/AK/session-queue authority surface;
+- `session_shutdown` unsubscribes the event listener, marks snapshots inactive, and disposes group/queue state without awaiting an unresolved launch promise. Detached settlement checks the disposed fence before any publication or monitor creation;
 - no prompt/output fields are accepted;
 - observation/state errors are swallowed at the execution boundary and cannot fail the ASC attempt.
 
 Schema:
 
 ```text
-pi.asc_execution_observer_state.v1
+pi.asc_execution_observer_state.v1    # existing per-group compatibility
+pi.asc_execution_observer_session.v1  # bounded groups array + session/controller identity
+pi.asc_execution_observer_startup.v1  # renderer startup receipt, not execution evidence
+pi.asc_execution_observer_reservation.v1 # durable one-attempt tombstone per Pi session
 ```
 
 The snapshot is diagnostic UI state, not a session trace, checkpoint, KES artifact, evidence receipt, or authority projection.
@@ -137,15 +146,16 @@ The observer reuses the visible-session launch primitives but selects a stricter
 
 ## Observer lifecycle
 
-- One logical group launches at most one observer in the loaded extension instance.
+- One **Pi session ID** reserves at most one observer launch across all groups and controller generations; no completion, failure, timeout, quiet period, resume, retention expiry or extension reload resets it. A fresh generation retains `closed`/`failed` diagnostic status from a safe reservation, or displays `unconfirmed` for a previous pending/launched attempt. It never inherits a positive startup proof, reads an old ACK as its own, or creates a second viewer.
+- The session viewer remains alive through terminal/idle batches until manual close, controller shutdown/death or generation mismatch. Once a matching live controller has been read, missing/unreadable updates keep the shared viewer open with stale progress rather than closing a live session's only viewer. Before any matching snapshot, or after controller death, the unavailable hold remains bounded. Legacy standalone per-group rendering retains its terminal holds.
+- A manual close records `closed` after the acknowledged PID/start/argv is no longer live; it never cancels, replays or relaunches work.
 - A direct `dispatch_subagent` terminal event closes its one-dispatch group.
 - A loop phase terminal event updates that phase but does not close the loop group.
 - `loop_execute` emits one `group_terminal` only after a terminal result or terminal exception. A `confirmed_no_effects` result that leaves the checkpoint lineage retryable is explicitly nonterminal and keeps the same observer group open for lawful resume.
 - Resumed progress defensively clears stale non-authoritative terminal UI state; execution/checkpoint legality still comes only from the orchestrator and ASC receipt.
-- Successful terminal state remains visible briefly, then the observer exits.
-- Failure state remains visible longer for inspection.
+- Shared viewers retain terminal success/failure alongside other groups; neither closes the session viewer. Phase terminals show between-dispatch state rather than incorrectly treating idle time as a live dispatch stall.
 - An inactive controller is shown as disconnected. Unreadable/missing snapshots instead show `Progress updates unavailable`, direct the operator to the parent Pi session, and retain the last successfully checked matching-generation progress as `stale — no longer live`. If none has been read, no progress is invented. Technical details appear below the progress; JSON parser diagnostics never expose snapshot contents.
-- Stale progress includes snapshot age and elapsed time at that snapshot, not an advancing execution clock or a current health/completion classification. Successful reads restore normal rendering; a replacement controller generation still exits the old renderer. Unavailable/inactive state retains the bounded exit hold; no execution or effect conclusion is inferred.
+- Stale progress includes snapshot age and elapsed time at that snapshot, not an advancing execution clock or a current health/completion classification. Successful reads restore normal rendering; a replacement controller generation still exits the old renderer. Legacy group viewers and first-read failures retain the bounded unavailable exit hold. A shared viewer with a last checked still-live controller waits for recovery, not a terminal hold; shared controller shutdown/death exits cleanly. No execution or effect conclusion is inferred.
 - Closing the observer tab terminates only the renderer. It does not send a signal or cancellation request.
 - Cancellation stays explicit through ASC/controller surfaces.
 
@@ -190,7 +200,11 @@ Routine 5–10 minute cutoffs should not be supplied for ordinary long-running m
 | Loop result remains exactly retryable after `confirmed_no_effects` | Do not emit `group_terminal`; preserve the shared run observer for lawful resume. |
 | Loop terminates | Emit `group_terminal`; render final run state. |
 
-Ghostty launch success proves only that the exact single-instance server activation request was delivered successfully. It proves neither renderer startup nor ASC child execution completion.
+Ghostty transport acceptance is **not** renderer startup. Session launch status is `pending` during the bounded startup check (2 seconds by default, not an execution timeout), `unconfirmed` without an ACK, `failed` for genuine transport refusal/rejection (`confirmed_no_effects`), `launched` only after a verified renderer ACK, and `closed` after its process ends. None permits an automatic retry, new window or focus operation. The adapter preserves the transport's disposition. An `effect_indeterminate` result remains pending/unconfirmed and eligible for a valid immediate or late ACK for that **exact same attempt**, without retry; `confirmed_no_effects` remains failed even if a contradictory receipt appears. These observer transport dispositions are not ASC execution/effect receipts. A late matching ACK may confirm the original accepted/indeterminate request only while its generation is live; it does not create another tab or revive disposed state.
+
+The renderer validates session id/controller instance and live controller PID/start identity, renders the first frame, awaits its stdout write completion, then creates a private exclusive mode-0600 startup receipt. The receipt binds session, instance, random one-attempt token, renderer PID and Linux `/proc` start ticks. The controller opens it with `O_NOFOLLOW|O_NONBLOCK`, checks the opened inode's owner/type/link count/exact mode/size, reads at most 4097 bytes, and checks the live PID/start identity and exact Node/script/identity arguments. Symlinks, hardlinks, non-private, malformed, oversized, wrong-token/instance/session/PID/start receipts are not ACKs. This is a same-user diagnostic handshake, not a security boundary against the controller's own user forging files/processes.
+
+A verified ACK proves actual renderer startup and first frame write, **not** visible GTK surface painting, correct window placement, or ASC execution/completion. No longer sleep, automatic retry/window or focus grabbing is used to conceal lazy GTK surface startup.
 
 Legacy broker recognition is coexistence-only. Once no legacy controllers remain, its endpoint and compatibility tests must be removed; normal observer behavior must continue using only `com.mitchellh.ghostty` and the origin/main executable family.
 
@@ -208,7 +222,10 @@ Ghostty observer owner:
 
 ```bash
 cd packages/pi-little-helpers
-node --test tests/asc-execution-observer.test.mjs tests/asc-execution-observer-launch.test.mjs tests/sidequest.test.mjs
+node --test tests/asc-observer-session.test.mjs tests/asc-execution-observer.test.mjs tests/asc-execution-observer-unavailable.test.mjs tests/asc-execution-observer-launch.test.mjs
+# Real Ghostty path: only inside a parent-provided nested/sandbox GUI, private session bus
+# and an isolated Ghostty controller surface. This launches no models.
+PI_ASC_OBSERVER_LIVE_ISOLATED=1 node --test tests/live/asc-observer-unavailable.reality.live.mjs
 npm run check
 ```
 
@@ -220,7 +237,7 @@ node --test --test-concurrency=1 tests/loop-observation.test.mjs tests/runtime-s
 npm run check
 ```
 
-Active runtime proof additionally requires installing all changed live packages, `/reload`, and a real long-enough `dispatch_subagent` or `loop_execute` call that opens exactly one useful observer tab.
+The source-only ACK tests launch the actual renderer against private scratch, not Ghostty. The isolated real-Ghostty assertion exercises one real targeted activation for four concurrent dispatch groups plus a loop, verifies its renderer receipt/process, terminal-batch persistence and manual-close/no-relaunch behavior. A skipped assertion is not GUI proof. Installed Pi behavior additionally needs parent-authorized landing/install/reload and TUI exercise; AK6844 child execution does not authorize those steps.
 
 ## Non-authorizations
 

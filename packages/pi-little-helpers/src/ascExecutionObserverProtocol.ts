@@ -2,7 +2,21 @@
 // read_when:
 //   - changing ASC observation event fields, privacy boundaries, or parser compatibility.
 
-import { isAbsolute } from "node:path";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readSync,
+} from "node:fs";
+import { isAbsolute, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import type {
+  AscExecutionObserverState,
+  AscObserverLaunchRequest,
+} from "./ascExecutionObserver.ts";
 
 export const ASC_EXECUTION_OBSERVATION_EVENT = "asc:execution-observation:v1";
 export const ASC_EXECUTION_OBSERVATION_SCHEMA = "asc.execution_observation.v1";
@@ -248,7 +262,7 @@ function producerMatchesGroup(
   return groupKind === "workflow";
 }
 
-function isRuntimeStatus(
+export function isRuntimeStatus(
   value: unknown,
 ): value is NonNullable<ObservationEvent["progress"]>["status"] {
   return (
@@ -261,7 +275,7 @@ function isRuntimeStatus(
   );
 }
 
-function isTerminalStatus(value: unknown): value is ObserverTerminalStatus {
+export function isTerminalStatus(value: unknown): value is ObserverTerminalStatus {
   return value === "done" || value === "error" || value === "timed_out" || value === "aborted";
 }
 
@@ -277,7 +291,7 @@ function isProgressPhase(
   );
 }
 
-function isEffectDisposition(
+export function isEffectDisposition(
   value: unknown,
 ): value is NonNullable<ObservationEvent["terminal"]>["effectDisposition"] {
   return (
@@ -296,7 +310,7 @@ function strictOptionalIdentity(value: unknown, maxChars: number): string | unde
   return strictString(value, maxChars) ?? null;
 }
 
-function strictString(value: unknown, maxChars: number): string | undefined {
+export function strictString(value: unknown, maxChars: number): string | undefined {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
@@ -309,12 +323,12 @@ function strictString(value: unknown, maxChars: number): string | undefined {
   return value;
 }
 
-function strictPath(value: unknown): string | undefined {
+export function strictPath(value: unknown): string | undefined {
   const path = strictString(value, MAX_PATH_CHARS);
   return path && isAbsolute(path) ? path : undefined;
 }
 
-function sanitizeSingleLine(value: string): string {
+export function sanitizeSingleLine(value: string): string {
   let sanitized = "";
   for (const character of value) {
     const codePoint = character.codePointAt(0) ?? 0;
@@ -337,4 +351,145 @@ function nonNegative(value: unknown): number | undefined {
 
 function positiveInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+export function updateState(
+  state: AscExecutionObserverState,
+  event: ObservationEvent,
+  now: number,
+): boolean {
+  state.updatedAt = new Date(now).toISOString();
+  state.lastObservationAt = now;
+  if (event.event === "dispatch_progress" && event.progress) {
+    state.status = event.progress.status === "spawning" ? "spawning" : "running";
+    state.lastActivityAt = event.progress.lastActivityAt ?? state.lastActivityAt;
+    state.activeDispatch = {
+      ...event.dispatch,
+      ...(event.progress.phase ? { progressPhase: event.progress.phase } : {}),
+      ...(event.progress.sequence !== undefined ? { sequence: event.progress.sequence } : {}),
+      ...(event.progress.latestTool ? { latestTool: event.progress.latestTool } : {}),
+      ...(event.progress.usage ? { usage: event.progress.usage } : {}),
+    };
+    if (state.terminal) state.terminal = undefined;
+    if (event.phase) upsertPhase(state, event.phase, state.status);
+    return false;
+  }
+  if (!event.terminal) return false;
+  if (event.phase) upsertPhase(state, event.phase, event.terminal.status, event.terminal);
+  state.activeDispatch = undefined;
+  if (event.event !== "group_terminal" && state.group.kind !== "dispatch") return false;
+  state.status = event.terminal.status;
+  state.terminal = { ...event.terminal };
+  return true;
+}
+
+function upsertPhase(
+  state: AscExecutionObserverState,
+  phase: NonNullable<ObservationEvent["phase"]>,
+  status: AscExecutionObserverState["phases"][number]["status"],
+  terminal: Partial<NonNullable<ObservationEvent["terminal"]>> = {},
+): void {
+  const next = {
+    ...phase,
+    status,
+    ...(terminal.elapsedMs !== undefined ? { elapsedMs: terminal.elapsedMs } : {}),
+    ...(terminal.failureKind ? { failureKind: terminal.failureKind } : {}),
+    ...(terminal.effectDisposition ? { effectDisposition: terminal.effectDisposition } : {}),
+  };
+  const index = state.phases.findIndex((candidate) => candidate.index === phase.index);
+  if (index >= 0) state.phases[index] = next;
+  else if (state.phases.length < MAX_PHASES) state.phases.push(next);
+  state.phases.sort((left, right) => left.index - right.index);
+}
+
+export function readPrivateObserverJson(
+  path: string,
+  budget = 4096,
+): Record<string, unknown> | undefined {
+  let descriptor: number | undefined;
+  try {
+    const parent = lstatSync(resolve(path, ".."));
+    if (
+      !parent.isDirectory() ||
+      parent.isSymbolicLink() ||
+      (parent.mode & 0o077) !== 0 ||
+      (process.getuid && parent.uid !== process.getuid())
+    )
+      return;
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stat = fstatSync(descriptor);
+    if (
+      !stat.isFile() ||
+      stat.nlink !== 1 ||
+      (stat.mode & 0o777) !== 0o600 ||
+      (process.getuid && stat.uid !== process.getuid()) ||
+      stat.size <= 0 ||
+      stat.size > budget
+    )
+      return;
+    const buffer = Buffer.alloc(stat.size + 1);
+    const bytes = readSync(descriptor, buffer, 0, buffer.length, 0);
+    if (bytes !== stat.size || bytes > budget) return;
+    const value: unknown = JSON.parse(buffer.subarray(0, bytes).toString("utf8"));
+    return isRecord(value) ? value : undefined;
+  } catch {
+    return;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+export function readStartupReceipt(
+  request: AscObserverLaunchRequest,
+): { rendererPid: number; rendererStart: string } | undefined {
+  const receipt = readPrivateObserverJson(request.startupReceiptPath);
+  if (
+    !receipt ||
+    receipt.schema !== "pi.asc_execution_observer_startup.v1" ||
+    receipt.sessionId !== request.sessionId ||
+    receipt.controllerInstanceId !== request.controllerInstanceId ||
+    receipt.startupToken !== request.startupToken ||
+    typeof receipt.rendererPid !== "number" ||
+    typeof receipt.rendererStart !== "string" ||
+    !matchesRenderer(receipt.rendererPid, receipt.rendererStart, request)
+  )
+    return;
+  return { rendererPid: receipt.rendererPid, rendererStart: receipt.rendererStart };
+}
+
+export function processStart(pid: number): string | undefined {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return;
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+    return fields[0] === "Z" ? undefined : fields[19];
+  } catch {
+    return;
+  }
+}
+
+export function matchesRenderer(
+  pid: number,
+  start: string | undefined,
+  request: AscObserverLaunchRequest,
+): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 0 || typeof start !== "string") return false;
+  try {
+    if (processStart(pid) !== start) return false;
+    const args = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0");
+    const script = fileURLToPath(new URL("../scripts/asc-execution-observer.mjs", import.meta.url));
+    return (
+      args[0] === process.execPath &&
+      args[1] === script &&
+      [
+        ["--state", request.statePath],
+        ["--controller-instance", request.controllerInstanceId],
+        ["--session-id", request.sessionId],
+        ["--startup-token", request.startupToken],
+        ["--startup-receipt", request.startupReceiptPath],
+      ].every(([flag, value]) => args.indexOf(flag) >= 0 && args[args.indexOf(flag) + 1] === value)
+    );
+  } catch {
+    return false;
+  }
 }

@@ -13,29 +13,41 @@ import {
   mkdirSync,
   openSync,
   readdirSync,
-  readFileSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import {
+  matchesRenderer,
   type ObservationEvent,
   type ObserverTerminalStatus,
   type ObserverUsage,
   parseObservationEvent,
+  processStart,
+  readPrivateObserverJson,
+  readStartupReceipt,
+  sanitizeSingleLine,
+  strictString as strictIdentity,
+  strictPath,
+  updateState,
 } from "./ascExecutionObserverProtocol.ts";
 
 export { ASC_EXECUTION_OBSERVATION_EVENT } from "./ascExecutionObserverProtocol.ts";
 
 export const ASC_EXECUTION_OBSERVER_STATE_SCHEMA = "pi.asc_execution_observer_state.v1";
+export const ASC_EXECUTION_OBSERVER_SESSION_SCHEMA = "pi.asc_execution_observer_session.v1";
+const MAX_SESSION_BYTES = 8 * 1024 * 1024;
+const ACK_POLL_MS = 50;
+const NOTICE =
+  "Read-only observer. ASC remains execution truth; closing this tab does not cancel work.";
+const hashIdentity = (value: string) => createHash("sha256").update(value).digest("hex");
 
 const MAX_STATE_BYTES = 64 * 1024;
 const MAX_ID_CHARS = 160;
 const MAX_LABEL_CHARS = 120;
-const MAX_PATH_CHARS = 4096;
-const MAX_PHASES = 64;
 const MAX_RETAINED_GROUPS = 128;
 const TERMINAL_RETENTION_MS = 10 * 60 * 1000;
 const INACTIVE_GROUP_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -44,7 +56,7 @@ const ORPHAN_SNAPSHOT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_NAME_PATTERN = /^[a-f0-9]{64}\.json$/u;
 
 export type AscObserverPolicy = "auto" | "ghostty" | "off";
-export type AscObserverLaunchStatus = "pending" | "launched" | "failed";
+export type AscObserverLaunchStatus = "pending" | "unconfirmed" | "launched" | "failed" | "closed";
 export type AscObserverHostMode = "tui" | "rpc" | "json" | "print";
 
 export interface AscObserverLaunchRequest {
@@ -52,6 +64,9 @@ export interface AscObserverLaunchRequest {
   cwd: string;
   title: string;
   controllerInstanceId: string;
+  sessionId: string;
+  startupToken: string;
+  startupReceiptPath: string;
 }
 
 export interface AscObserverLaunchOutcome {
@@ -59,6 +74,7 @@ export interface AscObserverLaunchOutcome {
   launchMode?: "tab" | "window";
   note?: string;
   failure?: string;
+  effectDisposition?: "settled" | "confirmed_no_effects" | "effect_indeterminate";
 }
 
 export interface AscObserverHostContext {
@@ -74,6 +90,7 @@ export interface AscExecutionObserverState {
   producer: ObservationEvent["producer"];
   cwd: string;
   ownerPid: number;
+  ownerProcessStart?: string;
   controllerInstanceId: string;
   controllerActive: boolean;
   createdAt: string;
@@ -108,13 +125,11 @@ export interface AscExecutionObserverState {
     effectDisposition?: "settled" | "confirmed_no_effects" | "effect_indeterminate";
     elapsedMs?: number;
   };
-  observer: {
+  observer: Omit<AscObserverLaunchOutcome, "ok"> & {
     launchStatus: AscObserverLaunchStatus;
-    launchMode?: "tab" | "window";
-    note?: string;
-    failure?: string;
+    rendererPid?: number;
   };
-  notice: "Read-only observer. ASC remains execution truth; closing this tab does not cancel work.";
+  notice: typeof NOTICE;
 }
 
 export interface AscExecutionObserverController {
@@ -136,6 +151,7 @@ export interface AscExecutionObserverOptions {
   launch(request: AscObserverLaunchRequest): Promise<AscObserverLaunchOutcome>;
   onLaunchFailure?: (message: string) => void;
   now?: () => number;
+  startupTimeoutMs?: number;
 }
 
 interface ObserverEntry {
@@ -168,6 +184,8 @@ export function createAscExecutionObserverController(
   const now = options.now ?? Date.now;
   const policy = resolveAscObserverPolicy(env);
   const controllerInstanceId = randomUUID();
+  const ownerProcessStart = processStart(ownerPid);
+  const createdAt = new Date(now()).toISOString();
   const groups = new Map<string, ObserverEntry>();
   const queues = new Map<string, Promise<void>>();
   let hostContext: AscObserverHostContext = {
@@ -177,6 +195,132 @@ export function createAscExecutionObserverController(
   };
   let disposed = false;
   let staleSnapshotsPruned = false;
+  let request: AscObserverLaunchRequest | undefined;
+  let launchPromise: Promise<void> | undefined;
+  let observer: AscExecutionObserverState["observer"] = { launchStatus: "pending" };
+  let rendererStart: string | undefined;
+  let monitor: ReturnType<typeof setInterval> | undefined;
+  let reservationPath: string | undefined;
+  let ownsReservation = false;
+  const startupTimeoutMs = Math.min(5000, Math.max(0, options.startupTimeoutMs ?? 2000));
+
+  function reservationState(): Record<string, unknown> {
+    return {
+      schema: "pi.asc_execution_observer_reservation.v1",
+      sessionId: request?.sessionId,
+      controllerInstanceId,
+      observer,
+    };
+  }
+
+  function publishSession(): void {
+    if (!request) return;
+    const path = reservationPath;
+    if (ownsReservation && path)
+      observational(() => writePrivateState(path, reservationState(), stateRoot));
+    writePrivateState(
+      request.statePath,
+      {
+        schema: ASC_EXECUTION_OBSERVER_SESSION_SCHEMA,
+        sessionId: request.sessionId,
+        controllerInstanceId,
+        ownerPid,
+        ownerProcessStart,
+        controllerActive: !disposed,
+        createdAt,
+        updatedAt: new Date(now()).toISOString(),
+        observer,
+        groups: [...groups.values()].map((entry) => entry.state),
+        notice: NOTICE,
+      },
+      stateRoot,
+    );
+  }
+
+  function publishObserver(): void {
+    for (const entry of groups.values()) {
+      entry.state.observer = { ...observer };
+      writePrivateState(entry.statePath, entry.state, stateRoot);
+    }
+    publishSession();
+  }
+
+  function checkReceipt(): void {
+    if (
+      !request ||
+      !ownsReservation ||
+      disposed ||
+      observer.launchStatus === "failed" ||
+      observer.launchStatus === "closed"
+    )
+      return;
+    if (observer.launchStatus === "launched") {
+      if (!observer.rendererPid || !matchesRenderer(observer.rendererPid, rendererStart, request)) {
+        observer = { ...observer, launchStatus: "closed" };
+        publishObserver();
+        if (monitor) clearInterval(monitor);
+      }
+      return;
+    }
+    const receipt = readStartupReceipt(request);
+    if (!receipt) return;
+    rendererStart = receipt.rendererStart;
+    observer = { ...observer, launchStatus: "launched", rendererPid: receipt.rendererPid };
+    publishObserver();
+  }
+
+  function notifyFailure(message: string): void {
+    observational(() => options.onLaunchFailure?.(message));
+  }
+
+  async function launchSession(): Promise<void> {
+    if (!request || disposed) return;
+    let outcome: AscObserverLaunchOutcome;
+    try {
+      outcome = await options.launch(request);
+    } catch (error) {
+      outcome = {
+        ok: false,
+        failure: boundedErrorMessage(error, "Ghostty observer launch rejected"),
+      };
+    }
+    if (disposed) return;
+    const note = boundString(outcome.note, MAX_LABEL_CHARS);
+    const failure =
+      boundString(outcome.failure, MAX_LABEL_CHARS) || "Ghostty observer launch failed";
+    observer = {
+      launchStatus:
+        outcome.ok || outcome.effectDisposition === "effect_indeterminate" ? "pending" : "failed",
+      ...(outcome.effectDisposition ? { effectDisposition: outcome.effectDisposition } : {}),
+      ...(outcome.launchMode ? { launchMode: outcome.launchMode } : {}),
+      ...(note ? { note } : {}),
+      ...(!outcome.ok ? { failure } : {}),
+    };
+    publishObserver();
+    if (!outcome.ok && outcome.effectDisposition !== "effect_indeterminate") {
+      notifyFailure(
+        `ASC observer launch failed; execution continues headlessly: ${observer.failure}`,
+      );
+      return;
+    }
+    const deadline = Date.now() + startupTimeoutMs;
+    do {
+      checkReceipt();
+      if (disposed || observer.launchStatus === "launched") break;
+      await delay(Math.min(ACK_POLL_MS, Math.max(0, deadline - Date.now())));
+    } while (Date.now() < deadline);
+    if (disposed) return;
+    if (observer.launchStatus !== "launched") {
+      observer = { ...observer, launchStatus: "unconfirmed" };
+      publishObserver();
+      notifyFailure(
+        "ASC observer startup unconfirmed; no renderer ACK. Execution continues headlessly; no retry.",
+      );
+    }
+    // Observe late ACK/closure only. This monitor never creates another tab or signals work.
+    monitor = setInterval(() => observational(checkReceipt), ACK_POLL_MS);
+    monitor.unref();
+  }
 
   function isEnabled(): boolean {
     if (disposed || hostContext.mode !== "tui" || !hostContext.hasUI || policy === "off") {
@@ -191,13 +335,12 @@ export function createAscExecutionObserverController(
     groupKind: ObservationEvent["group"]["kind"] = "loop",
   ): string {
     const scope = hostContext.sessionId?.trim() || `pid-${ownerPid}`;
-    const digest = createHash("sha256")
-      .update(`${scope}\0${producer}\0${groupKind}\0${groupId}`)
-      .digest("hex");
+    const digest = hashIdentity(`${scope}\0${producer}\0${groupKind}\0${groupId}`);
     return join(stateRoot, `${digest}.json`);
   }
 
   function pruneExpiredGroups(at: number): void {
+    let changed = false;
     for (const [key, entry] of groups) {
       const terminalExpired =
         entry.terminalAt !== undefined && at - entry.terminalAt >= TERMINAL_RETENTION_MS;
@@ -207,16 +350,10 @@ export function createAscExecutionObserverController(
         at - entry.state.lastObservationAt >= INACTIVE_GROUP_RETENTION_MS;
       if (!terminalExpired && !inactiveExpired) continue;
       groups.delete(key);
+      changed = true;
       safeUnlinkPrivateState(entry.statePath, stateRoot);
     }
-  }
-
-  function retainedOrQueuedGroupCount(): number {
-    let count = groups.size;
-    for (const key of queues.keys()) {
-      if (!groups.has(key)) count += 1;
-    }
-    return count;
+    if (changed) observational(publishSession);
   }
 
   async function applyEvent(event: ObservationEvent): Promise<void> {
@@ -241,6 +378,7 @@ export function createAscExecutionObserverController(
           producer: event.producer,
           cwd: hostContext.cwd,
           ownerPid,
+          ownerProcessStart,
           controllerInstanceId,
           controllerActive: true,
           createdAt: timestamp,
@@ -248,9 +386,8 @@ export function createAscExecutionObserverController(
           lastObservationAt: at,
           status: "spawning",
           phases: [],
-          observer: { launchStatus: "pending" },
-          notice:
-            "Read-only observer. ASC remains execution truth; closing this tab does not cancel work.",
+          observer: { ...observer },
+          notice: NOTICE,
         },
       };
       groups.set(key, entry);
@@ -263,50 +400,66 @@ export function createAscExecutionObserverController(
     else if (event.event === "dispatch_progress") entry.terminalAt = undefined;
     writePrivateState(entry.statePath, entry.state, stateRoot);
 
-    if (entry.state.observer.launchStatus !== "pending") return;
-    let outcome: AscObserverLaunchOutcome;
-    try {
-      outcome = await options.launch({
-        statePath: entry.statePath,
-        cwd: entry.state.cwd,
-        title: `ASC · ${entry.state.group.label}`,
+    if (!request) {
+      const sessionId = hostContext.sessionId || `pid-${ownerPid}`;
+      const digest = hashIdentity(`${sessionId}\0${controllerInstanceId}`);
+      const statePath = join(stateRoot, `${digest}.json`);
+      request = {
+        statePath,
+        cwd: hostContext.cwd,
+        title: "ASC · controller session",
         controllerInstanceId,
-      });
-    } catch (error) {
-      outcome = {
-        ok: false,
-        failure: boundedErrorMessage(error, "Ghostty observer launch rejected"),
+        sessionId,
+        startupToken: randomUUID(),
+        startupReceiptPath: `${statePath}.startup.json`,
       };
-    }
-
-    const note = boundString(outcome.note, MAX_LABEL_CHARS);
-    const failure = boundString(outcome.failure, MAX_LABEL_CHARS);
-    entry.state.observer = outcome.ok
-      ? {
-          launchStatus: "launched",
-          ...(outcome.launchMode ? { launchMode: outcome.launchMode } : {}),
-          ...(note ? { note } : {}),
-        }
-      : {
-          launchStatus: "failed",
-          failure: failure || "Ghostty observer launch failed",
-        };
-    entry.state.updatedAt = new Date(now()).toISOString();
-    writePrivateState(entry.statePath, entry.state, stateRoot);
-    if (!outcome.ok) {
+      // Session-scoped, exclusive durable reservation; never expires on generation teardown.
+      reservationPath = join(stateRoot, `${hashIdentity(sessionId)}.reservation.json`);
       try {
-        options.onLaunchFailure?.(
-          `ASC observer launch failed; execution continues headlessly: ${entry.state.observer.failure}`,
-        );
+        writePrivateState(reservationPath, reservationState(), stateRoot, true);
+        ownsReservation = true;
       } catch {
-        // A presentation notification is best-effort and never reopens launch or execution state.
+        const prior = readPrivateObserverJson(reservationPath);
+        const valid =
+          prior?.schema === "pi.asc_execution_observer_reservation.v1" &&
+          prior.sessionId === sessionId &&
+          strictIdentity(prior.controllerInstanceId, 80);
+        const status =
+          valid && prior.observer && typeof prior.observer === "object"
+            ? (prior.observer as AscExecutionObserverState["observer"]).launchStatus
+            : undefined;
+        observer = {
+          launchStatus:
+            status === "closed" || status === "failed" ? status : valid ? "unconfirmed" : "failed",
+          note: valid
+            ? "Session observer already attempted; no relaunch on reload."
+            : "Private session reservation unavailable; no launch attempted.",
+        };
       }
+      entry.state.observer = { ...observer };
+      writePrivateState(entry.statePath, entry.state, stateRoot);
     }
+    publishSession();
+    // Reservation is synchronous before any launch await, across ALL group queues.
+    if (ownsReservation)
+      launchPromise ??= Promise.resolve()
+        .then(launchSession)
+        .catch(() => undefined);
   }
 
   return {
     setHostContext(context) {
       if (disposed) return;
+      if (
+        request &&
+        ((strictIdentity(context.sessionId, MAX_ID_CHARS) || `pid-${ownerPid}`) !==
+          request.sessionId ||
+          normalizeHostCwd(context.cwd) !== request.cwd)
+      ) {
+        // A controller generation cannot absorb a replacement session's groups.
+        void this.dispose();
+        return;
+      }
       hostContext = {
         mode: context.mode,
         hasUI: context.hasUI === true,
@@ -325,7 +478,7 @@ export function createAscExecutionObserverController(
       if (
         !groups.has(key) &&
         !queues.has(key) &&
-        retainedOrQueuedGroupCount() >= MAX_RETAINED_GROUPS
+        new Set([...groups.keys(), ...queues.keys()]).size >= MAX_RETAINED_GROUPS
       ) {
         return;
       }
@@ -341,10 +494,13 @@ export function createAscExecutionObserverController(
     },
     async flush() {
       await Promise.all([...queues.values()].map((queue) => queue.catch(() => undefined)));
+      await launchPromise;
+      observational(checkReceipt);
     },
     async dispose() {
       if (disposed) return;
       disposed = true;
+      if (monitor) clearInterval(monitor);
       await Promise.all([...queues.values()].map((queue) => queue.catch(() => undefined)));
       const timestamp = new Date(now()).toISOString();
       for (const entry of groups.values()) {
@@ -356,6 +512,9 @@ export function createAscExecutionObserverController(
           // The renderer also detects unavailable state; teardown remains best-effort.
         }
       }
+      observational(publishSession);
+      // Detach the guarded transport drain: eventual settlement sees disposed and cannot revive.
+      launchPromise = undefined;
       groups.clear();
       queues.clear();
     },
@@ -363,88 +522,24 @@ export function createAscExecutionObserverController(
   };
 }
 
-function updateState(
-  state: AscExecutionObserverState,
-  event: ObservationEvent,
-  now: number,
-): boolean {
-  state.updatedAt = new Date(now).toISOString();
-  state.lastObservationAt = now;
-  if (event.event === "dispatch_progress" && event.progress) {
-    state.status = event.progress.status === "spawning" ? "spawning" : "running";
-    state.lastActivityAt = event.progress.lastActivityAt ?? state.lastActivityAt;
-    state.activeDispatch = {
-      ...event.dispatch,
-      ...(event.progress.phase ? { progressPhase: event.progress.phase } : {}),
-      ...(event.progress.sequence !== undefined ? { sequence: event.progress.sequence } : {}),
-      ...(event.progress.latestTool ? { latestTool: event.progress.latestTool } : {}),
-      ...(event.progress.usage ? { usage: event.progress.usage } : {}),
-    };
-    if (state.terminal) state.terminal = undefined;
-    if (event.phase) upsertPhase(state, event.phase, state.status);
-    return false;
+function observational(action: () => void): void {
+  try {
+    action();
+  } catch {
+    /* Diagnostics never fail ASC execution. */
   }
-
-  if (!event.terminal) return false;
-  if (event.phase) {
-    upsertPhase(state, event.phase, event.terminal.status, {
-      elapsedMs: event.terminal.elapsedMs,
-      failureKind: event.terminal.failureKind,
-      effectDisposition: event.terminal.effectDisposition,
-    });
-  }
-  state.activeDispatch = undefined;
-
-  const completesGroup = event.event === "group_terminal" || state.group.kind === "dispatch";
-  if (!completesGroup) return false;
-  state.status = event.terminal.status;
-  state.terminal = {
-    ok: event.terminal.ok,
-    status: event.terminal.status,
-    ...(event.terminal.failureKind ? { failureKind: event.terminal.failureKind } : {}),
-    ...(event.terminal.effectDisposition
-      ? { effectDisposition: event.terminal.effectDisposition }
-      : {}),
-    ...(event.terminal.elapsedMs !== undefined ? { elapsedMs: event.terminal.elapsedMs } : {}),
-  };
-  return true;
 }
 
 function isRedundantProgress(state: AscExecutionObserverState, event: ObservationEvent): boolean {
-  if (event.event !== "dispatch_progress" || event.progress?.sequence === undefined) return false;
   const current = state.activeDispatch;
-  if (current?.sequence === undefined || event.progress.sequence > current.sequence) return false;
   return (
+    event.event === "dispatch_progress" &&
+    event.progress?.sequence !== undefined &&
+    current?.sequence !== undefined &&
+    event.progress.sequence <= current.sequence &&
     current.dispatchId === event.dispatch?.dispatchId &&
     current.attemptId === event.dispatch?.attemptId
   );
-}
-
-function upsertPhase(
-  state: AscExecutionObserverState,
-  phase: NonNullable<ObservationEvent["phase"]>,
-  status: AscExecutionObserverState["phases"][number]["status"],
-  terminal: {
-    elapsedMs?: number;
-    failureKind?: string;
-    effectDisposition?: "settled" | "confirmed_no_effects" | "effect_indeterminate";
-  } = {},
-): void {
-  const next = {
-    name: phase.name,
-    index: phase.index,
-    count: phase.count,
-    ...(phase.agent ? { agent: phase.agent } : {}),
-    ...(phase.cognitiveTool ? { cognitiveTool: phase.cognitiveTool } : {}),
-    status,
-    ...(terminal.elapsedMs !== undefined ? { elapsedMs: terminal.elapsedMs } : {}),
-    ...(terminal.failureKind ? { failureKind: terminal.failureKind } : {}),
-    ...(terminal.effectDisposition ? { effectDisposition: terminal.effectDisposition } : {}),
-  };
-  const index = state.phases.findIndex((candidate) => candidate.index === phase.index);
-  if (index >= 0) state.phases[index] = next;
-  else if (state.phases.length < MAX_PHASES) state.phases.push(next);
-  state.phases.sort((left, right) => left.index - right.index);
 }
 
 function observationGroupKey(event: ObservationEvent): string {
@@ -452,17 +547,7 @@ function observationGroupKey(event: ObservationEvent): string {
 }
 
 function normalizeHostCwd(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.length > MAX_PATH_CHARS ||
-    value.trim() !== value ||
-    !isAbsolute(value) ||
-    hasControlCharacters(value)
-  ) {
-    return resolve(process.cwd());
-  }
-  return resolve(value);
+  return resolve(strictPath(value) || process.cwd());
 }
 
 function pruneStaleObserverSnapshots(stateRoot: string, now: number): void {
@@ -473,21 +558,24 @@ function pruneStaleObserverSnapshots(stateRoot: string, now: number): void {
       if (!SNAPSHOT_NAME_PATTERN.test(name)) continue;
       const candidate = join(stateRoot, name);
       try {
-        const stat = lstatSync(candidate);
-        if (!isPrivateOwnedRegularFile(stat) || stat.size <= 0 || stat.size > MAX_STATE_BYTES) {
-          continue;
-        }
-        const parsed = JSON.parse(readFileSync(candidate, "utf8")) as Record<string, unknown>;
+        const parsed = readPrivateObserverJson(candidate, MAX_SESSION_BYTES);
+        if (!parsed) continue;
         const updatedAt = typeof parsed.updatedAt === "string" ? Date.parse(parsed.updatedAt) : NaN;
+        const shared = parsed.schema === ASC_EXECUTION_OBSERVER_SESSION_SCHEMA;
+        const ownerAlive =
+          typeof parsed.ownerProcessStart === "string" &&
+          processStart(Number(parsed.ownerPid)) === parsed.ownerProcessStart;
+        if (parsed.controllerActive === true && ownerAlive) continue;
         const inactive = parsed.controllerActive === false;
         const ageMs = now - updatedAt;
         if (
-          parsed.schema === ASC_EXECUTION_OBSERVER_STATE_SCHEMA &&
+          (shared || parsed.schema === ASC_EXECUTION_OBSERVER_STATE_SCHEMA) &&
           Number.isFinite(updatedAt) &&
           ((inactive && ageMs >= STALE_SNAPSHOT_RETENTION_MS) ||
             ageMs >= ORPHAN_SNAPSHOT_RETENTION_MS)
         ) {
           unlinkSync(candidate);
+          if (shared) safeUnlinkPrivateState(`${candidate}.startup.json`, stateRoot);
         }
       } catch {
         // Ignore files that are concurrently replaced or are not this controller's safe format.
@@ -500,8 +588,9 @@ function pruneStaleObserverSnapshots(stateRoot: string, now: number): void {
 
 function writePrivateState(
   statePath: string,
-  state: AscExecutionObserverState,
+  state: AscExecutionObserverState | Record<string, unknown>,
   stateRoot: string,
+  exclusive = false,
 ): void {
   mkdirSync(stateRoot, { recursive: true, mode: 0o700 });
   assertPrivateStateRoot(stateRoot);
@@ -509,21 +598,24 @@ function writePrivateState(
   if (!resolvedPath.startsWith(`${resolve(stateRoot)}/`)) {
     throw new Error("ASC observer state path escaped its private root");
   }
-  if (existsSync(resolvedPath)) {
-    const existing = lstatSync(resolvedPath);
-    if (!isPrivateOwnedRegularFile(existing)) {
-      throw new Error("ASC observer state target is not a private owned regular file");
-    }
+  if (existsSync(resolvedPath) && !isPrivateOwnedRegularFile(lstatSync(resolvedPath))) {
+    throw new Error("ASC observer state target is not a private owned regular file");
   }
   const content = `${JSON.stringify(state)}\n`;
-  if (Buffer.byteLength(content, "utf8") > MAX_STATE_BYTES) {
+  const budget =
+    state.schema === "pi.asc_execution_observer_reservation.v1"
+      ? 4096
+      : state.schema === ASC_EXECUTION_OBSERVER_SESSION_SCHEMA
+        ? MAX_SESSION_BYTES
+        : MAX_STATE_BYTES;
+  if (Buffer.byteLength(content, "utf8") > budget) {
     throw new Error("ASC observer state exceeded its bounded file budget");
   }
   const temporaryPath = join(
     stateRoot,
     `.${createHash("sha256").update(resolvedPath).digest("hex")}.${randomUUID()}.tmp`,
   );
-  const descriptor = openSync(temporaryPath, "wx", 0o600);
+  const descriptor = openSync(exclusive ? resolvedPath : temporaryPath, "wx", 0o600);
   try {
     try {
       writeFileSync(descriptor, content, "utf8");
@@ -531,7 +623,7 @@ function writePrivateState(
     } finally {
       closeSync(descriptor);
     }
-    renameSync(temporaryPath, resolvedPath);
+    if (!exclusive) renameSync(temporaryPath, resolvedPath);
   } catch (error) {
     try {
       unlinkSync(temporaryPath);
@@ -546,7 +638,6 @@ function assertPrivateStateRoot(stateRoot: string): void {
   const rootStat = lstatSync(stateRoot);
   if (
     !rootStat.isDirectory() ||
-    rootStat.isSymbolicLink() ||
     (typeof process.getuid === "function" && rootStat.uid !== process.getuid())
   ) {
     throw new Error("ASC observer state root is not a private owned directory");
@@ -557,7 +648,6 @@ function assertPrivateStateRoot(stateRoot: string): void {
 function isPrivateOwnedRegularFile(stat: Stats): boolean {
   return (
     stat.isFile() &&
-    !stat.isSymbolicLink() &&
     stat.nlink === 1 &&
     (stat.mode & 0o077) === 0 &&
     (typeof process.getuid !== "function" || stat.uid === process.getuid())
@@ -568,8 +658,7 @@ function safeUnlinkPrivateState(statePath: string, stateRoot: string): void {
   try {
     const resolvedPath = resolve(statePath);
     if (!resolvedPath.startsWith(`${resolve(stateRoot)}/`)) return;
-    const stat = lstatSync(resolvedPath);
-    if (isPrivateOwnedRegularFile(stat)) unlinkSync(resolvedPath);
+    if (isPrivateOwnedRegularFile(lstatSync(resolvedPath))) unlinkSync(resolvedPath);
   } catch {
     // Retention is best-effort and never affects execution or current observer state.
   }
@@ -584,34 +673,4 @@ function boundString(value: unknown, maxChars: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = sanitizeSingleLine(value.slice(0, maxChars));
   return normalized || undefined;
-}
-
-function strictIdentity(value: unknown, maxChars: number): string | undefined {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.length > maxChars ||
-    value.trim() !== value ||
-    hasControlCharacters(value)
-  ) {
-    return undefined;
-  }
-  return value;
-}
-
-function sanitizeSingleLine(value: string): string {
-  let sanitized = "";
-  for (const character of value) {
-    const codePoint = character.codePointAt(0) ?? 0;
-    sanitized += codePoint <= 0x1f || codePoint === 0x7f ? " " : character;
-  }
-  return sanitized.replace(/\s+/gu, " ").trim();
-}
-
-function hasControlCharacters(value: string): boolean {
-  for (const character of value) {
-    const codePoint = character.codePointAt(0) ?? 0;
-    if (codePoint <= 0x1f || codePoint === 0x7f) return true;
-  }
-  return false;
 }

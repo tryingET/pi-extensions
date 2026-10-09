@@ -58,7 +58,12 @@ function observation(sequence = 1, producer = "loop_execute") {
 }
 
 function observerStatePath(root) {
-  const files = readdirSync(root).filter((name) => name.endsWith(".json"));
+  const files = readdirSync(root).filter(
+    (name) =>
+      name.endsWith(".json") &&
+      JSON.parse(readFileSync(join(root, name), "utf8")).schema ===
+        "pi.asc_execution_observer_state.v1",
+  );
   assert.equal(files.length, 1);
   return join(root, files[0]);
 }
@@ -162,10 +167,17 @@ for (const scenario of [
       const statePath = args[args.indexOf("--state") + 1];
       const controllerInstanceId = args[args.indexOf("--controller-instance") + 1];
       const state = JSON.parse(readFileSync(statePath, "utf8"));
-      assert.equal(state.producer, scenario.producer);
-      assert.equal(state.group.id, scenario.groupId);
+      assert.equal(state.groups[0].producer, scenario.producer);
+      assert.equal(state.groups[0].group.id, scenario.groupId);
       assert.equal(state.controllerInstanceId, controllerInstanceId);
-      assert.equal(state.observer.launchStatus, "launched");
+      assert.equal(state.sessionId, "controller-session");
+      assert.ok(args.includes("--startup-token"));
+      assert.ok(args.includes("--startup-receipt"));
+      assert.equal(
+        state.observer.launchStatus,
+        "pending",
+        "no actual renderer ACK from stubbed transport",
+      );
       assert.match(state.observer.note, /targeted Ghostty process 222/);
       assert.match(state.notice, /closing this tab does not cancel work/i);
     } finally {
@@ -265,7 +277,11 @@ test("automatic ASC observer targets the normal origin/main broker exactly", asy
       "strict observer eligibility must ignore PI_SIDEQUEST_GHOSTTY_BIN",
     );
     const state = JSON.parse(readFileSync(observerStatePath(root), "utf8"));
-    assert.equal(state.observer.launchStatus, "launched");
+    assert.equal(
+      state.observer.launchStatus,
+      "pending",
+      "transport acceptance is not renderer startup",
+    );
     assert.match(state.observer.note, /targeted Ghostty process 222/);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -454,9 +470,10 @@ test("automatic ASC observer does not open another window after exact activation
       handler(observation(2, "dispatch_subagent"));
     }
 
-    await waitFor(() => notifications.length === 1);
+    await waitFor(() => notifications.length === 1, 3000);
     const state = JSON.parse(readFileSync(observerStatePath(root), "utf8"));
-    assert.equal(state.observer.launchStatus, "failed");
+    assert.equal(state.observer.launchStatus, "unconfirmed");
+    assert.equal(state.observer.effectDisposition, "effect_indeterminate");
     assert.match(state.observer.failure, /launch effect is indeterminate/i);
     assert.equal(
       calls.filter((call) => call.command === "busctl" && call.args.includes("Activate")).length,
@@ -537,6 +554,66 @@ test("session shutdown unsubscribes the observer listener and disposes its state
   }
   assert.equal(harness.busEvents.get(ASC_EXECUTION_OBSERVATION_EVENT)?.length, 0);
   assert.equal(disposeCalls, 1);
+});
+
+test("session replacement fences the prior viewer and shutdown/start renews one listener", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-asc-replacement-"));
+  let probes = 0;
+  const harness = registerExtension(
+    createSidequestExtension({
+      env: { TERM_PROGRAM: "ghostty" },
+      ascObserverStateRoot: root,
+      currentGhosttyAncestor: { pid: 111, exe: "/usr/bin/ghostty" },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      pathExists: () => true,
+      async exec(_command, args) {
+        assert.equal(args[0], "+help");
+        probes += 1;
+        return { code: 0, stdout: "+new-window\n" }; // Refused observation, never GUI dispatch.
+      },
+    }),
+  );
+  const snapshots = () =>
+    readdirSync(root)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => JSON.parse(readFileSync(join(root, name), "utf8")))
+      .filter((state) => state.schema === "pi.asc_execution_observer_session.v1");
+  async function start(sessionId, attempted = true) {
+    const before = snapshots().length;
+    const { ctx, notifications } = createContext({ cwd: "/repo", sessionId });
+    for (const handler of harness.events.get("session_start") ?? [])
+      await handler({ type: "session_start" }, ctx);
+    assert.equal(harness.busEvents.get(ASC_EXECUTION_OBSERVATION_EVENT)?.length, 1);
+    for (const handler of harness.busEvents.get(ASC_EXECUTION_OBSERVATION_EVENT) ?? [])
+      handler(observation(1, "dispatch_subagent"));
+    if (attempted) await waitFor(() => notifications.length === 1);
+    else {
+      await waitFor(() => snapshots().length > before);
+      assert.equal(notifications.length, 0);
+    }
+    return ctx;
+  }
+  try {
+    await start("first");
+    const first = snapshots()[0].controllerInstanceId;
+    const ctx = await start("replacement");
+    assert.equal(
+      snapshots().find((state) => state.controllerInstanceId === first).controllerActive,
+      false,
+    );
+    assert.equal(snapshots().filter((state) => state.controllerActive).length, 1);
+    for (const handler of harness.events.get("session_shutdown") ?? [])
+      await handler({ type: "session_shutdown" }, ctx);
+    assert.equal(harness.busEvents.get(ASC_EXECUTION_OBSERVATION_EVENT)?.length, 0);
+    await start("replacement", false);
+    assert.equal(probes, 2, "reload cannot reclaim the failed attempt either");
+    assert.equal(snapshots().length, 3);
+    assert.equal(snapshots().filter((state) => state.controllerActive).length, 1);
+  } finally {
+    for (const handler of harness.events.get("session_shutdown") ?? [])
+      await handler({ type: "session_shutdown" });
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("toolbox-only sidequest projection does not register a second ASC observer listener", () => {

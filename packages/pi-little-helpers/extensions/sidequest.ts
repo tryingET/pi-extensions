@@ -90,7 +90,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     const runCloseoutJanitor = options.candidateCloseout?.janitor ?? runCandidatePeerJanitor;
     let currentObserverContext: PiCommandContext | undefined;
     let stopAscObservation: (() => void) | undefined;
-    const ascExecutionObserver =
+    const makeAscObserver = () =>
       options.ascExecutionObserver ??
       createAscExecutionObserverController({
         env: options.env ?? process.env,
@@ -110,24 +110,40 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           }
         },
       });
+    let ascExecutionObserver = makeAscObserver();
+    let observerIdentity: string | undefined;
+    let observerDisposed = false;
 
     if (registerCommands) {
       stopAscObservation = pi.events?.on?.(ASC_EXECUTION_OBSERVATION_EVENT, (event) => {
         ascExecutionObserver.handle(event);
       });
       pi.on?.("session_start", async (_event, ctx) => {
+        const sessionId = ctx.sessionManager.getSessionId?.();
+        const identity = `${sessionId ?? ""}\0${ctx.cwd}`;
+        if (observerDisposed || (observerIdentity !== undefined && observerIdentity !== identity)) {
+          await ascExecutionObserver.dispose();
+          // Fresh ACK fence, not a fresh slot: the controller keeps the private session reservation.
+          ascExecutionObserver = makeAscObserver();
+        }
+        observerIdentity = identity;
+        observerDisposed = false;
+        stopAscObservation ??= pi.events?.on?.(ASC_EXECUTION_OBSERVATION_EVENT, (event) => {
+          ascExecutionObserver.handle(event);
+        });
         currentObserverContext = ctx as PiCommandContext;
         ascExecutionObserver.setHostContext({
           mode: ctx.mode,
           hasUI: ctx.hasUI,
           cwd: ctx.cwd,
-          sessionId: ctx.sessionManager.getSessionId?.(),
+          sessionId,
         });
       });
       pi.on?.("session_shutdown", async () => {
         stopAscObservation?.();
         stopAscObservation = undefined;
         currentObserverContext = undefined;
+        observerDisposed = true;
         await ascExecutionObserver.dispose();
       });
     }

@@ -1,6 +1,7 @@
 // Exercises the actual renderer in an explicitly selected fresh Ghostty window and real PTY.
 // Does not test automatic tab placement or dispatch execution/effect truth.
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   chmodSync,
@@ -16,15 +17,22 @@ import { join } from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { launchDetachedGhosttyWindow } from "../../extensions/sidequestDetachedWindow.ts";
 import { buildGhosttyArgs, findGhosttyAncestor } from "../../extensions/sidequestGhostty.ts";
+import { launchAscExecutionObserverSession } from "../../extensions/sidequestLaunch.ts";
+import { createAscExecutionObserverController } from "../../src/ascExecutionObserver.ts";
+import { processStart } from "../../src/ascExecutionObserverProtocol.ts";
 
 const scriptPath = fileURLToPath(
   new URL("../../scripts/asc-execution-observer.mjs", import.meta.url),
 );
 const ghostty = findGhosttyAncestor(process.pid);
 const desktopAvailable =
-  process.platform === "linux" && process.env.TERM_PROGRAM === "ghostty" && ghostty?.exe;
+  process.env.PI_ASC_OBSERVER_LIVE_ISOLATED === "1" &&
+  process.platform === "linux" &&
+  process.env.TERM_PROGRAM === "ghostty" &&
+  ghostty?.exe;
 const quote = (value) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
 async function waitFor(read, predicate, label) {
@@ -39,7 +47,11 @@ async function waitFor(read, predicate, label) {
 
 test(
   "reality: real Ghostty observer retains stale progress, recovers and exits",
-  { skip: desktopAvailable ? false : "requires controller Ghostty TUI environment" },
+  {
+    skip: desktopAvailable
+      ? false
+      : "requires parent-provided isolated Ghostty TUI and PI_ASC_OBSERVER_LIVE_ISOLATED=1; never operator desktop",
+  },
   async () => {
     const root = mkdtempSync(join(tmpdir(), "asc-observer-live-"));
     chmodSync(root, 0o700);
@@ -145,6 +157,159 @@ test(
         );
       }
       console.log(`Retained live observer fixture: ${root}`);
+    }
+  },
+);
+
+// No models, installs, window fallback, focus commands, or dispatch replay. Run this file only
+// inside a parent-provided sandbox/nested GUI Ghostty surface with an isolated session bus.
+test(
+  "reality: four dispatches plus loop use one real Ghostty activation and renderer ACK",
+  {
+    skip:
+      desktopAvailable && process.env.GHOSTTY_SURFACE_ID
+        ? false
+        : "requires parent-provided isolated Ghostty surface/bus and PI_ASC_OBSERVER_LIVE_ISOLATED=1",
+  },
+  async () => {
+    const root = mkdtempSync(join(tmpdir(), "asc-session-6844-live-"));
+    const run = promisify(execFile);
+    const calls = [];
+    const requests = [];
+    const makeController = () =>
+      createAscExecutionObserverController({
+        stateRoot: root,
+        launch(request) {
+          requests.push(request);
+          return launchAscExecutionObserverSession(
+            { getThinkingLevel: () => "off" },
+            {
+              env: { ...process.env, PI_SIDEQUEST_LAUNCH_STAGGER_MS: "0" },
+              currentGhosttyAncestor: ghostty,
+              currentSessionGhosttyBin: ghostty.exe,
+              async exec(command, args, options) {
+                calls.push({ command, args });
+                try {
+                  const result = await run(command, args, {
+                    timeout: options?.timeout,
+                    maxBuffer: 1024 * 1024,
+                  });
+                  return { code: 0, ...result };
+                } catch (error) {
+                  return {
+                    code: Number.isInteger(error.code) ? error.code : 1,
+                    killed: error.killed,
+                    stdout: error.stdout ?? "",
+                    stderr: error.stderr ?? "",
+                  };
+                }
+              },
+            },
+            request,
+            process.execPath,
+            scriptPath,
+          );
+        },
+      });
+    let controller = makeController();
+    const host = { mode: "tui", hasUI: true, cwd: process.cwd(), sessionId: randomUUID() };
+    controller.setHostContext(host);
+    function progress(id, loop = false) {
+      return {
+        schema: "asc.execution_observation.v1",
+        event: "dispatch_progress",
+        observedAt: new Date().toISOString(),
+        cwd: process.cwd(),
+        producer: loop ? "loop_execute" : "dispatch_subagent",
+        group: { id, kind: loop ? "loop" : "dispatch", label: `AK6844 isolated ${id}` },
+        ...(loop ? { phase: { name: "inspect", index: 1, count: 2 } } : {}),
+        dispatch: { dispatchId: id },
+        progress: {
+          status: "running",
+          sequence: 1,
+          latestTool: "read",
+          lastActivityAt: Date.now(),
+        },
+      };
+    }
+    const state = () => JSON.parse(readFileSync(requests[0].statePath, "utf8"));
+    let rendererPid;
+    let rendererStart;
+    try {
+      for (let i = 0; i < 4; i++) controller.handle(progress(`direct-${i}`));
+      controller.handle(progress("loop", true));
+      await controller.flush();
+      assert.equal(requests.length, 1);
+      await waitFor(
+        state,
+        (s) => s.observer.launchStatus === "launched",
+        "verified real renderer ACK (no retry)",
+      );
+      rendererPid = state().observer.rendererPid;
+      rendererStart = processStart(rendererPid);
+      const receipt = JSON.parse(readFileSync(requests[0].startupReceiptPath, "utf8"));
+      assert.equal(receipt.rendererPid, rendererPid);
+      assert.equal(receipt.rendererStart, rendererStart);
+      assert.equal(receipt.startupToken, requests[0].startupToken);
+      assert.equal(state().groups.length, 5);
+      for (const group of state().groups) {
+        const initial = progress(group.group.id, group.group.kind === "loop");
+        controller.handle({
+          ...initial,
+          event: "group_terminal",
+          progress: undefined,
+          dispatch: undefined,
+          phase: undefined,
+          terminal: { ok: true, status: "done", effectDisposition: "settled" },
+        });
+      }
+      await controller.flush();
+      assert.ok(state().groups.every((group) => group.terminal?.ok));
+      await delay(600); // One renderer polling cycle, not a launch workaround.
+      assert.equal(
+        processStart(rendererPid),
+        rendererStart,
+        "session viewer stays alive after batch completion",
+      );
+      // Close only this test's validated renderer, not Ghostty, the controller, or an ASC helper.
+      process.kill(rendererPid, "SIGTERM");
+      await waitFor(state, (s) => s.observer.launchStatus === "closed", "manual renderer close");
+      controller.handle(progress("later-batch"));
+      await controller.flush();
+      assert.equal(requests.length, 1);
+      assert.equal(
+        calls.filter((c) => c.command === "busctl" && c.args.includes("Activate")).length,
+        1,
+      );
+      assert.equal(state().observer.launchStatus, "closed");
+      await controller.dispose();
+      controller = makeController();
+      controller.setHostContext(host); // Same Pi session ID, fresh generation/ACK fence.
+      controller.handle(progress("after-reload"));
+      await controller.flush();
+      const reloaded = JSON.parse(
+        readFileSync(
+          controller.statePathFor("after-reload", "dispatch_subagent", "dispatch"),
+          "utf8",
+        ),
+      );
+      assert.equal(reloaded.observer.launchStatus, "closed");
+      assert.notEqual(reloaded.controllerInstanceId, requests[0].controllerInstanceId);
+      assert.equal(requests.length, 1, "same-session reload must not create another real viewer");
+      assert.equal(
+        calls.filter((c) => c.command === "busctl" && c.args.includes("Activate")).length,
+        1,
+      );
+      console.log(`Real Ghostty singleton/ACK/reload evidence: ${root}`);
+    } finally {
+      await controller.dispose();
+      if (rendererPid && rendererStart)
+        await waitFor(
+          () => processStart(rendererPid),
+          (value) => value !== rendererStart,
+          "owned renderer teardown",
+        ).catch(() => undefined);
+      console.log(`Retained isolated observer fixture: ${root}`);
     }
   },
 );
