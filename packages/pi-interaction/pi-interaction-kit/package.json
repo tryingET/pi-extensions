@@ -63,8 +63,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@earendil-works/pi-agent-core": "0.84.4",
-    "@earendil-works/pi-tui": "0.84.4",
+    "@earendil-works/pi-agent-core": "1.1.0",
+    "@earendil-works/pi-tui": "1.1.0",
     "@types/node": "22.14.0",
     "typescript": "7.0.2"
   },

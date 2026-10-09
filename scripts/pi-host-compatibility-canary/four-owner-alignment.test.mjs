@@ -24,7 +24,7 @@ const OWNERS = [
   "@earendil-works/pi-agent-core",
 ];
 const AGENT_CORE = OWNERS[3];
-const CURRENT = "0.84.4";
+const CURRENT = "1.1.0";
 const rawStock = () => loadManifest(DEFAULT_MANIFEST_PATH);
 const stock = () => validateManifest(rawStock(), DEFAULT_MANIFEST_PATH);
 const stockHost = () => resolveProfileHost(stock(), "current");
