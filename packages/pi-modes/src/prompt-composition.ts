@@ -1,4 +1,7 @@
-import type { BuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
+import {
+  type BuildSystemPromptOptions,
+  formatSkillsForPrompt,
+} from "@earendil-works/pi-coding-agent";
 import {
   type DefinitionFingerprints,
   type DriftPolicy,
@@ -15,7 +18,7 @@ import {
 import { isProjectModeApproved } from "./project-mode-approvals.ts";
 import { displaySafe } from "./untrusted-text.ts";
 
-export const PI_HOST_COMPATIBILITY = ">=0.84.2 <0.85.0";
+export const PI_HOST_COMPATIBILITY = ">=1.1.0 <2.0.0";
 
 /** Compose one legacy mode; retained as a compatibility helper. */
 export function composeModePrompt(
@@ -224,6 +227,17 @@ export function resolveModeSelection(
   return { base, overlays, diagnostics, driftedKeys, blocked: false };
 }
 
+/**
+ * What a composition changes in Pi's prompt options for a turn. Pi 1.x builds the prompt from these
+ * options and keeps it in the transcript as named sections, so a mode edits them instead of replacing
+ * the text: replace_base sets the custom base, overlays add sections. Only replace_final forces text.
+ */
+export interface ModePromptChanges {
+  customPrompt?: string;
+  sections?: Record<string, string>;
+  forceSystemPrompt?: string;
+}
+
 export function composeModeSelection(
   selection: ModeSelection,
   modes: readonly ResolvedMode[],
@@ -231,7 +245,7 @@ export function composeModeSelection(
   assembledPrompt: string,
   trust: ProjectTrust,
   policy: Omit<ResolutionPolicy, "projectApprovals"> = {},
-): { prompt: string; resolved: ResolvedModeSelection } {
+): { prompt: string; resolved: ResolvedModeSelection; changes: ModePromptChanges } {
   // Checked at run time as well: a JavaScript caller that leaves trust out must not fail open.
   if (trust !== "review" && typeof (trust as { get?: unknown } | undefined)?.get !== "function") {
     throw new TypeError(
@@ -242,73 +256,81 @@ export function composeModeSelection(
     ...policy,
     ...(trust === "review" ? {} : { projectApprovals: trust }),
   });
-  if (resolved.blocked) return { prompt: assembledPrompt, resolved };
-  let prompt = assembledPrompt;
-  if (resolved.base?.promptStrategy === "replace_base") {
-    prompt = buildCustomBasePrompt(resolved.base.systemPrompt, options);
-  } else if (resolved.base?.promptStrategy === "replace_final") {
-    return { prompt: resolved.base.systemPrompt, resolved };
+  if (resolved.blocked) return { prompt: assembledPrompt, resolved, changes: {} };
+  if (resolved.base?.promptStrategy === "replace_final") {
+    const exact = resolved.base.systemPrompt;
+    return { prompt: exact, resolved, changes: { forceSystemPrompt: exact } };
   }
-  return { prompt: appendOverlaySections(prompt, resolved.overlays), resolved };
+  const sections = overlaySections(resolved.overlays);
+  const changes: ModePromptChanges = Object.keys(sections).length > 0 ? { sections } : {};
+  if (resolved.base?.promptStrategy === "replace_base") {
+    const customPrompt = resolved.base.systemPrompt;
+    const prompt = buildCustomBasePrompt(customPrompt, {
+      ...options,
+      sections: { ...options.sections, ...sections },
+    });
+    return { prompt, resolved, changes: { ...changes, customPrompt } };
+  }
+  // Pi renders custom sections last, so overlays follow the host prompt as it stands.
+  return {
+    prompt: [assembledPrompt, ...Object.entries(sections).map(renderSection)].join("\n\n"),
+    resolved,
+    changes,
+  };
 }
 
-function appendOverlaySections(prompt: string, overlays: readonly ModeDefinition[]): string {
-  if (overlays.length === 0) return prompt;
-  return `${prompt}${overlays
-    .map(
-      (mode, index) =>
-        `\n\n# Active prompt overlay ${index + 1}: ${mode.label}\n${mode.systemPrompt}`,
-    )
-    .join("")}`;
+function overlaySections(overlays: readonly ModeDefinition[]): Record<string, string> {
+  return Object.fromEntries(
+    overlays.map((mode, index) => [
+      `prompt_overlay_${index + 1}`,
+      `# Active prompt overlay ${index + 1}: ${mode.label}\n${mode.systemPrompt}`,
+    ]),
+  );
 }
 
-/** Mirrors Pi's documented custom-base branch: custom base + append + context + skills + cwd. */
+function renderSection([name, content]: [string, string]): string {
+  return `<${name}>\n${content}\n</${name}>`;
+}
+
+/**
+ * Pi 1.1's custom-base prompt as its transcript replays it: the custom base, then the addendum,
+ * project context, skills, cwd and custom sections, each in its tag. Pi builds the real prompt
+ * itself (the before_agent_start options carry customPrompt); this rendering serves previews and
+ * the parity canary.
+ */
 export function buildCustomBasePrompt(
   customPrompt: string,
   options: BuildSystemPromptOptions,
 ): string {
-  let prompt = customPrompt;
-  if (options.appendSystemPrompt) prompt += `\n\n${options.appendSystemPrompt}`;
-  if (options.contextFiles && options.contextFiles.length > 0) {
-    prompt += "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n";
-    for (const file of options.contextFiles) {
-      prompt += `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>\n\n`;
-    }
-    prompt += "</project_context>\n";
+  const selectedTools = options.selectedTools ?? ["read", "bash", "edit", "write"];
+  const declaredTools = selectedTools.filter((name) => !(options.hiddenTools ?? []).includes(name));
+  const sections: Record<string, string> = {};
+  if (options.appendSystemPrompt) sections.addendum = options.appendSystemPrompt;
+  const contextFiles = options.contextFiles ?? [];
+  if (contextFiles.length > 0) {
+    sections.project_context = [
+      "Project-specific instructions and guidelines:",
+      ...contextFiles.map(
+        ({ path, content }) =>
+          `<project_instructions path="${path}">\n${content}\n</project_instructions>`,
+      ),
+    ].join("\n\n");
   }
-  const readAvailable = !options.selectedTools || options.selectedTools.includes("read");
-  const visibleSkills = readAvailable
-    ? (options.skills ?? []).filter((skill) => !skill.disableModelInvocation)
-    : [];
-  if (visibleSkills.length > 0) prompt += formatSkills(visibleSkills);
-  prompt += `\nCurrent working directory: ${options.cwd.replace(/\\/g, "/")}\n`;
-  return prompt;
-}
-
-function formatSkills(skills: NonNullable<BuildSystemPromptOptions["skills"]>): string {
-  const lines = [
-    "\n\nThe following skills provide specialized instructions for specific tasks.",
-    "Use the read tool to load a skill's file when the task matches its description.",
-    "When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
-    "",
-    "<available_skills>",
-  ];
-  for (const skill of skills) {
-    lines.push("  <skill>");
-    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
-    lines.push(`    <description>${escapeXml(skill.description)}</description>`);
-    lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
-    lines.push("  </skill>");
+  // A hidden reader still reaches skill files through another tool, so the hint names none.
+  const readers = ["read", "bash"] as const;
+  const reader =
+    readers.find((tool) => declaredTools.includes(tool)) ??
+    (readers.some((tool) => selectedTools.includes(tool)) ? ("indirect" as const) : undefined);
+  const skills = options.skills ?? [];
+  if (reader && skills.length > 0) {
+    const text = formatSkillsForPrompt(skills, reader).trim();
+    if (text) sections.skills = text;
   }
-  lines.push("</available_skills>");
-  return lines.join("\n");
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  sections.cwd = options.cwd.replace(/\\/g, "/");
+  for (const [name, content] of Object.entries(options.sections ?? {})) {
+    if (content) sections[name] = content;
+  }
+  return [customPrompt, ...Object.entries(sections).map(renderSection)]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
 }

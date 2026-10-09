@@ -5,6 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import modeExtension from "../extensions/mode.ts";
+import {
+  normalizeBuildSystemPromptOptions as hostOptions,
+  buildSystemPrompt as hostPrompt,
+} from "../node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js";
 import { MODE_STATE_TYPE, MODE_STATE_TYPE_V2, MODE_STATE_TYPE_V3 } from "../src/modes.ts";
 
 interface RegisteredCommand {
@@ -12,6 +16,30 @@ interface RegisteredCommand {
 }
 
 type EventHandler = (event: Record<string, unknown>, ctx: ExtensionCommandContext) => unknown;
+
+/** What the model receives: Pi renders the options a handler leaves, unless it forces a prompt. */
+async function turnPrompt(
+  handler: EventHandler,
+  ctx: ExtensionCommandContext,
+  options: { cwd: string; selectedTools?: string[] },
+): Promise<string> {
+  const systemPromptOptions = hostOptions(options);
+  const result = (await handler(
+    {
+      get systemPrompt() {
+        return hostPrompt(systemPromptOptions);
+      },
+      systemPromptOptions,
+    },
+    ctx,
+  )) as { systemPrompt?: string } | undefined;
+  return result?.systemPrompt ?? hostPrompt(systemPromptOptions);
+}
+
+/** Pi's own prompt for these options, with no mode applied. */
+function nativePrompt(options: { cwd: string; selectedTools?: string[] }): string {
+  return hostPrompt(hostOptions(options));
+}
 
 function harness(
   initialEntries: unknown[] = [],
@@ -187,25 +215,19 @@ test("explicitly reactivating the same keys refreshes drifted fingerprints", asy
     assert.ok(command && before);
     await command.handler("builder", h.ctx);
     writeFileSync(path, JSON.stringify(definition("NEW")));
-    const blocked = (await before(
-      {
-        systemPrompt: "HOST",
-        systemPromptOptions: { cwd: process.cwd(), selectedTools: ["read"] },
-      },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.equal(blocked.systemPrompt, "HOST");
+    const blocked = await turnPrompt(before, h.ctx, {
+      cwd: process.cwd(),
+      selectedTools: ["read"],
+    });
+    assert.equal(blocked, nativePrompt({ cwd: process.cwd(), selectedTools: ["read"] }));
     const entryCount = h.entries.length;
     await command.handler("builder", h.ctx);
     assert.equal(h.entries.length, entryCount + 1);
-    const reactivated = (await before(
-      {
-        systemPrompt: "HOST",
-        systemPromptOptions: { cwd: process.cwd(), selectedTools: ["read"] },
-      },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.match(reactivated.systemPrompt, /^NEW/);
+    const reactivated = await turnPrompt(before, h.ctx, {
+      cwd: process.cwd(),
+      selectedTools: ["read"],
+    });
+    assert.match(reactivated, /^NEW/);
   } finally {
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previous;
@@ -223,18 +245,13 @@ test("before_agent_start composes ordered overlays from branch state", async () 
   ]);
   const handler = h.handlers.get("before_agent_start")?.[0];
   assert.ok(handler);
-  const result = (await handler(
-    {
-      systemPrompt: "HOST",
-      systemPromptOptions: { cwd: process.cwd(), selectedTools: ["read"] },
-    },
-    h.ctx,
-  )) as { systemPrompt: string };
-  assert.match(result.systemPrompt, /^HOST/);
-  assert.ok(
-    result.systemPrompt.indexOf("overlay 1: Review") <
-      result.systemPrompt.indexOf("overlay 2: Explain"),
-  );
+  const result = await turnPrompt(handler, h.ctx, { cwd: process.cwd(), selectedTools: ["read"] });
+  assert.ok(result.startsWith(nativePrompt({ cwd: process.cwd(), selectedTools: ["read"] })));
+  assert.ok(result.indexOf("overlay 1: Review") < result.indexOf("overlay 2: Explain"));
+  // Overlays are prompt sections Pi keeps in the transcript, not a forced replacement.
+  const options = hostOptions({ cwd: process.cwd(), selectedTools: ["read"] });
+  assert.equal(await handler({ systemPrompt: "", systemPromptOptions: options }, h.ctx), undefined);
+  assert.deepEqual(Object.keys(options.sections), ["prompt_overlay_1", "prompt_overlay_2"]);
 });
 
 test("same-key replace_final drift cannot reactivate through commands or presets without acknowledgement", async () => {
@@ -273,11 +290,8 @@ test("same-key replace_final drift cannot reactivate through commands or presets
     const before = h.handlers.get("before_agent_start")?.[0];
     assert.ok(before);
     await h.commands.get("mode-policy")?.handler("allow", h.ctx);
-    const blockedUnderAllow = (await before(
-      { systemPrompt: "HOST", systemPromptOptions: { cwd: process.cwd() } },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.equal(blockedUnderAllow.systemPrompt, "HOST");
+    const blockedUnderAllow = await turnPrompt(before, h.ctx, { cwd: process.cwd() });
+    assert.equal(blockedUnderAllow, nativePrompt({ cwd: process.cwd() }));
     await assert.rejects(async () => {
       await command.handler("builder", h.ctx);
     }, /requires --confirm-exact/);
@@ -285,11 +299,8 @@ test("same-key replace_final drift cannot reactivate through commands or presets
       await command.handler("use builder-preset", h.ctx);
     }, /requires --confirm-exact/);
     await command.handler("builder --confirm-exact", h.ctx);
-    const result = (await before(
-      { systemPrompt: "HOST", systemPromptOptions: { cwd: process.cwd() } },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.equal(result.systemPrompt, "NEW EXACT");
+    const result = await turnPrompt(before, h.ctx, { cwd: process.cwd() });
+    assert.equal(result, "NEW EXACT");
   } finally {
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previous;
@@ -335,32 +346,20 @@ test("policy changes and inactive deletion preserve drift fingerprints", async (
     assert.deepEqual(policyState.data.fingerprints, approved);
     const before = h.handlers.get("before_agent_start")?.[0];
     assert.ok(before);
-    const promptAfterBlock = (await before(
-      { systemPrompt: "HOST", systemPromptOptions: { cwd: process.cwd() } },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.equal(promptAfterBlock.systemPrompt, "HOST");
+    const promptAfterBlock = await turnPrompt(before, h.ctx, { cwd: process.cwd() });
+    assert.equal(promptAfterBlock, nativePrompt({ cwd: process.cwd() }));
 
     const entriesBeforeInactiveDelete = h.entries.length;
     await h.commands.get("mode-delete")?.handler("unused", h.ctx);
     assert.equal(h.entries.length, entriesBeforeInactiveDelete);
-    const promptAfterDelete = (await before(
-      { systemPrompt: "HOST", systemPromptOptions: { cwd: process.cwd() } },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.equal(promptAfterDelete.systemPrompt, "HOST");
+    const promptAfterDelete = await turnPrompt(before, h.ctx, { cwd: process.cwd() });
+    assert.equal(promptAfterDelete, nativePrompt({ cwd: process.cwd() }));
     await h.commands.get("mode-policy")?.handler("warn", h.ctx);
-    const promptAfterWarn = (await before(
-      { systemPrompt: "HOST", systemPromptOptions: { cwd: process.cwd() } },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.match(promptAfterWarn.systemPrompt, /^NEW/);
+    const promptAfterWarn = await turnPrompt(before, h.ctx, { cwd: process.cwd() });
+    assert.match(promptAfterWarn, /^NEW/);
     await h.commands.get("mode-policy")?.handler("block", h.ctx);
-    const promptAfterRestoredBlock = (await before(
-      { systemPrompt: "HOST", systemPromptOptions: { cwd: process.cwd() } },
-      h.ctx,
-    )) as { systemPrompt: string };
-    assert.equal(promptAfterRestoredBlock.systemPrompt, "HOST");
+    const promptAfterRestoredBlock = await turnPrompt(before, h.ctx, { cwd: process.cwd() });
+    assert.equal(promptAfterRestoredBlock, nativePrompt({ cwd: process.cwd() }));
   } finally {
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previous;

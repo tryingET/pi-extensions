@@ -367,32 +367,32 @@ test(
       await warn.command("mode")("+review");
       await warn.command("mode-policy")("warn");
       p.write("review.json", modeFile("review", "EVIL PROJECT PROMPT"));
-      assert.equal(await warn.turnPrompt(), "HOST");
+      assert.equal(await warn.turnPrompt(), warn.nativePrompt);
       assert.ok(warn.notifications.some((message) => /is not confirmed/.test(message)));
 
       // Selecting an active mode again does not confirm it; the explicit flag does.
       await warn.command("mode")("+review");
-      assert.equal(await warn.turnPrompt(), "HOST");
+      assert.equal(await warn.turnPrompt(), warn.nativePrompt);
       await warn.command("mode")("+review --confirm-project");
       assert.match(await warn.turnPrompt(), /EVIL PROJECT PROMPT/);
 
       // A confirmed project file is edited under the allow drift policy.
       await warn.command("mode-policy")("allow");
       p.write("review.json", modeFile("review", "EDITED LATER"));
-      assert.equal(await warn.turnPrompt(), "HOST");
+      assert.equal(await warn.turnPrompt(), warn.nativePrompt);
 
       // A legacy v1 session migrates onto the shadowing file.
       const legacy = harness(p.cwd, {
         entries: [{ type: "custom", customType: MODE_STATE_TYPE, data: { key: "review" } }],
       });
       await legacy.run("session_start", { reason: "resume" });
-      assert.equal(await legacy.turnPrompt(), "HOST");
+      assert.equal(await legacy.turnPrompt(), legacy.nativePrompt);
 
       // Withdrawing the approval takes effect on the next turn; reapproval restores it.
       await warn.command("mode-reapprove")("--confirm-project");
       assert.match(await warn.turnPrompt(), /EDITED LATER/);
       rmSync(p.approvalsPath);
-      assert.equal(await warn.turnPrompt(), "HOST");
+      assert.equal(await warn.turnPrompt(), warn.nativePrompt);
       await warn.command("mode-reapprove")("--confirm-project");
       assert.match(await warn.turnPrompt(), /EDITED LATER/);
     } finally {
@@ -490,7 +490,7 @@ test(
         h.notifications.at(-1) ?? "",
         /but not used until confirmed: local .*\/mode-reapprove/,
       );
-      assert.equal(await h.turnPrompt(), "HOST", "the edited text is still not used");
+      assert.equal(await h.turnPrompt(), h.nativePrompt, "the edited text is still not used");
       await h.command("mode")("+local");
       assert.equal(h.dialogs.length, 1, "selecting an active mode again does not confirm it");
       assert.ok(h.notifications.some((message) => /already selected but blocked/.test(message)));
@@ -560,7 +560,7 @@ test(
       await h.command("mode")("+local --confirm-project");
       p.write("local.json", modeFile("local", "Edited rules."));
       await h.command("mode")("+local");
-      assert.equal(await h.turnPrompt(), "HOST");
+      assert.equal(await h.turnPrompt(), h.nativePrompt);
       await h.command("mode")("+local --confirm-project");
       assert.doesNotMatch(h.statuses.at(-1) ?? "", /!$/, "the status bar is refreshed at once");
       assert.match(await h.turnPrompt(), /Edited rules\./);
@@ -617,7 +617,7 @@ test(
         projectApprovalDigest(p.mode("local")),
         "refusing the second question records nothing",
       );
-      assert.equal(await h.turnPrompt(), "HOST");
+      assert.equal(await h.turnPrompt(), h.nativePrompt);
 
       h.answers.push(true, true);
       await h.command("mode-reapprove")("");
@@ -665,7 +665,11 @@ test(
       await reloaded.run("session_start", { reason: "reload" });
       assert.match(await reloaded.turnPrompt(), /Repository review rules\./, "/reload keeps it");
       p.write("review.json", modeFile("review", "Changed after startup."));
-      assert.equal(await reloaded.turnPrompt(), "HOST", "a changed file is not acknowledged");
+      assert.equal(
+        await reloaded.turnPrompt(),
+        reloaded.nativePrompt,
+        "a changed file is not acknowledged",
+      );
 
       newProcess();
       const later = harness(p.cwd);
@@ -815,7 +819,7 @@ test(
       await h.command("mode")("+local --confirm-project");
       rmSync(p.approvalsPath);
       const lost = await preview(h);
-      assert.equal(await h.turnPrompt(), "HOST");
+      assert.equal(await h.turnPrompt(), h.nativePrompt);
       assert.equal(lost.blocked, true, "not reported as in use while every turn falls back");
       assert.match(lost.prompt ?? "", /Local rules\./, "the text is still there to read");
       assert.ok(lost.diagnostics.some((line) => /model does not get this composition/.test(line)));

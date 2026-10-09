@@ -148,22 +148,58 @@ const { pathToFileURL } = require("node:url");
     legacyContext,
   );
   assert.equal(entries.at(-1).customType, "pi-mode-state.v3");
-  const composed = await handlers.get("before_agent_start")[0](
+  // Pi 1.x renders the prompt from the options a handler leaves; use the pinned host builder.
+  const hostPrompts = await import(
+    pathToFileURL(
+      path.join(
+        process.env.PI_CODING_AGENT_DIR,
+        "npm",
+        "node_modules",
+        "@earendil-works",
+        "pi-coding-agent",
+        "dist",
+        "core",
+        "system-prompt.js",
+      ),
+    ).href
+  );
+  const systemPromptOptions = hostPrompts.normalizeBuildSystemPromptOptions({
+    cwd,
+    selectedTools: ["read"],
+    appendSystemPrompt: "APPEND",
+    contextFiles: [{ path: `${cwd}/AGENTS.md`, content: "CONTEXT" }],
+  });
+  const handled = await handlers.get("before_agent_start")[0](
     {
-      systemPrompt: "HOST",
-      systemPromptOptions: {
-        cwd,
-        selectedTools: ["read"],
-        appendSystemPrompt: "APPEND",
-        contextFiles: [{ path: `${cwd}/AGENTS.md`, content: "CONTEXT" }],
+      get systemPrompt() {
+        return hostPrompts.buildSystemPrompt(systemPromptOptions);
       },
+      systemPromptOptions,
     },
     legacyContext,
   );
-  assert.match(composed.systemPrompt, /^BUILDER BASE/);
-  assert.match(composed.systemPrompt, /APPEND/);
-  assert.match(composed.systemPrompt, /CONTEXT/);
-  assert.ok(composed.systemPrompt.indexOf("overlay 1: Review") < composed.systemPrompt.indexOf("overlay 2: Explain"));
+  assert.equal(handled, undefined, "replace_base and overlays edit the prompt options, not the text");
+  // What the model receives for a plain turn: the forced prompt, else what Pi renders.
+  const turnOptions = () => hostPrompts.normalizeBuildSystemPromptOptions({ cwd, selectedTools: ["read"] });
+  const native = hostPrompts.buildSystemPrompt(turnOptions());
+  const turn = async () => {
+    const options = turnOptions();
+    const result = await handlers.get("before_agent_start")[0](
+      {
+        get systemPrompt() {
+          return hostPrompts.buildSystemPrompt(options);
+        },
+        systemPromptOptions: options,
+      },
+      legacyContext,
+    );
+    return result?.systemPrompt ?? hostPrompts.buildSystemPrompt(options);
+  };
+  const composed = hostPrompts.buildSystemPrompt(systemPromptOptions);
+  assert.match(composed, /^BUILDER BASE/);
+  assert.match(composed, /APPEND/);
+  assert.match(composed, /CONTEXT/);
+  assert.ok(composed.indexOf("overlay 1: Review") < composed.indexOf("overlay 2: Explain"));
 
   await commands.get("mode").handler("save smoke-composition", legacyContext);
   assert.ok(
@@ -204,27 +240,18 @@ const { pathToFileURL } = require("node:url");
       systemPrompt: "BUILDER CHANGED",
     }),
   );
-  const drifted = await handlers.get("before_agent_start")[0](
-    { systemPrompt: "HOST", systemPromptOptions: { cwd, selectedTools: ["read"] } },
-    legacyContext,
-  );
-  assert.equal(drifted.systemPrompt, "HOST", "default drift policy must block to native host");
+  const drifted = await turn();
+  assert.equal(drifted, native, "default drift policy must block to native host");
   await commands.get("mode-policy").handler("block", legacyContext);
-  const blockedAfterPolicyWrite = await handlers.get("before_agent_start")[0](
-    { systemPrompt: "HOST", systemPromptOptions: { cwd, selectedTools: ["read"] } },
-    legacyContext,
-  );
+  const blockedAfterPolicyWrite = await turn();
   assert.equal(
-    blockedAfterPolicyWrite.systemPrompt,
-    "HOST",
+    blockedAfterPolicyWrite,
+    native,
     "writing block policy must not silently reapprove drift",
   );
   await commands.get("mode-reapprove").handler("", legacyContext);
-  const reapproved = await handlers.get("before_agent_start")[0](
-    { systemPrompt: "HOST", systemPromptOptions: { cwd, selectedTools: ["read"] } },
-    legacyContext,
-  );
-  assert.match(reapproved.systemPrompt, /^BUILDER CHANGED/);
+  const reapproved = await turn();
+  assert.match(reapproved, /^BUILDER CHANGED/);
   await commands.get("mode").handler("set builder", legacyContext);
 
   fs.writeFileSync(
@@ -238,13 +265,10 @@ const { pathToFileURL } = require("node:url");
     }),
   );
   await commands.get("mode-policy").handler("allow", legacyContext);
-  const exactBlockedUnderAllow = await handlers.get("before_agent_start")[0](
-    { systemPrompt: "HOST", systemPromptOptions: { cwd, selectedTools: ["read"] } },
-    legacyContext,
-  );
+  const exactBlockedUnderAllow = await turn();
   assert.equal(
-    exactBlockedUnderAllow.systemPrompt,
-    "HOST",
+    exactBlockedUnderAllow,
+    native,
     "drift policy must never bypass replace_final acknowledgement",
   );
   await assert.rejects(
@@ -253,11 +277,8 @@ const { pathToFileURL } = require("node:url");
     "same-key strategy drift to replace_final must require acknowledgement",
   );
   await commands.get("mode").handler("builder --confirm-exact", legacyContext);
-  const sameKeyExact = await handlers.get("before_agent_start")[0](
-    { systemPrompt: "HOST", systemPromptOptions: { cwd, selectedTools: ["read"] } },
-    legacyContext,
-  );
-  assert.equal(sameKeyExact.systemPrompt, "BUILDER EXACT");
+  const sameKeyExact = await turn();
+  assert.equal(sameKeyExact, "BUILDER EXACT");
 
   await commands.get("mode").handler("off", legacyContext);
   await assert.rejects(
@@ -269,11 +290,8 @@ const { pathToFileURL } = require("node:url");
     /requires --confirm-exact/,
   );
   await commands.get("mode").handler("exact --confirm-exact", legacyContext);
-  const directExact = await handlers.get("before_agent_start")[0](
-    { systemPrompt: "HOST", systemPromptOptions: { cwd, selectedTools: ["read"] } },
-    legacyContext,
-  );
-  assert.equal(directExact.systemPrompt, "  EXACT FINAL\\n");
+  const directExact = await turn();
+  assert.equal(directExact, "  EXACT FINAL\\n");
 
   await assert.rejects(
     () => commands.get("mode").handler("-missing", legacyContext),

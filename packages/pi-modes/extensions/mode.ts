@@ -427,6 +427,13 @@ export default function modeExtension(pi: ExtensionAPI) {
       }
     }
     if (!replayed.selection.baseKey && replayed.selection.overlayKeys.length === 0) return;
-    return { systemPrompt: composed.prompt };
+    const { customPrompt, sections, forceSystemPrompt } = composed.changes;
+    // Pi 1.x keeps the prompt in the transcript as sections built from these options; editing
+    // them keeps that structure, while a returned prompt is forced text (replace_final only).
+    if (forceSystemPrompt !== undefined) return { systemPrompt: forceSystemPrompt };
+    if (customPrompt !== undefined) event.systemPromptOptions.customPrompt = customPrompt;
+    if (sections) {
+      event.systemPromptOptions.sections = { ...event.systemPromptOptions.sections, ...sections };
+    }
   });
 }

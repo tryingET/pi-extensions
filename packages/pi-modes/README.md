@@ -213,14 +213,16 @@ replace_base systemPrompt
   + cwd
 
 THEN
-+ append overlay 1
-+ append overlay 2
++ append overlay 1   (section prompt_overlay_1)
++ append overlay 2   (section prompt_overlay_2)
 + ... persisted order
 ```
 
+Pi 1.x builds the system prompt from its prompt options and keeps it in the session transcript as named sections. `pi-modes` therefore edits those options in `before_agent_start` instead of returning text: `replace_base` sets `customPrompt` (Pi itself then renders the addendum, project context, skills and cwd after it), and each append overlay adds a `prompt_overlay_<n>` section, which Pi renders last. Only `replace_final` returns a prompt, which Pi sends as forced text.
+
 `replace_final` preserves configured bytes exactly at the `pi-modes` handler. A later `before_agent_start` extension may still modify them; provider-payload exactness requires control of the full extension chain.
 
-`replace_base` is compatibility-tested against Pi's pinned host prompt builder with both read-enabled and no-read skill-omission fixtures. Pi 0.84.2 added a final line feed to the custom-base envelope, so exact output cannot also match older hosts; this release truthfully supports `@earendil-works/pi-ai`, `pi-coding-agent`, and `pi-tui` `>=0.84.2 <0.85.0`. Advance that range only with the parity canary and installed-artifact smoke passing.
+`/mode-preview` and `/mode-status` render the composed prompt with a copy of Pi's custom-base rendering. Its output is compatibility-tested against Pi's pinned host prompt builder with read, bash-only, hidden-reader and no-reader skill fixtures; the prompt the model receives comes from Pi's own builder either way. This release supports `@earendil-works/pi-ai`, `pi-coding-agent`, and `pi-tui` `>=1.1.0 <2.0.0`. Advance that range only with the parity canary and installed-artifact smoke passing.
 
 ## Drift-resistant state and observability
 

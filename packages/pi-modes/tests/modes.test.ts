@@ -73,13 +73,12 @@ test("append preserves the assembled host prompt", () => {
 
 test("replace_base mirrors Pi custom-base composition", () => {
   const result = buildCustomBasePrompt("CUSTOM BASE", promptOptions);
-  assert.match(result, /^CUSTOM BASE/);
-  assert.match(result, /Operator appendix/);
+  assert.match(result, /^CUSTOM BASE\n\n<addendum>\nOperator appendix\n<\/addendum>/);
   assert.match(result, /<project_context>/);
   assert.match(result, /Project policy/);
   assert.match(result, /<name>example-skill<\/name>/);
   assert.doesNotMatch(result, /Current date:/);
-  assert.ok(result.endsWith("Current working directory: /workspace/demo\n"));
+  assert.ok(result.endsWith("<cwd>\n/workspace/demo\n</cwd>"));
   assert.doesNotMatch(result, /HOST PROMPT/);
 });
 
@@ -88,7 +87,18 @@ test("replace_base has complete-output parity with the pinned Pi host builder", 
   const expected = buildHostSystemPrompt({ ...promptOptions, customPrompt });
   const actual = buildCustomBasePrompt(customPrompt, promptOptions);
   assert.equal(actual, expected);
-  assert.ok(actual.endsWith("Current working directory: /workspace/demo\n"));
+  assert.ok(actual.endsWith("<cwd>\n/workspace/demo\n</cwd>"));
+  // Skills name the reader Pi 1.x declares: bash alone, or none when the reader is hidden.
+  for (const tools of [
+    { selectedTools: ["bash"] },
+    { selectedTools: ["read"], hiddenTools: ["read"] },
+  ]) {
+    const options = { ...promptOptions, ...tools };
+    assert.equal(
+      buildCustomBasePrompt(customPrompt, options),
+      buildHostSystemPrompt({ ...options, customPrompt }),
+    );
+  }
 });
 
 test("runtime host compatibility matches every Pi peer range", () => {
@@ -115,7 +125,8 @@ test("replace_final returns the exact configured prompt", () => {
 });
 
 test("replace_base has no-read skill-omission parity with the pinned Pi host builder", () => {
-  const noReadOptions = { ...promptOptions, selectedTools: ["bash"] };
+  // Pi 1.x loads skills with read or bash; without either, skills are left out.
+  const noReadOptions = { ...promptOptions, selectedTools: ["edit"] };
   const result = buildCustomBasePrompt("BASE", noReadOptions);
   assert.equal(result, buildHostSystemPrompt({ ...noReadOptions, customPrompt: "BASE" }));
   assert.doesNotMatch(result, /example-skill/);
@@ -420,6 +431,42 @@ test("native base supports ordered overlays without rebuilding host context", ()
   assert.ok(result.prompt.indexOf("Explain More") < result.prompt.indexOf("Review"));
 });
 
+test("previews equal what Pi renders from the changes a composition makes", () => {
+  const based = composeModeSelection(
+    { baseKey: "builder", overlayKeys: ["review", "explain-more"] },
+    compositionModes,
+    promptOptions,
+    "HOST PROMPT",
+    new Map(),
+  );
+  assert.equal(based.changes.forceSystemPrompt, undefined);
+  assert.deepEqual(Object.keys(based.changes.sections ?? {}), [
+    "prompt_overlay_1",
+    "prompt_overlay_2",
+  ]);
+  assert.equal(
+    based.prompt,
+    buildHostSystemPrompt({
+      ...promptOptions,
+      customPrompt: based.changes.customPrompt,
+      sections: based.changes.sections,
+    }),
+  );
+  const native = buildHostSystemPrompt(promptOptions);
+  const overlaid = composeModeSelection(
+    { baseKey: null, overlayKeys: ["explain-more", "review"] },
+    compositionModes,
+    promptOptions,
+    native,
+    new Map(),
+  );
+  assert.equal(overlaid.changes.customPrompt, undefined);
+  assert.equal(
+    overlaid.prompt,
+    buildHostSystemPrompt({ ...promptOptions, sections: overlaid.changes.sections }),
+  );
+});
+
 test("replace_final remains exact and omits malformed overlays", () => {
   const result = composeModeSelection(
     { baseKey: "exact", overlayKeys: ["review"] },
@@ -429,6 +476,7 @@ test("replace_final remains exact and omits malformed overlays", () => {
     new Map(),
   );
   assert.equal(result.prompt, "EXACT FINAL");
+  assert.deepEqual(result.changes, { forceSystemPrompt: "EXACT FINAL" });
   assert.equal(result.resolved.overlays.length, 0);
   assert.match(result.resolved.diagnostics[0]?.message ?? "", /exclusive/);
 });

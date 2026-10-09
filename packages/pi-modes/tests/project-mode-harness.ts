@@ -9,6 +9,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import modeExtension from "../extensions/mode.ts";
+import {
+  normalizeBuildSystemPromptOptions as hostOptions,
+  buildSystemPrompt as hostPrompt,
+} from "../node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js";
 import { loadModes } from "../src/mode-definitions.ts";
 import { MODE_STATE_TYPE_V3, type ModeSelection } from "../src/modes.ts";
 
@@ -173,13 +177,19 @@ export function harness(
         | undefined
     )?.data;
   const activeOverlays = () => activeState()?.overlayKeys ?? [];
-  // What the model receives this turn.
+  // What the model receives this turn: Pi renders the options the handler leaves, unless it
+  // forces a prompt (replace_final).
+  const turnOptions = () => hostOptions({ cwd, selectedTools: ["read"] });
+  const nativePrompt = hostPrompt(turnOptions());
   const turnPrompt = async () => {
+    const systemPromptOptions = turnOptions();
     const result = (await run("before_agent_start", {
-      systemPrompt: "HOST",
-      systemPromptOptions: { cwd, selectedTools: ["read"] },
+      get systemPrompt() {
+        return hostPrompt(systemPromptOptions);
+      },
+      systemPromptOptions,
     })) as { systemPrompt?: string } | undefined;
-    return result?.systemPrompt ?? "HOST";
+    return result?.systemPrompt ?? hostPrompt(systemPromptOptions);
   };
   return {
     entries,
@@ -194,5 +204,6 @@ export function harness(
     activeState,
     activeOverlays,
     turnPrompt,
+    nativePrompt,
   };
 }
