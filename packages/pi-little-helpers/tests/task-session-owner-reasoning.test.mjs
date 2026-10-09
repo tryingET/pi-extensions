@@ -116,12 +116,11 @@ function checkWire(f, level, url, init) {
   assert.equal(new Headers(init.headers).get("chatgpt-account-id"), f.pin.account);
   const body = JSON.parse(zstdDecompressSync(init.body).toString());
   assert.equal(body.model, f.source.resolved.model);
-  assert.equal(
-    body.reasoning?.effort,
-    level === "off" ? undefined : level,
-    "no native effort substitution",
-  );
-  if (level === "off")
+  // Owner models map off to "none" (the identity remap): Pi 1.x sends it to turn reasoning
+  // off on a reasoning model; a model without reasoning gets no reasoning field.
+  const expected = level === "off" ? (f.model.reasoning ? "none" : undefined) : level;
+  assert.equal(body.reasoning?.effort, expected, "no native effort substitution");
+  if (expected === undefined)
     assert.equal(body.reasoning, undefined, "off omits native reasoning, not an inferred effort");
 }
 test("I04 all 256 declarations / 1792 membership cases and 448 native serializations", async (t) => {

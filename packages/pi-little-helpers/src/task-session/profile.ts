@@ -109,7 +109,7 @@ export async function loadHostProfile(locator: Locator, reference: string) {
   const owned = p.modelSourceDigest
     ? loadOwnerModel(locator, p.modelSourceDigest, requested)
     : undefined;
-  const model = owned ? owned.model : getModel("openai-codex", p.model as "gpt-5.4");
+  const model = owned ? owned.model : getModel("openai-codex", p.model as "gpt-5.5");
   if (!model || bytesDigest(JSON.stringify(model)) !== p.modelDigest) refuse("model_pin_mismatch");
   if (owned) assertOwnerThinkingLevel(model, p.reasoning);
   // Same pinned pure normalization used by createAgentSession; refuse, never downgrade.

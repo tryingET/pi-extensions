@@ -53,7 +53,7 @@ for (const mutation of [
         manifest.exports[mutation === "compat-redirect" ? "./compat" : "."].import =
           "./dist/unreviewed.mjs";
         writeFileSync(manifestPath, JSON.stringify(manifest));
-        assert.equal(JSON.parse(readFileSync(manifestPath, "utf8")).version, "0.84.4");
+        assert.equal(JSON.parse(readFileSync(manifestPath, "utf8")).version, "1.1.0");
         assert.deepEqual(readFileSync(join(ai, "dist/compat.js")), approvedCompat);
       } else if (mutation === "legacy-main-outside") {
         const path = join(root, "node_modules/@earendil-works/pi-tui/package.json");

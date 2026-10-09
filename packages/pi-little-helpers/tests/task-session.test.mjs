@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import * as zlib from "node:zlib";
-import { getModel } from "@earendil-works/pi-ai/compat";
+import { createInitialSystemMessage, getModel } from "@earendil-works/pi-ai/compat";
 import {
   interpretTaskSessionMessage,
   taskSessionAdapterIdentity,
@@ -20,8 +20,8 @@ import {
 import { AdmissionChannel, encodeFrame, FrameDecoder } from "../dist/task-session/channel.js";
 import { classifySnapshot } from "../dist/task-session/classify.js";
 import { guardedCodexOptions, readonlyCredentials } from "../dist/task-session/codex.js";
-import { DispatchGuard } from "../dist/task-session/dispatch.js";
-import { sealedHost } from "../dist/task-session/host.js";
+import { DispatchGuard, toolIdentity } from "../dist/task-session/dispatch.js";
+import { contextDenial, sealedHost } from "../dist/task-session/host.js";
 import { digest, parseJson } from "../dist/task-session/json.js";
 import { captureResources, literalLoader } from "../dist/task-session/resources.js";
 import { launchRestrictedTaskSessionWindow } from "../dist/task-session/shared-ghostty.js";
@@ -79,7 +79,7 @@ function fixture() {
   return { root, locator, state, d: bound };
 }
 const profile = () => ({
-  model: getModel("openai-codex", "gpt-5.4"),
+  model: getModel("openai-codex", "gpt-5.5"),
   reasoning: "high",
   account: "synthetic-account",
   runDeadline: Date.now() + 60000,
@@ -206,6 +206,32 @@ test("duplicate CLOSED / ingress and identity drift deny", () => {
   const h = active();
   assert.throws(() => h.assert("wrong", "profile"));
   assert.throws(() => h.assert());
+});
+test("Pi 1.x transcript: one leading system message holds the sealed prompt and tools", () => {
+  const read = { name: "read", description: "Read a file", parameters: { type: "object" } };
+  const bash = { name: "bash", description: "Run a command", parameters: { type: "object" } };
+  const tools = toolIdentity([read]);
+  const head = createInitialSystemMessage("SEALED", [read]);
+  const user = { role: "user", content: [{ type: "text", text: "objective" }], timestamp: 1 };
+  const turn = (...messages) => ({ messages, tools: [read] });
+  assert.equal(contextDenial(turn(head, user), "SEALED", tools), undefined);
+  assert.equal(contextDenial({ messages: [head, user] }, "SEALED", tools), undefined);
+  for (const [name, context] of [
+    ["no leading system message", turn(user)],
+    ["another prompt", turn(createInitialSystemMessage("OTHER", [read]), user)],
+    ["another declared tool set", turn(createInitialSystemMessage("SEALED", [read, bash]), user)],
+    ["another executable tool set", { messages: [head, user], tools: [read, bash] }],
+    [
+      "a later tool delta",
+      turn(head, user, { role: "system", content: "", toolsAdded: [bash], timestamp: 2 }),
+    ],
+  ])
+    assert.equal(contextDenial(context, "SEALED", tools), "context_profile_drift", name);
+  // Replays to the same prompt and tools, but no later system message is admitted.
+  const later = { role: "system", content: "", timestamp: 2 };
+  assert.equal(contextDenial(turn(head, user, later), "SEALED", tools), "secondary_context");
+  const custom = { role: "custom", content: "x", timestamp: 2 };
+  assert.equal(contextDenial(turn(head, user, custom), "SEALED", tools), "secondary_context");
 });
 test("auth mutation rejected before updater and expiry before read", async () => {
   let updates = 0;

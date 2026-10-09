@@ -65,10 +65,10 @@ export function setup(stop = false, root = mkdtempSync(join(tmpdir(), "task5480-
   const pin = {
     schema: "pi.task-session.profile.v1",
     provider: "openai-codex",
-    model: "gpt-5.4",
+    model: "gpt-5.5",
     reasoning: "high",
     account: "synthetic-account",
-    modelDigest: bytesDigest(JSON.stringify(getModel("openai-codex", "gpt-5.4"))),
+    modelDigest: bytesDigest(JSON.stringify(getModel("openai-codex", "gpt-5.5"))),
     credentialDigest: cd,
     agentDir: join(root, "agent"),
     runSeconds: 30,

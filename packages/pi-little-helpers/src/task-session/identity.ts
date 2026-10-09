@@ -3,10 +3,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bytesDigest, digest, refuse } from "./json.js";
 
+// Pi 1.1.0 SDK: sha256 of each package.json and of its file tree (node_modules excluded).
 const expected = {
   "@earendil-works/pi-ai": {
-    manifest: "77fbac764e5c4bbb2bbc8212fd677208f8470a9363df09c8c1643e332351be9b",
-    tree: "2768bbe738239569e831350fe110898fd0c0138aed0276e8fac9685cea86afe1",
+    manifest: "a8f10d5157b335379ae00edf9c25ae7a15bfc0f3a76107d4376a3779bb5b2995",
+    tree: "8906de0bd093edbda72827d380f7456517ec34c904f3ab8e0d3b501da5434c94",
     entries: {
       "": "dist/index.js",
       "/compat": "dist/compat.js",
@@ -14,18 +15,18 @@ const expected = {
     },
   },
   "@earendil-works/pi-coding-agent": {
-    manifest: "db9fead11bd2ddf7a327d2c2d11b535f30d059241c251d376837d5ab638a5576",
-    tree: "ef352b394b4cd698e44d9f93d4661ff62b630a5818f1c2c34447cfca43d93b35",
+    manifest: "c662a36f8bc47843393a60dc8616a34dfcc8376e8fcc96dbc2f1020c60e38e2a",
+    tree: "9f9d59490be5b181cea40745bea3459fd9f480fd6f2802cb42994a1ecb659651",
     entries: { "": "dist/index.js" },
   },
   "@earendil-works/pi-agent-core": {
-    manifest: "bc1769075d1722922e64f6cf30f8f32ce8e40906946807a90fc50dada0509d47",
-    tree: "f44507b351c4e1a257da2c0c4410ab50a74c59c19157a18c58646a0dac865f04",
+    manifest: "424f45867d4aacd6466729cb915bdfc145c1160bcfbf83ece429ed0982fa606b",
+    tree: "ed6485207ac6207d734d1014e4b487168ded738b71fef90bd5b059c3ac59a669",
     entries: { "": "dist/index.js" },
   },
   "@earendil-works/pi-tui": {
-    manifest: "ebe367b1bf8c15ba72bba50fb9c7cb682a8693faa90366e11946bac969c9b399",
-    tree: "a74a40631718c90a25641106bf104b4bca332817a7817c6d1f8732ef5de15a12",
+    manifest: "25d27adb55392f5bfa4f354f5b5e070f1d5dcb1bb3ef92af244b08541a3ba51d",
+    tree: "fa151b969546306150988db8b60182615ed4b77006ff545be3393dbea2fb395f",
     entries: { "": "dist/index.js" },
   },
 };

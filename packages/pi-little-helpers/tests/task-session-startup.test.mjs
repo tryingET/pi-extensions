@@ -74,7 +74,7 @@ test("provisioned content-addressed profile and credential load is exact and rea
   assert.equal(readSnapshot(f.locator).attempts.length, 0);
 });
 for (const reasoning of ["off", "minimal", "low", "medium", "high", "xhigh"]) {
-  test(`I03 supported gpt-5.4 reasoning remains exact: ${reasoning}`, async (t) => {
+  test(`I03 supported gpt-5.5 reasoning remains exact: ${reasoning}`, async (t) => {
     const f = setup(),
       pin = { ...f.pin, reasoning },
       reference = digest(pin);
@@ -131,7 +131,7 @@ for (const defect of [
     if (defect === "unsupported-reasoning") {
       pin.reasoning = "max";
       const { clampThinkingLevel } = await import("@earendil-works/pi-ai/compat");
-      const model = getModel("openai-codex", "gpt-5.4");
+      const model = getModel("openai-codex", "gpt-5.5");
       assert.equal(bytesDigest(JSON.stringify(model)), pin.modelDigest);
       assert.equal(clampThinkingLevel(model, pin.reasoning), "xhigh");
     }

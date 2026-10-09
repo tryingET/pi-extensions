@@ -1,11 +1,13 @@
 import * as zlib from "node:zlib";
-import type {
-  Api,
-  Context,
-  CredentialStore,
-  Model,
-  ModelsSimpleStreamOptions,
-  OAuthCredential,
+import {
+  type Api,
+  type Context,
+  type CredentialStore,
+  type Model,
+  type ModelsSimpleStreamOptions,
+  normalizeContext,
+  type OAuthCredential,
+  type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { streamSimple as nativeCodexStream } from "@earendil-works/pi-ai/api/openai-codex-responses";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -93,9 +95,16 @@ export function guardedCodexOptions(
         store?: boolean;
         reasoning?: { effort?: string };
       };
+      // Pi 1.x turns reasoning off explicitly: off on a reasoning model sends the model's
+      // declared off effort ("none" unless mapped; nothing when it is null), as the native
+      // serializer does. Pi 0.84 omitted the field and left the server's default effort.
+      const off =
+        profile.model.reasoning && profile.model.thinkingLevelMap?.off !== null
+          ? (profile.model.thinkingLevelMap?.off ?? "none")
+          : undefined;
       const effort =
         profile.reasoning === "off"
-          ? undefined
+          ? off
           : (profile.model.thinkingLevelMap?.[profile.reasoning] ?? profile.reasoning);
       if (
         p.model !== profile.model.id ||
@@ -155,7 +164,7 @@ export async function codexRuntime(
   profileInput: CodexProfile,
   credentialInput: OAuthCredential,
   guard: DispatchGuard,
-  assertContext: (context: Context) => void,
+  assertContext: (context: TranscriptContext) => void,
   port: SendPort,
 ): Promise<ModelRuntime> {
   const profile = structuredClone(profileInput),
@@ -231,14 +240,17 @@ export async function codexRuntime(
   Object.defineProperty(runtime, "streamSimple", {
     value: async (model: Model<Api>, context: Context, options?: ModelsSimpleStreamOptions) => {
       guard.assert();
-      assertContext(context);
+      // The checked transcript is the one sent: a prompt or tools passed as Context fields
+      // become its leading system message, as ModelRuntime.streamSimple folds them.
+      const transcript = normalizeContext(context);
+      assertContext(transcript);
       if (JSON.stringify(model) !== JSON.stringify(profile.model)) guard.deny("model_drift");
       await runtime.getAuth(model);
       guard.assert();
-      assertContext(context);
+      assertContext(transcript);
       return nativeCodexStream(
         model as Model<"openai-codex-responses">,
-        context,
+        transcript,
         guardedCodexOptions(profile, credential, guard, port, options),
       );
     },

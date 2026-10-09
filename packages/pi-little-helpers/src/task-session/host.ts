@@ -1,4 +1,8 @@
-import type { Context, OAuthCredential } from "@earendil-works/pi-ai";
+import {
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  type OAuthCredential,
+} from "@earendil-works/pi-ai";
 import {
   type AgentSession,
   createAgentSession,
@@ -23,6 +27,38 @@ export interface HostInput {
   profile: CodexProfile;
   resources: Resources;
 }
+type SealedContext = {
+  tools?: readonly { name: string; description: string; parameters: unknown }[];
+  messages: readonly { role: string; content?: unknown }[];
+};
+/**
+ * Why a request context leaves the sealed profile, if it does. Pi 1.x carries the prompt and
+ * the tool declarations in the transcript's system messages: the sealed transcript has exactly
+ * one, leading, added by the one prompt. A later system message (a prompt patch or a tool
+ * delta) is secondary context. Executable tools, where the context has them, must match the
+ * declarations.
+ */
+export function contextDenial(
+  context: SealedContext,
+  system: string,
+  toolsHash: string,
+): "context_profile_drift" | "secondary_context" | undefined {
+  if (
+    context.messages[0]?.role !== "system" ||
+    getCurrentSystemPrompt(context.messages) !== system ||
+    toolIdentity(getCurrentTools(context.messages)) !== toolsHash ||
+    (context.tools !== undefined && toolIdentity(context.tools) !== toolsHash)
+  )
+    return "context_profile_drift";
+  if (
+    context.messages.some(
+      (m, i) =>
+        !["user", "assistant", "toolResult"].includes(m.role) && !(m.role === "system" && i === 0),
+    )
+  )
+    return "secondary_context";
+  return undefined;
+}
 /** Private production host composition. Only copied observations/control leave this closure. */
 export async function sealedHost(
   input: HostInput,
@@ -40,14 +76,10 @@ export async function sealedHost(
   let toolsHash = "";
   let promptStarted = false;
   const events: Record<string, unknown>[] = [];
-  const assertContext = (context: {
-    systemPrompt?: string;
-    tools?: Context["tools"];
-    messages: readonly { role: string; content?: unknown }[];
-  }) => {
+  const assertContext = (context: SealedContext) => {
     guard.assert(frozen.incarnation, profileDigest);
-    if (context.systemPrompt !== system || toolIdentity(context.tools ?? []) !== toolsHash)
-      guard.deny("context_profile_drift");
+    const denial = contextDenial(context, system, toolsHash);
+    if (denial === "context_profile_drift") guard.deny(denial);
     const users = context.messages.filter((m) => m.role === "user");
     if (
       users.length !== 1 ||
@@ -55,8 +87,7 @@ export async function sealedHost(
         JSON.stringify([{ type: "text", text: frozen.objective }])
     )
       guard.deny("objective_lineage_drift");
-    if (context.messages.some((m) => !["user", "assistant", "toolResult"].includes(m.role)))
-      guard.deny("secondary_context");
+    if (denial) guard.deny(denial);
     if (
       session &&
       (session.pendingMessageCount !== 0 ||
@@ -112,7 +143,9 @@ export async function sealedHost(
       session.thinkingLevel !== frozen.profile.reasoning
     )
       guard.deny("constructor_state_invalid");
-    system = session.agent.state.systemPrompt;
+    // The transcript is empty until the prompt: the first prompt adds the system message
+    // that renders this prompt and declares these tools.
+    system = session.systemPrompt;
     toolsHash = toolIdentity(session.agent.state.tools);
     const originalPrompt = session.prompt.bind(session);
     const block = () => guard.deny("secondary_ingress_forbidden");
