@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { JsonValue } from "@earendil-works/pi-ai";
 import { type ExtensionContext, SessionManager } from "@earendil-works/pi-coding-agent";
 import { runRipwireLandingSmoke } from "./ripwire-landing-smoke.ts";
 import { runRipwirePolicySmoke } from "./ripwire-policy-smoke.ts";
@@ -95,7 +96,7 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
         toolCallId: "working-first",
         toolName: "context_pack",
         content: served.content,
-        details: served.details,
+        details: served.details as JsonValue,
         isError: false,
         timestamp: Date.now(),
       });
@@ -129,7 +130,7 @@ export async function runRipwireRuntimeSmoke(tool: SmokeTool, ctx?: ExtensionCon
         toolCallId: "working-repeat",
         toolName: "context_pack",
         content: repeated.content,
-        details: repeated.details,
+        details: repeated.details as JsonValue,
         isError: false,
         timestamp: Date.now(),
       });
