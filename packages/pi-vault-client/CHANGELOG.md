@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.2](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.7.1...pi-vault-client-v0.7.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* **pi-vault-client:** keep submission outcomes unknown (AK6490) ([b3d9b1a](https://github.com/tryingET/pi-extensions/commit/b3d9b1a94de6c78c481a524122aba3f5b2b2ff7a))
+* **pi-vault-client:** retain IDs for projection diagnostics (AK6485) ([ab27dc0](https://github.com/tryingET/pi-extensions/commit/ab27dc016c4e1f2d556c35c610ef4b65554d899b))
+* **pi-vault-client:** verify scoped projection freshness (AK6485) ([ef1564d](https://github.com/tryingET/pi-extensions/commit/ef1564dbb3cbf3ea9ff90cf5cabb033aa493f8b3))
+
 ## [0.7.1](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.7.0...pi-vault-client-v0.7.1) (2026-09-01)
 
 

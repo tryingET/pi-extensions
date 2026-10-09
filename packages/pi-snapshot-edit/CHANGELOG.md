@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.5.1...pi-snapshot-edit-v0.6.0) (2026-10-09)
+
+
+### Features
+
+* **pi-snapshot-edit:** a host-ready service export (shared argument repair, optional Pi peers) ([f5c79c8](https://github.com/tryingET/pi-extensions/commit/f5c79c8ed51fdf45e31e2315ba42bfbe2623e5e1))
+* **pi-snapshot-edit:** content-addressed revisions and edits that locate their own failures ([5407b8b](https://github.com/tryingET/pi-extensions/commit/5407b8b196797f97eefb7761eca2b994c7477275))
+* **pi-snapshot-edit:** export the snapshot service for hosts that are not Pi ([afa1897](https://github.com/tryingET/pi-extensions/commit/afa18979fc8db0fd75418a8c8967cebada909922))
+
+
+### Bug Fixes
+
+* **pi-snapshot-edit:** hand-written declarations for the service export ([6875953](https://github.com/tryingET/pi-extensions/commit/68759537681017682611290451b380ee59546c3c))
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.5.0...pi-snapshot-edit-v0.5.1) (2026-09-02)
 
 

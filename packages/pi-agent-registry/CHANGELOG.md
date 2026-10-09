@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.9](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.8...pi-agent-registry-v0.3.9) (2026-10-09)
+
+
+### Bug Fixes
+
+* declare typebox as a host peer in pi-agent-vent, pi-little-helpers, pi-agent-registry (AK6828) ([efc22d2](https://github.com/tryingET/pi-extensions/commit/efc22d290a42d87e39116fb818d7598e6c200804))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-little-helpers bumped from file:../pi-little-helpers to 0.11.0
+
 ## [0.3.8](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.7...pi-agent-registry-v0.3.8) (2026-10-01)
 
 

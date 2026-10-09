@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.5.0...pi-modes-v0.6.0) (2026-10-09)
+
+
+### Features
+
+* **pi-modes:** compose modes through Pi 1.x prompt options (AK6828) ([d080515](https://github.com/tryingET/pi-extensions/commit/d08051513dc341f67d26e9c8ac210267c3124020))
+
+
+### Bug Fixes
+
+* declare typebox as a host peer in pi-agent-vent, pi-little-helpers, pi-agent-registry (AK6828) ([efc22d2](https://github.com/tryingET/pi-extensions/commit/efc22d290a42d87e39116fb818d7598e6c200804))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.4.2...pi-modes-v0.5.0) (2026-10-01)
 
 
