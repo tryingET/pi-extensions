@@ -1,11 +1,11 @@
 import {
   type Api,
   type AssistantMessageEventStream,
-  type Context,
   createAssistantMessageEventStream,
   type Model,
   type SimpleStreamOptions,
   streamSimpleOpenAICompletions,
+  type TranscriptContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
@@ -42,6 +42,24 @@ import {
 } from "./workstation-scheduler.ts";
 
 let armedAudio: ArmedAudio | undefined;
+
+/**
+ * The audio lane takes no tools. Pi >= 0.86 hands a provider a transcript whose system
+ * messages declare the tools, so they are removed from the outgoing payload, the boundary
+ * this provider owns, not from the host's context. An empty list replaces them (what
+ * pi-ai itself sends when the history holds tool calls), for servers that require the field.
+ */
+export function withoutAudioTools(payload: unknown): unknown {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const {
+    tools,
+    tool_choice: _choice,
+    parallel_tool_calls: _parallel,
+    ...rest
+  } = payload as Record<string, unknown>;
+  if (!Array.isArray(tools) || tools.length === 0) return payload;
+  return { ...rest, tools: [] };
+}
 
 export function setCurrentAudio(attachment: ArmedAudio): void {
   armedAudio = attachment;
@@ -184,7 +202,7 @@ function terminalProviderClass(event: unknown): TerminalProviderClass {
 
 export function streamWorkstationInference(
   model: Model<Api>,
-  context: Context,
+  context: TranscriptContext,
   options?: SimpleStreamOptions,
   pi?: ExtensionAPI,
 ): AssistantMessageEventStream {
@@ -278,26 +296,25 @@ export function streamWorkstationInference(
           },
         });
       }
-      const inner = streamSimpleOpenAICompletions(
-        innerModel,
-        attachment ? { ...context, tools: [] } : context,
-        {
-          ...options,
-          apiKey: contractApiKey(selected.contract),
-          maxRetries: attachment ? 0 : options?.maxRetries,
-          fetch: governedFetch,
-          onPayload: attachment
-            ? async (payload, callbackModel) => {
-                const inherited = await inheritedOnPayload?.(payload, callbackModel);
-                const transformed = transformAudioPayload(inherited ?? payload, attachment);
-                if (workbenchAuthority) {
-                  await workbenchAuthority.authorizeDispatch();
-                }
-                return transformed;
+      const inner = streamSimpleOpenAICompletions(innerModel, context, {
+        ...options,
+        apiKey: contractApiKey(selected.contract),
+        maxRetries: attachment ? 0 : options?.maxRetries,
+        fetch: governedFetch,
+        onPayload: attachment
+          ? async (payload, callbackModel) => {
+              const inherited = await inheritedOnPayload?.(payload, callbackModel);
+              const transformed = transformAudioPayload(
+                withoutAudioTools(inherited ?? payload),
+                attachment,
+              );
+              if (workbenchAuthority) {
+                await workbenchAuthority.authorizeDispatch();
               }
-            : inheritedOnPayload,
-        },
-      );
+              return transformed;
+            }
+          : inheritedOnPayload,
+      });
       let providerError = false;
       let providerTerminalClass: TerminalProviderClass = "ambiguous";
       let pushAudioTerminal: (() => void) | undefined;

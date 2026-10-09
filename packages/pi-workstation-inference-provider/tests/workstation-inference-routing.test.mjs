@@ -5,6 +5,7 @@ read_when:
 */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { providerModel } from "../extensions/workstation-inference-contract.ts";
 import { streamWorkstationInference } from "../extensions/workstation-inference-stream.ts";
 import { contract, withInlineContract } from "./workstation-inference-test-helpers.mjs";
@@ -97,7 +98,7 @@ async function capture(
         api: "workstation-inference",
         baseUrl: "http://127.0.0.1:1234/v1",
       };
-      const stream = streamWorkstationInference(model, requestContext, {
+      const stream = streamWorkstationInference(model, normalizeContext(requestContext), {
         maxTokens: 1024,
         ...options,
         fetch: async (url, init) => {

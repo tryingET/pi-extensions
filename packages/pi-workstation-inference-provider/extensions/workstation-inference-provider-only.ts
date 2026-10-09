@@ -6,10 +6,10 @@ read_when:
 import {
   type Api,
   type AssistantMessageEventStream,
-  type Context,
   createAssistantMessageEventStream,
   type Model,
   type SimpleStreamOptions,
+  type TranscriptContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { latestUserAudioMarker } from "./workstation-audio.ts";
@@ -72,7 +72,7 @@ function assertNoAudioAttempt(messages: unknown): void {
   }
 }
 
-function assertContext(context: Context, supportsImages: boolean): void {
+function assertContext(context: TranscriptContext, supportsImages: boolean): void {
   assertNoAudioAttempt(context.messages);
   for (const message of context.messages) {
     if (typeof message.content === "string") continue;
@@ -144,7 +144,7 @@ function fingerprint(binding: Binding): string {
 function boundedStream(
   binding: Binding | undefined,
   model: Model<Api>,
-  context: Context,
+  context: TranscriptContext,
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
   const stream = createAssistantMessageEventStream();

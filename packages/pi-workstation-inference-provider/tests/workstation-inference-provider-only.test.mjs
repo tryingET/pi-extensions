@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import {
   CONTRACT_ENV,
   CONTRACT_JSON_ENV,
@@ -116,7 +117,8 @@ function selected(config, id = ids[0]) {
   };
 }
 async function result(config, model = selected(config), ctx = context, options = {}) {
-  const stream = config.streamSimple(model, ctx, { maxRetries: 0, ...options });
+  // pi-ai folds systemPrompt and tools into a system message before a provider sees them.
+  const stream = config.streamSimple(model, normalizeContext(ctx), { maxRetries: 0, ...options });
   const events = [];
   for await (const event of stream) events.push(event);
   return { events, message: await stream.result() };
