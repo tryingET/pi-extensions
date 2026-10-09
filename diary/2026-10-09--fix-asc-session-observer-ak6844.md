@@ -112,5 +112,27 @@ had its own winit output; all proof clients were confined to its socket/private 
 - Private state/reservation root must be retained for same-session no-relaunch across
   generations. Filesystem-failure cleanup/teardown remains best-effort; ACK is not pixel
   proof. On reload an old live viewer is fenced/closed, and no replacement is auto-opened.
-- Canonical landing, package activation and installed-source readback are recorded separately
-  when executed. Worktree proof alone is not shared-runtime activation.
+
+## Canonical landing and installed-source proof
+
+Source commit `74990c50eb71bd949f556c55bae4fc1867477a20`, rebased over concurrent unrelated
+main advancement without changing its observer patch. Canonical move used only
+`LAND_NO_FETCH=1 scripts/land-canonical.sh <ref>`: fast-forward from `f916d29f38cf14222c498dfdfeace9f8e7bdb107`,
+38-package install-health consistency and real Pi no-model extension-load smoke passed.
+Foreign ontology dirt remained unchanged. `pi install <canonical>/packages/pi-little-helpers`
+then succeeded; no publication or version bump. Logs `$TMPDIR/ak6844-landing.log` and
+`$TMPDIR/ak6844-pi-install.log`.
+
+Repeated the actual isolated Ghostty/Pi TUI receiver proof against **canonical installed
+source**, with a fresh private agent directory and session. Result:
+`$TMPDIR/ak6844-nested/installed/tui-result.json`, **PASS**, process exit 0:
+session `01a12290-bca9-7139-be20-f52c5edc4cc5`, renderer PID `3914751`, five groups, one
+startup receipt, 17-second idle survival, manual-close and native-reload no-relaunch.
+These are real receiver/lifecycle results for injected observation fixtures, not a new
+provider-call campaign. Existing operator sessions retain old loaded closures until
+`/reload` or restart; neither install nor source landing silently reloads them.
+
+The owned nested compositor was stopped after all isolated proof clients exited; retained
+scripts/receipts remain available. Rollback is a scoped reversal of the observer source
+commit through the same canonical landing procedure, followed by reload—not deletion of
+historical state or a reset of foreign work.
