@@ -119,7 +119,7 @@ export const ACTIVATION_CONTINUATION_MESSAGE = [
   "Do not call toolbox again unless another required tool bundle is still missing.",
 ].join(" ");
 export const CACHE_IMPACT_CONTRACT = [
-  "Cache impact: changing active tools changes the provider tool-schema prefix, so the first follow-up provider request for a new active-tool combination may miss or write a new cache entry.",
+  "Cache impact: native deferred or in-transcript tool changes can preserve the initial schema prefix; fallback serialization or active-only system guidance may change that prefix and cause a cache miss or write. Behavior depends on the actual provider/model and host capabilities.",
   "Later requests with the same active-tool combination may reuse cached prefixes, depending on provider support, transcript/prompt stability, cache retention, and checkpoint behavior; cache reuse is not guaranteed. Avoid repeated activate/deactivate oscillation if prompt-cache stability matters.",
 ].join(" ");
 export const MISSING_REGISTRATION_CONTRACT = [
