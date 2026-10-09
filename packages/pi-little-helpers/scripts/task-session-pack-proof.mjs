@@ -59,9 +59,9 @@ run("npm", [
   "--no-fund",
   join(scratch, little.filename),
   join(scratch, adapter.filename),
-  "@earendil-works/pi-coding-agent@0.84.4",
-  "@earendil-works/pi-ai@0.84.4",
-  "@earendil-works/pi-tui@0.84.4",
+  "@earendil-works/pi-coding-agent@1.1.0",
+  "@earendil-works/pi-ai@1.1.0",
+  "@earendil-works/pi-tui@1.1.0",
 ]);
 const proof = `
 import assert from 'node:assert/strict';
@@ -88,7 +88,7 @@ assertSdkIdentity();
 writeFileSync('synthetic.lock','',{mode:0o600});const n=native(),h=n.openMutex(process.cwd()+'/synthetic.lock');
 assert.equal(n.tryLock(h),true);n.unlockMutex(h);n.closeMutex(h);
 const cwd=process.cwd()+'/synthetic-checkout';mkdirSync(cwd);mkdirSync(cwd+'/.git');mkdirSync(cwd+'/agent');
-const profile={model:getModel('openai-codex','gpt-5.4'),reasoning:'high',account:'synthetic',runDeadline:Date.now()+60000};
+const profile={model:getModel('openai-codex','gpt-5.5'),reasoning:'high',account:'synthetic',runDeadline:Date.now()+60000};
 const credential={type:'oauth',access:'synthetic.'+Buffer.from(JSON.stringify({'https://api.openai.com/auth':{chatgpt_account_id:'synthetic'}})).toString('base64url')+'.synthetic',refresh:'synthetic',expires:Date.now()+3600000};
 let sends=0;
 const host=await sealedHost({incarnation:'synthetic',cwd,objective:'literal packed proof',profile,resources:captureResources(cwd,cwd+'/agent')},credential,{send:async(_url,init)=>{
