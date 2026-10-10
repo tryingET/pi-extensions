@@ -6,12 +6,22 @@ import { chmod, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/pr
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
-import { admitNative, NETWORK_GUARD, permissionArgs } from "../src/closure.ts";
+import {
+  admitNative,
+  GUARD_OPT_IN,
+  NETWORK_GUARD,
+  nativeBoundary,
+  permissionArgs,
+} from "../src/closure.ts";
 import { extract, runNative } from "../src/native.ts";
 import { environment, fixture } from "./helpers.ts";
 import { artifactRoot, observers, probeCli } from "./native-fixture.ts";
 
 const run = promisify(execFile);
+// AK6872 B2: on Node < 25 native capture fails closed unless the operator opts in to the
+// in-process guard. These tests opt in explicitly; native-boundary tests the default refusal.
+process.env.PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD = "1";
+
 const dependent = "process.stdout.write('Dependency says ' + require('dep').word);";
 const dep = { "node_modules/dep/package.json": '{"name":"dep","main":"index.js"}' };
 const depIndex = { "node_modules/dep/index.js": "exports.word = 'inside-closure';" };
@@ -251,8 +261,9 @@ test("each network-denial mechanism independently blocks the probe the observers
       assert.deepEqual(permission.traffic, { tcp: 0, udp: 0 });
       for (const key of ["tcp", "fetch", "udp", "dns"])
         assert.match(permission.report[key], /^denied:ERR_ACCESS_DENIED/, key);
-      for (const key of ["udpHandle", "unix", "listen"])
+      for (const key of ["udpHandle", "unix"])
         assert.match(permission.report[key], /^denied:/, key);
+      assert.match(permission.report.listen, /^denied:ERR_ACCESS_DENIED/);
     } else {
       // Why the guard exists: this runtime's permission model does not cover network.
       assert.equal(permission.report.tcp, "connected");
@@ -264,6 +275,33 @@ test("each network-denial mechanism independently blocks the probe the observers
     );
   } finally {
     await seen.close();
+    await f.dispose();
+  }
+});
+test("runtimes without --allow-net refuse native capture unless the operator opts in", async () => {
+  const f = await fixture();
+  try {
+    const a = await artifactRoot(f.dir, "process.stdout.write('Body text')");
+    await environment({ [GUARD_OPT_IN]: "" }, async () => {
+      if (RUNTIME_NET) {
+        assert.equal(nativeBoundary().boundary.network, "runtime-permission");
+        assert.equal((await capture(a.cli, f.dir)).markdown, "Body text");
+      } else {
+        assert.throws(() => nativeBoundary(), /refused.*cannot deny network/);
+        await assert.rejects(capture(a.cli, f.dir), /refused.*cannot deny network/);
+        await assert.rejects(
+          runNative(a.cli, "https://example.com/", f.dir, new AbortController().signal),
+          /refused/,
+        );
+      }
+    });
+    await environment({ [GUARD_OPT_IN]: "1" }, async () => {
+      assert.equal(
+        (await capture(a.cli, f.dir)).engine.boundary.network,
+        RUNTIME_NET ? "runtime-permission" : "in-process-guard",
+      );
+    });
+  } finally {
     await f.dispose();
   }
 });

@@ -204,15 +204,19 @@ model output. Child environment excludes browser/provider/session secrets and
 Node preload flags. Before every spawn the whole native dependency closure under
 `<root>/dist/cli.cjs` is admitted (owner/root, no group/world write, no special files,
 every symlink resolving inside `<root>`, bounded size), and the child runs under Node's
-permission model with read-only access to that root and its private inputs only: no
-writes, child processes, workers or addons. Outbound network is denied by the runtime
-permission model on Node with `--allow-net` support (≥25) and by an in-process guard
-on older Node; result `engine.boundary` says which. Neither is an OS sandbox, and
+permission model with filesystem-API read access to that root and its private inputs
+only: no fs writes, child processes, workers or addons (`node:sqlite` is not covered by
+Node's permission model and can still reach SQLite files the user can access). Outbound
+network is denied by the runtime permission model on Node with `--allow-net` support
+(≥25, the current Pi runtime). Older Node fails closed unless the operator sets
+`PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1`, which accepts an in-process guard with
+known bypasses; result `engine.boundary` says which mechanism applied. Neither is an OS sandbox, and
 same-UID changes between admission and spawn are not prevented: install trusted
-artifacts. The older-Node guard is a deny-list that may miss an unenumerated path.
+artifacts.
 Real loopback TLS, cancellation and outbound-observer tests prove denial for the
 specific probes they run; see the [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md)
-for those probes and the remaining assumptions (signals, hard links, same-UID TOCTOU).
+for those probes and the remaining assumptions (SQLite, the opt-in guard's bypasses,
+signals, hard links, same-UID TOCTOU).
 
 The native template emits `space: input`, `kind: source`, `state: captured`, source
 URL and captured timestamp; `Input` is template metadata only, not a write target.

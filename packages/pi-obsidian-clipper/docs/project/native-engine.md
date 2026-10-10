@@ -71,10 +71,12 @@ sandbox**. AK6872 admission checks the whole production closure before every spa
 (layout `<root>/dist/cli.cjs` + `<root>/package.json`, safe ancestry, owner/root and no
 group/world write on every entry, no special files, every symlink resolving inside
 `<root>`, at most 50,000 entries/depth 64), then runs the child under
-`node --permission` with read access to `<root>` and the private inputs only. Network
-is denied by the runtime permission model where Node supports `--allow-net`, else by
-an in-process deny-list guard (`src/native-guard.cjs`) that may miss an unenumerated
-path; result `engine.boundary` names the mechanism. These checks do not attest source/build identity. Contract:
+`node --permission` with filesystem-API read access to `<root>` and the private inputs
+only (`node:sqlite` is outside Node's permission model). Network is denied by the runtime
+permission model where Node supports `--allow-net`; older Node refuses native capture
+unless `PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1` accepts the in-process deny-list
+guard (`src/native-guard.cjs`), which has known bypasses. Result `engine.boundary` names
+the mechanism. These checks do not attest source/build identity. Contract:
 [2026-10-10-ak6872-native-closure-contract.md](2026-10-10-ak6872-native-closure-contract.md).
 Public `engine` metadata declares the required version, source base and lock, null
 local patch and empty repairs, with that limitation.
@@ -98,6 +100,9 @@ Rerun from this package with a separately provisioned engine:
 PI_OBSIDIAN_CLIPPER_CLI=/absolute/owner-installed/dist/cli.cjs \
   node --import tsx scripts/native-smoke.ts
 ```
+
+On Node < 25 the smoke also needs the explicit
+`PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1` opt-in.
 
 Hermetic tests cover fake subprocess cancellation, bounded argv/environment and
 metadata-only rejection; AK6872 adds unsafe-closure fixtures, loopback outbound

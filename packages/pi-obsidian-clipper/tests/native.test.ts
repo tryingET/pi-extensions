@@ -19,6 +19,9 @@ import { deadline, HTML_LIMIT } from "../src/transport.ts";
 import { environment, nativeFixture } from "./helpers.ts";
 
 const run = promisify(execFile);
+// AK6872 B2: on Node < 25 native capture fails closed unless the operator opts in to the
+// in-process guard. These tests opt in explicitly; native-boundary tests the default refusal.
+process.env.PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD = "1";
 
 const cliChecks = `
 const fs = require('node:fs'); const assert = require('node:assert/strict');

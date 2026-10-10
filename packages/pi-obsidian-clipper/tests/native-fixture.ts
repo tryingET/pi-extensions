@@ -95,7 +95,8 @@ Promise.all([
     const sent = h.send({ oncomplete() {} }, [Buffer.from('handle-probe')], 1, false); done(sent > 0 ? 'sent' : 'denied:send ' + sent); }),
   attempt('listen', (done) => { const srv = require('node:net').createServer();
     // Node 26 raises a denied listen as an uncaught exception from a later tick.
-    process.once('uncaughtException', (e) => done(denied(e)));
+    // Attribute only a listen-originated access denial; anything else is recorded as unexpected.
+    process.once('uncaughtException', (e) => done(/listen|ServerHandle/i.test(String(e && e.stack)) ? denied(e) : 'unexpected:' + denied(e)));
     srv.on('error', (e) => done(denied(e))); srv.listen(0, '127.0.0.1', () => { srv.close(); done('listening'); }); }),
   attempt('listen2', (done) => { const srv = require('node:net').createServer();
     srv.on('error', (e) => done(denied(e))); srv._listen2('127.0.0.1', 0, 4, 511); srv.close(); done('listening'); }),

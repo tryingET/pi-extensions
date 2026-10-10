@@ -1,9 +1,10 @@
 "use strict";
 // AK6872 contract C5: preloaded into the native child only on Node runtimes whose permission
-// model cannot deny network (no --allow-net, e.g. Node 22-24). It locks every public Node
+// model cannot deny network (no --allow-net, e.g. Node 22-24), and only after the operator
+// opts in with PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1. It locks every public Node
 // network entry point it enumerates, including constructors that create native handles. It is a
-// deny-list: in-process, NOT kernel-enforced, not an OS sandbox, and may miss an unenumerated
-// path. The permission model (C4) separately denies process.binding, child processes, workers
+// deny-list: in-process, NOT kernel-enforced, not an OS sandbox, and has known bypasses
+// (internal request wraps captured via async_hooks drive raw Unix-socket and DNS handles). The permission model (C4) separately denies process.binding, child processes, workers
 // and addons.
 const CODE = "ERR_PI_CLIPPER_NETWORK_DENIED";
 function denied(api) {
@@ -42,9 +43,10 @@ for (const name of ["http", "https"]) {
 }
 lock(require("node:http2"), "connect", "http2");
 const dgram = require("node:dgram");
+// Lock the real prototype first: the constructor lock below replaces dgram.Socket.
+for (const name of ["bind", "connect", "send"]) lock(dgram.Socket.prototype, name, "udp");
 // The dgram.Socket constructor creates a native UDP handle before bind/send (AK6872 review).
 for (const name of ["createSocket", "Socket", "_createSocketHandle"]) lock(dgram, name, "udp");
-for (const name of ["bind", "connect", "send"]) lock(dgram.Socket.prototype, name, "udp");
 const DNS = /^(lookup|lookupService|resolve|reverse)/;
 for (const dns of [require("node:dns"), require("node:dns").promises]) {
   lockAll(dns, DNS, "dns");

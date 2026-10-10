@@ -141,6 +141,8 @@ test("published production artifact contains and loads all runtime sources with 
         PI_CODING_AGENT_DIR: home,
         PI_OBSIDIAN_CLIPPER_CONTRACT: config,
         PI_OBSIDIAN_CLIPPER_CLI: join(native, "dist/cli.cjs"),
+        // Explicit B2 opt-in; only consulted on Node runtimes without --allow-net.
+        PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD: "1",
       },
       maxBuffer: 65536,
     });

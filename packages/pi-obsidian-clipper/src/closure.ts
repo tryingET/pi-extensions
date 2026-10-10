@@ -74,12 +74,29 @@ export async function admitNative(path: string, signal?: AbortSignal, limits = C
   await walk(root, 0);
   return { cli, root, entries };
 }
-// C4/C5: read-only grants; network denied by the runtime where supported, else by the guard.
-export function permissionArgs(root: string, dir: string) {
+// C4/C5: read-only fs grants; network denied by the runtime where supported. Runtimes without
+// --allow-net fail closed unless the operator explicitly accepts the in-process guard (B2).
+export const GUARD_OPT_IN = "PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD";
+export function nativeBoundary() {
   const flags = process.allowedNodeEnvironmentFlags;
   if (!flags.has("--permission"))
     throw new Error("Native capture requires a Node runtime with the permission model");
   const runtimeNet = flags.has("--allow-net");
+  if (!runtimeNet && process.env[GUARD_OPT_IN] !== "1")
+    throw new Error(
+      `Native capture refused: this Node runtime's permission model cannot deny network (needs --allow-net, Node >= 25). Set ${GUARD_OPT_IN}=1 to accept the in-process deny-list guard, which has known bypasses.`,
+    );
+  return {
+    runtimeNet,
+    boundary: {
+      permissionModel: "node-permission-read-only",
+      network: runtimeNet ? "runtime-permission" : "in-process-guard",
+      osSandbox: false,
+    },
+  };
+}
+export function permissionArgs(root: string, dir: string) {
+  const { runtimeNet, boundary } = nativeBoundary();
   const reads = [root, dir, ...(runtimeNet ? [] : [NETWORK_GUARD])].map(flagSafe);
   return {
     args: [
@@ -87,10 +104,6 @@ export function permissionArgs(root: string, dir: string) {
       ...reads.map((p) => `--allow-fs-read=${p}`),
       ...(runtimeNet ? [] : ["--require", NETWORK_GUARD]),
     ],
-    boundary: {
-      permissionModel: "node-permission-read-only",
-      network: runtimeNet ? "runtime-permission" : "in-process-guard",
-      osSandbox: false,
-    },
+    boundary,
   };
 }

@@ -48,17 +48,23 @@ closed before spawning, with an error naming the closure. The installed engine
 --require <guard> <R>/dist/cli.cjs URL --template … --html …`. No `--allow-fs-write`,
 `--allow-child-process`, `--allow-worker`, `--allow-addons`, `--allow-wasi`; no
 `--allow-net` where it exists. A runtime without `--permission` fails closed. Effect:
-modules and files outside `<R>` (including ancestor `node_modules` and user files) are
-unreadable; child processes, workers, addons and `process.binding` are denied.
+through Node's filesystem APIs, modules and files outside `<R>` (including ancestor
+`node_modules` and user files) are unreadable and nothing is writable; child processes,
+workers, addons and `process.binding` are denied. **Exception:** `node:sqlite` is not
+covered by Node's permission model; the child can read and write SQLite files the user
+can access (for example browser cookie or history stores) on both runtimes. The owner
+chose to record this rather than disable the module (second interview, 2026-10-10).
 
 **C5 Network.** On Node with `--allow-net` support (≥25; the current Pi runtime is
 26.9.0) the runtime permission model denies TCP, UDP, Unix sockets, listening, DNS and
-`fetch`. On Node without it (22–24, including the pinned gate Node 22.23.3) an
-adapter-owned preload guard locks the public Node network entry points it enumerates
-(`net` connect/listen and server handles, the `dgram` socket constructor and methods,
-`tls`, `http`/`https`/`http2`, `dns`, `fetch`, `WebSocket`, inspector). That guard is
-a deny-list: in-process, not kernel-enforced, and it may miss an unenumerated path; C4
-removes the obvious bypasses (bindings, child processes, workers, addons). The tests
+`fetch`. On Node without it (22–24, including the pinned gate Node 22.23.3) native capture
+**fails closed by default** (owner decision B2, second interview). Only an explicit
+operator opt-in, `PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1` in Pi's environment,
+runs it with an adapter-owned preload guard that locks the public Node network entry points
+it enumerates (`net` connect/listen and server handles, the `dgram` socket constructor and
+methods, `tls`, `http`/`https`/`http2`, `dns`, `fetch`, `WebSocket`, inspector). That guard
+is a deny-list: in-process, not kernel-enforced, with **known bypasses** (see remaining
+assumptions). The refusal happens before closure admission or page transport. The tests
 prove denial only for the probes they run (listed below). Result metadata states which
 mechanism applied and `osSandbox: false`.
 
@@ -72,6 +78,11 @@ and inactive module load stay as they are; no test thresholds are weakened.
   adapter itself; root is trusted.
 - Node's permission model is a "seat belt" for trusted code (Node documentation), not
   protection against deliberately malicious code; nothing here is an OS sandbox.
+- Node < 25 with the opt-in guard: review showed that internal request wraps captured
+  through `async_hooks` let raw handles connect to Unix sockets (including the D-Bus
+  session bus, which can start processes outside the permission model) and send DNS/UDP
+  queries to arbitrary addresses. Node 26 denies both. This is why the default is refusal.
+- `node:sqlite` file access outside the grants (see C4).
 - The native child can still signal processes of the same user, including Pi
   (`process.kill`), on both runtimes; the permission model does not cover signals.
 - C4 grants read access by path: a hard link inside `<R>` to a file elsewhere is
@@ -119,3 +130,11 @@ observer. Node 26 denied it. The guard now locks the `dgram.Socket` constructor,
 the raw-handle path, listen and Unix sockets, and removing the constructor lock turns
 both network tests red on Node 22. C1 is now also checked on the CLI realpath's file
 name. Signals and hard links were added to the remaining assumptions above.
+
+A second review pass confirmed the fix, then found that `node:sqlite` bypasses the
+filesystem permission model on both runtimes and that the Node 22 guard can be bypassed
+through `async_hooks`-captured internal request wraps. In a second native interview the
+owner chose to record the SQLite exception (C4) instead of disabling the module, and chose
+fail-closed-by-default with an explicit opt-in for Node < 25 (B2). The guard's prototype
+locks now run before the constructor lock, and the listen probe attributes only
+listen-originated denials.

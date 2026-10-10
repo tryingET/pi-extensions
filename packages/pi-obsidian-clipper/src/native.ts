@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { admitNative, permissionArgs } from "./closure.ts";
+import { admitNative, nativeBoundary, permissionArgs } from "./closure.ts";
 import { deadline, fetchHtml, HTML_LIMIT, publicUrl } from "./transport.ts";
 
 export const OUTPUT_LIMIT = 32768;
@@ -148,6 +148,8 @@ export async function extract(url: string, html?: string, parent?: AbortSignal) 
     const path =
       process.env.PI_OBSIDIAN_CLIPPER_CLI ??
       join(homedir(), ".local/libexec/obsidian-clipper/current/dist/cli.cjs");
+    // Refuse an unsupported boundary before any closure walk or page transport.
+    const { boundary } = nativeBoundary();
     const cli = await admitNative(path, signal);
     signal.throwIfAborted();
     const page = html === undefined ? await fetchHtml(source, signal) : { html, finalUrl: source };
@@ -176,7 +178,7 @@ export async function extract(url: string, html?: string, parent?: AbortSignal) 
           requiredRepairs: [],
           provenance:
             "operator-installed; file metadata does not attest source/base/patch/lock; these fields declare requirements, not observed provenance",
-          boundary: permissionArgs(cli.root, dir).boundary,
+          boundary,
         },
         markdown,
         saved: false,
