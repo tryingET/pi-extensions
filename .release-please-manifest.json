@@ -1,6 +1,6 @@
 {
   "packages/pi-activity-strip": "0.9.0",
-  "packages/pi-agent-registry": "0.3.11",
+  "packages/pi-agent-registry": "0.3.12",
   "packages/pi-agent-vent": "0.3.1",
   "packages/pi-autonomous-session-control": "0.7.0",
   "packages/pi-autoresearch": "0.5.4",
@@ -15,7 +15,7 @@
   "packages/pi-interaction/pi-interaction-kit": "0.2.2",
   "packages/pi-interaction/pi-runtime-registry": "0.2.2",
   "packages/pi-interaction/pi-trigger-adapter": "0.2.4",
-  "packages/pi-little-helpers": "0.11.2",
+  "packages/pi-little-helpers": "0.11.3",
   "packages/pi-model-selection": "0.3.1",
   "packages/pi-modes": "0.6.0",
   "packages/pi-obsidian-clipper": "0.2.0",
