@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.3](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.2...pi-society-startup-context-v0.3.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **prompt:** keep advisory context out of cached system prefix ([9058aec](https://github.com/tryingET/pi-extensions/commit/9058aec1043496b77a44a111484283940cf26c9b))
+
 ## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.1...pi-society-startup-context-v0.3.2) (2026-10-01)
 
 

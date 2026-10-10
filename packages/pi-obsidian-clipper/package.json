@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-obsidian-clipper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Native Obsidian Clipper capture and read-only workstation Interpreter setup for Pi",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

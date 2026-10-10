@@ -23,6 +23,14 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.5.3](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.2...pi-ontology-workflows-v0.5.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **pi-ontology-workflows:** dedup disabled preflight note; pin stock Pi 1.1 observer dormancy (AK6847) ([16859d7](https://github.com/tryingET/pi-extensions/commit/16859d73b18373ffd8227fc387682228e6bd361c))
+* **prompt:** keep advisory context out of cached system prefix ([9058aec](https://github.com/tryingET/pi-extensions/commit/9058aec1043496b77a44a111484283940cf26c9b))
+
 ## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.1...pi-ontology-workflows-v0.5.2) (2026-09-27)
 
 
