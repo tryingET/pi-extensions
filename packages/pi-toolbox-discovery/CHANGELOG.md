@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.5.0...pi-toolbox-discovery-v0.5.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **prompt:** keep advisory context out of cached system prefix ([9058aec](https://github.com/tryingET/pi-extensions/commit/9058aec1043496b77a44a111484283940cf26c9b))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.4.1...pi-toolbox-discovery-v0.5.0) (2026-09-19)
 
 
