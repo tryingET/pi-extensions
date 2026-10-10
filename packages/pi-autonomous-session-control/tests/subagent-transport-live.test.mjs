@@ -1,80 +1,21 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 import { createSubagentState, spawnSubagentWithSpawn } from "../extensions/self/subagent.ts";
 import { reserveSharedSubagentCapacity } from "../extensions/self/subagent-capacity.ts";
 import { createAscExecutionRuntime } from "../extensions/self/subagent-runtime.ts";
 import { getProcessStartTicks } from "../extensions/self/subagent-session-status.ts";
-
-async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {
-  const tempDir = await mkdtemp(join(tmpdir(), "subagent-transport-live-fake-pi-"));
-  const binDir = join(tempDir, "bin");
-  const fakePiPath = join(binDir, "pi");
-  const scenarioPath = join(binDir, "pi-scenario");
-  const previousPath = process.env.PATH;
-
-  await mkdir(binDir, { recursive: true });
-  await writeFile(scenarioPath, scriptBody, { mode: 0o755 });
-  await writeFile(
-    fakePiPath,
-    `#!/usr/bin/env bash\nif [[ "$1" == "--version" ]]; then printf '%s\\n' ${JSON.stringify(version)}; exit 0; fi\nexec ${JSON.stringify(scenarioPath)} "$@"\n`,
-    { mode: 0o755 },
-  );
-  process.env.PATH = `${binDir}:${previousPath || ""}`;
-
-  try {
-    return await run(tempDir);
-  } finally {
-    if (previousPath === undefined) {
-      delete process.env.PATH;
-    } else {
-      process.env.PATH = previousPath;
-    }
-    await rm(tempDir, { recursive: true, force: true });
-  }
-}
-
-async function withTemporaryEnv(overrides, run) {
-  const previous = new Map();
-  for (const [key, value] of Object.entries(overrides)) {
-    previous.set(key, process.env[key]);
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
-    }
-  }
-
-  try {
-    return await run();
-  } finally {
-    for (const [key, value] of previous.entries()) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
-  }
-}
-
-function processIsAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return false;
-  }
-
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import {
+  processIsAlive,
+  withFakePiOnPath,
+  withTemporaryEnv,
+} from "./subagent-transport-harness.mjs";
 
 test("end-to-end: helper enforces raw pi line size even when the newline arrives in the same chunk", async () => {
   const oversizedRawPiLine = JSON.stringify({
@@ -213,68 +154,59 @@ test("end-to-end: raw pi buffering no longer inherits the filtered protocol buff
 });
 
 test("end-to-end: helper isolates the raw child agent dir and cleans it up after execution", async () => {
-  const sourceAgentDir = await mkdtemp(join(tmpdir(), "subagent-child-agent-dir-source-"));
+  await withFakePiOnPath(
+    [
+      "#!/usr/bin/env node",
+      'const { existsSync, readFileSync } = require("node:fs");',
+      'const { join } = require("node:path");',
+      "const agentDir = process.env.PI_CODING_AGENT_DIR;",
+      "const payload = {",
+      "  agentDir,",
+      '  settings: readFileSync(join(agentDir, "settings.json"), "utf-8").trim(),',
+      '  authExists: existsSync(join(agentDir, "auth.json")),',
+      '  multiPassExists: existsSync(join(agentDir, "multi-pass.json")),',
+      "};",
+      "console.log(JSON.stringify({",
+      '  type: "message_end",',
+      "  message: {",
+      '    role: "assistant",',
+      '    content: [{ type: "text", text: JSON.stringify(payload) }],',
+      '    stopReason: "stop",',
+      "  },",
+      "}));",
+      'console.log(JSON.stringify({ type: "agent_settled" }));',
+      "",
+    ].join("\n"),
+    async (tempRoot, { agentDir: sourceAgentDir }) => {
+      await writeFile(
+        join(sourceAgentDir, "settings.json"),
+        `${JSON.stringify({ defaultProvider: "openai-codex-2", defaultModel: "gpt-5.4" })}\n`,
+      );
+      await writeFile(join(sourceAgentDir, "auth.json"), '{"token":"test"}\n');
+      await writeFile(join(sourceAgentDir, "multi-pass.json"), '{"subscriptions":[]}\n');
+      const state = createSubagentState(join(tempRoot, "sessions"));
+      const result = await spawnSubagentWithSpawn(
+        {
+          name: "isolated-child-agent-dir",
+          objective: "Review changes",
+          tools: "read,bash",
+          sessionFile: join(state.sessionsDir, "isolated-child-agent-dir.json"),
+        },
+        "test/model",
+        { cwd: tempRoot },
+        state,
+      );
 
-  try {
-    await writeFile(
-      join(sourceAgentDir, "settings.json"),
-      `${JSON.stringify({ defaultProvider: "openai-codex-2", defaultModel: "gpt-5.4" })}\n`,
-    );
-    await writeFile(join(sourceAgentDir, "auth.json"), '{"token":"test"}\n');
-    await writeFile(join(sourceAgentDir, "multi-pass.json"), '{"subscriptions":[]}\n');
-
-    await withFakePiOnPath(
-      [
-        "#!/usr/bin/env node",
-        'const { existsSync, readFileSync } = require("node:fs");',
-        'const { join } = require("node:path");',
-        "const agentDir = process.env.PI_CODING_AGENT_DIR;",
-        "const payload = {",
-        "  agentDir,",
-        '  settings: readFileSync(join(agentDir, "settings.json"), "utf-8").trim(),',
-        '  authExists: existsSync(join(agentDir, "auth.json")),',
-        '  multiPassExists: existsSync(join(agentDir, "multi-pass.json")),',
-        "};",
-        "console.log(JSON.stringify({",
-        '  type: "message_end",',
-        "  message: {",
-        '    role: "assistant",',
-        '    content: [{ type: "text", text: JSON.stringify(payload) }],',
-        '    stopReason: "stop",',
-        "  },",
-        "}));",
-        'console.log(JSON.stringify({ type: "agent_settled" }));',
-        "",
-      ].join("\n"),
-      async (tempRoot) => {
-        await withTemporaryEnv({ PI_CODING_AGENT_DIR: sourceAgentDir }, async () => {
-          const state = createSubagentState(join(tempRoot, "sessions"));
-          const result = await spawnSubagentWithSpawn(
-            {
-              name: "isolated-child-agent-dir",
-              objective: "Review changes",
-              tools: "read,bash",
-              sessionFile: join(state.sessionsDir, "isolated-child-agent-dir.json"),
-            },
-            "test/model",
-            { cwd: tempRoot },
-            state,
-          );
-
-          const payload = JSON.parse(result.output);
-          assert.equal(result.status, "done");
-          assert.equal(payload.settings, "{}");
-          assert.equal(payload.authExists, true);
-          assert.equal(payload.multiPassExists, true);
-          assert.notEqual(payload.agentDir, sourceAgentDir);
-          assert.equal(existsSync(payload.agentDir), false);
-          assert.doesNotMatch(result.stderr || "", /openai-codex-2\/gpt-5\.4/);
-        });
-      },
-    );
-  } finally {
-    await rm(sourceAgentDir, { recursive: true, force: true });
-  }
+      const payload = JSON.parse(result.output);
+      assert.equal(result.status, "done");
+      assert.equal(payload.settings, "{}");
+      assert.equal(payload.authExists, true);
+      assert.equal(payload.multiPassExists, true);
+      assert.notEqual(payload.agentDir, sourceAgentDir);
+      assert.equal(existsSync(payload.agentDir), false);
+      assert.doesNotMatch(result.stderr || "", /openai-codex-2\/gpt-5\.4/);
+    },
+  );
 });
 
 test("end-to-end: raw Pi automatic retry settles once at agent_settled", async () => {
@@ -424,47 +356,60 @@ test("end-to-end: raw stdout noise does not satisfy startup readiness", async ()
   );
 });
 
-test("end-to-end: timeout tears down the raw pi child before the helper is force-killed", async () => {
-  await withFakePiOnPath(
-    [
-      "#!/usr/bin/env bash",
-      'printf \'%s\' "$$" > "$PI_PROVENANCE_OUTPUT_FILE"',
-      "trap '' TERM INT",
-      "while true; do sleep 1; done",
-      "",
-    ].join("\n"),
-    async (tempRoot) => {
-      const state = createSubagentState(join(tempRoot, "sessions"));
-      const rawPidPath = join(tempRoot, "raw-pi.pid");
-      const result = await spawnSubagentWithSpawn(
-        {
-          name: "timeout-reaps-raw-pi",
-          objective: "Review changes",
-          tools: "read,bash",
-          sessionFile: join(state.sessionsDir, "timeout-reaps-raw-pi.json"),
-          timeout: 5_000,
-          startupTimeout: 250,
-          env: { PI_PROVENANCE_OUTPUT_FILE: rawPidPath },
-        },
-        "test/model",
-        { cwd: tempRoot },
-        state,
-      );
+test("parent startup deadline fires at 250ms even while helper startup is blocked", async (t) => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "subagent-blocked-helper-"));
+  const helper = new EventEmitter();
+  helper.stdout = new PassThrough();
+  helper.stderr = new PassThrough();
+  const signals = [];
+  helper.kill = (signal) => {
+    signals.push(signal);
+    return true;
+  };
+  // Deliberately hold the helper before any protocol/spawn-intent event. Mock only
+  // the parent's clock: subagent-supervisor-live proves teardown with real processes.
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  try {
+    const state = createSubagentState(join(tempRoot, "sessions"));
+    const resultPromise = spawnSubagentWithSpawn(
+      {
+        name: "timeout-before-helper-startup",
+        objective: "Review changes",
+        tools: "read,bash",
+        sessionFile: join(state.sessionsDir, "timeout-before-helper-startup.json"),
+        timeout: 5_000,
+        startupTimeout: 250,
+      },
+      "test/model",
+      { cwd: tempRoot },
+      state,
+      (_command, args) => {
+        assert.equal(args[args.indexOf("--startup-timeout-ms") + 1], "250");
+        return helper;
+      },
+    );
+    t.mock.timers.tick(249);
+    assert.deepEqual(signals, []);
+    t.mock.timers.tick(1);
+    assert.deepEqual(signals, ["SIGTERM"]);
+    helper.emit("close", 143, null);
+    const result = await resultPromise;
 
-      const rawPiPid = Number(await readFile(rawPidPath, "utf8"));
-
-      assert.equal(result.status, "timeout");
-      assert.equal(result.timedOut, true);
-      assert.equal(result.timeoutPhase, "startup");
-      assert.equal(result.output, "Subagent timed out during startup after 250ms");
-      assert.ok(
-        result.elapsed < 750,
-        `expected timeout teardown under 750ms, got ${result.elapsed}`,
-      );
-      assert.equal(typeof rawPiPid, "number");
-      assert.equal(processIsAlive(rawPiPid), false);
-    },
-  );
+    assert.equal(result.status, "timeout");
+    assert.equal(result.timedOut, true);
+    assert.equal(result.timeoutPhase, "startup");
+    assert.equal(result.output, "Subagent timed out during startup after 250ms");
+    assert.equal(result.elapsed, 250);
+    assert.ok(result.elapsed < 750, `expected timeout teardown under 750ms, got ${result.elapsed}`);
+    assert.equal(state.activeCount, 0);
+    t.mock.timers.tick(500);
+    assert.deepEqual(signals, ["SIGTERM"], "closed helper must not be force-killed later");
+  } finally {
+    t.mock.timers.reset();
+    helper.stdout.destroy();
+    helper.stderr.destroy();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("helper self-terminates when its parent never drains protocol stdout", async () => {
@@ -933,100 +878,6 @@ test("helper terminates unlimited raw work after exact parent death", async () =
         assert.equal(signal, null);
         const rawPid = Number(await readFile(rawPidPath, "utf8"));
         assert.equal(processIsAlive(rawPid), false);
-      } finally {
-        if (helper.exitCode === null && helper.signalCode === null) helper.kill("SIGKILL");
-      }
-    },
-  );
-});
-
-test("raw supervisor kills the complete managed group after helper SIGKILL", async () => {
-  await withFakePiOnPath(
-    [
-      "#!/usr/bin/env bash",
-      "node -e 'process.on(\"SIGTERM\", () => {}); setInterval(() => {}, 1000)' </dev/null >/dev/null 2>&1 &",
-      'printf \'%s %s\' "$$" "$!" > "$PI_PROVENANCE_OUTPUT_FILE"',
-      "trap '' TERM INT",
-      "while true; do sleep 1; done",
-      "",
-    ].join("\n"),
-    async (tempRoot) => {
-      const helperPath = join(process.cwd(), "extensions/self/subagent-pi-json-filter-v2.ts");
-      const rawPidPath = join(tempRoot, "sigkill-raw.pid");
-      const helper = spawn(
-        process.execPath,
-        [
-          helperPath,
-          "--cwd",
-          tempRoot,
-          "--model",
-          "test/model",
-          "--tools",
-          "read,bash",
-          "--thinking",
-          "off",
-          "--session-file",
-          join(tempRoot, "helper-sigkill.jsonl"),
-          "--objective",
-          "Stop raw work when helper custody pipe closes",
-          "--startup-timeout-ms",
-          "5000",
-          "--execution-timeout-ms",
-          "0",
-        ],
-        {
-          cwd: tempRoot,
-          env: { ...process.env, PI_PROVENANCE_OUTPUT_FILE: rawPidPath },
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      );
-      helper.stdout?.resume();
-      helper.stderr?.resume();
-      try {
-        let rawPid;
-        let descendantPid;
-        for (let attempt = 0; attempt < 100; attempt += 1) {
-          try {
-            [rawPid, descendantPid] = (await readFile(rawPidPath, "utf8"))
-              .trim()
-              .split(/\s+/)
-              .map(Number);
-            break;
-          } catch {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-          }
-        }
-        assert.equal(typeof rawPid, "number");
-        assert.equal(typeof descendantPid, "number");
-        const stat = await readFile(`/proc/${rawPid}/stat`, "utf8");
-        const processGroupId = Number(
-          stat
-            .slice(stat.lastIndexOf(")") + 1)
-            .trim()
-            .split(/\s+/)[2],
-        );
-        assert.ok(Number.isSafeInteger(processGroupId) && processGroupId > 0);
-        helper.kill("SIGKILL");
-        await once(helper, "exit");
-        for (
-          let attempt = 0;
-          attempt < 100 && (processIsAlive(rawPid) || processIsAlive(descendantPid));
-          attempt += 1
-        ) {
-          await new Promise((resolve) => setTimeout(resolve, 10));
-        }
-        assert.equal(processIsAlive(rawPid), false);
-        assert.equal(processIsAlive(descendantPid), false);
-        let groupQuiescent = false;
-        for (let attempt = 0; attempt < 400 && !groupQuiescent; attempt += 1) {
-          try {
-            process.kill(-processGroupId, 0);
-          } catch (error) {
-            if (error?.code === "ESRCH") groupQuiescent = true;
-          }
-          if (!groupQuiescent) await new Promise((resolve) => setTimeout(resolve, 10));
-        }
-        assert.equal(groupQuiescent, true, "managed process-group identity remained live");
       } finally {
         if (helper.exitCode === null && helper.signalCode === null) helper.kill("SIGKILL");
       }

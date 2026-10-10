@@ -40,68 +40,17 @@ that declaration is not operator consent. No Toolbox catalog was changed here.
 A CLI `--tools` allowlist must include every tool you intend to activate, not only
 `toolbox`; otherwise omitted tools are not registered in that invocation.
 
-## Current deployment (observed 2026-10-10)
+## Deployment and follow-up status
 
-The package was landed through `scripts/land-canonical.sh` and pushed to `main`
-at `cc278d46e1936002af44d4a2a927800fc3a8d11e` (AK evidence **14605**).
-Pi's installed source is now the canonical package, not the candidate worktree:
+Start at [current status](docs/project/current-status.md) for the single delivery,
+AK task/evidence and remaining-limit map. Dated checkpoint reports are preserved
+as history, not competing current-status pages. AK remains authoritative.
 
-```text
-~/ai-society/softwareco/owned/pi-extensions/packages/pi-obsidian-clipper
-```
-
-The declared full root gate, package gate (27 test bodies) and staged pre-commit
-checks passed. Main CI, release-check, compatibility-canary, immutable-generation,
-release-please and advisory Node-next runs for that commit subsequently passed
-(AK evidence **14621**).
-Fresh globally configured Pi load/help/status and an actual native extraction tool
-call preserved both synthetic fixture paragraphs with `saved:false` (evidence
-**14606**). This is package/receiver proof, not browser Interpreter setup proof.
-No npm release was published. AK6634 remains open; terminal completion is
-withheld by operator direction.
-
-The canonical workstation declaration file is still dated `2026-10-04T07:38:07Z`, so
-default `status` reports it **stale** and `setup` refuses it. With a fresh read-only
-owner export selected through `PI_OBSIDIAN_CLIPPER_CONTRACT` it reports `fresh`.
-`status`/`setup` never probe live health, auth or browser state themselves.
-
-**Isolated browser qualification (AK6870, 2026-10-10):** an isolated Chromium 153
-profile in a nested niri ran an unpacked Clipper 1.7.1 built from pinned upstream
-`6d56d618`. The workstation provider/model were appended through the native UI and
-the seeded existing providers/models were preserved. A real Interpreter POST from
-`chrome-extension://` origin went to `baseline-multimodal` **without CORS preflight**
-and returned HTTP 200 with `prompts_responses`. The loopback endpoint was observed
-**keyless** (no-Authorization POST → 200), and the nonsecret key-field value `local`
-was used in that isolated profile only. Personal profiles were not touched. Details
-and limits: [AK6870 qualification](docs/project/2026-10-10-ak6870-browser-qualification.md).
-
-**Images in notes (AK6888, 2026-10-10):** Clipper and this package never download
-image files. Images become remote Markdown links. On Wikipedia, lazy images point
-to `/wiki/File:` HTML pages because of an upstream Defuddle bug, so they render
-broken. Pi's native extract fails on long articles because native output is
-capped at 32 KiB. See [AK6888 image handling](docs/project/2026-10-10-ak6888-image-handling.md).
-
-Operator-approved grouped follow-ups are bound in AK, with first-class deferrals
-and a **2026-10-17** resolution/review target:
-
-- **AK6870:** owner-authorized workstation/browser Interpreter integration. Isolated-browser
-  proof recorded 2026-10-10; read AK for its current lifecycle state.
-- **AK6871:** TS7 migration and separate adapter/native advisory qualification.
-  Its deferral was released on 2026-10-10 and the work was executed: see the
-  [qualification dossier](docs/project/2026-10-10-ak6871-dependency-qualification.md).
-  Terminal completion remains the operator's decision.
-- **AK6872:** native dependency-closure enforcement and real transport/process tests —
-  implemented under the receiver-approved [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md);
-  completion remains the operator's decision.
-- **AK6873:** original-owner acceptance/closeout handback for AK6856; no duplicate repair.
-
-Read current AK contracts/deferrals for owners, triggers, deadlines and acceptance
-criteria; this document is a projection. The operator explicitly retained
-**extraction-only/no vault save** as a known limit, not a promised feature. On
-2026-10-10 the operator reversed the earlier text-only Interpreter limit. Text-only
-now applies only to providers without image support, and the opt-in image path
-exists only as the tracked patch above (AK6889). No claim of zero hidden defects or exhaustive
-security qualification is made.
+Pi's installed source is the canonical package:
+`~/ai-society/softwareco/owned/pi-extensions/packages/pi-obsidian-clipper`.
+`status` and `setup` do not probe live health, authentication or browser state.
+An isolated-browser observation is not personal-profile configuration. No-save
+remains intentional; the opt-in image patch is not a Web Store feature.
 
 ## Historical local activation status (AK6634, 2026-10-04)
 
@@ -261,6 +210,12 @@ npm run check
 npm run release:check:quick
 ```
 
+Production artifact tests use a fresh per-run empty npm cache and a
+[checksum-locked offline fixture](tests/fixtures/README.md), not a prewarmed
+`.scratch/npm-cache`. Installed integrity is checked against the authored lock.
+Changing the runtime dependency requires refreshing that fixture and its negative
+controls; ordinary checks need no network access for the artifact installation.
+
 Development Pi pins/host metadata: **1.1.0**, peers `*` (compatibility declaration,
 not proof against all versions). `typebox` is host-provided: peer `*`, exact
 `1.3.7` development pin, no runtime dependency copy. The only runtime dependency
@@ -272,7 +227,7 @@ The canonical root declares Pi **1.1.0** and includes the clipper release mappin
 Passing gates are not universal compiler/dependency compatibility proof.
 Root engineering policy owns the lane; there is no package-local lane override.
 Package version/release component
-is `0.1.0` / `pi-obsidian-clipper`. `.copier-answers.yml` is preserved unchanged;
+is `0.2.0` / `pi-obsidian-clipper`. `.copier-answers.yml` is preserved unchanged;
 scaffold-only organisational/prompts placeholders were removed, not made runtime
 behavior. The package gate adds package structure checks then delegates the
 canonical root package gate. [Test scope and live smoke](docs/project/native-engine.md#observed-native-proof).

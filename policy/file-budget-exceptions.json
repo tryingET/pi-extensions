@@ -122,12 +122,6 @@
       "reopen_trigger": "suite grows past 1416 LOC or its package adopts a per-concern split pass"
     },
     {
-      "path": "packages/pi-autonomous-session-control/tests/subagent-transport-live.test.mjs",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "pi-autonomous-session-control suite at 103% of the test budget (1035/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
-      "reopen_trigger": "suite grows past 1139 LOC or its package adopts a per-concern split pass"
-    },
-    {
       "path": "packages/pi-autoresearch/extensions/pi-autoresearch/toolStatusControl.ts",
       "owner": "softwareco/owned/pi-extensions",
       "reason": "pi-autoresearch toolStatusControl module at 107% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",

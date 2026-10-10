@@ -1,11 +1,16 @@
 ---
-summary: "AK6634 atomic-completion disposition: stale docs corrected, delivery CI green, declared limits retained; three engineering blocks deferred canonically in AK; AK6856 closeout handback resolved under AK6873."
+summary: "Historical grouped AK6634 disposition and AK6873 handback; current-status.md and AK receipts own the current work map."
 task_id: 6634
 read_when:
   - "Assessing remaining AK6634 obligations or resuming one grouped follow-up."
 ---
 
 # AK6634 atomic-completion disposition — 2026-10-10
+
+> **Historical disposition.** Later owner decisions reversed the text-only
+> Interpreter limit and executed several deferred blocks. Start at
+> [current status](current-status.md); do not infer current deferrals or lifecycle
+> from this report. Original counts and evidence are retained.
 
 ## Authority and scope
 

@@ -1,5 +1,5 @@
 ---
-summary: "AK6634 adapter evidence, current-upstream native proof, historical repairs and remaining browser limits."
+summary: "Historical October 4 AK6634 adapter/native evidence; use current-status.md for later deployment and qualification."
 read_when:
   - "Independently inspecting AK6634 or running parent native smoke."
 system4d:
@@ -11,7 +11,11 @@ system4d:
 
 # AK6634 evidence
 
-## Current preferred native input — parent reconciliation, 2026-10-04
+> **Historical evidence report.** The October 4 observations below are retained,
+> not current browser/host/closure qualification. Start at
+> [current status](current-status.md) and read the corresponding current AK receipts.
+
+## Preferred native input at the October 4 checkpoint
 
 The historical repaired-tag sections below retain their original scope; they are
 not the current deployment prescription. Official main snapshot

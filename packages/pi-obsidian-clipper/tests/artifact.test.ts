@@ -6,6 +6,7 @@ import test from "node:test";
 import { promisify } from "node:util";
 import { parseNpmPackJson } from "../../../scripts/npm-pack-json.mjs";
 import { contract, fixture } from "./helpers.ts";
+import { productionFixture } from "./production-fixture.ts";
 
 const exec = promisify(execFile);
 test("published production artifact contains and loads all runtime sources with pinned host", async () => {
@@ -23,12 +24,15 @@ test("published production artifact contains and loads all runtime sources with 
       TMPDIR: f.dir,
       NPM_CONFIG_USERCONFIG: npmrc,
       NPM_CONFIG_GLOBALCONFIG: globalrc,
-      NPM_CONFIG_CACHE: resolve(".scratch/npm-cache"),
+      NPM_CONFIG_CACHE: join(f.dir, "npm-cache"),
+      NPM_CONFIG_REGISTRY: "http://127.0.0.1:1", // A registry lookup must fail, not reach the internet.
       NPM_CONFIG_LOGLEVEL: "error",
       PI_OFFLINE: "1",
       PI_SKIP_VERSION_CHECK: "1",
       PI_TELEMETRY: "0",
     };
+    await mkdir(env.NPM_CONFIG_CACHE);
+    assert.deepEqual(await readdir(env.NPM_CONFIG_CACHE), []);
     const packed = await exec("npm", ["pack", "--json", "--pack-destination", f.dir], {
       env,
       maxBuffer: 65536,
@@ -47,6 +51,13 @@ test("published production artifact contains and loads all runtime sources with 
     assert.ok(!paths.some((p) => /^(tests|node_modules|\.scratch|prompts)\//.test(p)));
     const installed = join(f.dir, "install");
     await mkdir(installed);
+    await writeFile(
+      join(installed, "package.json"),
+      JSON.stringify({
+        private: true,
+        dependencies: { "ipaddr.js": `file:${await productionFixture()}` },
+      }),
+    );
     await exec(
       "npm",
       [
@@ -66,6 +77,16 @@ test("published production artifact contains and loads all runtime sources with 
     const root = join(installed, "node_modules/@tryinget/pi-obsidian-clipper");
     const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
     assert.deepEqual(Object.keys(manifest.dependencies).sort(), ["ipaddr.js"]);
+    const runtimeDependency = JSON.parse(
+      await readFile(join(installed, "node_modules/ipaddr.js/package.json"), "utf8"),
+    );
+    assert.equal(runtimeDependency.version, manifest.dependencies["ipaddr.js"]);
+    const installedLock = JSON.parse(await readFile(join(installed, "package-lock.json"), "utf8"));
+    assert.equal(
+      installedLock.packages["node_modules/ipaddr.js"].integrity,
+      JSON.parse(await readFile("package-lock.json", "utf8")).packages["node_modules/ipaddr.js"]
+        .integrity,
+    );
     assert.equal(manifest.peerDependencies.typebox, "*");
     assert.equal(manifest.devDependencies.typebox, "1.3.7");
     const productionModules = await readdir(join(installed, "node_modules"), {

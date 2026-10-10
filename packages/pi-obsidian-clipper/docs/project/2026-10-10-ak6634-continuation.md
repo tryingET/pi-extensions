@@ -1,5 +1,5 @@
 ---
-summary: "AK6634 checkpoint history: canonical landing/receiver verified; browser and grouped engineering follow-ups remain explicitly deferred in AK."
+summary: "Historical AK6634 continuation checkpoints; use current-status.md and current AK receipts for deployment and lifecycle."
 task_id: 6634
 read_when:
   - "Resuming AK6634 or inspecting its current verification and owner boundaries."
@@ -7,7 +7,11 @@ read_when:
 
 # AK6634 continuation — 2026-10-10
 
-## Current disposition
+> **Historical checkpoint report.** Later browser/native/dependency work and
+> owner decisions supersede portions below. Start at [current status](current-status.md)
+> and current AK receipts. Original observations/evidence are preserved.
+
+## Disposition at this checkpoint
 
 The earlier blockers below are dated checkpoint history, not current landing
 status. Package delivery was verified, canonically landed and pushed at
