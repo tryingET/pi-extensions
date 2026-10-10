@@ -1,3 +1,6 @@
+// Dashboard fixtures. pi-society-orchestrator's owner-integration tests
+// (tests/autoresearch-dashboard-*.test.mjs) import this file by its sibling
+// path too, so run that package's tests after changing it.
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
