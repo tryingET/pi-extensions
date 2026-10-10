@@ -48,7 +48,7 @@ Task states below were observed on 2026-10-10; consult AK for changes.
 | AK6871 compiler/dependencies | TS7/tsx qualified, adapter audit clear; native DOMPurify disposition separate; task still open | 14763/14771/14775; [dossier](2026-10-10-ak6871-dependency-qualification.md) |
 | AK6872 closure/transport | Enforcement and real receiver proof delivered; task still open | 14668/14671; [contract](2026-10-10-ak6872-native-closure-contract.md) |
 | AK6888 note images / AK6889 optional Interpreter images | Qualification and tracked patch delivered; both tasks still open | 14680/14681; [image findings](2026-10-10-ak6888-image-handling.md) |
-| AK6898 test/custody/documentation debt | Candidate focused checks pass; reversible quarantine done; full gates/landing blocked pending disk capacity | `ak evidence task 6898`; custody 14841; [fixture contract](../../tests/fixtures/README.md) |
+| AK6898 test/custody/documentation debt | Offline artifact and synchronized credential-isolated teardown fixtures; reversible custody quarantine done. Exact qualification, delivery and lifecycle are in current AK receipts, not inferred from this description | `ak evidence task 6898`; custody 14841; [fixture contract](../../tests/fixtures/README.md) |
 
 ## Limits and unresolved findings
 
