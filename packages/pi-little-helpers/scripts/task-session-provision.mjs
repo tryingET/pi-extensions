@@ -7,6 +7,7 @@
 //   node scripts/task-session-provision.mjs producer
 //   node scripts/task-session-provision.mjs profile --task ID --model ID --reasoning LEVEL
 //        [--run-seconds N] [--agent-dir DIR]
+//   node scripts/task-session-provision.mjs retire --attempt ID --host-closure TEXT --effects TEXT
 //   node scripts/task-session-provision.mjs show
 //
 // init creates the OS account's namespace (~/.local/state/pi-task-sessions, its lock, private
@@ -25,8 +26,13 @@
 // openai-codex model from the pinned SDK catalog, the account's current OAuth credential from
 // Pi's auth store (copied, content-addressed, never refreshed), the producer bindings and the
 // database identity AK's plan reports for an enrolled task; the host's own preflight then checks
-// it. The credential's lifetime bounds the profile: provision again before it runs out. No
-// command deletes anything.
+// it. The credential's lifetime bounds the profile: provision again before it runs out. retire is
+// the owner's three-part retirement of one attempt (AK5482): it refuses while any process still
+// names the attempt, and while AK still shows the claimant of an admission the attempt recorded
+// (an admission without a recorded result needs an unclaimed task); then it keeps an immutable
+// receipt with the owner's host-closure and effect-disposition statements beside the attempt and
+// sets hostClosed, effectsDisposed and claimResolved together. A claim is released only by AK
+// (`ak task-session recover`), never here. No command deletes anything.
 import { execFileSync } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
 import {
@@ -37,6 +43,7 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -312,6 +319,98 @@ async function profile() {
   };
 }
 
+/** Live processes, other than this command and its callers, whose argv names the attempt. */
+function processesNaming(attempt) {
+  const ours = new Set();
+  for (let pid = process.pid; pid > 1; ) {
+    ours.add(pid);
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    pid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
+  }
+  const live = [];
+  for (const entry of readdirSync("/proc")) {
+    const pid = Number(entry);
+    if (!Number.isSafeInteger(pid) || ours.has(pid)) continue;
+    let argv;
+    try {
+      argv = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0");
+    } catch {
+      continue; // exited while scanning
+    }
+    if (argv.some((arg) => arg.includes(attempt))) live.push(pid);
+  }
+  return live;
+}
+
+/** The attempt's AK claim: never admitted, denied, or admitted and since released by AK. */
+function claimDisposition(dir, taskId) {
+  const admissions = readdirSync(dir).flatMap((incarnation) => {
+    const at = join(dir, incarnation);
+    if (!existsSync(join(at, "ak-admission-lock.json"))) return [];
+    const result = join(at, "ak-admission.json");
+    return [existsSync(result) ? JSON.parse(readFileSync(result, "utf8")).body : null];
+  });
+  if (!admissions.length) return { claim: "never_admitted" };
+  if (admissions.every((a) => a?.outcome === "DENIED")) return { claim: "denied" };
+  const task = JSON.parse(
+    execFileSync("ak", ["task", "show", String(taskId), "-F", "json"], { encoding: "utf8" }),
+  );
+  const holder = task.claimed_by ?? null;
+  // An admission without its recorded result may hold a claim under any actor: only an
+  // unclaimed task proves it is gone.
+  if (admissions.includes(null)) {
+    if (holder !== null) refuse("claim_indeterminate");
+    return { claim: "recovered", taskClaimedBy: holder };
+  }
+  const actors = admissions.filter((a) => a.outcome === "ADMITTED").map((a) => a.claim.claimed_by);
+  if (actors.includes(holder)) refuse("claim_unresolved");
+  return { claim: "recovered", taskClaimedBy: holder };
+}
+
+function retire() {
+  const attempt = option("--attempt");
+  const hostClosure = option("--host-closure");
+  const effectDisposition = option("--effects");
+  noMoreArguments();
+  id(attempt);
+  if (!hostClosure?.trim() || !effectDisposition?.trim()) refuse("retirement_statement_missing");
+  const locator = accountLocator();
+  const entry = readSnapshot(locator).attempts.find((a) => a.attempt === attempt);
+  if (!entry) refuse("attempt_unknown");
+  if (entry.hostClosed && entry.effectsDisposed && entry.claimResolved)
+    refuse("attempt_already_retired");
+  const live = processesNaming(attempt);
+  if (live.length) refuse("host_still_running");
+  const dir = join(locator.root, "attempts", attempt);
+  const claim = claimDisposition(dir, entry.domain.taskId);
+  const retiredAt = new Date().toISOString();
+  const receipt = join(dir, entry.incarnation, `retirement-${Date.now()}.json`);
+  durableWrite(
+    receipt,
+    {
+      schema: "pi.task-session.retirement.v1",
+      attempt,
+      incarnation: entry.incarnation,
+      requestId: entry.requestId,
+      taskId: entry.domain.taskId,
+      hostClosure,
+      effectDisposition,
+      processesNamingAttempt: live,
+      ...claim,
+      retiredAt,
+    },
+    true,
+  );
+  const s = update((snapshot) => {
+    const a = snapshot.attempts.find((x) => x.attempt === attempt);
+    if (!a || a.incarnation !== entry.incarnation) refuse("attempt_changed");
+    a.hostClosed = true;
+    a.effectsDisposed = true;
+    a.claimResolved = true;
+  });
+  return { attempt, retired: true, ...claim, receipt, generation: s.generation };
+}
+
 let result;
 if (command === "withdraw" || command === "show" || command === "producer") noMoreArguments();
 if (command === "init") result = init();
@@ -325,6 +424,9 @@ else if (command === "withdraw")
 else if (command === "show") result = summary(readSnapshot(accountLocator()));
 else if (command === "producer") result = producer();
 else if (command === "profile") result = await profile();
+else if (command === "retire") result = retire();
 else
-  throw new Error("usage: task-session-provision.mjs init|enroll|withdraw|show|producer|profile");
+  throw new Error(
+    "usage: task-session-provision.mjs init|enroll|withdraw|show|producer|profile|retire",
+  );
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
