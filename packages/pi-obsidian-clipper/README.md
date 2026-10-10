@@ -1,5 +1,6 @@
 ---
 summary: "Native Clipper extraction and read-only workstation Interpreter setup."
+task_id: 6634
 read_when:
   - "Using or inspecting pi-obsidian-clipper."
 system4d:
@@ -36,6 +37,45 @@ that declaration is not operator consent. No Toolbox catalog was changed here.
 A CLI `--tools` allowlist must include every tool you intend to activate, not only
 `toolbox`; otherwise omitted tools are not registered in that invocation.
 
+## Current deployment (observed 2026-10-10)
+
+The package was landed through `scripts/land-canonical.sh` and pushed to `main`
+at `cc278d46e1936002af44d4a2a927800fc3a8d11e` (AK evidence **14605**).
+Pi's installed source is now the canonical package, not the candidate worktree:
+
+```text
+~/ai-society/softwareco/owned/pi-extensions/packages/pi-obsidian-clipper
+```
+
+The declared full root gate, package gate (27 test bodies) and staged pre-commit
+checks passed. Main CI, release-check, compatibility-canary, immutable-generation,
+release-please and advisory Node-next runs for that commit subsequently passed
+(AK evidence **14621**).
+Fresh globally configured Pi load/help/status and an actual native extraction tool
+call preserved both synthetic fixture paragraphs with `saved:false` (evidence
+**14606**). This is package/receiver proof, not browser Interpreter setup proof.
+No npm release was published. AK6634 remains open; terminal completion is
+withheld by operator direction.
+
+Current `status` still reports the real declaration dated `2026-10-04T07:38:07Z`
+as **stale**, browser configuration **unknown**, and live health/availability
+**not probed**. `setup` therefore refuses that default declaration. No refresh,
+working authentication, browser preflight or configured use is implied.
+
+Operator-approved grouped follow-ups are bound in AK, with first-class deferrals
+and a **2026-10-17** resolution/review target:
+
+- **AK6870:** owner-authorized workstation/browser Interpreter integration.
+- **AK6871:** TS7 migration and separate adapter/native advisory qualification.
+- **AK6872:** native dependency-closure enforcement and real transport/process tests.
+- **AK6873:** original-owner acceptance/closeout handback for AK6856; no duplicate repair.
+
+Read current AK contracts/deferrals for owners, triggers, deadlines and acceptance
+criteria; this document is a projection. The operator explicitly retained
+**extraction-only/no vault save** and **text-only Interpreter payloads** as known
+limits, not promised features. No claim of zero hidden defects or exhaustive
+security qualification is made.
+
 ## Historical local activation status (AK6634, 2026-10-04)
 
 This retained activation evidence predates the Pi 1.1.0 metadata/test update;
@@ -49,13 +89,14 @@ The native production CLI is installed read-only under
 Canonical provider export was refreshed through the workstation owner command;
 no model/service lifecycle or browser settings changed.
 
-Canonical landing is **pending**: the mandated root-wide gate stops because other
-packages have no installations in this isolated worktree. The new package's own
-gates pass; the root failure is not suppressed and no other package is auto-installed.
-Keep this worktree while Pi uses it. Roll back with `pi remove <installed-package-path>`
-and `/reload`; native `current` is a separately managed local pointer. Neither
-removal nor reload reverses browser changes (none were made).
-
+At that historical checkpoint, canonical landing was pending because other
+packages lacked installations in the isolated worktree. That blocker was later
+resolved by explicit lock-bound worktree preparation and the unchanged full gate;
+it is **not a current landing blocker**. Pi no longer references the candidate
+worktree. Retain historical worktree/rollback evidence according to its owner's
+retention policy; do not delete it merely because the installed source changed.
+Roll back package selection with the Pi owner commands and `/reload`; native
+`current` is separately managed. Neither action reverses browser changes.
 
 ## Trusted configuration
 
@@ -176,12 +217,13 @@ npm run release:check:quick
 Development Pi pins/host metadata: **1.1.0**, peers `*` (compatibility declaration,
 not proof against all versions). `typebox` is host-provided: peer `*`, exact
 `1.3.7` development pin, no runtime dependency copy. The only runtime dependency
-is `ipaddr.js@2.2.0`. TypeScript remains `6.0.3`; it does not satisfy the current
-root TypeScript 7 floor. The canonical checkout has no release mapping for this
-unlanded candidate; the retained installed candidate's root still declares Pi 0.84.4.
-Those unchanged parent contracts block full package validation and remain outside
-this bounded host-compatibility repair. Root engineering policy owns the lane;
-there is no package-local lane override. Package version/release component
+is `ipaddr.js@2.2.0`. TypeScript remains `6.0.3`, behind the fleet's adopted TS7;
+qualification/migration is tracked in **AK6871**, not silently presented as resolved.
+The canonical root now declares Pi **1.1.0**, includes the clipper release mapping,
+and passed the actual root/package gates. Those gates did not reject the retained
+compiler; passing them is not universal compiler/dependency compatibility proof.
+Root engineering policy owns the lane; there is no package-local lane override.
+Package version/release component
 is `0.1.0` / `pi-obsidian-clipper`. `.copier-answers.yml` is preserved unchanged;
 scaffold-only organisational/prompts placeholders were removed, not made runtime
 behavior. The package gate adds package structure checks then delegates the

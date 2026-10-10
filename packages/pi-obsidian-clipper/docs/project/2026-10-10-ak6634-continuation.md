@@ -1,12 +1,37 @@
 ---
-summary: "AK6634 continuation: accepted AK6856 repair preserved, candidate updated, package checks pass; canonical landing and browser setup remain blocked."
+summary: "AK6634 checkpoint history: canonical landing/receiver verified; browser and grouped engineering follow-ups remain explicitly deferred in AK."
+task_id: 6634
 read_when:
   - "Resuming AK6634 or inspecting its current verification and owner boundaries."
 ---
 
 # AK6634 continuation — 2026-10-10
 
-## Authority and custody
+## Current disposition
+
+The earlier blockers below are dated checkpoint history, not current landing
+status. Package delivery was verified, canonically landed and pushed at
+`cc278d46e1936002af44d4a2a927800fc3a8d11e`; AK evidence **14604–14606** binds
+the resolved installation/audit blockers, actual full root/package gates,
+`land-canonical.sh` receipt, remote-main proof and fresh canonical native-tool
+receiver. All six remote workflows for that delivery commit subsequently passed
+(AK evidence **14621**, superseding the earlier pending-CI observation).
+Pi now references the canonical package, not this retained candidate worktree.
+
+A later operator-authorized documentation cleanup corrects the README's stale
+landing/host-policy statements without changing runtime, host/TypeBox metadata or
+dependency locks. The repair owner's worktree and AK6856 lifecycle remain untouched.
+For the atomic-completion disposition, see
+[the grouped findings register](2026-10-10-atomic-completion.md).
+
+Remaining blocks have scoped AK contracts and active first-class deferrals:
+**AK6870** browser/workstation integration, **AK6871** compiler/dependencies,
+**AK6872** native/transport hardening, and **AK6873** repair-owner closeout handback.
+Their owner review/resolution target is **2026-10-17**. AK6634 remains open;
+terminal completion is withheld by explicit operator direction. Extraction-only/no-save and text-only Interpreter
+payloads remain intentional limits. None of this asserts zero hidden defects.
+
+## Initial pass authority and custody
 
 Exact task AK6634, session `session-01a1240a-b4dc-740e-883e-860cfcadf581`,
 finite two-hour claim obtained at 04:21Z. Task scope permits only this package and
@@ -29,7 +54,7 @@ SHA-256 is `d227652ae42a28fafcef5a303ae8c69711783608986915b031bb139d63fc6fe0`.
 No AGENTS/CLAUDE contents were edited. Loader discovery/rendering was inspected
 before retaining the scaffold's package AGENTS.
 
-## Candidate reconciliation
+## Initial candidate reconciliation
 
 Worktree: `softwareco/owned/.pi-candidates/pi-obsidian-clipper-ak6634`.
 Branch: `task/6634-obsidian-clipper`.
@@ -49,7 +74,7 @@ The retained compiler remains TypeScript 6.0.3, below the fleet's adopted TS7;
 this is not a compiler migration or dependency-security qualification. The actual
 current package gate did not reject that compiler.
 
-## Fresh observations
+## Initial pass observations
 
 Pinned Node 22.23.3 / npm 12.0.2:
 
