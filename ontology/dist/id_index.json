@@ -31,6 +31,16 @@
       "path_in_layer": "reference/concepts/co.software.Service.md"
     },
     {
+      "id": "core.Action",
+      "kind": "concept",
+      "labels": [
+        "action"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Action.md"
+    },
+    {
       "id": "core.Actor",
       "kind": "concept",
       "labels": [
@@ -41,6 +51,16 @@
       "path_in_layer": "reference/concepts/core.Actor.md"
     },
     {
+      "id": "core.ActorCapability",
+      "kind": "concept",
+      "labels": [
+        "capability"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ActorCapability.md"
+    },
+    {
       "id": "core.Agent",
       "kind": "concept",
       "labels": [
@@ -49,6 +69,26 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.Agent.md"
+    },
+    {
+      "id": "core.AgreementReview",
+      "kind": "concept",
+      "labels": [
+        "agreement review"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.AgreementReview.md"
+    },
+    {
+      "id": "core.ArtefactStatus",
+      "kind": "concept",
+      "labels": [
+        "artefact status"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ArtefactStatus.md"
     },
     {
       "id": "core.Assumption",
@@ -71,6 +111,26 @@
       "path_in_layer": "reference/concepts/core.AuditEvent.md"
     },
     {
+      "id": "core.Authority",
+      "kind": "concept",
+      "labels": [
+        "Authority"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Authority.md"
+    },
+    {
+      "id": "core.Authorization",
+      "kind": "concept",
+      "labels": [
+        "authorization"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Authorization.md"
+    },
+    {
       "id": "core.Capability",
       "kind": "concept",
       "labels": [
@@ -81,6 +141,96 @@
       "path_in_layer": "reference/concepts/core.Capability.md"
     },
     {
+      "id": "core.CarriedObligation",
+      "kind": "concept",
+      "labels": [
+        "carried obligation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.CarriedObligation.md"
+    },
+    {
+      "id": "core.Claim",
+      "kind": "concept",
+      "labels": [
+        "Claim"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Claim.md"
+    },
+    {
+      "id": "core.ClassAChange",
+      "kind": "concept",
+      "labels": [
+        "class-A change"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ClassAChange.md"
+    },
+    {
+      "id": "core.ClassBChange",
+      "kind": "concept",
+      "labels": [
+        "class-B change"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ClassBChange.md"
+    },
+    {
+      "id": "core.ClassCChange",
+      "kind": "concept",
+      "labels": [
+        "class-C change"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ClassCChange.md"
+    },
+    {
+      "id": "core.CommitmentBaseline",
+      "kind": "concept",
+      "labels": [
+        "commitment baseline"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.CommitmentBaseline.md"
+    },
+    {
+      "id": "core.Concern",
+      "kind": "concept",
+      "labels": [
+        "concern"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Concern.md"
+    },
+    {
+      "id": "core.Configuration",
+      "kind": "concept",
+      "labels": [
+        "configuration"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Configuration.md"
+    },
+    {
+      "id": "core.ConformanceAudit",
+      "kind": "concept",
+      "labels": [
+        "conformance audit"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ConformanceAudit.md"
+    },
+    {
       "id": "core.Consent",
       "kind": "concept",
       "labels": [
@@ -89,6 +239,26 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.Consent.md"
+    },
+    {
+      "id": "core.ConsentRound",
+      "kind": "concept",
+      "labels": [
+        "consent round"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ConsentRound.md"
+    },
+    {
+      "id": "core.ConsentState",
+      "kind": "concept",
+      "labels": [
+        "consent"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ConsentState.md"
     },
     {
       "id": "core.ConsentTier",
@@ -171,6 +341,36 @@
       "path_in_layer": "reference/concepts/core.Debt.md"
     },
     {
+      "id": "core.Decision",
+      "kind": "concept",
+      "labels": [
+        "decision"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Decision.md"
+    },
+    {
+      "id": "core.DecisionClass",
+      "kind": "concept",
+      "labels": [
+        "decision class"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DecisionClass.md"
+    },
+    {
+      "id": "core.DecisionGate",
+      "kind": "concept",
+      "labels": [
+        "decision gate"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DecisionGate.md"
+    },
+    {
       "id": "core.DecisionRecord",
       "kind": "concept",
       "labels": [
@@ -181,6 +381,86 @@
       "path_in_layer": "reference/concepts/core.DecisionRecord.md"
     },
     {
+      "id": "core.Deliberation",
+      "kind": "concept",
+      "labels": [
+        "deliberation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Deliberation.md"
+    },
+    {
+      "id": "core.Direction",
+      "kind": "concept",
+      "labels": [
+        "direction"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Direction.md"
+    },
+    {
+      "id": "core.Directive",
+      "kind": "concept",
+      "labels": [
+        "directive"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Directive.md"
+    },
+    {
+      "id": "core.Dissent",
+      "kind": "concept",
+      "labels": [
+        "dissent"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Dissent.md"
+    },
+    {
+      "id": "core.DominantConstraint",
+      "kind": "concept",
+      "labels": [
+        "dominant constraint"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.DominantConstraint.md"
+    },
+    {
+      "id": "core.Driver",
+      "kind": "concept",
+      "labels": [
+        "driver"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Driver.md"
+    },
+    {
+      "id": "core.Evidence",
+      "kind": "concept",
+      "labels": [
+        "Evidence"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Evidence.md"
+    },
+    {
+      "id": "core.EvidenceRole",
+      "kind": "concept",
+      "labels": [
+        "evidence"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.EvidenceRole.md"
+    },
+    {
       "id": "core.Exception",
       "kind": "concept",
       "labels": [
@@ -189,6 +469,36 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.Exception.md"
+    },
+    {
+      "id": "core.Goal",
+      "kind": "concept",
+      "labels": [
+        "goal"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Goal.md"
+    },
+    {
+      "id": "core.Guidance",
+      "kind": "concept",
+      "labels": [
+        "guidance"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Guidance.md"
+    },
+    {
+      "id": "core.Handover",
+      "kind": "concept",
+      "labels": [
+        "handover"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Handover.md"
     },
     {
       "id": "core.IntegrationEdge",
@@ -211,6 +521,46 @@
       "path_in_layer": "reference/concepts/core.Invariant.md"
     },
     {
+      "id": "core.LeitungReview",
+      "kind": "concept",
+      "labels": [
+        "Leitung review"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.LeitungReview.md"
+    },
+    {
+      "id": "core.Maturity",
+      "kind": "concept",
+      "labels": [
+        "maturity"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Maturity.md"
+    },
+    {
+      "id": "core.MeasuringPoint",
+      "kind": "concept",
+      "labels": [
+        "measuring point"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MeasuringPoint.md"
+    },
+    {
+      "id": "core.Metric",
+      "kind": "concept",
+      "labels": [
+        "metric"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Metric.md"
+    },
+    {
       "id": "core.Milestone",
       "kind": "concept",
       "labels": [
@@ -219,6 +569,116 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.Milestone.md"
+    },
+    {
+      "id": "core.MitoLevel",
+      "kind": "concept",
+      "labels": [
+        "level"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoLevel.md"
+    },
+    {
+      "id": "core.MitoLevel.Dispositiv",
+      "kind": "concept",
+      "labels": [
+        "dispositiv"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoLevel.Dispositiv.md"
+    },
+    {
+      "id": "core.MitoLevel.Operativ",
+      "kind": "concept",
+      "labels": [
+        "operativ"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoLevel.Operativ.md"
+    },
+    {
+      "id": "core.MitoLevel.Strategisch",
+      "kind": "concept",
+      "labels": [
+        "strategisch"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoLevel.Strategisch.md"
+    },
+    {
+      "id": "core.MitoLevel.Taktisch",
+      "kind": "concept",
+      "labels": [
+        "taktisch"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoLevel.Taktisch.md"
+    },
+    {
+      "id": "core.MitoSegment",
+      "kind": "concept",
+      "labels": [
+        "MITO segment"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoSegment.md"
+    },
+    {
+      "id": "core.MitoSegment.Fuehrung",
+      "kind": "concept",
+      "labels": [
+        "F\u00fchrung"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoSegment.Fuehrung.md"
+    },
+    {
+      "id": "core.MitoSegment.Input",
+      "kind": "concept",
+      "labels": [
+        "Input segment"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoSegment.Input.md"
+    },
+    {
+      "id": "core.MitoSegment.Leitung",
+      "kind": "concept",
+      "labels": [
+        "Leitung"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoSegment.Leitung.md"
+    },
+    {
+      "id": "core.MitoSegment.Output",
+      "kind": "concept",
+      "labels": [
+        "Output segment"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoSegment.Output.md"
+    },
+    {
+      "id": "core.MitoSegment.Transformation",
+      "kind": "concept",
+      "labels": [
+        "Transformation segment"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.MitoSegment.Transformation.md"
     },
     {
       "id": "core.Objection",
@@ -231,6 +691,66 @@
       "path_in_layer": "reference/concepts/core.Objection.md"
     },
     {
+      "id": "core.Observation",
+      "kind": "concept",
+      "labels": [
+        "Observation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Observation.md"
+    },
+    {
+      "id": "core.Operations",
+      "kind": "concept",
+      "labels": [
+        "operations"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Operations.md"
+    },
+    {
+      "id": "core.OperationsMode",
+      "kind": "concept",
+      "labels": [
+        "operations mode"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.OperationsMode.md"
+    },
+    {
+      "id": "core.OrganisationDesign",
+      "kind": "concept",
+      "labels": [
+        "organisation design"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.OrganisationDesign.md"
+    },
+    {
+      "id": "core.OrganisationModel",
+      "kind": "concept",
+      "labels": [
+        "organisation model"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.OrganisationModel.md"
+    },
+    {
+      "id": "core.Permission",
+      "kind": "concept",
+      "labels": [
+        "permission"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Permission.md"
+    },
+    {
       "id": "core.Pipeline",
       "kind": "concept",
       "labels": [
@@ -241,6 +761,16 @@
       "path_in_layer": "reference/concepts/core.Pipeline.md"
     },
     {
+      "id": "core.PlanFigures",
+      "kind": "concept",
+      "labels": [
+        "plan figures"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.PlanFigures.md"
+    },
+    {
       "id": "core.Policy",
       "kind": "concept",
       "labels": [
@@ -249,6 +779,26 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.Policy.md"
+    },
+    {
+      "id": "core.PossibleObjection",
+      "kind": "concept",
+      "labels": [
+        "possible objection"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.PossibleObjection.md"
+    },
+    {
+      "id": "core.ProcessAudit",
+      "kind": "concept",
+      "labels": [
+        "process audit"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ProcessAudit.md"
     },
     {
       "id": "core.Program",
@@ -271,6 +821,46 @@
       "path_in_layer": "reference/concepts/core.Proposal.md"
     },
     {
+      "id": "core.Readiness",
+      "kind": "concept",
+      "labels": [
+        "readiness"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Readiness.md"
+    },
+    {
+      "id": "core.ReadinessReview",
+      "kind": "concept",
+      "labels": [
+        "readiness review"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ReadinessReview.md"
+    },
+    {
+      "id": "core.Receipt",
+      "kind": "concept",
+      "labels": [
+        "Receipt"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Receipt.md"
+    },
+    {
+      "id": "core.Refusal",
+      "kind": "concept",
+      "labels": [
+        "refusal"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Refusal.md"
+    },
+    {
       "id": "core.Release",
       "kind": "concept",
       "labels": [
@@ -281,6 +871,26 @@
       "path_in_layer": "reference/concepts/core.Release.md"
     },
     {
+      "id": "core.Relief",
+      "kind": "concept",
+      "labels": [
+        "relief"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Relief.md"
+    },
+    {
+      "id": "core.ReplayCheck",
+      "kind": "concept",
+      "labels": [
+        "replay check"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.ReplayCheck.md"
+    },
+    {
       "id": "core.Repo",
       "kind": "concept",
       "labels": [
@@ -289,6 +899,36 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.Repo.md"
+    },
+    {
+      "id": "core.Requirement",
+      "kind": "concept",
+      "labels": [
+        "requirement"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Requirement.md"
+    },
+    {
+      "id": "core.RetainedArtefact",
+      "kind": "concept",
+      "labels": [
+        "retained artefact"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.RetainedArtefact.md"
+    },
+    {
+      "id": "core.Revocation",
+      "kind": "concept",
+      "labels": [
+        "revocation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Revocation.md"
     },
     {
       "id": "core.Risk",
@@ -311,6 +951,36 @@
       "path_in_layer": "reference/concepts/core.Role.md"
     },
     {
+      "id": "core.RoleReview",
+      "kind": "concept",
+      "labels": [
+        "role review"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.RoleReview.md"
+    },
+    {
+      "id": "core.Rueckmeldung",
+      "kind": "concept",
+      "labels": [
+        "R\u00fcckmeldung"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Rueckmeldung.md"
+    },
+    {
+      "id": "core.SchemaCheck",
+      "kind": "concept",
+      "labels": [
+        "schema check"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.SchemaCheck.md"
+    },
+    {
       "id": "core.Secret",
       "kind": "concept",
       "labels": [
@@ -331,6 +1001,266 @@
       "path_in_layer": "reference/concepts/core.Service.md"
     },
     {
+      "id": "core.SocialRole",
+      "kind": "concept",
+      "labels": [
+        "role"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.SocialRole.md"
+    },
+    {
+      "id": "core.StakeholderExpectation",
+      "kind": "concept",
+      "labels": [
+        "stakeholder expectation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.StakeholderExpectation.md"
+    },
+    {
+      "id": "core.TaskClaim",
+      "kind": "concept",
+      "labels": [
+        "task claim"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.TaskClaim.md"
+    },
+    {
+      "id": "core.TechnologyReadiness",
+      "kind": "concept",
+      "labels": [
+        "technology readiness"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.TechnologyReadiness.md"
+    },
+    {
+      "id": "core.TemplateTopology",
+      "kind": "concept",
+      "labels": [
+        "template topology"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.TemplateTopology.md"
+    },
+    {
+      "id": "core.UfoCategory",
+      "kind": "concept",
+      "labels": [
+        "UFO category"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.md"
+    },
+    {
+      "id": "core.UfoCategory.Claim",
+      "kind": "concept",
+      "labels": [
+        "UFO claim"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Claim.md"
+    },
+    {
+      "id": "core.UfoCategory.Commitment",
+      "kind": "concept",
+      "labels": [
+        "UFO commitment"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Commitment.md"
+    },
+    {
+      "id": "core.UfoCategory.Event",
+      "kind": "concept",
+      "labels": [
+        "UFO event"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Event.md"
+    },
+    {
+      "id": "core.UfoCategory.HighOrderType",
+      "kind": "concept",
+      "labels": [
+        "high-order type"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.HighOrderType.md"
+    },
+    {
+      "id": "core.UfoCategory.Kind",
+      "kind": "concept",
+      "labels": [
+        "UFO kind"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Kind.md"
+    },
+    {
+      "id": "core.UfoCategory.Mode",
+      "kind": "concept",
+      "labels": [
+        "UFO mode"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Mode.md"
+    },
+    {
+      "id": "core.UfoCategory.NormativeDescription",
+      "kind": "concept",
+      "labels": [
+        "UFO normative description"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.NormativeDescription.md"
+    },
+    {
+      "id": "core.UfoCategory.Phase",
+      "kind": "concept",
+      "labels": [
+        "UFO phase"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Phase.md"
+    },
+    {
+      "id": "core.UfoCategory.Proposition",
+      "kind": "concept",
+      "labels": [
+        "UFO proposition"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Proposition.md"
+    },
+    {
+      "id": "core.UfoCategory.Quality",
+      "kind": "concept",
+      "labels": [
+        "UFO quality"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Quality.md"
+    },
+    {
+      "id": "core.UfoCategory.Relator",
+      "kind": "concept",
+      "labels": [
+        "UFO relator"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Relator.md"
+    },
+    {
+      "id": "core.UfoCategory.Role",
+      "kind": "concept",
+      "labels": [
+        "UFO role"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Role.md"
+    },
+    {
+      "id": "core.UfoCategory.Situation",
+      "kind": "concept",
+      "labels": [
+        "UFO situation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.UfoCategory.Situation.md"
+    },
+    {
+      "id": "core.Validation",
+      "kind": "concept",
+      "labels": [
+        "validation"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Validation.md"
+    },
+    {
+      "id": "core.Variance",
+      "kind": "concept",
+      "labels": [
+        "variance"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Variance.md"
+    },
+    {
+      "id": "core.Verification",
+      "kind": "concept",
+      "labels": [
+        "Verification"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Verification.md"
+    },
+    {
+      "id": "core.VerificationEvent",
+      "kind": "concept",
+      "labels": [
+        "verification"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.VerificationEvent.md"
+    },
+    {
+      "id": "core.VerificationVerdict",
+      "kind": "concept",
+      "labels": [
+        "verification verdict"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.VerificationVerdict.md"
+    },
+    {
+      "id": "core.Vorgabe",
+      "kind": "concept",
+      "labels": [
+        "Vorgabe"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Vorgabe.md"
+    },
+    {
+      "id": "core.Waiver",
+      "kind": "concept",
+      "labels": [
+        "waiver"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.Waiver.md"
+    },
+    {
       "id": "core.WorkItem",
       "kind": "concept",
       "labels": [
@@ -339,6 +1269,26 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/concepts/core.WorkItem.md"
+    },
+    {
+      "id": "core.WorkItemAuthoritySplit",
+      "kind": "concept",
+      "labels": [
+        "work-item authority split"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.WorkItemAuthoritySplit.md"
+    },
+    {
+      "id": "core.WorkProductInspection",
+      "kind": "concept",
+      "labels": [
+        "work-product inspection"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/concepts/core.WorkProductInspection.md"
     },
     {
       "id": "core.rel.conflicts_with",
@@ -399,6 +1349,16 @@
       "layer": "core",
       "layer_kind": "ref",
       "path_in_layer": "reference/relations/is_a.md"
+    },
+    {
+      "id": "core.rel.manifests",
+      "kind": "relation",
+      "labels": [
+        "manifests"
+      ],
+      "layer": "core",
+      "layer_kind": "ref",
+      "path_in_layer": "reference/relations/manifests.md"
     },
     {
       "id": "core.rel.part_of",
