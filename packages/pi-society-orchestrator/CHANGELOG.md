@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.0...pi-society-orchestrator-v0.13.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **pi-autoresearch:** run the owner-integration dashboard tests in the orchestrator ([5b0a8e8](https://github.com/tryingET/pi-extensions/commit/5b0a8e87eba04e4f3f3749b5990734e29e77e0be))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.3
+
 ## [0.13.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.12.0...pi-society-orchestrator-v0.13.0) (2026-10-09)
 
 
