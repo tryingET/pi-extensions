@@ -1,8 +1,10 @@
 ---
-summary: "Unposted draft reply for the upstream compaction-after-Escape issue (AK5833); posting requires operator approval through the issue tracker."
+summary: "Superseded local draft (AK5833). The reviewed reply was posted under AK5837 on 2026-09-19 as https://github.com/earendil-works/pi/issues/9783#issuecomment-5744803460 (tracker key pi-mono-upstream/compaction-stop-boundaries)."
 read_when:
-  - "Deciding whether and how to answer the upstream issue about compaction restarting after Escape."
+  - "Tracing how the posted Pi #9783 clarification evolved from the AK5833 reproduction."
 ---
+
+> Status (AK6854, 2026-10-10): already posted in reviewed form by AK5837 (comment 5744803460 on earendil-works/pi#9783, public gist with the repro and recording). Do not post this draft again.
 
 What I'm trying to do: use a custom `session_before_compact` summary with `keepRecentTokens: 0` and `reserveTokens: 15000`. My prompt produces a self-contained checkpoint so I can continue without much verbatim history. The attached 20-line hook reduces that setup to the relevant cancellation path; the offline harness is separate.
 
