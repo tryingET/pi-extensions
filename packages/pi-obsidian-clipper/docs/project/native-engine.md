@@ -114,8 +114,13 @@ owner-exported endpoint and received HTTP 200 / JSON `prompts_responses.prompt_1
 reflects owner routing, not a different request alias. A nonsecret UI field value
 `local` was accepted for that one probe only; endpoint authentication is not
 permanently inferred. OPTIONS returned 501, while POST returned
-`Access-Control-Allow-Origin: *`. Actual browser host permissions, origin/preflight
-behavior and configured use still require a browser check.
+`Access-Control-Allow-Origin: *`. The AK6870 isolated Chromium 153 run (2026-10-10)
+covered the following:
+an unpacked build of this snapshot, configured additively through the native UI, sent
+one extension-origin POST with no preflight. It received HTTP 200 and
+`prompts_responses`, and the endpoint was observed keyless. See
+[AK6870 qualification](2026-10-10-ak6870-browser-qualification.md). Other
+browsers, profiles and later auth changes still need their own check.
 
 Native Custom provider UI requires a nonempty key field; supply its owner-approved
 value directly in the browser, never through Pi. Do not import full settings:

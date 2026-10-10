@@ -57,15 +57,26 @@ call preserved both synthetic fixture paragraphs with `saved:false` (evidence
 No npm release was published. AK6634 remains open; terminal completion is
 withheld by operator direction.
 
-Current `status` still reports the real declaration dated `2026-10-04T07:38:07Z`
-as **stale**, browser configuration **unknown**, and live health/availability
-**not probed**. `setup` therefore refuses that default declaration. No refresh,
-working authentication, browser preflight or configured use is implied.
+The canonical workstation declaration file is still dated `2026-10-04T07:38:07Z`, so
+default `status` reports it **stale** and `setup` refuses it. With a fresh read-only
+owner export selected through `PI_OBSIDIAN_CLIPPER_CONTRACT` it reports `fresh`.
+`status`/`setup` never probe live health, auth or browser state themselves.
+
+**Isolated browser qualification (AK6870, 2026-10-10):** an isolated Chromium 153
+profile in a nested niri ran an unpacked Clipper 1.7.1 built from pinned upstream
+`6d56d618`. The workstation provider/model were appended through the native UI and
+the seeded existing providers/models were preserved. A real Interpreter POST from
+`chrome-extension://` origin went to `baseline-multimodal` **without CORS preflight**
+and returned HTTP 200 with `prompts_responses`. The loopback endpoint was observed
+**keyless** (no-Authorization POST → 200), and the nonsecret key-field value `local`
+was used in that isolated profile only. Personal profiles were not touched. Details
+and limits: [AK6870 qualification](docs/project/2026-10-10-ak6870-browser-qualification.md).
 
 Operator-approved grouped follow-ups are bound in AK, with first-class deferrals
 and a **2026-10-17** resolution/review target:
 
-- **AK6870:** owner-authorized workstation/browser Interpreter integration.
+- **AK6870:** owner-authorized workstation/browser Interpreter integration. Isolated-browser
+  proof recorded 2026-10-10; read AK for its current lifecycle state.
 - **AK6871:** TS7 migration and separate adapter/native advisory qualification.
 - **AK6872:** native dependency-closure enforcement and real transport/process tests.
 - **AK6873:** original-owner acceptance/closeout handback for AK6856; no duplicate repair.
@@ -122,15 +133,18 @@ configuration or authentication**. Native Custom provider UI always stores
 **even for a keyless endpoint**. Endpoint authentication is **UNKNOWN until
 owner-verified**. The operator must obtain an owner-approved nonempty key-field
 value and enter it directly in Clipper; a protected endpoint needs its actual
-authorized key. This recipe invents no working dummy or blank credentials.
+authorized key. This recipe invents no working dummy or blank credentials. On
+2026-10-10 the owner loopback endpoint was observed keyless and the operator
+approved the nonsecret value `local` for the isolated proof (AK6870); recheck if
+the workstation owner later adds authentication.
 No whole-settings import is offered: the native importer clears all sync storage. Existing providers
 and models must be preserved via manual append in the native UI. Browser loopback
 permission/CORS/authentication and expected `choices[0].message.content` containing
-JSON `prompts_responses` remain explicit browser checks, not claims by this package.
-A parent public fixture did verify exact-alias HTTP 200/JSON response compatibility;
-OPTIONS returned 501, so this is **not browser-link completion**. Its synthetic
-`local` key-field value was accepted only for that probe, not adopted by setup or
-asserted to work permanently. [Proof and audit limits](docs/project/native-engine.md#dependency-and-browser-limits).
+JSON `prompts_responses` are browser checks, not runtime claims by this package.
+The endpoint answers OPTIONS with 501. The AK6870 isolated Chromium run showed MV3
+host permissions let the extension-origin POST go through without a preflight, and
+it received `prompts_responses`. Other browsers and profiles are not covered by
+that observation, and setup does not embed the `local` value. [Proof and audit limits](docs/project/native-engine.md#dependency-and-browser-limits).
 
 ### Optional read-only owner export
 
