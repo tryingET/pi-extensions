@@ -4,7 +4,7 @@ read_when:
   - "Investigating repeated automatic compaction after Escape, or preparing the upstream reply about it."
 ---
 
-> Archive note (AK6854, 2026-10-10): this bundle moved here from the untracked repo-root `.task-5833/` folder. The run outputs referenced below (`evidence/`, `exploratory-evidence/`, matrix and portable-check logs) were archived unchanged to `/home/tryinget/.local/state/quarantine/2026-10-10-ak6854-pi-extensions/task-5833/`; their sha256 manifest is recorded in AK6854 evidence. The harness sources are inside `compaction-repro-source.tar.gz`.
+> Archive note (AK6854, 2026-10-10): this bundle moved here from the untracked repo-root `.task-5833/` folder. The run outputs referenced below (`evidence/`, `exploratory-evidence/`, matrix and portable-check logs) were archived unchanged to `/home/tryinget/.local/state/quarantine/2026-10-10-ak6854-pi-extensions/task-5833/`; their sha256 manifest is recorded in AK6854 evidence. The harness sources, including `minimal-hook.mjs`, are inside `compaction-repro-source.tar.gz` (kept packed so repo formatters do not rewrite the 20-line hook).
 
 # Custom compaction restarts after Escape: controlled reproduction
 
