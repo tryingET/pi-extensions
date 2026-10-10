@@ -145,14 +145,80 @@ are no stateful formats.
   `linkedom`, and contains no DOMPurify reference. This is not an exploitability
   verdict.
 
-## Unrun gates and limits
+## Follow-up: remaining items resolved or owner-dispositioned (2026-10-10)
 
-- No dep-diet Gardener depmodels. The runtime bundles plus the dep-viz pair cover
-  this slice's question.
-- No other OS/CPU platform: only `linux-x64` was exercised.
-- No dep-redteam. No exploitability claim is made.
+The operator requested resolution of the remaining items. A second native
+interview explicitly authorized a normal checked-hook main push after exact-tree
+full gates and coordination, limited compiler qualification to Linux x64, retained
+AK6872's Node22 default refusal, and judged exploitability work outside AK6871.
+This supersedes the earlier absence of push authorization; no task completion,
+publication, native patch or security-policy relaxation was authorized.
 
-## Requested operator actions
+### Gardener-fused runtime checks — executed
 
-- [ ] Push to `origin main`: not approved in this pass.
-- [ ] AK6871 terminal completion: operator decision.
+Fresh before/after runtime bundles were recorded outside both trees on Linux x64.
+The before tree was a disposable worktree at `ad2780902` with both pin commits
+actually reverted (`070a5328e`, `a35977112`); the after tree was `ad2780902` with
+those pins. Thus the source/hardening code and package version were identical,
+not the older pre-AK6872 code.
+
+`depdiet analyze --gardener auto --runtime-bundle … --out-depmodel …` ran for both
+commands on both trees. Gardener 0.1.2 at `5cb66337c64e` and each analysis exited 0.
+The fused models show:
+
+| Real command | Before: statically explained runtime loads | After: statically explained runtime loads |
+| --- | --- | --- |
+| `./node_modules/.bin/tsc --noEmit` (the package gate's actual compiler command) | typescript 6.0.3 | typescript 7.0.2 and its linux-x64 7.0.2 launcher |
+| `node --import tsx scripts/native-smoke.ts` (installed native CLI, inert HTML) | tsx 4.21.0, esbuild 0.27.7, get-tsconfig 4.14.3, resolve-pkg-maps 1.0.0, ipaddr.js 2.2.0 | tsx 4.23.15, esbuild 0.28.2, ipaddr.js 2.2.0 |
+
+Every command exited 0. Both model deltas exited 0: +20 / −2 / ~29 packages,
+0 license changes; hidden-root, runtime-only and ambiguous counts were zero on
+both sides. These models reconcile loads with static/lock evidence, not scanner
+vulnerabilities; the separate dep-viz before/after pair above owns advisory truth.
+The models contain unobserved development dependencies, which are not asserted
+unused and are not removed.
+
+The runtime-model delta also labels 26 removed module-root edges for duplicated
+`@esbuild/*` entries. Inspection shows the before projection gives nested 0.28.2
+platform entries root edges; after deduplication they are correctly linked from
+esbuild 0.28.2. The authored root manifest did not gain or lose these dependencies.
+This is a graph-projection limitation, not a new direct-dependency or removal claim.
+
+### Final-code rollback and Node boundary — executed
+
+On the reverted tree, manifest and lock match the pre-pin `0ac4ad9fe` files
+byte-for-byte (empty diff), and the full package check passes **48/48**, zero
+skips. The after tree also passes **48/48**. This extends the earlier rollback
+proof to the final landed AK6872 hardening source.
+
+With `PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD` unset, Node22 refuses native
+capture before launching the native child on **both** old and new pins. Node26
+extracts the fixture on **both** trees (`nativeFixturePassed:true`, `saved:false`,
+`network:runtime-permission`). This causally excludes the compiler/loader move as
+the cause of Node22 refusal. The operator explicitly retained the refusal policy;
+AK6872's owner confirms no competing policy change in this pass. No opt-in was set.
+
+### Qualification boundary — explicitly decided
+
+- **Other platforms:** not required for this Linux-x64 workstation qualification,
+  by explicit operator decision. Optional lock entries remain; no other-platform
+  execution or compatibility claim is made.
+- **Exploitability assessment:** not applicable to AK6871, by explicit operator
+  decision. The native owner disposition and its revisit triggers remain in
+  force. No exploitability or containment certification is inferred.
+
+### Delivery
+
+A fresh remote observation found the original AK6871 work already delivered by
+squash-merged PR #233 (`origin/main` `12e18a079`). Local and remote histories were
+reconciled in the isolated worktree, including the already-merged release #232;
+this pass does not merge a release PR. Full gate, canonical landing, checked push
+and remote-head receipts for this follow-up are recorded in AK evidence.
+
+Evidence artifacts: retained in the executor's `ak6871-ts7.3DFAXk/evidence/followup/`
+scratch directory (runtime bundles, fused models, deltas, rollback, boundary and
+gate logs). They are evidence context, not lifecycle authority.
+
+## Operator decision still reserved
+
+- AK6871 terminal completion remains the operator's decision.
