@@ -25,9 +25,13 @@ For the atomic-completion disposition, see
 [the grouped findings register](2026-10-10-atomic-completion.md).
 
 Remaining blocks have scoped AK contracts and active first-class deferrals:
-**AK6870** browser/workstation integration, **AK6871** compiler/dependencies,
-**AK6872** native/transport hardening, and **AK6873** repair-owner closeout handback.
-Their owner review/resolution target is **2026-10-17**. AK6634 remains open;
+**AK6870** browser/workstation integration, **AK6871** compiler/dependencies
+and **AK6872** native/transport hardening. Their owner review/resolution target
+is **2026-10-17**. The fourth block, the **AK6873** repair-owner closeout handback,
+was resolved on 2026-10-10. The original AK6856 owner session had closed
+without a handback. Under an explicit operator takeover, AK6856 was then
+completed with `owner_authorization` evidence **14641**. The repair was not
+reapplied. See the register's update section. AK6634 remains open;
 terminal completion is withheld by explicit operator direction. Extraction-only/no-save and text-only Interpreter
 payloads remain intentional limits. None of this asserts zero hidden defects.
 
