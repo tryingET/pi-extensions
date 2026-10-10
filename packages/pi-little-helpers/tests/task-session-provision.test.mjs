@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
   lstatSync,
@@ -49,7 +49,8 @@ function world(t, descriptor = disabledDescriptor) {
     join(bin, "ak"),
     `#!/bin/sh\n[ "$1 $2" = "task-session describe" ] && exec cat ${join(base, "descriptor.json")}\n` +
       `[ "$1 $2 $4 $5" = "task show -F json" ] || exit 64\n` +
-      `case "$3" in 7) echo '{"id":7,"repo":"${checkout}"}';; 8) echo '{"id":8,"repo":"/elsewhere"}';; *) exit 1;; esac\n`,
+      `case "$3" in 7) if [ -f ${join(base, "task-7.json")} ]; then cat ${join(base, "task-7.json")}; ` +
+      `else echo '{"id":7,"repo":"${checkout}"}'; fi;; 8) echo '{"id":8,"repo":"/elsewhere"}';; *) exit 1;; esac\n`,
     { mode: 0o755 },
   );
   const loader = join(base, "home-loader.mjs");
@@ -71,7 +72,7 @@ function world(t, descriptor = disabledDescriptor) {
       encoding: "utf8",
       env: { PATH: `${bin}:/usr/bin:/bin`, TEST_HOME: home },
     });
-  return { home, checkout, run, root: join(home, ".local/state/pi-task-sessions") };
+  return { base, home, checkout, run, root: join(home, ".local/state/pi-task-sessions") };
 }
 const mode = (path) => lstatSync(path).mode & 0o777;
 const legacyRequest = (checkout, taskIds) => ({
@@ -186,4 +187,103 @@ test("profile refuses before any producer publication and writes nothing", (t) =
   assert.notEqual(out.status, 0);
   assert.deepEqual(readdirSync(join(w.root, "profiles")), []);
   assert.deepEqual(readdirSync(join(w.root, "credentials")), []);
+});
+
+/** One reserved attempt for enrolled task 7, as launch leaves it before native admission. */
+function reservedAttempt(w, attempt = "retire-attempt-1") {
+  const statePath = join(w.root, "state.json");
+  const s = JSON.parse(readFileSync(statePath, "utf8"));
+  s.attempts.push({
+    requestId: `request-${attempt}`,
+    semanticDigest: "a".repeat(64),
+    attempt,
+    incarnation: "incarnation-1",
+    domain: structuredClone(s.domains[0]),
+    hostClosed: false,
+    effectsDisposed: false,
+    claimResolved: false,
+  });
+  writeFileSync(statePath, JSON.stringify(s));
+  const dir = join(w.root, "attempts", attempt, "incarnation-1");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return { attempt, dir };
+}
+const enrolledWorld = (t) => {
+  const w = world(t);
+  assert.equal(w.run("init").status, 0);
+  assert.equal(w.run("enroll", "--task", "7", "--checkout", w.checkout).status, 0);
+  return w;
+};
+const receipts = ["--host-closure", "viewer killed by the transport timeout", "--effects", "none"];
+
+// AK5482 canary A: a failed launch retained its attempt and nothing could retire it, so the
+// attempt kept its whole checkout occupied. Retirement sets all three flags only on evidence.
+test("retire records a never-admitted attempt with a receipt and frees its checkout", (t) => {
+  const w = enrolledWorld(t);
+  const { attempt, dir } = reservedAttempt(w);
+  const before = readSnapshot(accountLocator()).generation;
+  const out = w.run("retire", "--attempt", attempt, ...receipts);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(JSON.parse(out.stdout).claim, "never_admitted");
+  const s = readSnapshot(accountLocator());
+  assert.equal(s.generation, before + 1);
+  const a = s.attempts.find((x) => x.attempt === attempt);
+  assert.deepEqual([a.hostClosed, a.effectsDisposed, a.claimResolved], [true, true, true]);
+  const [receipt] = readdirSync(dir).filter((n) => n.startsWith("retirement-"));
+  const r = JSON.parse(readFileSync(join(dir, receipt), "utf8"));
+  assert.equal(r.hostClosure, "viewer killed by the transport timeout");
+  assert.equal(r.effectDisposition, "none");
+  const again = w.run("retire", "--attempt", attempt, ...receipts);
+  assert.match(again.stderr, /attempt_already_retired/);
+});
+
+test("retire refuses without receipts, for an unknown attempt, and while a process names it", (t) => {
+  const w = enrolledWorld(t);
+  const { attempt } = reservedAttempt(w);
+  assert.match(w.run("retire", "--attempt", attempt).stderr, /retirement_statement_missing/);
+  assert.match(
+    w.run("retire", "--attempt", attempt, "--host-closure", " ", "--effects", "none").stderr,
+    /retirement_statement_missing/,
+  );
+  assert.match(w.run("retire", "--attempt", "missing", ...receipts).stderr, /attempt_unknown/);
+  const viewer = spawn("/bin/sh", ["-c", "sleep 30; :", attempt], { stdio: "ignore" });
+  t.after(() => viewer.kill());
+  const busy = w.run("retire", "--attempt", attempt, ...receipts);
+  assert.match(busy.stderr, /host_still_running/);
+  assert.equal(readSnapshot(accountLocator()).attempts[0].hostClosed, false);
+});
+
+test("retire keeps an admitted claim until AK no longer shows its claimant", (t) => {
+  const w = enrolledWorld(t);
+  const { attempt, dir } = reservedAttempt(w);
+  writeFileSync(join(dir, "ak-admission-lock.json"), "{}");
+  writeFileSync(
+    join(dir, "ak-admission.json"),
+    JSON.stringify({
+      kind: "ADMISSION_RESULT",
+      body: { outcome: "ADMITTED", claim: { claimed_by: "pi-task-x" } },
+    }),
+  );
+  const task7 = (claimedBy) =>
+    writeFileSync(
+      join(w.base, "task-7.json"),
+      JSON.stringify({ id: 7, repo: w.checkout, claimed_by: claimedBy }),
+    );
+  task7("pi-task-x");
+  assert.match(w.run("retire", "--attempt", attempt, ...receipts).stderr, /claim_unresolved/);
+  task7(null);
+  const out = w.run("retire", "--attempt", attempt, ...receipts);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(JSON.parse(out.stdout).claim, "recovered");
+});
+
+test("retire refuses an attempt whose native admission began without a recorded result", (t) => {
+  const w = enrolledWorld(t);
+  const { attempt, dir } = reservedAttempt(w);
+  writeFileSync(join(dir, "ak-admission-lock.json"), "{}");
+  writeFileSync(
+    join(w.base, "task-7.json"),
+    JSON.stringify({ id: 7, repo: w.checkout, claimed_by: "someone" }),
+  );
+  assert.match(w.run("retire", "--attempt", attempt, ...receipts).stderr, /claim_indeterminate/);
 });

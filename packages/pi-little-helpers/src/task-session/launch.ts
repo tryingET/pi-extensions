@@ -178,32 +178,39 @@ export async function launchReserved(
     throw error;
   }
 }
+/**
+ * Starts the viewer terminal detached and reports only that it started. A foreground terminal
+ * runs until its window closes, so waiting for its exit killed every real window at the timeout
+ * (AK5482 canary A). The viewer-ready nonce, not this command, proves the window exists.
+ */
+export function detachedViewerRunner(
+  command: string,
+  args: string[],
+  options: { cwd: string },
+): Promise<{ code: number; killed: boolean }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      detached: true,
+      stdio: "ignore",
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: userInfo().homedir,
+        DISPLAY: process.env.DISPLAY,
+        WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
+        XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+        DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
+      },
+    });
+    child.once("error", () => resolve({ code: 1, killed: false }));
+    child.once("spawn", () => {
+      child.unref();
+      resolve({ code: 0, killed: false });
+    });
+  });
+}
 export function productionViewer(attempt: string, cwd: string) {
-  return launchRestrictedTaskSessionWindow(
-    attempt,
-    cwd,
-    (command, args, options) =>
-      new Promise((resolve) => {
-        execFile(
-          command,
-          args,
-          {
-            cwd: options.cwd,
-            timeout: options.timeout,
-            maxBuffer: 65536,
-            env: {
-              PATH: "/usr/bin:/bin",
-              HOME: userInfo().homedir,
-              DISPLAY: process.env.DISPLAY,
-              WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
-              XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
-              DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
-            },
-          },
-          (error) => resolve({ code: error ? 1 : 0, killed: !!error }),
-        );
-      }),
-  );
+  return launchRestrictedTaskSessionWindow(attempt, cwd, detachedViewerRunner);
 }
 
 /** Producer payload comes only from the actual owner adapter, never arbitrary public JSON. */
