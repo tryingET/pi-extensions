@@ -78,6 +78,9 @@ and a **2026-10-17** resolution/review target:
 - **AK6870:** owner-authorized workstation/browser Interpreter integration. Isolated-browser
   proof recorded 2026-10-10; read AK for its current lifecycle state.
 - **AK6871:** TS7 migration and separate adapter/native advisory qualification.
+  Its deferral was released on 2026-10-10 and the work was executed: see the
+  [qualification dossier](docs/project/2026-10-10-ak6871-dependency-qualification.md).
+  Terminal completion remains the operator's decision.
 - **AK6872:** native dependency-closure enforcement and real transport/process tests —
   implemented under the receiver-approved [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md);
   completion remains the operator's decision.
@@ -223,9 +226,11 @@ URL and captured timestamp; `Input` is template metadata only, not a write targe
 Public result `engine` fields declare the required upstream source and unchanged
 lock, with no local patch/repair; file metadata does not attest build provenance.
 That official snapshot passed native body/image/schema fixture smokes on Node 22
-and 26. Its production closure has one low DOMPurify audit finding; bounded
-inspection did not find DOMPurify in this CLI's bundle/external path or runtime
-loads. This is not a blanket security certificate. See the native-engine evidence.
+and 26. Its production closure has one low DOMPurify package with two advisories
+(re-audited 2026-10-10); bounded inspection did not find DOMPurify in this CLI's
+bundle/external path or runtime loads. The native source owner chose to keep the
+artifact unpatched, with a revisit trigger. This is not a blanket security
+certificate. See the native-engine evidence.
 Static URL capture does not render JavaScript: the Obsidian Help templates page
 returned no native article body and was correctly rejected. Supply already
 rendered caller HTML for such pages; browser capture remains a separate surface.
@@ -248,11 +253,12 @@ npm run release:check:quick
 Development Pi pins/host metadata: **1.1.0**, peers `*` (compatibility declaration,
 not proof against all versions). `typebox` is host-provided: peer `*`, exact
 `1.3.7` development pin, no runtime dependency copy. The only runtime dependency
-is `ipaddr.js@2.2.0`. TypeScript remains `6.0.3`, behind the fleet's adopted TS7;
-qualification/migration is tracked in **AK6871**, not silently presented as resolved.
-The canonical root now declares Pi **1.1.0**, includes the clipper release mapping,
-and passed the actual root/package gates. Those gates did not reject the retained
-compiler; passing them is not universal compiler/dependency compatibility proof.
+is `ipaddr.js@2.2.0`. The development compiler is the fleet's exact TypeScript
+`7.0.2` and the TypeScript loader is `tsx@4.23.15` (**AK6871**; before/after scans,
+runtime re-observation and rollback proof are in the
+[qualification dossier](docs/project/2026-10-10-ak6871-dependency-qualification.md)).
+The canonical root declares Pi **1.1.0** and includes the clipper release mapping.
+Passing gates are not universal compiler/dependency compatibility proof.
 Root engineering policy owns the lane; there is no package-local lane override.
 Package version/release component
 is `0.1.0` / `pi-obsidian-clipper`. `.copier-answers.yml` is preserved unchanged;

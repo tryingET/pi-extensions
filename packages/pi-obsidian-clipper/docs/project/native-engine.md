@@ -115,14 +115,26 @@ this adapter preserves native extraction policy rather than promising every imag
 
 ## Dependency and browser limits
 
-The current upstream production closure has **one low npm audit finding**:
-DOMPurify 3.4.15, GHSA-p98j-92pf-mc4p (IN_PLACE hook detached-subtree DOM XSS).
-It is an installed production dependency, but the inspected CLI bundle/external
-path and observed runtime loads do not use it. This is a bounded reachability
-assessment, not a blanket security certification; no dependency upgrade or
-silent `audit fix` was performed. The old patched-tag closure's two high/one
-moderate findings must not be presented as the current artifact's audit result.
-Adapter runtime and development-host audits remain separate.
+A fresh audit on 2026-10-10 of the installed production closure (AK6871) reports
+**one low package with two advisories**: DOMPurify 3.4.15,
+GHSA-p98j-92pf-mc4p (IN_PLACE hook leaves detached-subtree handlers armed) and
+GHSA-6688-9rhm-gjv2 (IN_PLACE force-removed rawtext root; newly published since
+the first audit). DOMPurify 3.4.16 fixes both. Upstream `main` still equals the
+pinned snapshot, so no upstream fix exists. Only the root native manifest depends
+on DOMPurify. The installed `dist/cli.cjs` calls `require()` only on
+`child_process`, `fs`, `path`, `util` and `linkedom`, and contains no DOMPurify
+reference. This is a bounded reachability observation, not an exploitability
+verdict or a security certificate.
+
+**Native source-owner disposition (tryingET, native interview, 2026-10-10):**
+keep the installed artifact and its lock unchanged; apply no local lock patch and
+no silent `audit fix`. Revisit when upstream bumps DOMPurify, or when any advisory
+of moderate or higher severity reaches this closure. A local patch would break the
+no-local-patch provenance above and needs separate owner authority and a separate
+install approval. The old patched-tag closure's two high/one moderate findings
+must not be presented as the current artifact's audit result. Adapter audits are
+separate: see the
+[AK6871 qualification dossier](2026-10-10-ak6871-dependency-qualification.md).
 
 A parent public protocol fixture requested exactly `baseline-multimodal` on the
 owner-exported endpoint and received HTTP 200 / JSON `prompts_responses.prompt_1:
