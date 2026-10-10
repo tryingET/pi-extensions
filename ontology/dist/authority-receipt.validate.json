@@ -5,6 +5,11 @@
   "command": "validate",
   "layer_sources": [
     {
+      "binding": {
+        "ontology_tree": "51fb4ad233dd1e0ba6db6a0f79df94eec0d1f432",
+        "requested_ref": "main",
+        "resolved_commit": "6f6ae61bc70d8cf4dbd0f0c2b9b44609b736b74e"
+      },
       "kind": "ref",
       "locator_kind": "repo",
       "name": "company",
@@ -13,6 +18,11 @@
       "source_contract": "legacy"
     },
     {
+      "binding": {
+        "ontology_tree": "80e050c0de548aef3519e8a11ddf9aaf65eaf920",
+        "requested_ref": "main",
+        "resolved_commit": "3493a866366283caf4dc8cb9391ecf16bab7be6e"
+      },
       "kind": "ref",
       "locator_kind": "repo",
       "name": "core",
@@ -48,13 +58,13 @@
   "schema_version": 3,
   "source_contract_conformance": {
     "complete": true,
-    "corpus_digest": "sha256:de73e37c7e58d2dd08481968d4ff4b7b328b6238f3d7db46cc3c6edb0bbda708",
-    "document_count": 63,
+    "corpus_digest": "sha256:543c86459ec2765ed656d98401a0017bcc3f78527e40e29a26519437390b7cfc",
+    "document_count": 159,
     "operation": "validate",
     "schema": "rocs-source-contract-conformance.v1",
     "scope": "source-contract/schema/reference",
     "source_contract": "ontology-markdown-v1"
   },
-  "version": "0.3.0",
+  "version": "0.4.6",
   "workspace_ref_mode": "strict"
 }
