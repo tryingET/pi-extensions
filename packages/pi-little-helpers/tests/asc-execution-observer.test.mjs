@@ -286,17 +286,19 @@ test("headless, RPC, non-Ghostty auto, and explicitly disabled sessions have no 
   }
 });
 
-test("a rejected observer launch is recorded and reported exactly once", async () => {
+test("a rejected observer settlement stays indeterminate and is reported exactly once", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-"));
   const failures = [];
   let launchAttempts = 0;
+  let controller;
   try {
-    const controller = createAscExecutionObserverController({
+    controller = createAscExecutionObserverController({
       env: { TERM_PROGRAM: "ghostty" },
       stateRoot: root,
+      startupTimeoutMs: 20,
       async launch() {
         launchAttempts += 1;
-        throw new Error("Ghostty rejected launch");
+        throw new Error("Ghostty settlement lost");
       },
       onLaunchFailure(message) {
         failures.push(message);
@@ -308,11 +310,13 @@ test("a rejected observer launch is recorded and reported exactly once", async (
     await controller.flush();
 
     const state = JSON.parse(readFileSync(controller.statePathFor("transcendent-123"), "utf8"));
-    assert.equal(state.observer.launchStatus, "failed");
+    assert.equal(state.observer.launchStatus, "unconfirmed");
+    assert.equal(state.observer.effectDisposition, "effect_indeterminate");
     assert.equal(launchAttempts, 1);
     assert.equal(failures.length, 1);
-    assert.match(failures[0], /execution continues headlessly/);
+    assert.match(failures[0], /startup unconfirmed.*no retry/);
   } finally {
+    await controller?.dispose();
     rmSync(root, { recursive: true, force: true });
   }
 });

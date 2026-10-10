@@ -1,4 +1,6 @@
 // Causal singleton/renderer-ACK regression coverage; no Ghostty or model calls.
+// AK6867: rejected or unclassified launch callbacks do not prove absence of renderer effects.
+
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -333,11 +335,14 @@ for (const variant of [
   });
 }
 
-test("transport failure is session-wide, once only, and execution telemetry continues", async () => {
+test("proven transport refusal is session-wide, once only, and execution telemetry continues", async () => {
   const failures = [];
-  const f = fixture(async () => ({ ok: false, failure: "rejected" }), {
-    onLaunchFailure: (m) => failures.push(m),
-  });
+  const f = fixture(
+    async () => ({ ok: false, effectDisposition: "confirmed_no_effects", failure: "rejected" }),
+    {
+      onLaunchFailure: (m) => failures.push(m),
+    },
+  );
   try {
     f.controller.handle(progress("a"));
     f.controller.handle(progress("b"));
@@ -717,6 +722,44 @@ for (const variant of ["mode", "symlink", "hardlink", "oversize", "schema"]) {
       await f.cleanup();
     }
   });
+}
+
+for (const failure of ["rejected", "unclassified", "failed-settled"]) {
+  for (const ack of ["none", "immediate", "late"]) {
+    test(`Scenario: Given ${failure} launch settlement, When renderer ACK is ${ack}, Then uncertainty or exact same-attempt startup is retained without retry`, async () => {
+      const f = fixture(
+        async (request, children) => {
+          if (ack === "immediate") renderer(request, children);
+          if (failure === "rejected") throw new Error("launcher settlement lost");
+          return {
+            ok: false,
+            failure: "launcher settlement lost",
+            ...(failure === "failed-settled" ? { effectDisposition: "settled" } : {}),
+          };
+        },
+        { startupTimeoutMs: ack === "immediate" ? 1500 : 50 },
+      );
+      try {
+        f.controller.handle(progress("uncertain"));
+        await f.controller.flush();
+        assert.equal(f.snapshot().observer.effectDisposition, "effect_indeterminate");
+        if (ack === "immediate") {
+          assert.equal(f.snapshot().observer.launchStatus, "launched");
+        } else {
+          assert.equal(f.snapshot().observer.launchStatus, "unconfirmed");
+          if (ack === "late") {
+            renderer(f.requests[0], f.children);
+            await until(() => f.snapshot().observer.launchStatus === "launched");
+          }
+        }
+        f.controller.handle(progress("subsequent"));
+        await f.controller.flush();
+        assert.equal(f.requests.length, 1, "No callback replay or duplicate launch");
+      } finally {
+        await f.cleanup();
+      }
+    });
+  }
 }
 
 test("disposed/delayed renderer cannot ACK or show stale controller state; reload uses separate instance", async () => {
