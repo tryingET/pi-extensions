@@ -40,6 +40,8 @@ test("published production artifact contains and loads all runtime sources with 
       "src/contract.ts",
       "src/transport.ts",
       "src/native.ts",
+      "src/closure.ts",
+      "src/native-guard.cjs",
     ])
       assert.ok(paths.includes(file), file);
     assert.ok(!paths.some((p) => /^(tests|node_modules|\.scratch|prompts)\//.test(p)));
@@ -110,6 +112,10 @@ test("published production artifact contains and loads all runtime sources with 
       const output=await ext.tools.get('obsidian_clipper_setup').definition.execute('id',{},undefined,undefined,{mode:'print',hasUI:false});
       const value=JSON.parse(output.content[0].text);
       assert.equal(value.model.providerModelId,'baseline-multimodal');assert.equal(value.payload,'text-only');
+      // AK6872: the packaged closure admission, permission boundary and guard path work under the host loader.
+      const extracted=await ext.tools.get('obsidian_clipper_extract').definition.execute('id',{url:'https://example.com/',html:'<p>x</p>'},undefined,undefined,{mode:'print',hasUI:false});
+      assert.match(extracted.content[0].text,/Packaged native body/); assert.equal(extracted.details.saved,false);
+      assert.deepEqual(extracted.details.engine.boundary,{permissionModel:'node-permission-read-only',network:process.allowedNodeEnvironmentFlags.has('--allow-net')?'runtime-permission':'in-process-guard',osSandbox:false});
       // Prove the real warning collector was exercised, rather than checking an always-empty field.
       const manifestPath=${JSON.stringify(join(root, "package.json"))};
       const original=await readFile(manifestPath,'utf8');
@@ -123,8 +129,21 @@ test("published production artifact contains and loads all runtime sources with 
       assert.deepEqual(resources.getExtensions().warnings,[]);
       console.log(JSON.stringify({artifactLoaded:true,setupExecuted:true,host:host.version}));
     `;
+    const native = join(f.dir, "native");
+    await mkdir(join(native, "dist"), { recursive: true, mode: 0o700 });
+    await writeFile(join(native, "package.json"), "{}", { mode: 0o600 });
+    await writeFile(join(native, "dist/cli.cjs"), "process.stdout.write('Packaged native body')", {
+      mode: 0o600,
+    });
     const result = await exec(process.execPath, ["--input-type=module", "--eval", smoke], {
-      env: { ...env, PI_CODING_AGENT_DIR: home, PI_OBSIDIAN_CLIPPER_CONTRACT: config },
+      env: {
+        ...env,
+        PI_CODING_AGENT_DIR: home,
+        PI_OBSIDIAN_CLIPPER_CONTRACT: config,
+        PI_OBSIDIAN_CLIPPER_CLI: join(native, "dist/cli.cjs"),
+        // Explicit B2 opt-in; only consulted on Node runtimes without --allow-net.
+        PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD: "1",
+      },
       maxBuffer: 65536,
     });
     const proof = JSON.parse(result.stdout.trim());

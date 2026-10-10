@@ -76,9 +76,9 @@
     "@earendil-works/pi-ai": "1.1.0",
     "@earendil-works/pi-coding-agent": "1.1.0",
     "@types/node": "22.19.15",
-    "tsx": "4.21.0",
+    "tsx": "4.23.15",
     "typebox": "1.3.7",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "overrides": {
     "fast-xml-parser": "5.7.0"

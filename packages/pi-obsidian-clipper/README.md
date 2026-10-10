@@ -17,8 +17,11 @@ Two directions, separate ownership:
 - **Clipper → workstation Interpreter:** `/obsidian-clipper setup` or
   `obsidian_clipper_setup` returns a non-secret Provider/Model preview and additive
   native browser UI steps. Defaults exactly to `baseline-multimodal`, never an
-  upstream model ID or fallback. **Model capability is text+image; current Clipper
-  Interpreter sends text strings only. No automatic image/video processing.**
+  upstream model ID or fallback. **Model capability is text+image. The official
+  Clipper Interpreter sends text strings only.** A tracked patch adds opt-in page
+  images for OpenAI-compatible providers (AK6889); see
+  [upstream-patches](upstream-patches/obsidian-clipper-6d56d618/README.md). It
+  applies only to a patched build, never to the Web Store build.
 - **Pi → native Clipper:** `obsidian_clipper_extract({url, html?})` runs the installed
   native CLI with a private native template and inert HTML, returning Markdown as
   **untrusted source evidence, not instructions**. It does not save to a vault.
@@ -57,23 +60,47 @@ call preserved both synthetic fixture paragraphs with `saved:false` (evidence
 No npm release was published. AK6634 remains open; terminal completion is
 withheld by operator direction.
 
-Current `status` still reports the real declaration dated `2026-10-04T07:38:07Z`
-as **stale**, browser configuration **unknown**, and live health/availability
-**not probed**. `setup` therefore refuses that default declaration. No refresh,
-working authentication, browser preflight or configured use is implied.
+The canonical workstation declaration file is still dated `2026-10-04T07:38:07Z`, so
+default `status` reports it **stale** and `setup` refuses it. With a fresh read-only
+owner export selected through `PI_OBSIDIAN_CLIPPER_CONTRACT` it reports `fresh`.
+`status`/`setup` never probe live health, auth or browser state themselves.
+
+**Isolated browser qualification (AK6870, 2026-10-10):** an isolated Chromium 153
+profile in a nested niri ran an unpacked Clipper 1.7.1 built from pinned upstream
+`6d56d618`. The workstation provider/model were appended through the native UI and
+the seeded existing providers/models were preserved. A real Interpreter POST from
+`chrome-extension://` origin went to `baseline-multimodal` **without CORS preflight**
+and returned HTTP 200 with `prompts_responses`. The loopback endpoint was observed
+**keyless** (no-Authorization POST → 200), and the nonsecret key-field value `local`
+was used in that isolated profile only. Personal profiles were not touched. Details
+and limits: [AK6870 qualification](docs/project/2026-10-10-ak6870-browser-qualification.md).
+
+**Images in notes (AK6888, 2026-10-10):** Clipper and this package never download
+image files. Images become remote Markdown links. On Wikipedia, lazy images point
+to `/wiki/File:` HTML pages because of an upstream Defuddle bug, so they render
+broken. Pi's native extract fails on long articles because native output is
+capped at 32 KiB. See [AK6888 image handling](docs/project/2026-10-10-ak6888-image-handling.md).
 
 Operator-approved grouped follow-ups are bound in AK, with first-class deferrals
 and a **2026-10-17** resolution/review target:
 
-- **AK6870:** owner-authorized workstation/browser Interpreter integration.
+- **AK6870:** owner-authorized workstation/browser Interpreter integration. Isolated-browser
+  proof recorded 2026-10-10; read AK for its current lifecycle state.
 - **AK6871:** TS7 migration and separate adapter/native advisory qualification.
-- **AK6872:** native dependency-closure enforcement and real transport/process tests.
+  Its deferral was released on 2026-10-10 and the work was executed: see the
+  [qualification dossier](docs/project/2026-10-10-ak6871-dependency-qualification.md).
+  Terminal completion remains the operator's decision.
+- **AK6872:** native dependency-closure enforcement and real transport/process tests —
+  implemented under the receiver-approved [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md);
+  completion remains the operator's decision.
 - **AK6873:** original-owner acceptance/closeout handback for AK6856; no duplicate repair.
 
 Read current AK contracts/deferrals for owners, triggers, deadlines and acceptance
 criteria; this document is a projection. The operator explicitly retained
-**extraction-only/no vault save** and **text-only Interpreter payloads** as known
-limits, not promised features. No claim of zero hidden defects or exhaustive
+**extraction-only/no vault save** as a known limit, not a promised feature. On
+2026-10-10 the operator reversed the earlier text-only Interpreter limit. Text-only
+now applies only to providers without image support, and the opt-in image path
+exists only as the tracked patch above (AK6889). No claim of zero hidden defects or exhaustive
 security qualification is made.
 
 ## Historical local activation status (AK6634, 2026-10-04)
@@ -122,15 +149,18 @@ configuration or authentication**. Native Custom provider UI always stores
 **even for a keyless endpoint**. Endpoint authentication is **UNKNOWN until
 owner-verified**. The operator must obtain an owner-approved nonempty key-field
 value and enter it directly in Clipper; a protected endpoint needs its actual
-authorized key. This recipe invents no working dummy or blank credentials.
+authorized key. This recipe invents no working dummy or blank credentials. On
+2026-10-10 the owner loopback endpoint was observed keyless and the operator
+approved the nonsecret value `local` for the isolated proof (AK6870); recheck if
+the workstation owner later adds authentication.
 No whole-settings import is offered: the native importer clears all sync storage. Existing providers
 and models must be preserved via manual append in the native UI. Browser loopback
 permission/CORS/authentication and expected `choices[0].message.content` containing
-JSON `prompts_responses` remain explicit browser checks, not claims by this package.
-A parent public fixture did verify exact-alias HTTP 200/JSON response compatibility;
-OPTIONS returned 501, so this is **not browser-link completion**. Its synthetic
-`local` key-field value was accepted only for that probe, not adopted by setup or
-asserted to work permanently. [Proof and audit limits](docs/project/native-engine.md#dependency-and-browser-limits).
+JSON `prompts_responses` are browser checks, not runtime claims by this package.
+The endpoint answers OPTIONS with 501. The AK6870 isolated Chromium run showed MV3
+host permissions let the extension-origin POST go through without a preflight, and
+it received `prompts_responses`. Other browsers and profiles are not covered by
+that observation, and setup does not embed the `local` value. [Proof and audit limits](docs/project/native-engine.md#dependency-and-browser-limits).
 
 ### Optional read-only owner export
 
@@ -185,16 +215,33 @@ post-frontmatter body also fails clearly; the adapter never fabricates missing
 content. This bounded body guard is not extraction-completeness proof. Cancellation kills the Node child, waits for close,
 then removes private temporary files. Native stderr is counted but withheld from
 model output. Child environment excludes browser/provider/session secrets and
-Node preload flags. Node subprocess is not an OS sandbox: install trusted artifacts.
+Node preload flags. Before every spawn the whole native dependency closure under
+`<root>/dist/cli.cjs` is admitted (owner/root, no group/world write, no special files,
+every symlink resolving inside `<root>`, bounded size), and the child runs under Node's
+permission model with filesystem-API read access to that root and its private inputs
+only: no fs writes, child processes, workers or addons (`node:sqlite` is not covered by
+Node's permission model and can still read, write and create SQLite files wherever the user can). Outbound
+network is denied by the runtime permission model on Node with `--allow-net` support
+(≥25, the current Pi runtime). Older Node fails closed unless the operator sets
+`PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1`, which accepts an in-process guard with
+known bypasses; result `engine.boundary` says which mechanism applied. Neither is an OS sandbox, and
+same-UID changes between admission and spawn are not prevented: install trusted
+artifacts.
+Real loopback TLS, cancellation and outbound-observer tests prove denial for the
+specific probes they run; see the [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md)
+for those probes and the remaining assumptions (SQLite, the opt-in guard's bypasses,
+signals, hard links, same-UID TOCTOU).
 
 The native template emits `space: input`, `kind: source`, `state: captured`, source
 URL and captured timestamp; `Input` is template metadata only, not a write target.
 Public result `engine` fields declare the required upstream source and unchanged
 lock, with no local patch/repair; file metadata does not attest build provenance.
 That official snapshot passed native body/image/schema fixture smokes on Node 22
-and 26. Its production closure has one low DOMPurify audit finding; bounded
-inspection did not find DOMPurify in this CLI's bundle/external path or runtime
-loads. This is not a blanket security certificate. See the native-engine evidence.
+and 26. Its production closure has one low DOMPurify package with two advisories
+(re-audited 2026-10-10); bounded inspection did not find DOMPurify in this CLI's
+bundle/external path or runtime loads. The native source owner chose to keep the
+artifact unpatched, with a revisit trigger. This is not a blanket security
+certificate. See the native-engine evidence.
 Static URL capture does not render JavaScript: the Obsidian Help templates page
 returned no native article body and was correctly rejected. Supply already
 rendered caller HTML for such pages; browser capture remains a separate surface.
@@ -217,11 +264,12 @@ npm run release:check:quick
 Development Pi pins/host metadata: **1.1.0**, peers `*` (compatibility declaration,
 not proof against all versions). `typebox` is host-provided: peer `*`, exact
 `1.3.7` development pin, no runtime dependency copy. The only runtime dependency
-is `ipaddr.js@2.2.0`. TypeScript remains `6.0.3`, behind the fleet's adopted TS7;
-qualification/migration is tracked in **AK6871**, not silently presented as resolved.
-The canonical root now declares Pi **1.1.0**, includes the clipper release mapping,
-and passed the actual root/package gates. Those gates did not reject the retained
-compiler; passing them is not universal compiler/dependency compatibility proof.
+is `ipaddr.js@2.2.0`. The development compiler is the fleet's exact TypeScript
+`7.0.2` and the TypeScript loader is `tsx@4.23.15` (**AK6871**; before/after scans,
+runtime re-observation and rollback proof are in the
+[qualification dossier](docs/project/2026-10-10-ak6871-dependency-qualification.md)).
+The canonical root declares Pi **1.1.0** and includes the clipper release mapping.
+Passing gates are not universal compiler/dependency compatibility proof.
 Root engineering policy owns the lane; there is no package-local lane override.
 Package version/release component
 is `0.1.0` / `pi-obsidian-clipper`. `.copier-answers.yml` is preserved unchanged;

@@ -1,5 +1,5 @@
 ---
-summary: "AK6634 atomic-completion disposition: stale docs corrected, delivery CI green, declared limits retained; four engineering/owner blocks deferred canonically in AK."
+summary: "AK6634 atomic-completion disposition: stale docs corrected, delivery CI green, declared limits retained; three engineering blocks deferred canonically in AK; AK6856 closeout handback resolved under AK6873."
 task_id: 6634
 read_when:
   - "Assessing remaining AK6634 obligations or resuming one grouped follow-up."
@@ -60,7 +60,7 @@ target on that date. The deadline does not manufacture an automatic resolution.
 | Browser/workstation Interpreter integration | Stale declaration, private authentication path and exact browser/workstation permissions are external dependencies; cross-owner qualification is unsafe in the accumulated context. | tryingET, pi-extensions owner, coordinating workstation lane-op owner | Exact owner-approved isolated-browser target/auth/export authority and fresh scoped executor | 2026-10-17 | Interpreter remains unusable/unverified; assumed CORS/auth could mislead users | **AK6870**, deferral **634**, `until_event` |
 | Compiler and dependency qualification | TS7 migration plus separate adapter/native advisory disposition require causal before/after scans, real consumer proof and rollback; manifest-only upgrading would exceed pass risk tolerance. Native source changes require their owner's authority. | tryingET, pi-extensions package owner | Fresh dependency-qualified executor with scan/rollback tooling and native-owner coordination | 2026-10-17 | TS6 drift/advisory debt persists; rushed pins could break host loading or native provenance | **AK6871**, deferral **635**, `until_event` |
 | Native closure and transport/process hardening | Closure enforcement changes executable admission; real TLS/cancellation/outbound fixtures need a controlled design. Rushing this security-sensitive change through the accumulated context is unacceptable. | tryingET, pi-extensions native integration owner | Fresh executor, receiver-approved closure design and isolated real transport/process harness | 2026-10-17 | Writable dependencies could execute with Pi privileges; network/cancellation assumptions remain insufficiently measured | **AK6872**, deferral **636**, `until_event` |
-| AK6856 owner acceptance/closeout handback | Existing instructions reserve AK6856 lifecycle to its owner; passing repair evidence is not authorization to take over that lifecycle. | tryingET, pi-extensions task owner, coordinating original repair owner | Explicit original-owner acceptance/lifecycle handback or separately exact operator takeover | 2026-10-17 | Ambiguous open repair can attract duplicate implementation or unauthorized closure | **AK6873**, deferral **637**, `until_event`, references existing **AK6856** |
+| AK6856 owner acceptance/closeout handback | Existing instructions reserve AK6856 lifecycle to its owner; passing repair evidence is not authorization to take over that lifecycle. | tryingET, pi-extensions task owner, coordinating original repair owner | Explicit original-owner acceptance/lifecycle handback or separately exact operator takeover | 2026-10-17 | Ambiguous open repair can attract duplicate implementation or unauthorized closure | **AK6873**, deferral **637** (released 2026-10-10, see update below), references existing **AK6856** |
 
 The two engineering blocks require fresh, independently scoped execution because
 this session already contains the earlier implementation, failed gates, custody,
@@ -75,6 +75,30 @@ certificate. AK6872 preserves existing DNS/address pinning, TLS verification,
 redirect admission, deadlines/output limits, startup inactivity and no-save
 assertions; it forbids test weakening and dependency-pin changes in that block.
 AK6873 requests handback for the existing repair, not another repair task.
+
+## Update — AK6873 closeout handback resolved (2026-10-10)
+
+The original AK6856 repair owner was Pi session
+`session-01a121f7-e7d7-78c1-b7d2-411d00381fd1` (cwd `softwareco/infra/workstation`).
+Its session record shows it created, claimed and unclaimed AK6856, recorded
+evidence 14549, and told the operator to close it at 04:49Z without any
+acceptance or lifecycle handback. It was absent from `intercom list` and had no
+live process. A native operator interview then gave the **separately explicit
+operator takeover** named in the deferral 637 trigger. It authorized the AK6873
+executor (`session-01a1245d-6fa3-7070-a8cf-7356d6c7cc47`) to take over and complete
+AK6856 closeout, complete AK6873 and land this projection.
+
+- Deferral **637** was released with that reason. AK6873 was claimed by the executor.
+- AK6856 was claimed, given `owner_authorization` evidence **14641** and
+  **completed**. The repair was not reapplied. Five repaired files are
+  byte-identical between `origin/main` `1b25b3483` and the retained 6856
+  worktree. README differs only by the operator-authorized correction
+  (evidence 14631). Host pins are 1.1.0, and TypeBox stays a peer (`*`) with
+  dev pin 1.3.7 and no runtime copy.
+- This update changes documentation only. AK records the authoritative receipts.
+
+AK6870, AK6871 and AK6872 stay deferred as described above. AK6634 stays
+open.
 
 ## Hard-blocked (unbound)
 

@@ -67,9 +67,19 @@ Short articles and image references are not rejected by an arbitrary word thresh
 
 Private inputs are 0600 in a 0700 directory. The child environment excludes user
 configuration/preloads/secrets, but the native process is trusted code, **not an OS
-sandbox**. Artifact metadata checks require safe owner/root ancestry; they do not
-attest source/build identity. Public `engine` metadata declares the required version,
-source base and lock, null local patch and empty repairs, with that limitation.
+sandbox**. AK6872 admission checks the whole production closure before every spawn
+(layout `<root>/dist/cli.cjs` + `<root>/package.json`, safe ancestry, owner/root and no
+group/world write on every entry, no special files, every symlink resolving inside
+`<root>`, at most 50,000 entries/depth 64), then runs the child under
+`node --permission` with filesystem-API read access to `<root>` and the private inputs
+only (`node:sqlite` is outside Node's permission model). Network is denied by the runtime
+permission model where Node supports `--allow-net`; older Node refuses native capture
+unless `PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1` accepts the in-process deny-list
+guard (`src/native-guard.cjs`), which has known bypasses. Result `engine.boundary` names
+the mechanism. These checks do not attest source/build identity. Contract:
+[2026-10-10-ak6872-native-closure-contract.md](2026-10-10-ak6872-native-closure-contract.md).
+Public `engine` metadata declares the required version, source base and lock, null
+local patch and empty repairs, with that limitation.
 
 ## Observed native proof
 
@@ -91,22 +101,40 @@ PI_OBSIDIAN_CLIPPER_CLI=/absolute/owner-installed/dist/cli.cjs \
   node --import tsx scripts/native-smoke.ts
 ```
 
+On Node < 25 the smoke also needs the explicit
+`PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1` opt-in.
+
 Hermetic tests cover fake subprocess cancellation, bounded argv/environment and
-metadata-only rejection. Production-tarball tests cover actual Pi loading and
-read-only commands/tools. Neither substitutes for the native fixture above.
+metadata-only rejection; AK6872 adds unsafe-closure fixtures, loopback outbound
+observers with a direct-run causal control, and real loopback TLS/cancellation tests.
+Production-tarball tests cover actual Pi loading, read-only commands/tools and a
+fixture extraction through the packaged boundary. None substitutes for the native
+fixture above.
 Defuddle may intentionally remove an uncaptioned image matching `og:image`;
 this adapter preserves native extraction policy rather than promising every image.
 
 ## Dependency and browser limits
 
-The current upstream production closure has **one low npm audit finding**:
-DOMPurify 3.4.15, GHSA-p98j-92pf-mc4p (IN_PLACE hook detached-subtree DOM XSS).
-It is an installed production dependency, but the inspected CLI bundle/external
-path and observed runtime loads do not use it. This is a bounded reachability
-assessment, not a blanket security certification; no dependency upgrade or
-silent `audit fix` was performed. The old patched-tag closure's two high/one
-moderate findings must not be presented as the current artifact's audit result.
-Adapter runtime and development-host audits remain separate.
+A fresh audit on 2026-10-10 of the installed production closure (AK6871) reports
+**one low package with two advisories**: DOMPurify 3.4.15,
+GHSA-p98j-92pf-mc4p (IN_PLACE hook leaves detached-subtree handlers armed) and
+GHSA-6688-9rhm-gjv2 (IN_PLACE force-removed rawtext root; newly published since
+the first audit). DOMPurify 3.4.16 fixes both. Upstream `main` still equals the
+pinned snapshot, so no upstream fix exists. Only the root native manifest depends
+on DOMPurify. The installed `dist/cli.cjs` calls `require()` only on
+`child_process`, `fs`, `path`, `util` and `linkedom`, and contains no DOMPurify
+reference. This is a bounded reachability observation, not an exploitability
+verdict or a security certificate.
+
+**Native source-owner disposition (tryingET, native interview, 2026-10-10):**
+keep the installed artifact and its lock unchanged; apply no local lock patch and
+no silent `audit fix`. Revisit when upstream bumps DOMPurify, or when any advisory
+of moderate or higher severity reaches this closure. A local patch would break the
+no-local-patch provenance above and needs separate owner authority and a separate
+install approval. The old patched-tag closure's two high/one moderate findings
+must not be presented as the current artifact's audit result. Adapter audits are
+separate: see the
+[AK6871 qualification dossier](2026-10-10-ak6871-dependency-qualification.md).
 
 A parent public protocol fixture requested exactly `baseline-multimodal` on the
 owner-exported endpoint and received HTTP 200 / JSON `prompts_responses.prompt_1:
@@ -114,13 +142,20 @@ owner-exported endpoint and received HTTP 200 / JSON `prompts_responses.prompt_1
 reflects owner routing, not a different request alias. A nonsecret UI field value
 `local` was accepted for that one probe only; endpoint authentication is not
 permanently inferred. OPTIONS returned 501, while POST returned
-`Access-Control-Allow-Origin: *`. Actual browser host permissions, origin/preflight
-behavior and configured use still require a browser check.
+`Access-Control-Allow-Origin: *`. The AK6870 isolated Chromium 153 run (2026-10-10)
+covered the following:
+an unpacked build of this snapshot, configured additively through the native UI, sent
+one extension-origin POST with no preflight. It received HTTP 200 and
+`prompts_responses`, and the endpoint was observed keyless. See
+[AK6870 qualification](2026-10-10-ak6870-browser-qualification.md). Other
+browsers, profiles and later auth changes still need their own check.
 
 Native Custom provider UI requires a nonempty key field; supply its owner-approved
 value directly in the browser, never through Pi. Do not import full settings:
-that clears browser sync storage. The current Interpreter sends text strings,
-although the selected model declares text+image capability. Tools remain honest
+that clears browser sync storage. The official Interpreter sends text strings,
+although the selected model declares text+image capability. The AK6889 tracked
+patch adds opt-in data-URL page images for OpenAI-compatible providers:
+[upstream-patches](../../upstream-patches/obsidian-clipper-6d56d618/README.md). Tools remain honest
 about unprobed live/browser state; the default canonical export may need owner
 refresh before setup. No model/lane lifecycle or Pi provider registration is owned
 by this package.

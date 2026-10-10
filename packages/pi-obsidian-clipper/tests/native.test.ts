@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { chmod, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { chmod, readdir, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
+import { promisify } from "node:util";
 import {
   captureBody,
   captureTemplate,
@@ -14,7 +16,12 @@ import {
   runNative,
 } from "../src/native.ts";
 import { deadline, HTML_LIMIT } from "../src/transport.ts";
-import { environment, fixture } from "./helpers.ts";
+import { environment, nativeFixture } from "./helpers.ts";
+
+const run = promisify(execFile);
+// AK6872 B2: on Node < 25 native capture fails closed unless the operator opts in to the
+// in-process guard. These tests opt in explicitly; native-boundary tests the default refusal.
+process.env.PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD = "1";
 
 const cliChecks = `
 const fs = require('node:fs'); const assert = require('node:assert/strict');
@@ -33,7 +40,7 @@ assert.equal(fs.readFileSync(argv[4],'utf8'),'<html><script>DO_NOT_RUN()</script
 process.stdout.write('Native fake fixture body');
 `;
 test("native argv/private files/template/environment and cleanup; caller HTML does not fetch", async () => {
-  const f = await fixture();
+  const f = await nativeFixture();
   try {
     const path = join(f.dir, "cli.cjs");
     await writeFile(path, cliChecks, { mode: 0o600 });
@@ -69,7 +76,7 @@ test("native argv/private files/template/environment and cleanup; caller HTML do
   }
 });
 test("exit-zero frontmatter-only capture fails closed; genuine body is preserved", async () => {
-  const f = await fixture();
+  const f = await nativeFixture();
   try {
     const path = join(f.dir, "cli.cjs");
     const header =
@@ -106,7 +113,7 @@ test("exit-zero frontmatter-only capture fails closed; genuine body is preserved
   }
 });
 test("native artifact missing/writable/directory/wrong executable path rejects", async () => {
-  const f = await fixture();
+  const f = await nativeFixture();
   try {
     await assert.rejects(nativeArtifact(join(f.dir, "cli.cjs")), /missing/);
     await assert.rejects(nativeArtifact("relative/cli.cjs"), /absolute/);
@@ -131,7 +138,7 @@ test("native artifact missing/writable/directory/wrong executable path rejects",
   }
 });
 test("input and native output budgets fail closed, cleanup on failures and no stderr leak", async () => {
-  const f = await fixture();
+  const f = await nativeFixture();
   try {
     await assert.rejects(extract("https://example.com/", "x".repeat(HTML_LIMIT + 1)), /HTML/);
     const path = join(f.dir, "cli.cjs");
@@ -158,25 +165,22 @@ test("input and native output budgets fail closed, cleanup on failures and no st
   }
 });
 test("abort kills running child, waits for close and prevents pre-aborted subprocess", async () => {
-  const f = await fixture();
+  const f = await nativeFixture();
   try {
     const path = join(f.dir, "cli.cjs");
-    await writeFile(
-      path,
-      "require('node:fs').writeFileSync('ready',String(process.pid));setInterval(()=>{},1000)",
-      { mode: 0o600 },
-    );
+    // AK6872 C4 denies all child filesystem writes, so readiness is observed from the process
+    // table (the running child's argv names this unique CLI path) instead of a "ready" file.
+    await writeFile(path, "setInterval(()=>{},1000)", { mode: 0o600 });
     const c = new AbortController();
     const pending = runNative(path, "https://example.com/", f.dir, c.signal);
     const check = deadline(
       async (signal) => {
         for (;;) {
           signal.throwIfAborted();
-          try {
-            return Number(await readFile(join(f.dir, "ready"), "utf8"));
-          } catch {
-            await sleep(10, undefined, { signal });
-          }
+          const { stdout } = await run("ps", ["-A", "-o", "pid=", "-o", "args="]);
+          const line = stdout.split("\n").find((l) => l.includes(path) && !l.includes(" ps "));
+          if (line) return Number(line.trim().split(/\s+/)[0]);
+          await sleep(10, undefined, { signal });
         }
       },
       undefined,
@@ -196,7 +200,7 @@ test("abort kills running child, waits for close and prevents pre-aborted subpro
   }
 });
 test("returned terminal controls are removed; native template contains no inference or vault", async () => {
-  const f = await fixture();
+  const f = await nativeFixture();
   try {
     const path = join(f.dir, "cli.cjs");
     await writeFile(path, "process.stdout.write('data\\x1b[31m\\x00')", { mode: 0o600 });
