@@ -19,6 +19,7 @@ import {
   getRecordField as rec,
   getStringField as str,
 } from "../../pi-autoresearch/src/core/runtime-matrix-fields.ts";
+import { parseRunProvenance } from "../../pi-autoresearch/src/core/runtime-provenance.ts";
 import {
   OBJECTIVE,
   withDashboardDir,
@@ -95,6 +96,7 @@ function fixture(cwd) {
         checksPassed: true,
         benchmarkCommand: "node actual-benchmark-override.mjs",
         experiment,
+        provenance: parseRunProvenance(payload.provenance),
       }),
     );
   return {
@@ -186,7 +188,7 @@ test("all owner closeout history survives: baseline and different-binding failur
     );
   }));
 
-test("real owner closeout drops per-run overrides: configured commands cannot establish evaluator provenance", () =>
+test("real owner closeout preserves per-run overrides: commands alone cannot establish pinned evaluator provenance", () =>
   withDashboardDir((cwd) => {
     const f = fixture(cwd);
     f.appendSuccess();
@@ -196,8 +198,8 @@ test("real owner closeout drops per-run overrides: configured commands cannot es
     assert.ok(latest?.type === "run");
     assert.equal(latest.benchmarkCommand, "node actual-benchmark-override.mjs");
     assert.equal(latest.checksCommand, "node actual-checks-override.mjs");
-    assert.equal(Object.hasOwn(packet.candidateRun ?? {}, "benchmarkCommand"), false);
-    assert.equal(Object.hasOwn(packet.candidateRun ?? {}, "checksCommand"), false);
+    assert.equal(packet.candidateRun?.benchmarkCommand, "node actual-benchmark-override.mjs");
+    assert.equal(packet.candidateRun?.checksCommand, "node actual-checks-override.mjs");
     const attempt = projectCandidatePacket(packet, f.packetPath, "nested rename").attempts[0];
     assert.equal(attempt.validMeasurement, true);
     assert.equal(attempt.identity.evaluator, null);

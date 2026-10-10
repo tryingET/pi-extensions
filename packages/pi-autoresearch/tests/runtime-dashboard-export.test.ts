@@ -210,6 +210,10 @@ test("all unambiguously lineage-bound historical exports attach without enlargin
     earlier.closeout.runs = [earlier.closeout.runs[0]];
     earlier.candidateRun = earlier.closeout.runs[0];
     earlier.closeout.runCount = 1;
+    // This is an earlier complete segment export, not truncated current history.
+    earlier.closeout.successfulRunCount = 1;
+    earlier.closeout.status.currentSegment.runCount = 1;
+    earlier.closeout.status.currentSegment.successfulRunCount = 1;
     const historical = PACKET.replace(
       "candidate-01.candidate-result",
       "attempt-one.candidate-result",

@@ -1,4 +1,5 @@
 import type { MetricDirection } from "./runtime-model.ts";
+import type { RunMatrixContext } from "./runtime-provenance.ts";
 
 export type { MetricDirection } from "./runtime-model.ts";
 
@@ -135,6 +136,7 @@ export interface DashboardLane {
     hypothesis: string | null;
     source: string;
     observedSegmentLabels: string[];
+    matrixContext?: RunMatrixContext;
   } | null;
   objective: string | null;
   promptTitle: string | null;

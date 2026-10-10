@@ -29,5 +29,7 @@ export function exportAutoresearchDashboardHtml(input: {
     fileUrl: pathToFileURL(outputPath).href,
     refreshedAt: Date.now(),
     status,
+    // Same exact discovery projection rendered into this file, never effect/permission proof.
+    matrixSummary,
   };
 }

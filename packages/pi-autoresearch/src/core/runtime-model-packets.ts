@@ -6,6 +6,7 @@ import type {
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_PHASE,
 } from "./runtime-constants.ts";
+import type { AutoresearchMatrixCampaignArtifactSummary } from "./runtime-matrix-model.ts";
 import type {
   AutoresearchCandidateBinding,
   AutoresearchEmpiricalDecisionClass,
@@ -206,6 +207,7 @@ export interface AutoresearchSegmentCloseout {
 
 export interface AutoresearchDashboardExportResult {
   cwd: string;
+  matrixSummary?: AutoresearchMatrixCampaignArtifactSummary;
   path: string;
   fileUrl: string;
   refreshedAt: number;

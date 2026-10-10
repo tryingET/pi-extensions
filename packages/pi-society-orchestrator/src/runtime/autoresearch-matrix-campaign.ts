@@ -911,6 +911,7 @@ export function extractJsonStringFromToolCall(call: string, key: string): string
 
 function buildAutoresearchMatrixCampaignRunnerLanes(input: {
   identity: SessionIdentity;
+  objective: string;
   direction: "lower" | "higher";
   metricName: string;
   metricThreshold: number | null;
@@ -976,6 +977,17 @@ function buildAutoresearchMatrixCampaignRunnerLanes(input: {
         description: `Measure ${cell.cellId}/${lane.laneId} for ${input.metricName}: ${lane.objective}`,
         hypothesisId: `${cell.cellId}-${lane.laneId}`,
         hypothesis: lane.objective,
+        // Stable implementation hypothesis is separate from scenario/sample-specific lane prose.
+        provenance: {
+          matrix: {
+            taskId: input.identity.taskId,
+            objective: input.objective,
+            cellId: cell.cellId,
+            laneId: lane.laneId,
+            hypothesis: cell.hypothesis,
+            implementationId: `hypothesis-${cell.cellId.split("-").at(-1)}`,
+          },
+        },
         metricName: input.metricName,
         direction: input.direction,
         candidateSource: "candidate_peer_spawn",
@@ -1002,6 +1014,8 @@ function buildAutoresearchMatrixCampaignRunnerLanes(input: {
       return {
         cellId: cell.cellId,
         laneId: lane.laneId,
+        scenario: cell.scenario,
+        hypothesis: cell.hypothesis,
         objective: lane.objective,
         cellObjective: cell.objective,
         candidatePeerCall: lane.candidatePeerCall,
@@ -1037,6 +1051,7 @@ export function buildAutoresearchMatrixCampaignRunnerContract(
   });
   const lanes = buildAutoresearchMatrixCampaignRunnerLanes({
     identity,
+    objective,
     direction,
     metricName: primaryMetricName,
     metricThreshold: primaryMetricTarget,
@@ -1192,6 +1207,8 @@ function buildAutoresearchMatrixCampaignControllerCommandPacket(input: {
     return {
       cellId,
       objective: firstLane?.cellObjective ?? input.contract.objective,
+      scenario: firstLane?.scenario,
+      hypothesis: firstLane?.hypothesis,
       exactControllerSequence: [
         "autoresearch_candidate_bind",
         "autoresearch_runtime_run",

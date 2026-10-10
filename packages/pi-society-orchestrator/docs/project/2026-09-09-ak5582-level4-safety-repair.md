@@ -142,3 +142,29 @@ warnings were unrelated to the exercised path.
 Raw diagnostic logs were captured under the task-owned TMPDIR directory
 `ak5582-live-6cMGit`; they are scratch, not durable authority. This note records
 bounded observations for AK task closeout. No unattended readiness claim follows.
+
+## AK6426 additive provenance prerequisite (isolated implementation, not activation)
+
+The matrix measurement handoff now separates `provenance.matrix` (exact task,
+objective, cell, sample lane, stable hypothesis and implementation ID) from the
+existing sample/scenario-specific `hypothesis` text. Existing exact text checks
+remain; missing new context cannot downgrade a new contract to legacy matching.
+The owner emits explicit cell scenario/hypothesis metadata, not inferred prompt
+prose. Optional per-run measurement pins are supplied through pi-autoresearch's
+owner input; unknown historical evaluator/workload/subject provenance stays absent.
+Actual commands, execution cwd and invocation outcomes survive the owner closeout.
+These are local unauthenticated projections, not measured-tree attestations.
+
+The changed call text necessarily changes action-plan digests. Retained journals
+must refuse that drift without advancement, migration or replay; a new context is
+not permission to repair history. AK5622's original packet and observation remain
+untouched and quarantined where exact hypothesis/provenance is missing or mismatched.
+Three implementation definitions × nine workload rows are 27 comparison cells,
+not 27 implementations, effects, patches or launches. No launch/admission token,
+non-dispatching boundary, dangerous transition or publication rule is changed.
+
+Bounded evidence and outstanding qualification are recorded in the autoresearch
+[AK6426 provenance note](../../../pi-autoresearch/docs/project/2026-10-01-ak6426-provenance-prerequisite.md).
+Frozen characterization expectations remain unchanged pending explicit owner
+scope/disposition. No canonical landing, live installation, campaign or native-host
+execution is established by the isolated prerequisite tests.

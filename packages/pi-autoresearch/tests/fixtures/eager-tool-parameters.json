@@ -17,16 +17,31 @@
       },
       "setupMode": {
         "anyOf": [
-          { "type": "string", "const": "autoplan" },
-          { "type": "string", "const": "prompt_vault_setup" }
+          {
+            "type": "string",
+            "const": "autoplan"
+          },
+          {
+            "type": "string",
+            "const": "prompt_vault_setup"
+          }
         ],
         "description": "How the front door should prepare the setup decision. autoplan is local and fast; prompt_vault_setup also requests the governed setup packet through the package-owned decision runner."
       },
       "runMode": {
         "anyOf": [
-          { "type": "string", "const": "plan_only" },
-          { "type": "string", "const": "baseline" },
-          { "type": "string", "const": "bounded_loop" }
+          {
+            "type": "string",
+            "const": "plan_only"
+          },
+          {
+            "type": "string",
+            "const": "baseline"
+          },
+          {
+            "type": "string",
+            "const": "bounded_loop"
+          }
         ],
         "description": "How far to execute the supervised campaign front door: plan only, run the first baseline, or enter a bounded loop."
       },
@@ -42,28 +57,69 @@
       },
       "planner": {
         "anyOf": [
-          { "type": "string", "const": "heuristic" },
-          { "type": "string", "const": "dspx_program" }
+          {
+            "type": "string",
+            "const": "heuristic"
+          },
+          {
+            "type": "string",
+            "const": "dspx_program"
+          }
         ],
         "description": "Planner backend. dspx_program can materialize a DSPx-generated DSPy planner assembly; with runDspxProgramGen=true, pi-autoresearch validates the generated DSPy output before using it as the local campaign plan while remaining the outer controller."
       },
-      "filesInScope": { "type": "array", "items": { "type": "string" } },
-      "offLimits": { "type": "array", "items": { "type": "string" } },
-      "constraints": { "type": "array", "items": { "type": "string" } },
+      "filesInScope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "offLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "constraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "benchmarkCommand": {
         "type": "string",
         "description": "Optional benchmark command override."
       },
       "checksCommand": {
         "anyOf": [
-          { "type": "string" },
-          { "type": "null", "description": "Explicitly clear this string value." }
+          {
+            "type": "string"
+          },
+          {
+            "type": "null",
+            "description": "Explicitly clear this string value."
+          }
         ]
       },
-      "metricName": { "type": "string", "description": "Optional primary metric name override." },
-      "metricUnit": { "type": "string", "description": "Optional primary metric unit override." },
+      "metricName": {
+        "type": "string",
+        "description": "Optional primary metric name override."
+      },
+      "metricUnit": {
+        "type": "string",
+        "description": "Optional primary metric unit override."
+      },
       "direction": {
-        "anyOf": [{ "type": "string", "const": "lower" }, { "type": "string", "const": "higher" }],
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "lower"
+          },
+          {
+            "type": "string",
+            "const": "higher"
+          }
+        ],
         "description": "Whether lower or higher metric values are better."
       },
       "metricThreshold": {
@@ -95,7 +151,10 @@
         "type": "string",
         "description": "Optional DSPx behavior_results.json path for advisory setup input."
       },
-      "description": { "type": "string", "description": "Baseline or first-loop run description." },
+      "description": {
+        "type": "string",
+        "description": "Baseline or first-loop run description."
+      },
       "allowOverwriteScripts": {
         "type": "boolean",
         "description": "Allow overwriting existing autoresearch scripts."
@@ -127,35 +186,107 @@
         "type": "string",
         "description": "When set, request governed next-hypothesis decisions in loop mode."
       },
-      "decisionConstraints": { "type": "array", "items": { "type": "string" } },
-      "decisionFilesInScope": { "type": "array", "items": { "type": "string" } },
-      "decisionOffLimits": { "type": "array", "items": { "type": "string" } },
-      "decisionIdeasBacklog": { "type": "array", "items": { "type": "string" } },
-      "decisionAsiNotes": { "type": "array", "items": { "type": "string" } },
-      "decisionDeadEndMemory": { "type": "array", "items": { "type": "string" } },
+      "decisionConstraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionFilesInScope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionOffLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionIdeasBacklog": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionAsiNotes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionDeadEndMemory": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "stopOn": {
         "type": "array",
         "items": {
           "anyOf": [
-            { "type": "string", "const": "baseline" },
-            { "type": "string", "const": "candidate" },
-            { "type": "string", "const": "keep" },
-            { "type": "string", "const": "discard" },
-            { "type": "string", "const": "crash" },
-            { "type": "string", "const": "checks_failed" },
-            { "type": "string", "const": "blocked" },
-            { "type": "string", "const": "rebaseline" },
-            { "type": "string", "const": "finalize" }
+            {
+              "type": "string",
+              "const": "baseline"
+            },
+            {
+              "type": "string",
+              "const": "candidate"
+            },
+            {
+              "type": "string",
+              "const": "keep"
+            },
+            {
+              "type": "string",
+              "const": "discard"
+            },
+            {
+              "type": "string",
+              "const": "crash"
+            },
+            {
+              "type": "string",
+              "const": "checks_failed"
+            },
+            {
+              "type": "string",
+              "const": "blocked"
+            },
+            {
+              "type": "string",
+              "const": "rebaseline"
+            },
+            {
+              "type": "string",
+              "const": "finalize"
+            }
           ]
         }
       },
       "peerMode": {
         "anyOf": [
-          { "type": "string", "const": "off" },
-          { "type": "string", "const": "plan" },
-          { "type": "string", "const": "launch_scout" },
-          { "type": "string", "const": "launch_candidate" },
-          { "type": "string", "const": "launch_fork" }
+          {
+            "type": "string",
+            "const": "off"
+          },
+          {
+            "type": "string",
+            "const": "plan"
+          },
+          {
+            "type": "string",
+            "const": "launch_scout"
+          },
+          {
+            "type": "string",
+            "const": "launch_candidate"
+          },
+          {
+            "type": "string",
+            "const": "launch_fork"
+          }
         ],
         "description": "Peer handoff policy after the bounded loop. launch_* returns an exact canonical peer tool call for explicit controller dispatch; pi-autoresearch does not auto-spawn peers."
       },
@@ -169,22 +300,40 @@
           },
           "keep": {
             "anyOf": [
-              { "type": "string", "const": "preserve_branch" },
-              { "type": "string", "const": "plan_review_branch" }
+              {
+                "type": "string",
+                "const": "preserve_branch"
+              },
+              {
+                "type": "string",
+                "const": "plan_review_branch"
+              }
             ],
             "description": "Keep policy after a promising run; no merge or promotion is automatic."
           },
           "discard": {
             "anyOf": [
-              { "type": "string", "const": "suggest_cleanup" },
-              { "type": "string", "const": "delete_worktree_after_confirm" }
+              {
+                "type": "string",
+                "const": "suggest_cleanup"
+              },
+              {
+                "type": "string",
+                "const": "delete_worktree_after_confirm"
+              }
             ],
             "description": "Discard policy after a rejected run; receipts remain, and cleanup requires explicit operator confirmation."
           },
           "rewind": {
             "anyOf": [
-              { "type": "string", "const": "reset_worktree_to_base" },
-              { "type": "string", "const": "recreate_worktree_from_base" }
+              {
+                "type": "string",
+                "const": "reset_worktree_to_base"
+              },
+              {
+                "type": "string",
+                "const": "recreate_worktree_from_base"
+              }
             ],
             "description": "Candidate rewind policy for worktree state. ASC rewind remains live session recovery, not candidate authority."
           }
@@ -224,15 +373,27 @@
       },
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "plan_run" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "plan_run"
+          }
         ],
         "description": "Inspect a candidate worktree and prepare the exact measurement call."
       },
       "candidateSource": {
         "anyOf": [
-          { "type": "string", "const": "candidate_peer_spawn" },
-          { "type": "string", "const": "manual" }
+          {
+            "type": "string",
+            "const": "candidate_peer_spawn"
+          },
+          {
+            "type": "string",
+            "const": "manual"
+          }
         ],
         "description": "Optional source for a visible candidate binding. candidate_peer_spawn means a visible isolated peer/worktree produced the candidate; manual means the controller supplied the candidate binding directly."
       },
@@ -263,10 +424,22 @@
       },
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "plan_keep" },
-          { "type": "string", "const": "plan_discard" },
-          { "type": "string", "const": "plan_rewind" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "plan_keep"
+          },
+          {
+            "type": "string",
+            "const": "plan_discard"
+          },
+          {
+            "type": "string",
+            "const": "plan_rewind"
+          }
         ],
         "description": "Inspect current candidate lifecycle posture or produce a read-only plan for keep, discard, or rewind."
       },
@@ -280,22 +453,40 @@
           },
           "keep": {
             "anyOf": [
-              { "type": "string", "const": "preserve_branch" },
-              { "type": "string", "const": "plan_review_branch" }
+              {
+                "type": "string",
+                "const": "preserve_branch"
+              },
+              {
+                "type": "string",
+                "const": "plan_review_branch"
+              }
             ],
             "description": "Keep policy after a promising run; no merge or promotion is automatic."
           },
           "discard": {
             "anyOf": [
-              { "type": "string", "const": "suggest_cleanup" },
-              { "type": "string", "const": "delete_worktree_after_confirm" }
+              {
+                "type": "string",
+                "const": "suggest_cleanup"
+              },
+              {
+                "type": "string",
+                "const": "delete_worktree_after_confirm"
+              }
             ],
             "description": "Discard policy after a rejected run; receipts remain, and cleanup requires explicit operator confirmation."
           },
           "rewind": {
             "anyOf": [
-              { "type": "string", "const": "reset_worktree_to_base" },
-              { "type": "string", "const": "recreate_worktree_from_base" }
+              {
+                "type": "string",
+                "const": "reset_worktree_to_base"
+              },
+              {
+                "type": "string",
+                "const": "recreate_worktree_from_base"
+              }
             ],
             "description": "Candidate rewind policy for worktree state. ASC rewind remains live session recovery, not candidate authority."
           }
@@ -309,11 +500,26 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "plan_matrix" },
-          { "type": "string", "const": "prepare_fork" },
-          { "type": "string", "const": "execute_stage" },
-          { "type": "string", "const": "build_ak_binding" },
-          { "type": "string", "const": "advance_campaign" }
+          {
+            "type": "string",
+            "const": "plan_matrix"
+          },
+          {
+            "type": "string",
+            "const": "prepare_fork"
+          },
+          {
+            "type": "string",
+            "const": "execute_stage"
+          },
+          {
+            "type": "string",
+            "const": "build_ak_binding"
+          },
+          {
+            "type": "string",
+            "const": "advance_campaign"
+          }
         ],
         "description": "Load a typed llama.cpp benchmark campaign manifest, either expand the exact 41/42/43 branch-lane matrix, plan/apply the fork workspace preparation, plan/apply one exact stage invocation, derive one exact AK-ready binding snapshot for an anchored task, or plan/apply one truthful next campaign-local stage step."
       },
@@ -327,9 +533,18 @@
       },
       "stage": {
         "anyOf": [
-          { "type": "string", "const": "41" },
-          { "type": "string", "const": "42" },
-          { "type": "string", "const": "43" }
+          {
+            "type": "string",
+            "const": "41"
+          },
+          {
+            "type": "string",
+            "const": "42"
+          },
+          {
+            "type": "string",
+            "const": "43"
+          }
         ],
         "description": "Only for action=execute_stage. Select the exact workstation stage to bind."
       },
@@ -358,8 +573,14 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "advance" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "advance"
+          }
         ],
         "description": "Inspect the bounded public campaign-control posture for one manifest-driven llama.cpp campaign, or plan/apply exactly one truthful next step without raw stage/build inputs."
       },
@@ -400,28 +621,69 @@
       },
       "planner": {
         "anyOf": [
-          { "type": "string", "const": "heuristic" },
-          { "type": "string", "const": "dspx_program" }
+          {
+            "type": "string",
+            "const": "heuristic"
+          },
+          {
+            "type": "string",
+            "const": "dspx_program"
+          }
         ],
         "description": "Planner backend. dspx_program can materialize a DSPx-generated DSPy planner assembly; with runDspxProgramGen=true, pi-autoresearch validates the generated DSPy output before using it as the local campaign plan while remaining the outer controller."
       },
-      "filesInScope": { "type": "array", "items": { "type": "string" } },
-      "offLimits": { "type": "array", "items": { "type": "string" } },
-      "constraints": { "type": "array", "items": { "type": "string" } },
+      "filesInScope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "offLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "constraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "benchmarkCommand": {
         "type": "string",
         "description": "Optional benchmark command override."
       },
       "checksCommand": {
         "anyOf": [
-          { "type": "string" },
-          { "type": "null", "description": "Explicitly clear this string value." }
+          {
+            "type": "string"
+          },
+          {
+            "type": "null",
+            "description": "Explicitly clear this string value."
+          }
         ]
       },
-      "metricName": { "type": "string", "description": "Optional primary metric name override." },
-      "metricUnit": { "type": "string", "description": "Optional primary metric unit override." },
+      "metricName": {
+        "type": "string",
+        "description": "Optional primary metric name override."
+      },
+      "metricUnit": {
+        "type": "string",
+        "description": "Optional primary metric unit override."
+      },
       "direction": {
-        "anyOf": [{ "type": "string", "const": "lower" }, { "type": "string", "const": "higher" }],
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "lower"
+          },
+          {
+            "type": "string",
+            "const": "higher"
+          }
+        ],
         "description": "Whether lower or higher metric values are better."
       },
       "metricThreshold": {
@@ -451,21 +713,51 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "set" },
-          { "type": "string", "const": "goal_pause" },
-          { "type": "string", "const": "goal_resume" },
-          { "type": "string", "const": "goal_complete" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "set"
+          },
+          {
+            "type": "string",
+            "const": "goal_pause"
+          },
+          {
+            "type": "string",
+            "const": "goal_resume"
+          },
+          {
+            "type": "string",
+            "const": "goal_complete"
+          }
         ],
         "description": "Inspect the current operator control overlay, set an explicit continue/rebaseline/finalize/stop decision, or apply an explicit campaign-goal pause/resume/complete control action."
       },
-      "cwd": { "type": "string", "description": "Optional cwd override for control inspection." },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for control inspection."
+      },
       "decision": {
         "anyOf": [
-          { "type": "string", "const": "continue" },
-          { "type": "string", "const": "rebaseline" },
-          { "type": "string", "const": "finalize" },
-          { "type": "string", "const": "stop" }
+          {
+            "type": "string",
+            "const": "continue"
+          },
+          {
+            "type": "string",
+            "const": "rebaseline"
+          },
+          {
+            "type": "string",
+            "const": "finalize"
+          },
+          {
+            "type": "string",
+            "const": "stop"
+          }
         ],
         "description": "Explicit operator control decision for the current bounded runtime posture."
       },
@@ -480,14 +772,29 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "plan" },
-          { "type": "string", "const": "approve" },
-          { "type": "string", "const": "materialize" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "plan"
+          },
+          {
+            "type": "string",
+            "const": "approve"
+          },
+          {
+            "type": "string",
+            "const": "materialize"
+          }
         ],
         "description": "Inspect the current finalization plan state, refresh/reuse a plan, record approval, or materialize local review branches."
       },
-      "cwd": { "type": "string", "description": "Optional cwd override for finalization actions." },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for finalization actions."
+      },
       "reason": {
         "type": "string",
         "description": "Optional short reason for approve/materialize actions."
@@ -498,8 +805,14 @@
     "type": "object",
     "required": ["goal", "maxIterations"],
     "properties": {
-      "cwd": { "type": "string", "description": "Optional cwd override for the bounded loop." },
-      "goal": { "type": "string", "description": "Bounded autoresearch loop goal." },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for the bounded loop."
+      },
+      "goal": {
+        "type": "string",
+        "description": "Bounded autoresearch loop goal."
+      },
       "maxIterations": {
         "type": "number",
         "description": "Required maximum iterations for this bounded loop.",
@@ -510,23 +823,52 @@
         "description": "Optional wall-clock budget in minutes.",
         "minimum": 0.01
       },
-      "description": { "type": "string", "description": "Initial run description." },
-      "name": { "type": "string", "description": "Campaign name when bootstrapping." },
-      "metricName": { "type": "string", "description": "Metric name when bootstrapping." },
-      "metricUnit": { "type": "string", "description": "Metric unit." },
+      "description": {
+        "type": "string",
+        "description": "Initial run description."
+      },
+      "name": {
+        "type": "string",
+        "description": "Campaign name when bootstrapping."
+      },
+      "metricName": {
+        "type": "string",
+        "description": "Metric name when bootstrapping."
+      },
+      "metricUnit": {
+        "type": "string",
+        "description": "Metric unit."
+      },
       "direction": {
-        "anyOf": [{ "type": "string", "const": "lower" }, { "type": "string", "const": "higher" }],
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "lower"
+          },
+          {
+            "type": "string",
+            "const": "higher"
+          }
+        ],
         "description": "Whether lower or higher metric values are better."
       },
       "metricThreshold": {
         "type": "number",
         "description": "Optional explicit success threshold when bootstrapping."
       },
-      "benchmarkCommand": { "type": "string", "description": "Benchmark command override." },
+      "benchmarkCommand": {
+        "type": "string",
+        "description": "Benchmark command override."
+      },
       "checksCommand": {
         "anyOf": [
-          { "type": "string" },
-          { "type": "null", "description": "Explicitly clear this string value." }
+          {
+            "type": "string"
+          },
+          {
+            "type": "null",
+            "description": "Explicitly clear this string value."
+          }
         ]
       },
       "timeoutSeconds": {
@@ -556,35 +898,107 @@
         "type": "string",
         "description": "When set, request governed next-hypothesis decisions between runs."
       },
-      "decisionConstraints": { "type": "array", "items": { "type": "string" } },
-      "decisionFilesInScope": { "type": "array", "items": { "type": "string" } },
-      "decisionOffLimits": { "type": "array", "items": { "type": "string" } },
-      "decisionIdeasBacklog": { "type": "array", "items": { "type": "string" } },
-      "decisionAsiNotes": { "type": "array", "items": { "type": "string" } },
-      "decisionDeadEndMemory": { "type": "array", "items": { "type": "string" } },
+      "decisionConstraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionFilesInScope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionOffLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionIdeasBacklog": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionAsiNotes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionDeadEndMemory": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "stopOn": {
         "type": "array",
         "items": {
           "anyOf": [
-            { "type": "string", "const": "baseline" },
-            { "type": "string", "const": "candidate" },
-            { "type": "string", "const": "keep" },
-            { "type": "string", "const": "discard" },
-            { "type": "string", "const": "crash" },
-            { "type": "string", "const": "checks_failed" },
-            { "type": "string", "const": "blocked" },
-            { "type": "string", "const": "rebaseline" },
-            { "type": "string", "const": "finalize" }
+            {
+              "type": "string",
+              "const": "baseline"
+            },
+            {
+              "type": "string",
+              "const": "candidate"
+            },
+            {
+              "type": "string",
+              "const": "keep"
+            },
+            {
+              "type": "string",
+              "const": "discard"
+            },
+            {
+              "type": "string",
+              "const": "crash"
+            },
+            {
+              "type": "string",
+              "const": "checks_failed"
+            },
+            {
+              "type": "string",
+              "const": "blocked"
+            },
+            {
+              "type": "string",
+              "const": "rebaseline"
+            },
+            {
+              "type": "string",
+              "const": "finalize"
+            }
           ]
         }
       },
       "peerMode": {
         "anyOf": [
-          { "type": "string", "const": "off" },
-          { "type": "string", "const": "plan" },
-          { "type": "string", "const": "launch_scout" },
-          { "type": "string", "const": "launch_candidate" },
-          { "type": "string", "const": "launch_fork" }
+          {
+            "type": "string",
+            "const": "off"
+          },
+          {
+            "type": "string",
+            "const": "plan"
+          },
+          {
+            "type": "string",
+            "const": "launch_scout"
+          },
+          {
+            "type": "string",
+            "const": "launch_candidate"
+          },
+          {
+            "type": "string",
+            "const": "launch_fork"
+          }
         ],
         "description": "Peer handoff policy after the bounded loop. launch_* returns an exact canonical peer tool call for explicit controller dispatch; pi-autoresearch does not auto-spawn peers."
       },
@@ -616,26 +1030,71 @@
   "autoresearch_runtime_peer_assist": {
     "type": "object",
     "properties": {
-      "cwd": { "type": "string", "description": "Optional cwd override for peer-assist planning." },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for peer-assist planning."
+      },
       "lane": {
         "anyOf": [
-          { "type": "string", "const": "auto" },
-          { "type": "string", "const": "none" },
-          { "type": "string", "const": "scout" },
-          { "type": "string", "const": "candidate" },
-          { "type": "string", "const": "fork" }
+          {
+            "type": "string",
+            "const": "auto"
+          },
+          {
+            "type": "string",
+            "const": "none"
+          },
+          {
+            "type": "string",
+            "const": "scout"
+          },
+          {
+            "type": "string",
+            "const": "candidate"
+          },
+          {
+            "type": "string",
+            "const": "fork"
+          }
         ],
         "description": "Peer-assist lane to plan. auto selects from current runtime state."
       },
-      "objective": { "type": "string", "description": "Optional peer objective override." },
-      "targetFiles": { "type": "array", "items": { "type": "string" } },
-      "offLimits": { "type": "array", "items": { "type": "string" } },
-      "constraints": { "type": "array", "items": { "type": "string" } },
+      "objective": {
+        "type": "string",
+        "description": "Optional peer objective override."
+      },
+      "targetFiles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "offLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "constraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "reportBack": {
         "anyOf": [
-          { "type": "string", "const": "intercom" },
-          { "type": "string", "const": "manual" },
-          { "type": "string", "const": "none" }
+          {
+            "type": "string",
+            "const": "intercom"
+          },
+          {
+            "type": "string",
+            "const": "manual"
+          },
+          {
+            "type": "string",
+            "const": "none"
+          }
         ],
         "description": "Visible peer report-back mode."
       },
@@ -659,8 +1118,14 @@
         "type": "string",
         "description": "Optional cwd override for foreground resume apply."
       },
-      "segmentKey": { "type": "string", "description": "Exact segmentKey from resume_apply_plan." },
-      "runtimeKey": { "type": "string", "description": "Exact runtimeKey from resume_apply_plan." },
+      "segmentKey": {
+        "type": "string",
+        "description": "Exact segmentKey from resume_apply_plan."
+      },
+      "runtimeKey": {
+        "type": "string",
+        "description": "Exact runtimeKey from resume_apply_plan."
+      },
       "maxIterations": {
         "type": "number",
         "description": "Required maximum iterations for this foreground resume apply.",
@@ -675,7 +1140,10 @@
         "type": "string",
         "description": "Must exactly equal \"RUN FOREGROUND RESUME\"."
       },
-      "description": { "type": "string", "description": "Initial resumed run description." },
+      "description": {
+        "type": "string",
+        "description": "Initial resumed run description."
+      },
       "timeoutSeconds": {
         "type": "number",
         "description": "Benchmark timeout seconds.",
@@ -701,23 +1169,123 @@
     "type": "object",
     "required": ["description"],
     "properties": {
-      "cwd": { "type": "string", "description": "Optional cwd override for the bounded runtime" },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for the bounded runtime"
+      },
       "description": {
         "type": "string",
         "description": "Short description of what this bounded run is trying."
       },
       "runKind": {
         "anyOf": [
-          { "type": "string", "const": "ordinary" },
-          { "type": "string", "const": "calibration" }
+          {
+            "type": "string",
+            "const": "ordinary"
+          },
+          {
+            "type": "string",
+            "const": "calibration"
+          }
         ],
         "description": "Run kind. Calibration runs update timing/noise interpretation but should not be treated as candidate improvements."
+      },
+      "provenance": {
+        "type": "object",
+        "properties": {
+          "matrix": {
+            "type": "object",
+            "required": [
+              "taskId",
+              "objective",
+              "cellId",
+              "laneId",
+              "hypothesis",
+              "implementationId"
+            ],
+            "properties": {
+              "taskId": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "objective": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "cellId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "laneId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "hypothesis": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "implementationId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              }
+            }
+          },
+          "measurement": {
+            "type": "object",
+            "required": [
+              "scenario",
+              "evaluator",
+              "evaluatorRevision",
+              "subject",
+              "subjectRevision",
+              "workloadRevision"
+            ],
+            "properties": {
+              "scenario": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "evaluator": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "evaluatorRevision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "subjectRevision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "workloadRevision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "description": "Exact owner-declared matrix and measured workload/evaluator/subject pins. Local unauthenticated provenance, never permission. Omit unknown history; do not fill from plans or defaults."
       },
       "hypothesisId": {
         "type": "string",
         "description": "Optional stable hypothesis identifier to bind this run into experiment lineage."
       },
-      "hypothesis": { "type": "string", "description": "Optional hypothesis this run is testing." },
+      "hypothesis": {
+        "type": "string",
+        "description": "Optional hypothesis this run is testing."
+      },
       "interventionSummary": {
         "type": "string",
         "description": "Optional short summary of the intervention or candidate being measured."
@@ -728,7 +1296,9 @@
       },
       "hypothesisTargetFiles": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "description": "Optional files or paths that the hypothesis/intervention concerns."
       },
       "experimentRisk": {
@@ -737,8 +1307,14 @@
       },
       "candidateSource": {
         "anyOf": [
-          { "type": "string", "const": "candidate_peer_spawn" },
-          { "type": "string", "const": "manual" }
+          {
+            "type": "string",
+            "const": "candidate_peer_spawn"
+          },
+          {
+            "type": "string",
+            "const": "manual"
+          }
         ],
         "description": "Optional source for a visible candidate binding. candidate_peer_spawn means a visible isolated peer/worktree produced the candidate; manual means the controller supplied the candidate binding directly."
       },
@@ -760,7 +1336,9 @@
       },
       "candidateFilesChanged": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "description": "Optional controller-verified files changed by the candidate."
       },
       "name": {
@@ -776,7 +1354,16 @@
         "description": "Primary metric unit (defaults to empty string)."
       },
       "direction": {
-        "anyOf": [{ "type": "string", "const": "lower" }, { "type": "string", "const": "higher" }],
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "lower"
+          },
+          {
+            "type": "string",
+            "const": "higher"
+          }
+        ],
         "description": "Whether lower or higher metric values are better."
       },
       "metricThreshold": {
@@ -789,8 +1376,14 @@
       },
       "checksCommand": {
         "anyOf": [
-          { "type": "string", "description": "Checks command override." },
-          { "type": "null", "description": "Pass null to disable checks for this run." }
+          {
+            "type": "string",
+            "description": "Checks command override."
+          },
+          {
+            "type": "null",
+            "description": "Pass null to disable checks for this run."
+          }
         ]
       },
       "timeoutSeconds": {
@@ -820,53 +1413,121 @@
         "type": "string",
         "description": "When set, request a governed Prompt Vault next-hypothesis decision after the run using this bounded goal."
       },
-      "decisionConstraints": { "type": "array", "items": { "type": "string" } },
-      "decisionFilesInScope": { "type": "array", "items": { "type": "string" } },
-      "decisionOffLimits": { "type": "array", "items": { "type": "string" } },
-      "decisionIdeasBacklog": { "type": "array", "items": { "type": "string" } },
-      "decisionAsiNotes": { "type": "array", "items": { "type": "string" } },
-      "decisionDeadEndMemory": { "type": "array", "items": { "type": "string" } }
+      "decisionConstraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionFilesInScope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionOffLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionIdeasBacklog": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionAsiNotes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "decisionDeadEndMemory": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
     }
   },
   "autoresearch_runtime_setup": {
     "type": "object",
     "required": ["name", "metricName", "direction"],
     "properties": {
-      "cwd": { "type": "string", "description": "Optional cwd override for setup." },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for setup."
+      },
       "action": {
         "anyOf": [
-          { "type": "string", "const": "plan" },
-          { "type": "string", "const": "apply" },
-          { "type": "string", "const": "baseline" }
+          {
+            "type": "string",
+            "const": "plan"
+          },
+          {
+            "type": "string",
+            "const": "apply"
+          },
+          {
+            "type": "string",
+            "const": "baseline"
+          }
         ],
         "description": "Setup action: plan only, apply config receipt only, or apply and run baseline."
       },
-      "name": { "type": "string", "description": "Campaign or segment name." },
+      "name": {
+        "type": "string",
+        "description": "Campaign or segment name."
+      },
       "metricName": {
         "type": "string",
         "description": "Primary metric name parsed from METRIC name=value."
       },
-      "metricUnit": { "type": "string", "description": "Metric unit." },
+      "metricUnit": {
+        "type": "string",
+        "description": "Metric unit."
+      },
       "direction": {
-        "anyOf": [{ "type": "string", "const": "lower" }, { "type": "string", "const": "higher" }],
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "lower"
+          },
+          {
+            "type": "string",
+            "const": "higher"
+          }
+        ],
         "description": "Whether lower or higher metric values are better."
       },
       "metricThreshold": {
         "type": "number",
         "description": "Optional explicit success threshold for this metric contract."
       },
-      "benchmarkCommand": { "type": "string", "description": "Benchmark command." },
+      "benchmarkCommand": {
+        "type": "string",
+        "description": "Benchmark command."
+      },
       "checksCommand": {
         "anyOf": [
-          { "type": "string" },
-          { "type": "null", "description": "Explicitly clear this string value." }
+          {
+            "type": "string"
+          },
+          {
+            "type": "null",
+            "description": "Explicitly clear this string value."
+          }
         ]
       },
       "reconfigure": {
         "type": "boolean",
         "description": "Append a new config segment even if one is already configured."
       },
-      "description": { "type": "string", "description": "Baseline run description." },
+      "description": {
+        "type": "string",
+        "description": "Baseline run description."
+      },
       "benchmarkScript": {
         "type": "string",
         "description": "Optional autoresearch.sh content to write before apply/baseline."
@@ -879,10 +1540,22 @@
         "type": "boolean",
         "description": "Allow overwriting existing autoresearch scripts."
       },
-      "postureCommand": { "type": "string", "description": "Optional posture gate for baseline." },
-      "postureTimeoutSeconds": { "type": "number", "minimum": 1 },
-      "timeoutSeconds": { "type": "number", "minimum": 1 },
-      "checksTimeoutSeconds": { "type": "number", "minimum": 1 }
+      "postureCommand": {
+        "type": "string",
+        "description": "Optional posture gate for baseline."
+      },
+      "postureTimeoutSeconds": {
+        "type": "number",
+        "minimum": 1
+      },
+      "timeoutSeconds": {
+        "type": "number",
+        "minimum": 1
+      },
+      "checksTimeoutSeconds": {
+        "type": "number",
+        "minimum": 1
+      }
     }
   },
   "autoresearch_runtime_status": {
@@ -890,29 +1563,89 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "dashboard" },
-          { "type": "string", "const": "setup" },
-          { "type": "string", "const": "finalize" },
-          { "type": "string", "const": "closeout" },
-          { "type": "string", "const": "ak_evidence" },
-          { "type": "string", "const": "oracle_evidence" },
-          { "type": "string", "const": "oracle_evidence_export" },
-          { "type": "string", "const": "learning" },
-          { "type": "string", "const": "learning_export" },
-          { "type": "string", "const": "candidate_result" },
-          { "type": "string", "const": "candidate_result_export" },
-          { "type": "string", "const": "candidate_inventory_cleanup_plan" },
-          { "type": "string", "const": "candidate_inventory_cleanup_apply" },
-          { "type": "string", "const": "resume_plan" },
-          { "type": "string", "const": "resume_apply_plan" },
-          { "type": "string", "const": "campaign_goal" },
-          { "type": "string", "const": "adapter_contracts" },
-          { "type": "string", "const": "validate_packet" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "dashboard"
+          },
+          {
+            "type": "string",
+            "const": "setup"
+          },
+          {
+            "type": "string",
+            "const": "finalize"
+          },
+          {
+            "type": "string",
+            "const": "closeout"
+          },
+          {
+            "type": "string",
+            "const": "ak_evidence"
+          },
+          {
+            "type": "string",
+            "const": "oracle_evidence"
+          },
+          {
+            "type": "string",
+            "const": "oracle_evidence_export"
+          },
+          {
+            "type": "string",
+            "const": "learning"
+          },
+          {
+            "type": "string",
+            "const": "learning_export"
+          },
+          {
+            "type": "string",
+            "const": "candidate_result"
+          },
+          {
+            "type": "string",
+            "const": "candidate_result_export"
+          },
+          {
+            "type": "string",
+            "const": "candidate_inventory_cleanup_plan"
+          },
+          {
+            "type": "string",
+            "const": "candidate_inventory_cleanup_apply"
+          },
+          {
+            "type": "string",
+            "const": "resume_plan"
+          },
+          {
+            "type": "string",
+            "const": "resume_apply_plan"
+          },
+          {
+            "type": "string",
+            "const": "campaign_goal"
+          },
+          {
+            "type": "string",
+            "const": "adapter_contracts"
+          },
+          {
+            "type": "string",
+            "const": "validate_packet"
+          }
         ],
         "description": "Inspect status, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, list adapter packet contracts, validate an adapter packet structurally, or request a governed setup/finalize Prompt Vault packet through the bounded runtime surface."
       },
-      "cwd": { "type": "string", "description": "Optional cwd override for runtime reporting" },
+      "cwd": {
+        "type": "string",
+        "description": "Optional cwd override for runtime reporting"
+      },
       "outPath": {
         "type": "string",
         "description": "Optional output path for action=oracle_evidence_export, action=learning_export, or action=candidate_result_export. Must be relative under cwd/.autoresearch; defaults are .autoresearch/oracle_evidence.json, .autoresearch/learning.json, and .autoresearch/candidate-result.json."
@@ -933,13 +1666,48 @@
         "type": "string",
         "description": "Required for action=setup. The bounded optimization objective for the setup packet."
       },
-      "repoContext": { "type": "array", "items": { "type": "string" } },
-      "filesInScope": { "type": "array", "items": { "type": "string" } },
-      "offLimits": { "type": "array", "items": { "type": "string" } },
-      "benchmarkSurfaces": { "type": "array", "items": { "type": "string" } },
-      "existingArtifacts": { "type": "array", "items": { "type": "string" } },
-      "hardConstraints": { "type": "array", "items": { "type": "string" } },
-      "blockers": { "type": "array", "items": { "type": "string" } },
+      "repoContext": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "filesInScope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "offLimits": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "benchmarkSurfaces": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "existingArtifacts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "hardConstraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "blockers": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "packet": {
         "description": "Required for action=validate_packet. The adapter packet object to validate structurally."
       },
@@ -948,26 +1716,76 @@
         "description": "Optional AK task id reference for action=setup, or required exact task id for action=ak_evidence.",
         "minimum": 1
       },
-      "akScopeSummary": { "type": "array", "items": { "type": "string" } },
-      "akAllowedPaths": { "type": "array", "items": { "type": "string" } },
-      "akRequiredPaths": { "type": "array", "items": { "type": "string" } },
-      "keptRuns": { "type": "array", "items": { "type": "string" } },
-      "campaignContext": { "type": "array", "items": { "type": "string" } },
+      "akScopeSummary": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "akAllowedPaths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "akRequiredPaths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "keptRuns": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "campaignContext": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "mergeBase": {
         "anyOf": [
-          { "type": "string" },
-          { "type": "null", "description": "Explicitly clear this string value." }
+          {
+            "type": "string"
+          },
+          {
+            "type": "null",
+            "description": "Explicitly clear this string value."
+          }
         ]
       },
       "trunkTarget": {
         "anyOf": [
-          { "type": "string" },
-          { "type": "null", "description": "Explicitly clear this string value." }
+          {
+            "type": "string"
+          },
+          {
+            "type": "null",
+            "description": "Explicitly clear this string value."
+          }
         ]
       },
-      "commitSummaries": { "type": "array", "items": { "type": "string" } },
-      "dependencyNotes": { "type": "array", "items": { "type": "string" } },
-      "ideasToLeaveOut": { "type": "array", "items": { "type": "string" } }
+      "commitSummaries": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "dependencyNotes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "ideasToLeaveOut": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
     }
   },
   "autoresearch_self_hosting_run": {
@@ -975,11 +1793,26 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "prepare_candidate" },
-          { "type": "string", "const": "run" },
-          { "type": "string", "const": "start_and_watch" },
-          { "type": "string", "const": "rollback" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "prepare_candidate"
+          },
+          {
+            "type": "string",
+            "const": "run"
+          },
+          {
+            "type": "string",
+            "const": "start_and_watch"
+          },
+          {
+            "type": "string",
+            "const": "rollback"
+          }
         ],
         "description": "Inspect the supervised self-hosting contract, plan/apply the candidate worktree, run one bounded controller/candidate/evaluator wave, stream progress while that bounded wave runs, or record an explicit rollback after external controller rotation."
       },
@@ -991,7 +1824,13 @@
         "type": "boolean",
         "description": "For action=prepare_candidate or action=rollback. When true, apply the bounded worktree/rollback write instead of only planning it."
       },
-      "candidateCommand": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+      "candidateCommand": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      },
       "candidateTimeoutMs": {
         "type": "number",
         "description": "Optional timeout in milliseconds for action=run or action=start_and_watch candidate subprocess execution.",
@@ -999,7 +1838,10 @@
       },
       "suiteIds": {
         "type": "array",
-        "items": { "type": "string", "description": "Exact locked evaluator suite id." },
+        "items": {
+          "type": "string",
+          "description": "Exact locked evaluator suite id."
+        },
         "minItems": 1
       },
       "suiteTimeoutMs": {
@@ -1025,7 +1867,10 @@
           "type": "object",
           "required": ["suiteId", "regressionPercent"],
           "properties": {
-            "suiteId": { "type": "string", "description": "Exact locked evaluator suite id." },
+            "suiteId": {
+              "type": "string",
+              "description": "Exact locked evaluator suite id."
+            },
             "regressionPercent": {
               "type": "number",
               "description": "Optional non-critical transfer regression percent to feed into applicability classification for this exact suite.",
@@ -1038,8 +1883,14 @@
         "type": "array",
         "items": {
           "anyOf": [
-            { "type": "string", "const": "operator_review" },
-            { "type": "string", "const": "orchestrator_supervision" }
+            {
+              "type": "string",
+              "const": "operator_review"
+            },
+            {
+              "type": "string",
+              "const": "orchestrator_supervision"
+            }
           ],
           "description": "Explicit external approvals accepted by the supervised self-hosting contract."
         }
@@ -1049,17 +1900,34 @@
         "description": "Optional approval timestamp for promotion planning/apply.",
         "minimum": 0
       },
-      "evidenceRefs": { "type": "array", "items": { "type": "string" } },
+      "evidenceRefs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "promotedCandidateRef": {
         "type": "string",
         "description": "Optional promoted candidate ref override for action=run or action=start_and_watch when promotion planning/apply should not default to the candidate HEAD."
       },
       "promotionStatus": {
         "anyOf": [
-          { "type": "string", "const": "planned" },
-          { "type": "string", "const": "approved" },
-          { "type": "string", "const": "rotated" },
-          { "type": "string", "const": "superseded" }
+          {
+            "type": "string",
+            "const": "planned"
+          },
+          {
+            "type": "string",
+            "const": "approved"
+          },
+          {
+            "type": "string",
+            "const": "rotated"
+          },
+          {
+            "type": "string",
+            "const": "superseded"
+          }
         ],
         "description": "Optional promotion-record status for action=run or action=start_and_watch when a default-promotion candidate should also plan/apply the external promotion record."
       },
@@ -1083,10 +1951,22 @@
     "properties": {
       "action": {
         "anyOf": [
-          { "type": "string", "const": "status" },
-          { "type": "string", "const": "plan" },
-          { "type": "string", "const": "run_segment_plan" },
-          { "type": "string", "const": "handoff_prompt" }
+          {
+            "type": "string",
+            "const": "status"
+          },
+          {
+            "type": "string",
+            "const": "plan"
+          },
+          {
+            "type": "string",
+            "const": "run_segment_plan"
+          },
+          {
+            "type": "string",
+            "const": "handoff_prompt"
+          }
         ],
         "description": "Inspect or plan a bounded workstation vLLM autoresearch campaign cockpit for multi-matrix speed optimization."
       },
@@ -1098,26 +1978,62 @@
         "type": "string",
         "description": "Local model path to optimize, usually under /data/vllm/hf-cache."
       },
-      "hardware": { "type": "string", "description": "Hardware label for the campaign." },
+      "hardware": {
+        "type": "string",
+        "description": "Hardware label for the campaign."
+      },
       "knowledgeBase": {
         "type": "string",
         "description": "Path to Blackwell knowledge base, absolute or relative to cwd."
       },
-      "objective": { "type": "string", "description": "Bounded optimization objective." },
-      "maxWallClockMinutes": { "type": "number", "minimum": 0.01 },
-      "maxIterations": { "type": "number", "minimum": 1 },
-      "maxCellsPerSegment": { "type": "number", "minimum": 1 },
-      "targets": { "type": "array", "items": { "type": "string" } },
+      "objective": {
+        "type": "string",
+        "description": "Bounded optimization objective."
+      },
+      "maxWallClockMinutes": {
+        "type": "number",
+        "minimum": 0.01
+      },
+      "maxIterations": {
+        "type": "number",
+        "minimum": 1
+      },
+      "maxCellsPerSegment": {
+        "type": "number",
+        "minimum": 1
+      },
+      "targets": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "matrixAxes": {
         "type": "object",
-        "patternProperties": { "^.*$": { "type": "array", "items": { "type": "string" } } },
+        "patternProperties": {
+          "^.*$": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
         "description": "Optional matrix axes for planning; each key is an axis and each value is the list of values."
       },
       "benchmarkProfile": {
         "anyOf": [
-          { "type": "string", "const": "smoke" },
-          { "type": "string", "const": "longcot" },
-          { "type": "string", "const": "throughput" }
+          {
+            "type": "string",
+            "const": "smoke"
+          },
+          {
+            "type": "string",
+            "const": "longcot"
+          },
+          {
+            "type": "string",
+            "const": "throughput"
+          }
         ]
       }
     }

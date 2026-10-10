@@ -1,0 +1,439 @@
+{
+  "packetKind": "autoresearch.candidate_result.v1",
+  "adapterContractVersion": 1,
+  "targetKinds": [
+    "candidate_review",
+    "task_system",
+    "evidence",
+    "issue_tracker"
+  ],
+  "cwd": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins",
+  "campaign": "AK5622 ordered-input Node tree proxy (not native UI)",
+  "candidate": {
+    "source": "candidate_peer_spawn",
+    "worktreePath": "/home/tryinget/ai-society/softwareco/owned/.pi-candidates/obsidian-plugins-925b7ce0/ar-5622-candidate-01-1e6a78e7",
+    "branch": "candidatepeer/ar-5622-candidate-01-1e6a78e7",
+    "baseRef": "20adc32cfb974fb65f5b1252deb8b9ec7c808b56",
+    "diffSummary": "Controller verified uncommitted 24 additions/9 deletions to treeBuilder.ts plus new ordered-input tests, all evaluator/fixtures unchanged. Independent12472 semantic comparisons passed. Source hashes frozen in .autoresearch/ak5622-20261001/measurement-contract.json.",
+    "filesChanged": [
+      "packages/obsidian-excalidraw-layer-manager/src/domain/treeBuilder.ts",
+      "packages/obsidian-excalidraw-layer-manager/test/treeBuilder.ordered-input.test.ts"
+    ]
+  },
+  "candidateRun": {
+    "iteration": 5,
+    "status": "candidate",
+    "runKind": "ordinary",
+    "empiricalDecisionClass": "possible_noise",
+    "metric": 1.21,
+    "description": "AK5622 cell-01-01-candidate-01: one frozen ordered-input fast-path measurement using unchanged bench:tree and semantic checks; Node proxy, not native UI proof.",
+    "timestamp": 1790867126974,
+    "checks": "passed",
+    "experiment": {
+      "hypothesisId": "cell-01-01-candidate-01",
+      "hypothesis": "Skip decorate-sort-undecorate only for dense finite nondecreasing zIndex; keep the exact existing fallback otherwise.",
+      "interventionSummary": "Indexed finite/nondecreasing check; alias readonly input on fast path, exact stable-sort fallback otherwise. Pinned candidate source SHA in measurement contract.",
+      "expectedPrimaryEffect": "Lower synthetic2k buildLayerTree p50 versus paired current-source controls; a small/noisy or slower value does not establish improvement.",
+      "targetFiles": [
+        "packages/obsidian-excalidraw-layer-manager/src/domain/treeBuilder.ts"
+      ],
+      "risk": "One candidate process and two controls; rounded p50 summaries. Node proxy only, no native selection. Existing owner noise/p95 semantics retained. Replay workloads separate; any regression or noise remains visible.",
+      "candidate": {
+        "source": "candidate_peer_spawn",
+        "worktreePath": "/home/tryinget/ai-society/softwareco/owned/.pi-candidates/obsidian-plugins-925b7ce0/ar-5622-candidate-01-1e6a78e7",
+        "branch": "candidatepeer/ar-5622-candidate-01-1e6a78e7",
+        "baseRef": "20adc32cfb974fb65f5b1252deb8b9ec7c808b56",
+        "diffSummary": "Controller verified uncommitted 24 additions/9 deletions to treeBuilder.ts plus new ordered-input tests, all evaluator/fixtures unchanged. Independent12472 semantic comparisons passed. Source hashes frozen in .autoresearch/ak5622-20261001/measurement-contract.json.",
+        "filesChanged": [
+          "packages/obsidian-excalidraw-layer-manager/src/domain/treeBuilder.ts",
+          "packages/obsidian-excalidraw-layer-manager/test/treeBuilder.ordered-input.test.ts"
+        ]
+      }
+    }
+  },
+  "empiricalDecisionClass": "possible_noise",
+  "recommendedAction": "collect more evidence or rebaseline before treating the segment as an improvement",
+  "resultSummary": "Candidate candidatepeer/ar-5622-candidate-01-1e6a78e7 measured as possible_noise; collect more evidence or rebaseline before treating the segment as an improvement.",
+  "closeout": {
+    "packetKind": "autoresearch.closeout.v1",
+    "adapterContractVersion": 1,
+    "targetKinds": [
+      "adapter_source",
+      "evidence",
+      "learning",
+      "task_system",
+      "knowledge_base",
+      "dspx_oracle",
+      "empirical_memory"
+    ],
+    "cwd": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins",
+    "receiptPath": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins/autoresearch.jsonl",
+    "status": {
+      "phase": "bounded_runtime_kernel",
+      "cwd": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins",
+      "commandName": "autoresearch",
+      "toolNames": [
+        "autoresearch_campaign_start",
+        "autoresearch_runtime_status",
+        "autoresearch_candidate_bind",
+        "autoresearch_candidate_decision",
+        "autoresearch_runtime_run",
+        "autoresearch_runtime_control",
+        "autoresearch_runtime_finalize",
+        "autoresearch_runtime_peer_assist",
+        "autoresearch_runtime_loop",
+        "autoresearch_runtime_resume_apply",
+        "autoresearch_runtime_autoplan",
+        "autoresearch_runtime_setup",
+        "autoresearch_self_hosting_run",
+        "autoresearch_llamacpp_campaign",
+        "autoresearch_llamacpp_campaign_control"
+      ],
+      "localArtifacts": [
+        "autoresearch.jsonl",
+        "autoresearch.events.jsonl",
+        "autoresearch.goal.json",
+        "autoresearch.runtime.json",
+        "autoresearch.finalization.json",
+        "autoresearch.llamacpp-campaign.json",
+        "autoresearch.md",
+        "autoresearch.sh",
+        "autoresearch.checks.sh",
+        "autoresearch.ideas.md",
+        ".autoresearch/oracle_evidence.json",
+        ".autoresearch/learning.json",
+        ".autoresearch/candidate-result.json"
+      ],
+      "receiptEntryTypes": [
+        "config",
+        "run"
+      ],
+      "readyPromptVaultTemplates": [
+        "pi-autoresearch-setup",
+        "pi-autoresearch-next-hypothesis",
+        "pi-autoresearch-finalize"
+      ],
+      "blockedPromptVaultTemplates": [
+        "pi-autoresearch-state-router"
+      ],
+      "receiptPath": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins/autoresearch.jsonl",
+      "hasReceiptLog": true,
+      "hasBenchmarkScript": false,
+      "hasChecksScript": false,
+      "invalidReceiptLines": 0,
+      "currentSegment": {
+        "configured": true,
+        "name": "AK5622 ordered-input Node tree proxy (not native UI)",
+        "objectiveDigest": null,
+        "metricName": "build_layer_tree_duration",
+        "metricUnit": "ms",
+        "direction": "lower",
+        "metricThreshold": null,
+        "benchmarkCommand": "node /home/tryinget/ai-society/softwareco/owned/obsidian-plugins/.autoresearch/ak5622-20261001/measure-tree.mjs",
+        "checksCommand": "npm --prefix packages/obsidian-excalidraw-layer-manager test -- test/treeBuilder.acceptance.test.ts test/treeBuilder.naming-contract.test.ts test/runtime.sidepanel-rename-refresh.integration.test.ts --cache=false --maxWorkers=1 --no-file-parallelism",
+        "runCount": 5,
+        "successfulRunCount": 3,
+        "baselineMetric": 1.34,
+        "bestMetric": 1.21,
+        "confidence": null,
+        "metricInterpretation": {
+          "verdict": "possible_noise",
+          "sampleCount": 3,
+          "baselineMetric": 1.34,
+          "bestMetric": 1.21,
+          "latestMetric": 1.21,
+          "minMetric": 1.21,
+          "medianMetric": 1.34,
+          "maxMetric": 1.44,
+          "noiseBand": 1,
+          "bestDelta": 0.13000000000000012,
+          "latestDelta": 0.13000000000000012,
+          "bestDeltaPercent": 9.701492537313442,
+          "latestDeltaPercent": 9.701492537313442,
+          "reason": "best timing delta is within the current noise band"
+        },
+        "empiricalDecisionClass": "possible_noise",
+        "lastRunStatus": "candidate",
+        "lastRunKind": null,
+        "lastRunMetric": 1.21
+      },
+      "empiricalPosture": {
+        "classification": "inconclusive",
+        "summary": "result is inconclusive; no promotion-ready candidate evidence yet",
+        "promotionReady": false,
+        "recommendedNextAction": "collect more samples, rebaseline, or bind a clearer candidate hypothesis"
+      },
+      "runtimeProjection": {
+        "state": "ready",
+        "resumeState": null,
+        "blockedReason": null,
+        "completionReason": null,
+        "source": "ledger",
+        "ledgerPath": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins/autoresearch.events.jsonl",
+        "hasLedger": true,
+        "invalidLedgerLines": 0,
+        "eventCount": 24,
+        "replayedEventCount": 24,
+        "rejectedEvents": [],
+        "syncIssues": []
+      },
+      "runtimeSnapshot": {
+        "path": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins/autoresearch.runtime.json",
+        "exists": true,
+        "reuse": "reused",
+        "discardedReason": null,
+        "segmentKey": "dded064c4c6fd969f6d4a72d",
+        "runtimeKey": "4771499dd9786f69767a0b09"
+      },
+      "control": {
+        "kind": "none",
+        "allowedActions": [
+          "continue",
+          "stop"
+        ],
+        "reason": "runtime is ready for another bounded run",
+        "selectedAt": null
+      },
+      "campaignGoal": {
+        "exists": false,
+        "path": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins/autoresearch.goal.json",
+        "goalId": null,
+        "objective": null,
+        "status": "missing",
+        "budget": {
+          "iterations": null,
+          "wallClockSeconds": null,
+          "tokenLikeUnits": null
+        },
+        "usage": {
+          "foregroundSegments": 0,
+          "completedIterations": 0,
+          "elapsedSeconds": 0,
+          "tokenLikeUnits": 0
+        },
+        "remainingBudget": {
+          "iterations": null,
+          "wallClockSeconds": null,
+          "tokenLikeUnits": null
+        },
+        "nextContinuationCall": null,
+        "exactControlActions": {
+          "pause": "autoresearch_runtime_control({ cwd: \"/home/tryinget/ai-society/softwareco/owned/obsidian-plugins\", action: \"goal_pause\" })",
+          "resume": "autoresearch_runtime_control({ cwd: \"/home/tryinget/ai-society/softwareco/owned/obsidian-plugins\", action: \"goal_resume\" })",
+          "complete": "autoresearch_runtime_control({ cwd: \"/home/tryinget/ai-society/softwareco/owned/obsidian-plugins\", action: \"goal_complete\" })"
+        },
+        "authorityWarnings": [
+          "campaign_goal_ledger is package-local continuity state, not AK task/evidence authority",
+          "foreground segments run only when an explicit tool call is made; no daemon or scheduler is installed",
+          "AK/KES/Oracle/candidate promotion remains external to this package-local goal ledger"
+        ],
+        "parseError": null
+      },
+      "autoContinuation": {
+        "eligible": false,
+        "blockedReasons": [
+          "auto_continuation_disabled",
+          "campaign_goal_missing",
+          "campaign_goal_missing_continuation_call"
+        ],
+        "cwd": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins",
+        "goalId": null,
+        "objective": null,
+        "sessionGate": {
+          "enabled": false,
+          "envVariable": "PI_AUTORESEARCH_AUTO_CONTINUE",
+          "envValue": null,
+          "enabledWhen": "1",
+          "autoContinueCount": 0,
+          "maxAutoContinueCount": 1,
+          "remainingAutoContinueCount": 1
+        },
+        "runtimeGate": {
+          "machineState": "ready",
+          "controlKind": "none",
+          "blockedReason": null,
+          "completionReason": null,
+          "ready": true
+        },
+        "campaignGoalGate": {
+          "exists": false,
+          "status": "missing",
+          "hasRemainingBudget": true,
+          "hasContinuationCall": false,
+          "continuationConsented": false
+        },
+        "exactContinuationCall": null,
+        "visibleFollowUpMessage": null
+      },
+      "promptVaultDecisions": {
+        "availability": "available_not_yet_used",
+        "lastPostRunDecision": null
+      },
+      "llamacppCampaignProjection": {
+        "availability": "not_projected",
+        "projectionPath": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins/autoresearch.llamacpp-campaign.json",
+        "manifestPath": null,
+        "campaignId": null,
+        "manifestKey": null,
+        "receiptRootPath": null,
+        "overallState": null,
+        "staleReason": null,
+        "updatedAt": null
+      },
+      "nextSlices": []
+    },
+    "campaign": "AK5622 ordered-input Node tree proxy (not native UI)",
+    "metricName": "build_layer_tree_duration",
+    "metricUnit": "ms",
+    "direction": "lower",
+    "runCount": 5,
+    "successfulRunCount": 3,
+    "baselineMetric": 1.34,
+    "bestMetric": 1.21,
+    "empiricalDecisionClass": "possible_noise",
+    "timingInterpretation": {
+      "verdict": "possible_noise",
+      "sampleCount": 3,
+      "baselineMetric": 1.34,
+      "bestMetric": 1.21,
+      "latestMetric": 1.21,
+      "minMetric": 1.21,
+      "medianMetric": 1.34,
+      "maxMetric": 1.44,
+      "noiseBand": 1,
+      "bestDelta": 0.13000000000000012,
+      "latestDelta": 0.13000000000000012,
+      "bestDeltaPercent": 9.701492537313442,
+      "latestDeltaPercent": 9.701492537313442,
+      "reason": "best timing delta is within the current noise band"
+    },
+    "empiricalPosture": {
+      "classification": "inconclusive",
+      "summary": "result is inconclusive; no promotion-ready candidate evidence yet",
+      "promotionReady": false,
+      "recommendedNextAction": "collect more samples, rebaseline, or bind a clearer candidate hypothesis"
+    },
+    "runs": [
+      {
+        "iteration": 1,
+        "status": "crash",
+        "runKind": "ordinary",
+        "empiricalDecisionClass": "measurement_invalid",
+        "metric": 0,
+        "description": "Control 1: pinned unchanged20adc32c, existing synthetic2k and replay fixtures, Node proxy only (benchmark failed or timed out)",
+        "timestamp": 1790866904106,
+        "checks": "not recorded",
+        "experiment": null
+      },
+      {
+        "iteration": 2,
+        "status": "crash",
+        "runKind": "ordinary",
+        "empiricalDecisionClass": "measurement_invalid",
+        "metric": 0,
+        "description": "Control 1 corrected logging: prior attempt benchmark tests passed but metrics were suppressed; retained measurement_invalid receipt. Explicit --silent=false only; unchanged evaluator, fixtures, limits and base20adc32c. (benchmark failed or timed out)",
+        "timestamp": 1790867041591,
+        "checks": "not recorded",
+        "experiment": {
+          "hypothesisId": null,
+          "hypothesis": null,
+          "interventionSummary": null,
+          "expectedPrimaryEffect": null,
+          "targetFiles": [],
+          "risk": "Node proxy, rounded p50; not native UI evidence. Initial control attempt missing metrics retained, not a zero-cost measurement."
+        }
+      },
+      {
+        "iteration": 3,
+        "status": "baseline",
+        "runKind": "ordinary",
+        "empiricalDecisionClass": "baseline",
+        "metric": 1.34,
+        "description": "Control 1 after diagnosed Vitest4 agent-reporter suppression: explicitly default reporter; previous two measurement-invalid attempts retained. Same pinned source, tests, fixtures and thresholds.",
+        "timestamp": 1790867093293,
+        "checks": "passed",
+        "experiment": {
+          "hypothesisId": null,
+          "hypothesis": null,
+          "interventionSummary": null,
+          "expectedPrimaryEffect": null,
+          "targetFiles": [],
+          "risk": "Node proxy only. Vitest MinimalReporter constructor forced passed-only logging even with --silent=false; --reporter=default exposes original timing records. No evaluator/threshold changes."
+        }
+      },
+      {
+        "iteration": 4,
+        "status": "candidate",
+        "runKind": "calibration",
+        "empiricalDecisionClass": "insufficient_samples",
+        "metric": 1.44,
+        "description": "Control 2 calibration on unchanged pinned20adc32c using identical default-reporter adapter and unchanged benchmark. Serial Node proxy only.",
+        "timestamp": 1790867104887,
+        "checks": "passed",
+        "experiment": {
+          "hypothesisId": null,
+          "hypothesis": null,
+          "interventionSummary": null,
+          "expectedPrimaryEffect": null,
+          "targetFiles": [],
+          "risk": "Second independent control process; not a candidate improvement. Two controls do not establish a robust noise distribution."
+        }
+      },
+      {
+        "iteration": 5,
+        "status": "candidate",
+        "runKind": "ordinary",
+        "empiricalDecisionClass": "possible_noise",
+        "metric": 1.21,
+        "description": "AK5622 cell-01-01-candidate-01: one frozen ordered-input fast-path measurement using unchanged bench:tree and semantic checks; Node proxy, not native UI proof.",
+        "timestamp": 1790867126974,
+        "checks": "passed",
+        "experiment": {
+          "hypothesisId": "cell-01-01-candidate-01",
+          "hypothesis": "Skip decorate-sort-undecorate only for dense finite nondecreasing zIndex; keep the exact existing fallback otherwise.",
+          "interventionSummary": "Indexed finite/nondecreasing check; alias readonly input on fast path, exact stable-sort fallback otherwise. Pinned candidate source SHA in measurement contract.",
+          "expectedPrimaryEffect": "Lower synthetic2k buildLayerTree p50 versus paired current-source controls; a small/noisy or slower value does not establish improvement.",
+          "targetFiles": [
+            "packages/obsidian-excalidraw-layer-manager/src/domain/treeBuilder.ts"
+          ],
+          "risk": "One candidate process and two controls; rounded p50 summaries. Node proxy only, no native selection. Existing owner noise/p95 semantics retained. Replay workloads separate; any regression or noise remains visible.",
+          "candidate": {
+            "source": "candidate_peer_spawn",
+            "worktreePath": "/home/tryinget/ai-society/softwareco/owned/.pi-candidates/obsidian-plugins-925b7ce0/ar-5622-candidate-01-1e6a78e7",
+            "branch": "candidatepeer/ar-5622-candidate-01-1e6a78e7",
+            "baseRef": "20adc32cfb974fb65f5b1252deb8b9ec7c808b56",
+            "diffSummary": "Controller verified uncommitted 24 additions/9 deletions to treeBuilder.ts plus new ordered-input tests, all evaluator/fixtures unchanged. Independent12472 semantic comparisons passed. Source hashes frozen in .autoresearch/ak5622-20261001/measurement-contract.json.",
+            "filesChanged": [
+              "packages/obsidian-excalidraw-layer-manager/src/domain/treeBuilder.ts",
+              "packages/obsidian-excalidraw-layer-manager/test/treeBuilder.ordered-input.test.ts"
+            ]
+          }
+        }
+      }
+    ],
+    "candidateBindings": [
+      {
+        "source": "candidate_peer_spawn",
+        "worktreePath": "/home/tryinget/ai-society/softwareco/owned/.pi-candidates/obsidian-plugins-925b7ce0/ar-5622-candidate-01-1e6a78e7",
+        "branch": "candidatepeer/ar-5622-candidate-01-1e6a78e7",
+        "baseRef": "20adc32cfb974fb65f5b1252deb8b9ec7c808b56",
+        "diffSummary": "Controller verified uncommitted 24 additions/9 deletions to treeBuilder.ts plus new ordered-input tests, all evaluator/fixtures unchanged. Independent12472 semantic comparisons passed. Source hashes frozen in .autoresearch/ak5622-20261001/measurement-contract.json.",
+        "filesChanged": [
+          "packages/obsidian-excalidraw-layer-manager/src/domain/treeBuilder.ts",
+          "packages/obsidian-excalidraw-layer-manager/test/treeBuilder.ordered-input.test.ts"
+        ]
+      }
+    ],
+    "recommendedAction": "collect more evidence or rebaseline before treating the segment as an improvement",
+    "adapterBoundary": "Segment closeout is package-local empirical evidence only; promote to AK evidence, KES learning, DSPx Oracle empirical memory, or another target through an explicit adapter or owner surface.",
+    "evidenceBoundary": "Segment closeout is package-local empirical evidence only; promote to AK evidence, KES learning, DSPx Oracle empirical memory, or another target through an explicit adapter or owner surface.",
+    "oracleReadyEvidence": {
+      "packetKind": "autoresearch.oracle_evidence.v1",
+      "recordCount": 5,
+      "preflightStatus": "ready_for_dspx_owner_review",
+      "target": "dspx_oracle_postgres_pgvector",
+      "authorityBoundary": "Oracle-ready evidence is empirical memory input only; DSPx owns publication preflight/shared Oracle writes and AK/society.v2.db remains canonical authority."
+    }
+  },
+  "adapterBoundary": "Candidate result packet is non-mutating and adapter-ready; candidate lifecycle, review, merge, and promotion remain owned by visible peer/review/task systems."
+}

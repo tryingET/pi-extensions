@@ -88,6 +88,11 @@ export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegme
       timestamp: run.timestamp,
       checks: describeChecksState(run),
       experiment: run.experiment ?? null,
+      provenance: run.provenance,
+      execution: run.execution,
+      // Missing historical commands are not reconstructed from configuration.
+      benchmarkCommand: run.benchmarkCommand ?? null,
+      checksCommand: run.checksCommand,
     })),
     candidateBindings,
     recommendedAction: recommendSegmentCloseoutAction(status.currentSegment.empiricalDecisionClass),

@@ -6,10 +6,6 @@ const OUTPUT_TAIL_MAX_LINES = 20;
 const OUTPUT_TAIL_MAX_BYTES = 4 * 1024;
 const COMMAND_OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
 
-function commandOutputBytes(stdout: string, stderr: string): number {
-  return Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8");
-}
-
 function appendCommandOutputChunk(current: string, chunk: string): string {
   const combined = `${current}${chunk}`;
   if (Buffer.byteLength(combined, "utf8") <= COMMAND_OUTPUT_MAX_BYTES) {
@@ -63,6 +59,7 @@ async function runSpawnedCommand(input: {
     let timedOut = false;
     let aborted = false;
     let outputLimitExceeded = false;
+    let receivedBytes = 0;
     let settled = false;
     let killTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -112,6 +109,7 @@ async function runSpawnedCommand(input: {
         exitCode,
         timedOut,
         aborted,
+        outputLimitExceeded,
         durationSeconds: (Date.now() - startedAt) / 1000,
         stdout,
         stderr: boundedStderr,
@@ -126,14 +124,16 @@ async function runSpawnedCommand(input: {
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
+      receivedBytes += Buffer.byteLength(chunk, "utf8");
       stdout = appendCommandOutputChunk(stdout, chunk);
-      if (commandOutputBytes(stdout, stderr) > COMMAND_OUTPUT_MAX_BYTES) {
+      if (!outputLimitExceeded && receivedBytes > COMMAND_OUTPUT_MAX_BYTES) {
         requestTermination("output_limit");
       }
     });
     child.stderr?.on("data", (chunk: string) => {
+      receivedBytes += Buffer.byteLength(chunk, "utf8");
       stderr = appendCommandOutputChunk(stderr, chunk);
-      if (commandOutputBytes(stdout, stderr) > COMMAND_OUTPUT_MAX_BYTES) {
+      if (!outputLimitExceeded && receivedBytes > COMMAND_OUTPUT_MAX_BYTES) {
         requestTermination("output_limit");
       }
     });

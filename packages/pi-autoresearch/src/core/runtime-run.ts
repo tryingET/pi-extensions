@@ -28,6 +28,7 @@ import type {
   ExecuteAutoresearchRunLiveDecisionInput,
   ExecuteAutoresearchRunResult,
 } from "./runtime-model.ts";
+import { captureRunExecution, parseRunProvenance } from "./runtime-provenance.ts";
 import {
   appendReceipt,
   createRunReceipt,
@@ -62,6 +63,8 @@ const DEFAULT_CHECKS_TIMEOUT_SECONDS = 300;
 export async function executeAutoresearchRun(
   input: ExecuteAutoresearchRunInput,
 ): Promise<ExecuteAutoresearchRunResult> {
+  // Check supplied identity before any receipt/ledger mutation or command execution.
+  const provenance = parseRunProvenance(input.provenance);
   const cwd = path.resolve(input.cwd);
   const description = input.description.trim();
   if (description.length === 0) {
@@ -165,7 +168,8 @@ export async function executeAutoresearchRun(
   const parsedMetrics = parseMetricLines(joinOutput(benchmark));
   const metricName = config.metricName;
   const hasPrimaryMetric = hasOwn(parsedMetrics, metricName);
-  const benchmarkSucceeded = benchmark.exitCode === 0 && !benchmark.timedOut;
+  const benchmarkSucceeded =
+    benchmark.exitCode === 0 && !benchmark.timedOut && !benchmark.outputLimitExceeded;
   const metricContractFailed = benchmarkSucceeded && !hasPrimaryMetric;
   const primaryMetric = hasPrimaryMetric ? parsedMetrics[metricName] : 0;
 
@@ -200,7 +204,7 @@ export async function executeAutoresearchRun(
       signal: input.signal,
     });
     input.signal?.throwIfAborted();
-    checksPassed = checks.exitCode === 0 && !checks.timedOut;
+    checksPassed = checks.exitCode === 0 && !checks.timedOut && !checks.outputLimitExceeded;
     appendLedgerEvent(
       cwd,
       createLedgerEventEntry(
@@ -222,6 +226,8 @@ export async function executeAutoresearchRun(
     status,
     runKind: runKind === "ordinary" ? undefined : runKind,
     experiment: input.experiment,
+    provenance,
+    execution: captureRunExecution(commandCwd, benchmark, checks, checksCommand),
     metric: primaryMetric,
     metrics: parsedMetrics,
     description: decorateRunDescription(

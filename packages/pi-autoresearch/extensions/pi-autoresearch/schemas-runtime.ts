@@ -23,6 +23,36 @@ export const runSchema = Type.Object({
     description: "Short description of what this bounded run is trying.",
   }),
   runKind: Type.Optional(runKindSchema),
+  provenance: Type.Optional(
+    Type.Object(
+      {
+        matrix: Type.Optional(
+          Type.Object({
+            taskId: Type.Integer({ minimum: 1 }),
+            objective: Type.String({ minLength: 1, maxLength: 8192 }),
+            cellId: Type.String({ minLength: 1, maxLength: 8192 }),
+            laneId: Type.String({ minLength: 1, maxLength: 8192 }),
+            hypothesis: Type.String({ minLength: 1, maxLength: 8192 }),
+            implementationId: Type.String({ minLength: 1, maxLength: 8192 }),
+          }),
+        ),
+        measurement: Type.Optional(
+          Type.Object({
+            scenario: Type.String({ minLength: 1, maxLength: 8192 }),
+            evaluator: Type.String({ minLength: 1, maxLength: 8192 }),
+            evaluatorRevision: Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }),
+            subject: Type.String({ minLength: 1, maxLength: 8192 }),
+            subjectRevision: Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }),
+            workloadRevision: Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }),
+          }),
+        ),
+      },
+      {
+        description:
+          "Exact owner-declared matrix and measured workload/evaluator/subject pins. Local unauthenticated provenance, never permission. Omit unknown history; do not fill from plans or defaults.",
+      },
+    ),
+  ),
   hypothesisId: Type.Optional(
     Type.String({
       description:

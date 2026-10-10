@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { ResearchObservatoryModel } from "./runtime-dashboard-model.ts";
 import type { DashboardAttempt, DashboardMeasurementIdentity } from "./runtime-matrix-model.ts";
 
@@ -51,15 +52,34 @@ const eligible = (a: DashboardAttempt) =>
 /** View-only: consumes existing groups, never repairs missing evaluator provenance. */
 export function buildPerformanceScopes(model: ResearchObservatoryModel): PerformanceScope[] {
   const scopes: PerformanceScope[] = [];
-  const all = [
-    ...model.runtimeAttempts,
+  const matrixReports = [
     ...model.matrix.unresolvedPackets,
     ...model.matrix.campaigns.flatMap((c) =>
       c.cells.flatMap((n) => n.lanes.flatMap((l) => l.attempts)),
     ),
   ];
+  // One exact report shown in two views is a mirror, not a second source observation.
+  const runtimeMultiplicity = new Map<string, number>();
+  for (const report of model.runtimeAttempts)
+    runtimeMultiplicity.set(report.id, (runtimeMultiplicity.get(report.id) ?? 0) + 1);
+  // Only remove an eligible runtime mirror of exactly one eligible matrix occurrence.
+  // Real duplicate packet/lane claims, conflicting bodies/identity, and history stay fail-closed.
+  const mirrors = new Set(
+    model.runtimeAttempts.filter((a) => {
+      const matches = matrixReports.filter((m) => m.id === a.id);
+      return (
+        eligible(a) &&
+        runtimeMultiplicity.get(a.id) === 1 &&
+        matches.length === 1 &&
+        eligible(matches[0]) &&
+        isDeepStrictEqual(a.raw, matches[0].raw) &&
+        identityKey(a.identity) === identityKey(matches[0].identity)
+      );
+    }),
+  );
   const counts = new Map<string, number>();
-  for (const a of all) counts.set(a.id, (counts.get(a.id) ?? 0) + 1);
+  for (const a of [...matrixReports, ...model.runtimeAttempts.filter((a) => !mirrors.has(a))])
+    counts.set(a.id, (counts.get(a.id) ?? 0) + 1);
   function add(
     parts: string[],
     label: string,
@@ -136,7 +156,7 @@ export function buildPerformanceScopes(model: ResearchObservatoryModel): Perform
       note: !rows.length
         ? "No measurements · planned hypotheses are not execution."
         : comparable
-          ? `Comparable group · ${order === "unknown" ? "order unknown; no connected trend" : `ordered by ${order}`} · run path, not accepted cumulative frontier.`
+          ? `Comparable group · ${order === "unknown" ? "order unknown; no connected trend" : `ordered by ${order}`} · run path, not accepted cumulative frontier. Runtime mirrors are the same source reports, not additional samples.`
           : "Comparison unverified · isolated raw observations only; no trend, best or percentage.",
     });
   }

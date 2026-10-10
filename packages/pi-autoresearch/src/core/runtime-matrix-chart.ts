@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import path from "node:path";
 import { validateAutoresearchAdapterPacket } from "./runtime-adapter.ts";
 import {
   getArrayField as arr,
@@ -14,6 +15,7 @@ import {
   type DashboardComparisonGroup,
   type DashboardMeasurementIdentity,
 } from "./runtime-matrix-model.ts";
+import { parseRunProtocol, parseRunProvenance } from "./runtime-provenance.ts";
 
 export function digest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -36,6 +38,34 @@ export function comparisonIdentity(
   const candidate = rec(rec(run, "experiment"), "candidate");
   const direction = str(closeout, "direction");
   const base = str(candidate, "baseRef");
+  let measured = null;
+  let execution = null;
+  try {
+    measured = parseRunProvenance(record(run)?.provenance)?.measurement ?? null;
+    execution = parseRunProtocol(run) ?? null;
+  } catch {
+    /* Malformed source remains unscoreable in projectAttempt/owner validation. */
+  }
+  const benchmark = str(run, "benchmarkCommand");
+  const checks = record(run)?.checksCommand;
+  const expectedCwd = str(candidate, "worktreePath");
+  const protocolKnown =
+    !!execution &&
+    !!benchmark &&
+    (typeof checks === "string" || checks === null) &&
+    (!expectedCwd || path.resolve(str(closeout, "cwd") ?? "", expectedCwd) === execution.cwd) &&
+    execution.benchmark.exitCode === 0 &&
+    !execution.benchmark.timedOut &&
+    !execution.benchmark.aborted &&
+    execution.benchmark.outputLimitExceeded === false &&
+    ((checks === null && execution.checks.state === "disabled") ||
+      (typeof checks === "string" &&
+        !!checks &&
+        execution.checks.state === "passed" &&
+        execution.checks.exitCode === 0 &&
+        !execution.checks.timedOut &&
+        execution.checks.outputLimitExceeded === false &&
+        !execution.checks.aborted));
   return {
     metricName: str(closeout, "metricName"),
     metricUnit:
@@ -43,12 +73,28 @@ export function comparisonIdentity(
         ? (record(closeout)?.metricUnit as string)
         : null,
     direction: direction === "lower" || direction === "higher" ? direction : null,
-    scenario,
-    subject: bindingIdentity(candidate),
+    // A planned scenario is not observed workload provenance.
+    scenario:
+      measured && (scenario === null || measured.scenario === scenario)
+        ? JSON.stringify([measured.scenario, measured.workloadRevision])
+        : null,
+    subject:
+      measured && bindingIdentity(candidate)
+        ? JSON.stringify([bindingIdentity(candidate), measured.subject, measured.subjectRevision])
+        : bindingIdentity(candidate),
     // Mutable branch names are not pinned evaluator/base identity.
     base: base && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(base) ? base : null,
-    // Owner closeout deliberately drops actual per-run commands. Configuration is only a default.
-    evaluator: null,
+    // Pinned owner declarations plus actual invocation summaries; still unauthenticated.
+    evaluator:
+      measured && protocolKnown
+        ? JSON.stringify([
+            measured.evaluator,
+            measured.evaluatorRevision,
+            benchmark,
+            checks,
+            execution?.cwd,
+          ])
+        : null,
   };
 }
 export function comparisonReasons(identity: DashboardMeasurementIdentity): string[] {
@@ -72,7 +118,7 @@ export function projectAttempt(input: {
   const { run, closeout } = input;
   const status = str(run, "status") ?? "unknown";
   const decision = str(run, "empiricalDecisionClass");
-  const outcome = classifyAutoresearchDashboardOutcomeClass({ decision, status });
+  let outcome = classifyAutoresearchDashboardOutcomeClass({ decision, status });
   const candidate = rec(rec(run, "experiment"), "candidate");
   const candidateIdentity = bindingIdentity(candidate);
   const timestamp = num(run, "timestamp");
@@ -81,7 +127,7 @@ export function projectAttempt(input: {
   const issues = [...(input.schemaIssues ?? [])];
   const lineageValid =
     timestamp !== null && timestamp > 0 && (!input.requireCandidate || candidateIdentity !== null);
-  const packetBinding = !input.requireCandidate
+  let packetBinding = !input.requireCandidate
     ? ("not_required" as const)
     : candidateIdentity !== null && candidateIdentity === bindingIdentity(input.packetCandidate)
       ? ("matched" as const)
@@ -92,16 +138,54 @@ export function projectAttempt(input: {
     );
   if (!lineageValid) issues.push("Missing or mismatched run/candidate lineage.");
   const knownStatus = ["baseline", "candidate", "keep", "discard"].includes(status);
-  const checksValid =
-    checks === "passed" ||
-    (checks === "not run" &&
-      record(rec(rec(closeout, "status"), "currentSegment"))?.checksCommand === null);
+  let sourceValid = true;
+  let actualExecution: ReturnType<typeof parseRunProtocol>;
+  let measured: NonNullable<ReturnType<typeof parseRunProvenance>>["measurement"];
+  try {
+    measured = parseRunProvenance(record(run)?.provenance)?.measurement;
+    actualExecution = parseRunProtocol(run);
+  } catch {
+    sourceValid = false;
+    issues.push("Malformed per-run provenance/execution; no legacy downgrade.");
+  }
+  const boundWorktree = str(candidate, "worktreePath");
+  if (
+    actualExecution &&
+    boundWorktree &&
+    actualExecution.cwd !== path.resolve(str(closeout, "cwd") ?? "", boundWorktree)
+  ) {
+    sourceValid = false;
+    if (input.requireCandidate) packetBinding = "quarantined";
+    issues.push("Quarantined: actual execution cwd conflicts with bound candidate worktree.");
+  }
+  if (measured && input.scenario !== null && measured.scenario !== input.scenario) {
+    sourceValid = false;
+    issues.push("Measured scenario conflicts with planned cell; source reconciliation required.");
+  }
+  if (actualExecution?.benchmark.outputLimitExceeded || actualExecution?.checks.outputLimitExceeded)
+    outcome = "resource_censored";
+  const checksValid = actualExecution
+    ? ((checks === "passed" &&
+        actualExecution.checks.state === "passed" &&
+        actualExecution.checks.exitCode === 0 &&
+        !actualExecution.checks.timedOut &&
+        !actualExecution.checks.outputLimitExceeded &&
+        !actualExecution.checks.aborted) ||
+        (checks === "not run" &&
+          record(run)?.checksCommand === null &&
+          actualExecution.checks.state === "disabled")) &&
+      actualExecution.benchmark.exitCode === 0 &&
+      !actualExecution.benchmark.timedOut &&
+      !actualExecution.benchmark.aborted &&
+      !actualExecution.benchmark.outputLimitExceeded
+    : checks === "passed" || (checks === "not run" && record(run)?.checksCommand === null);
   if (!checksValid) issues.push("Checks are failed, absent, or unverified.");
   if (metric === null) issues.push("No finite measurement.");
   const identity = comparisonIdentity(closeout, run, input.scenario);
   const invalidOutcomes = ["correctness_failure", "measurement_invalid", "resource_censored"];
   const validMeasurement =
     input.schemaValid &&
+    sourceValid &&
     lineageValid &&
     packetBinding !== "quarantined" &&
     knownStatus &&
@@ -112,9 +196,10 @@ export function projectAttempt(input: {
     identity.metricUnit !== null &&
     identity.direction !== null;
   const comparisonWithheld = comparisonReasons(identity);
-  comparisonWithheld.push(
-    "Actual per-run benchmark/check commands are not preserved by the owner closeout. Per-run overrides can differ from configured defaults; protocol provenance gap, comparison withheld.",
-  );
+  if (!identity.evaluator)
+    comparisonWithheld.push(
+      "Actual per-run benchmark/check invocation and pinned evaluator/workload/subject provenance are unknown. Per-run overrides can differ from configured defaults; protocol provenance gap, comparison withheld.",
+    );
   if (packetBinding === "quarantined")
     comparisonWithheld.push(
       "Quarantined source history: candidate binding differs or is absent; no lane comparison.",
@@ -168,13 +253,18 @@ export function projectCandidatePacket(
   const validation = validateAutoresearchAdapterPacket(value);
   const issues = validation.issues.map((issue) => `${issue.path}: ${issue.message}`);
   const closeout = rec(value, "closeout");
+  const rejectedHistory = num(rec(closeout, "status"), "invalidReceiptLines");
+  if (rejectedHistory === null || rejectedHistory !== 0)
+    issues.push(
+      "Invalid or unknown receipt history: rejected lines cannot bless surviving measurements.",
+    );
   const packetRun = rec(value, "candidateRun");
   const candidate = rec(value, "candidate");
   if (str(value, "cwd") !== str(closeout, "cwd")) issues.push("Packet/closeout cwd mismatch.");
   if (str(value, "campaign") !== str(closeout, "campaign"))
     issues.push("Packet/closeout campaign mismatch.");
   const config = rec(rec(closeout, "status"), "currentSegment");
-  for (const field of ["metricName", "metricUnit", "direction"]) {
+  for (const field of ["metricName", "metricUnit", "direction", "runCount", "successfulRunCount"]) {
     if (record(closeout)?.[field] !== record(config)?.[field])
       issues.push(`Closeout/config ${field} mismatch.`);
   }
