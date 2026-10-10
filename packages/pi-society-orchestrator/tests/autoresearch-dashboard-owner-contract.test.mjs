@@ -1,3 +1,7 @@
+// pi-autoresearch's dashboard reader against what this package's owner runners
+// actually write. It lives here, not in pi-autoresearch, because the dependency
+// points this way: the orchestrator installs and imports autoresearch, so its
+// publish job can run this; autoresearch's cannot import the orchestrator.
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -5,37 +9,31 @@ import {
   createConfigReceipt,
   createRunReceipt,
   loadReceiptLog,
-} from "../src/core/runtime.ts";
-import { validateAutoresearchAdapterPacket } from "../src/core/runtime-adapter.ts";
-import { buildAutoresearchCandidateResultPacket } from "../src/core/runtime-candidate-result.ts";
-import { discoverAutoresearchMatrixCampaignArtifacts as discover } from "../src/core/runtime-matrix.ts";
-import { projectCandidatePacket } from "../src/core/runtime-matrix-chart.ts";
+} from "../../pi-autoresearch/src/core/runtime.ts";
+import { validateAutoresearchAdapterPacket } from "../../pi-autoresearch/src/core/runtime-adapter.ts";
+import { buildAutoresearchCandidateResultPacket } from "../../pi-autoresearch/src/core/runtime-candidate-result.ts";
+import { discoverAutoresearchMatrixCampaignArtifacts as discover } from "../../pi-autoresearch/src/core/runtime-matrix.ts";
+import { projectCandidatePacket } from "../../pi-autoresearch/src/core/runtime-matrix-chart.ts";
 import {
   getArrayField as arr,
   getRecordField as rec,
   getStringField as str,
-} from "../src/core/runtime-matrix-fields.ts";
-import { OBJECTIVE, withDashboardDir, writeDashboardSource } from "./runtime-dashboard-fixtures.ts";
+} from "../../pi-autoresearch/src/core/runtime-matrix-fields.ts";
+import {
+  OBJECTIVE,
+  withDashboardDir,
+  writeDashboardSource,
+} from "../../pi-autoresearch/tests/runtime-dashboard-fixtures.ts";
 
 // Actual read-only owner producers. No launch, measurement, checkpoint application or journal writer.
-const ownerUrl = new URL(
-  "../../pi-society-orchestrator/src/runtime/autoresearch-matrix-campaign.ts",
-  import.meta.url,
-).href;
-const owner = (await import(ownerUrl)) as {
-  buildAutoresearchMatrixCampaignRunnerContract(
-    input: Record<string, unknown>,
-  ): Record<string, unknown>;
-  checkpointAutoresearchMatrixCampaignRunner(
-    input: Record<string, unknown>,
-  ): Record<string, unknown>;
-};
-function requiredString(value: unknown, key: string): string {
+import * as owner from "../src/runtime/autoresearch-matrix-campaign.ts";
+
+function requiredString(value, key) {
   const s = str(value, key);
   assert.ok(s);
   return s;
 }
-function fixture(cwd: string) {
+function fixture(cwd) {
   const input = {
     taskId: 5621,
     cwd,
@@ -55,10 +53,7 @@ function fixture(cwd: string) {
     (v) => typeof v === "string" && v.startsWith("autoresearch_runtime_run("),
   );
   assert.equal(typeof call, "string");
-  const payload = JSON.parse(String(call).slice("autoresearch_runtime_run(".length, -1)) as Record<
-    string,
-    unknown
-  >;
+  const payload = JSON.parse(String(call).slice("autoresearch_runtime_run(".length, -1));
   const packetPath = requiredString(lane, "candidateResultPacketPath");
   const name = requiredString(payload, "name");
   appendReceipt(
@@ -74,7 +69,7 @@ function fixture(cwd: string) {
     }),
   );
   const candidate = {
-    source: "candidate_peer_spawn" as const,
+    source: "candidate_peer_spawn",
     worktreePath: `${cwd}/candidate`,
     branch: "candidate-01",
     baseRef: "a".repeat(40),
@@ -249,7 +244,7 @@ test("owner checkpoint binds exact run identity; wrong lane or inconsistent conf
     );
     assert.equal(good.comparisonGroups.length, 0);
     assert.deepEqual(good.cells[0].packetInventory, [f.packetPath]);
-    for (const mutation of ["name", "hypothesis", "config", "source"] as const) {
+    for (const mutation of ["name", "hypothesis", "config", "source"]) {
       const changed = structuredClone(packet);
       if (mutation === "name") {
         changed.campaign = "matrix-cell-01-01-candidate-02";

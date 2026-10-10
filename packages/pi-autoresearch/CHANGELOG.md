@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.3](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.2...pi-autoresearch-v0.5.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **pi-autoresearch:** publish as 0.5.3, its tests no longer needing the orchestrator ([724d074](https://github.com/tryingET/pi-extensions/commit/724d074b8e641518fdfbaa505ab16529167a8160))
+
+## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.1...pi-autoresearch-v0.5.2) (2026-10-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.2
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.0...pi-autoresearch-v0.5.1) (2026-09-01)
 
 

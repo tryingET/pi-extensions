@@ -1,3 +1,7 @@
+// pi-autoresearch's dashboard reader against what this package's owner runners
+// actually write. It lives here, not in pi-autoresearch, because the dependency
+// points this way: the orchestrator installs and imports autoresearch, so its
+// publish job can run this; autoresearch's cannot import the orchestrator.
 import assert from "node:assert/strict";
 import {
   chmodSync,
@@ -15,27 +19,21 @@ import {
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { discoverAutoresearchMatrixCampaignArtifacts } from "../src/core/runtime-matrix.ts";
-import { getRecordField as rec } from "../src/core/runtime-matrix-fields.ts";
-import { projectLevel4Observation } from "../src/core/runtime-matrix-level4.ts";
+import { discoverAutoresearchMatrixCampaignArtifacts } from "../../pi-autoresearch/src/core/runtime-matrix.ts";
+import { getRecordField as rec } from "../../pi-autoresearch/src/core/runtime-matrix-fields.ts";
+import { projectLevel4Observation } from "../../pi-autoresearch/src/core/runtime-matrix-level4.ts";
 import {
   level4Envelope,
   level4Path,
   OBJECTIVE,
   withDashboardDir,
   writeDashboardSource,
-} from "./runtime-dashboard-fixtures.ts";
+} from "../../pi-autoresearch/tests/runtime-dashboard-fixtures.ts";
 
-// Test-only owner integration: exercise the actual non-dispatching runner in owned scratch.
-// Dynamic URL avoids making orchestrator implementation a dashboard production dependency.
-const ownerUrl = new URL(
-  "../../pi-society-orchestrator/src/runtime/autoresearch-level4-runner.ts",
-  import.meta.url,
-).href;
-const owner = (await import(ownerUrl)) as {
-  runAutoresearchLevel4CampaignRunner: (input: Record<string, unknown>) => Record<string, unknown>;
-};
-function result(cwd: string) {
+// The actual non-dispatching runner, in owned scratch.
+import * as owner from "../src/runtime/autoresearch-level4-runner.ts";
+
+function result(cwd) {
   return owner.runAutoresearchLevel4CampaignRunner({
     taskId: 5621,
     cwd,
@@ -87,7 +85,7 @@ test("Level 4 exact envelope/nested owner identity, nonAuthority and timestamp c
   withDashboardDir((cwd) => {
     const actual = result(cwd);
     const base = level4Envelope(cwd, actual);
-    const variants: Array<(value: Record<string, unknown>) => void> = [
+    const variants = [
       (v) => {
         v.taskId = 999;
       },
@@ -135,7 +133,7 @@ test("Level 4 exact envelope/nested owner identity, nonAuthority and timestamp c
   }));
 
 test("Level 4 consumer rejects symlinks, hardlinks, oversize, malformed JSON and linked parents", () => {
-  for (const mode of ["symlink", "hardlink", "oversize", "malformed", "parent"] as const)
+  for (const mode of ["symlink", "hardlink", "oversize", "malformed", "parent"])
     withDashboardDir((cwd) => {
       const actual = result(cwd);
       const data = JSON.stringify(level4Envelope(cwd, actual));
@@ -150,7 +148,7 @@ test("Level 4 consumer rejects symlinks, hardlinks, oversize, malformed JSON and
         truncateSync(target, 8 * 1024 * 1024 + 1);
       }
       if (mode === "malformed") writeFileSync(target, "{broken");
-      let scratch: string | null = null;
+      let scratch = null;
       if (mode === "parent") {
         rmSync(path.join(cwd, ".autoresearch/dashboard"), { recursive: true });
         scratch = mkdtempSync(path.join(os.tmpdir(), "observatory-parent-"));
@@ -173,7 +171,7 @@ test("Level 4 consumer rejects symlinks, hardlinks, oversize, malformed JSON and
     });
 });
 
-function requiredRecord(v: unknown, key: string): Record<string, unknown> {
+function requiredRecord(v, key) {
   const value = rec(v, key);
   assert.ok(value);
   return value;

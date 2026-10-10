@@ -13,6 +13,40 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.0...pi-society-orchestrator-v0.13.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **pi-autoresearch:** run the owner-integration dashboard tests in the orchestrator ([5b0a8e8](https://github.com/tryingET/pi-extensions/commit/5b0a8e87eba04e4f3f3749b5990734e29e77e0be))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.3
+
+## [0.13.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.12.0...pi-society-orchestrator-v0.13.0) (2026-10-09)
+
+
+### Features
+
+* **pi-society-orchestrator:** an npm user config that meets the governed policy (AK6828) ([bbd92fd](https://github.com/tryingET/pi-extensions/commit/bbd92fd6995028a2f90a5c97623f283b345d86af))
+
+
+### Bug Fixes
+
+* **pi-society-orchestrator:** pin the governed runtime to Pi 1.1.0 and every companion (AK6828) ([3160101](https://github.com/tryingET/pi-extensions/commit/3160101b8dd1e8fc49201d2e8174ead25618808d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.2
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.7.2
+
 ## [0.12.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.11.5...pi-society-orchestrator-v0.12.0) (2026-09-19)
 
 

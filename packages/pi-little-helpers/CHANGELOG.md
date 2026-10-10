@@ -32,6 +32,26 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.11.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.10.5...pi-little-helpers-v0.11.0) (2026-10-09)
+
+
+### Features
+
+* **task-session:** installer for the Pi task-session host (AK5480) ([1734024](https://github.com/tryingET/pi-extensions/commit/17340249bcb5d9e9f18fc8f0d1bd41375287bbe6))
+* **task-session:** provision a Pi task-session profile (AK5480, for AK6744/AK5482) ([4d80368](https://github.com/tryingET/pi-extensions/commit/4d80368508111e95c49db2eb4d61b84e5619e9b0))
+* **task-session:** provision the Pi account namespace and enroll a checkout (AK5480) ([73952b2](https://github.com/tryingET/pi-extensions/commit/73952b2e00bf3ea1227bd8a12fab7a8a761f11f2))
+* **task-session:** publish producer.json from AK's describe bindings (AK5480) ([7571f5c](https://github.com/tryingET/pi-extensions/commit/7571f5c197ce25095c3d2d4ba6ee072271e54a3a))
+
+
+### Bug Fixes
+
+* declare typebox as a host peer in pi-agent-vent, pi-little-helpers, pi-agent-registry (AK6828) ([efc22d2](https://github.com/tryingET/pi-extensions/commit/efc22d290a42d87e39116fb818d7598e6c200804))
+* **pi-little-helpers:** install the task-session host with the Pi 1.1.0 SDK (AK6828) ([6b0ebb7](https://github.com/tryingET/pi-extensions/commit/6b0ebb7a8321ffd4d3b874b3c6b305aa4bc907d7))
+* **pi-little-helpers:** retain stale observer progress on telemetry loss (AK6626) ([98c653f](https://github.com/tryingET/pi-extensions/commit/98c653f447a5cdf4d023b81c2564564cb23997f0))
+* **pi-little-helpers:** seal task sessions on the Pi 1.1.0 transcript (AK6828, AK5480 host) ([03a03f4](https://github.com/tryingET/pi-extensions/commit/03a03f40eb390ab82e0505c65e7458448c084da2))
+* **pi-little-helpers:** type the visible-loop continuation by what it reads (AK6828) ([3b17970](https://github.com/tryingET/pi-extensions/commit/3b17970288d3d94bb9b8ac149dbeecd29966cc7f))
+* **task-session:** resolve the AK owner installation from the published runtime bundle (AK5480) ([d373ddb](https://github.com/tryingET/pi-extensions/commit/d373ddbbb410a73b46180ca05767c2472bf70f58))
+
 ## [0.10.5](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.10.4...pi-little-helpers-v0.10.5) (2026-10-01)
 
 
