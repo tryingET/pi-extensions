@@ -91,7 +91,6 @@ and inactive module load stay as they are; no test thresholds are weakened.
   (`process.kill`), on both runtimes; the permission model does not cover signals.
 - C4 grants read access by path: a hard link inside `<R>` to a file elsewhere is
   admitted and readable. Planting one requires the same UID (first assumption).
-- Foreign-owner rejection is implemented but not causally tested (needs `chown`/root).
 - A peer that closes a close-delimited HTTP/1.1 body early is indistinguishable from a
   complete response; length/chunk truncation is detected and rejected.
 
@@ -105,12 +104,18 @@ All fixtures are test-owned and loopback-only; certificates are generated per ru
   loopback port. Control (trusted CA, right host) succeeds; self-signed is rejected with
   `NODE_TLS_REJECT_UNAUTHORIZED=0`; CA-trusted wrong-host is rejected; stalled handshake,
   stalled headers/body (deadline and parent abort) and peer-interrupted length/chunked
-  bodies reject and release client and server sockets.
+  bodies reject and release client and server sockets. A separate close-delimited
+  graceful-EOF fixture demonstrates the retained article-completeness ambiguity.
 - `tests/native-boundary.test.ts` + `tests/native-fixture.ts`: unsafe closure fixtures
   through `extract()`; a probe CLI tries TCP, TLS, HTTP, `fetch`, UDP (socket API and a
   raw handle from the `dgram.Socket` constructor), listen/`_listen2`, a Unix socket, DNS,
   a child process and outside read/write while loopback observers count arrivals. A direct run of the same
   probe is the causal control (observers must see it).
+- `scripts/native-owner-proof.ts`: host qualification with Linux unprivileged
+  subordinate-ID namespaces. Actual admission accepts, rejects the same inode when
+  foreign-owned, and accepts again after restoring ownership. No sudo or native spawn.
+  See [residual assessment](2026-10-10-ak6872-residual-assessment.md) for prerequisites
+  and the distinction between resolved evidence gaps and retained security limits.
 
 Pre-change results (Node 22.23.3 and 26.9.0): real-transport 10/10 pass against the
 existing transport; mutations `rejectUnauthorized:false`, no-op `checkServerIdentity`,

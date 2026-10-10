@@ -25,6 +25,25 @@ after(() => f.dispose());
 const url = (path: string) => `https://${FIXTURE_HOST}${path}`;
 const live = () => new AbortController().signal;
 
+test("close-delimited graceful EOF is accepted without proving article completeness", async () => {
+  const server = await httpsFixture(certs.trusted);
+  const baseline = socketHandles();
+  try {
+    const result = await fetchHtml(
+      url("/close-delimited"),
+      live(),
+      routedTransport(server.port, { ca: certs.ca }),
+    );
+    // Deliberately lacks closing HTML and any framing length. This is an observation of
+    // the retained protocol limit, not a weakened assertion for framed interruptions.
+    assert.equal(result.html, "<html><p>prefix only");
+    assert.ok(await server.drained());
+    assert.ok(await settledHandles(baseline));
+  } finally {
+    await server.close();
+  }
+});
+
 test("control: CA-trusted certificate for the URL hostname completes a real TLS fetch", async () => {
   const server = await httpsFixture(certs.trusted);
   try {

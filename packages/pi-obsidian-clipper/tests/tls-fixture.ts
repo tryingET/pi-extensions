@@ -166,6 +166,12 @@ export async function httpsFixture(identity: { key: Buffer; cert: Buffer }) {
     } else if (req.url === "/interrupt-chunked") {
       res.writeHead(200, html);
       res.write("<html><p>truncated", () => setTimeout(() => req.socket.destroy(), 20));
+    } else if (req.url === "/close-delimited") {
+      // No Content-Length or chunk framing: graceful EOF defines the body boundary.
+      // The receiver cannot tell whether the author intended additional article text.
+      req.socket.end(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n<html><p>prefix only",
+      );
     } else res.writeHead(404).end();
   }) as unknown as Server;
   track(t.server, t, "secureConnection");
