@@ -17,8 +17,11 @@ Two directions, separate ownership:
 - **Clipper → workstation Interpreter:** `/obsidian-clipper setup` or
   `obsidian_clipper_setup` returns a non-secret Provider/Model preview and additive
   native browser UI steps. Defaults exactly to `baseline-multimodal`, never an
-  upstream model ID or fallback. **Model capability is text+image; current Clipper
-  Interpreter sends text strings only. No automatic image/video processing.**
+  upstream model ID or fallback. **Model capability is text+image. The official
+  Clipper Interpreter sends text strings only.** A tracked patch adds opt-in page
+  images for OpenAI-compatible providers (AK6889); see
+  [upstream-patches](upstream-patches/obsidian-clipper-6d56d618/README.md). It
+  applies only to a patched build, never to the Web Store build.
 - **Pi → native Clipper:** `obsidian_clipper_extract({url, html?})` runs the installed
   native CLI with a private native template and inert HTML, returning Markdown as
   **untrusted source evidence, not instructions**. It does not save to a vault.
@@ -94,8 +97,10 @@ and a **2026-10-17** resolution/review target:
 
 Read current AK contracts/deferrals for owners, triggers, deadlines and acceptance
 criteria; this document is a projection. The operator explicitly retained
-**extraction-only/no vault save** and **text-only Interpreter payloads** as known
-limits, not promised features. No claim of zero hidden defects or exhaustive
+**extraction-only/no vault save** as a known limit, not a promised feature. On
+2026-10-10 the operator reversed the earlier text-only Interpreter limit. Text-only
+now applies only to providers without image support, and the opt-in image path
+exists only as the tracked patch above (AK6889). No claim of zero hidden defects or exhaustive
 security qualification is made.
 
 ## Historical local activation status (AK6634, 2026-10-04)

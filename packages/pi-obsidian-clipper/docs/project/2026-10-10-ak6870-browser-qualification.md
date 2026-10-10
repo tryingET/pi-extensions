@@ -108,8 +108,9 @@ Not established:
 - future auth posture, if the workstation owner later adds keys;
 - vLLM environment-variable keys (only absent from the launch flags);
 - reasoning-length or timeout behaviour on large pages;
-- multimodal payloads. The Interpreter stays text-only and save stays
-  unsupported, by operator decision.
+- multimodal payloads. At this proof the Interpreter was text-only. On
+  2026-10-10 the operator reversed that limit; see AK6889 and
+  `upstream-patches/`. Save stays unsupported.
 
 Applying the same configuration to a personal profile needs a separately exact
 permit. Pi adapter runtime was unchanged by this task. `status` and `setup`

@@ -152,8 +152,10 @@ browsers, profiles and later auth changes still need their own check.
 
 Native Custom provider UI requires a nonempty key field; supply its owner-approved
 value directly in the browser, never through Pi. Do not import full settings:
-that clears browser sync storage. The current Interpreter sends text strings,
-although the selected model declares text+image capability. Tools remain honest
+that clears browser sync storage. The official Interpreter sends text strings,
+although the selected model declares text+image capability. The AK6889 tracked
+patch adds opt-in data-URL page images for OpenAI-compatible providers:
+[upstream-patches](../../upstream-patches/obsidian-clipper-6d56d618/README.md). Tools remain honest
 about unprobed live/browser state; the default canonical export may need owner
 refresh before setup. No model/lane lifecycle or Pi provider registration is owned
 by this package.

@@ -1,0 +1,360 @@
+From eca27dac54e3d515697e3b9b20fcd5bf7c626883 Mon Sep 17 00:00:00 2001
+From: "tryingET (AK6889)" <noreply@example.invalid>
+Date: Sat, 10 Oct 2026 09:12:45 +0200
+Subject: [PATCH] Interpreter: opt-in page images for OpenAI-compatible
+ providers
+
+Adds a per-model 'Send page images' setting. When enabled and the provider
+uses the default OpenAI-compatible request format, up to 4 images linked in
+the page content are fetched by the extension (credentials omitted; png,
+jpeg, webp or gif; at most 2 MiB; at least 16x16 px; SVG skipped) and sent
+as base64 data URLs in image_url parts of the prompt message. Other
+provider formats and models without the setting keep sending text only.
+
+Image links come from the '{{content}}' template variable; note that
+handleInterpreterUI's existing variables.content lookup is always empty
+because variables are keyed '{{name}}'.
+---
+ src/_locales/en/messages.json        |   6 ++
+ src/managers/interpreter-settings.ts |  10 ++-
+ src/settings.html                    |  12 ++-
+ src/types/types.ts                   |   2 +
+ src/utils/interpreter-images.test.ts |  69 +++++++++++++++++
+ src/utils/interpreter-images.ts      | 108 +++++++++++++++++++++++++++
+ src/utils/interpreter.ts             |  22 +++++-
+ 7 files changed, 224 insertions(+), 5 deletions(-)
+ create mode 100644 src/utils/interpreter-images.test.ts
+ create mode 100644 src/utils/interpreter-images.ts
+
+diff --git a/src/_locales/en/messages.json b/src/_locales/en/messages.json
+index 4d14ded..3d8cb9d 100644
+--- a/src/_locales/en/messages.json
++++ b/src/_locales/en/messages.json
+@@ -501,6 +501,12 @@
+ 	"modelProviderDescription": {
+ 		"message": "Select the provider for this model."
+ 	},
++	"modelSendImages": {
++		"message": "Send page images"
++	},
++	"modelSendImagesDescription": {
++		"message": "Attach up to 4 images from the page to Interpreter requests. Only for OpenAI-compatible providers and models that accept images."
++	},
+ 	"modelProviderPlaceholder": {
+ 		"message": "Provider"
+ 	},
+diff --git a/src/managers/interpreter-settings.ts b/src/managers/interpreter-settings.ts
+index d0844b7..d7869e2 100644
+--- a/src/managers/interpreter-settings.ts
++++ b/src/managers/interpreter-settings.ts
+@@ -998,7 +998,12 @@ async function showModelModal(model: ModelConfig, index?: number) {
+ 			updateModelOptions(); 
+ 			nameInput.value = model.name;
+ 			providerModelIdInput.value = model.providerModelId || '';
+-		} else {
++		}
++		const sendImagesInput = form.querySelector('[name="sendImages"]') as HTMLInputElement | null;
++		if (sendImagesInput) {
++			sendImagesInput.checked = model.sendImages === true;
++		}
++		if (index === undefined) {
+ 			if (sortedProviders.length > 0) {
+ 				// Maybe default to first provider? Or leave blank? Let's leave blank for now.
+ 				// providerSelect.value = sortedProviders[0].id; 
+@@ -1038,6 +1043,9 @@ async function showModelModal(model: ModelConfig, index?: number) {
+ 
+ 			updatedModel.name = formData.get('name') as string;
+ 			updatedModel.providerModelId = formData.get('providerModelId') as string;
++			if (formData.get('sendImages') === 'on') {
++				updatedModel.sendImages = true;
++			}
+ 
+ 			if (!updatedModel.name || !updatedModel.providerId || !updatedModel.providerModelId) {
+ 				alert(getMessage('modelRequiredFields'));
+diff --git a/src/settings.html b/src/settings.html
+index dd9948f..441331a 100644
+--- a/src/settings.html
++++ b/src/settings.html
+@@ -840,7 +840,17 @@
+ 								<input type="text" id="provider-model-id" name="providerModelId" data-i18n="providerModelId" placeholder="Model ID" required>
+ 							</div>
+ 						</div>
+-						
++						<div class="setting-item mod-horizontal mod-toggle">
++							<div class="setting-item-info">
++								<label for="model-send-images" data-i18n="modelSendImages">Send page images</label>
++								<div class="setting-item-description" data-i18n="modelSendImagesDescription">Attach up to 4 images from the page to Interpreter requests. Only for OpenAI-compatible providers and models that accept images.</div>
++							</div>
++							<div class="setting-item-control">
++								<div class="checkbox-container">
++									<input type="checkbox" id="model-send-images" name="sendImages" />
++								</div>
++							</div>
++						</div>
+ 					</form>
+ 				</div>
+ 				<div class="modal-button-container">
+diff --git a/src/types/types.ts b/src/types/types.ts
+index aeef60a..dd81db1 100644
+--- a/src/types/types.ts
++++ b/src/types/types.ts
+@@ -104,6 +104,8 @@ export interface ModelConfig {
+ 	providerModelId: string;
+ 	name: string;
+ 	enabled: boolean;
++	/** Opt-in: attach page images to Interpreter requests (OpenAI-compatible providers only). */
++	sendImages?: boolean;
+ }
+ 
+ export interface HistoryEntry {
+diff --git a/src/utils/interpreter-images.test.ts b/src/utils/interpreter-images.test.ts
+new file mode 100644
+index 0000000..bd85364
+--- /dev/null
++++ b/src/utils/interpreter-images.test.ts
+@@ -0,0 +1,69 @@
++import { describe, expect, test } from 'vitest';
++import {
++	collectInterpreterImages,
++	extractImageUrls,
++	fetchImageAsDataUrl,
++	MAX_INTERPRETER_IMAGE_BYTES,
++	providerSupportsImageParts,
++	shouldSendImages,
++} from './interpreter-images';
++import { ModelConfig, Provider } from '../types/types';
++
++const provider = (name: string, baseUrl = 'http://127.0.0.1:1234/v1/chat/completions'): Provider => ({
++	id: 'p', name, baseUrl, apiKey: 'k', apiKeyRequired: true,
++});
++const model = (sendImages?: boolean): ModelConfig => ({
++	id: 'm', providerId: 'p', providerModelId: 'x', name: 'x', enabled: true, ...(sendImages === undefined ? {} : { sendImages }),
++});
++const png = (bytes = 64) => new Uint8Array(bytes).fill(7);
++const response = (body: Uint8Array, type = 'image/png', status = 200) =>
++	new Response(body, { status, headers: { 'content-type': type, 'content-length': String(body.byteLength) } });
++
++describe('interpreter images', () => {
++	test('extracts http(s) image URLs in order, deduplicated, skipping svg and data URLs', () => {
++		const md = [
++			'![a](https://example.com/a.png)',
++			'text ![b](https://example.com/b.jpg "title") more',
++			'![dup](https://example.com/a.png)',
++			'![svg](https://example.com/logo.svg)',
++			'![data](data:image/png;base64,AAAA)',
++			'![rel](img/relative.png)',
++			'[not an image](https://example.com/c.png)'
++		].join('\n');
++		expect(extractImageUrls(md)).toEqual(['https://example.com/a.png', 'https://example.com/b.jpg']);
++	});
++
++	test('only the default OpenAI-compatible format carries image parts, and only when opted in', () => {
++		expect(providerSupportsImageParts(provider('Workstation'))).toBe(true);
++		expect(providerSupportsImageParts(provider('OpenAI', 'https://api.openai.com/v1/chat/completions'))).toBe(true);
++		for (const name of ['Anthropic', 'Ollama', 'Perplexity', 'DeepSeek', 'Hugging Face']) {
++			expect(providerSupportsImageParts(provider(name))).toBe(false);
++		}
++		expect(providerSupportsImageParts(provider('Gemini', 'https://generativelanguage.googleapis.com/v1beta'))).toBe(false);
++		expect(providerSupportsImageParts(provider('Azure', 'https://x.openai.azure.com/openai'))).toBe(false);
++		expect(shouldSendImages(model(), provider('Workstation'))).toBe(false);
++		expect(shouldSendImages(model(false), provider('Workstation'))).toBe(false);
++		expect(shouldSendImages(model(true), provider('Workstation'))).toBe(true);
++		expect(shouldSendImages(model(true), provider('Anthropic'))).toBe(false);
++	});
++
++	test('fetches as a data URL without credentials and enforces type and size limits', async () => {
++		let init: RequestInit | undefined;
++		const ok = await fetchImageAsDataUrl('https://example.com/a.png', (async (_u: any, i?: RequestInit) => { init = i; return response(png(3)); }) as typeof fetch);
++		expect(ok).toBe(`data:image/png;base64,${btoa(String.fromCharCode(7, 7, 7))}`);
++		expect(init?.credentials).toBe('omit');
++		await expect(fetchImageAsDataUrl('u', (async () => response(png(), 'image/svg+xml')) as typeof fetch)).rejects.toThrow('unsupported type');
++		await expect(fetchImageAsDataUrl('u', (async () => response(png(), 'text/html')) as typeof fetch)).rejects.toThrow('unsupported type');
++		await expect(fetchImageAsDataUrl('u', (async () => response(png(), 'image/png', 404)) as typeof fetch)).rejects.toThrow('HTTP 404');
++		await expect(fetchImageAsDataUrl('u', (async () => response(new Uint8Array(MAX_INTERPRETER_IMAGE_BYTES + 1))) as typeof fetch)).rejects.toThrow('too large');
++	});
++
++	test('collects at most four images and records skipped ones', async () => {
++		const urls = Array.from({ length: 7 }, (_, i) => `https://example.com/${i}.png`);
++		const md = urls.map(u => `![](${u})`).join('\n');
++		const fetchImpl = (async (u: any) => (String(u).endsWith('/1.png') ? response(png(), 'text/html') : response(png()))) as typeof fetch;
++		const result = await collectInterpreterImages(md, fetchImpl);
++		expect(result.images).toHaveLength(4);
++		expect(result.skipped).toEqual([{ url: 'https://example.com/1.png', reason: 'unsupported type text/html' }]);
++	});
++});
+diff --git a/src/utils/interpreter-images.ts b/src/utils/interpreter-images.ts
+new file mode 100644
+index 0000000..cc15a82
+--- /dev/null
++++ b/src/utils/interpreter-images.ts
+@@ -0,0 +1,108 @@
++import { ModelConfig, Provider } from '../types/types';
++
++// Opt-in page images for Interpreter requests.
++// Images are fetched by the extension itself and sent as base64 data URLs, so the
++// model endpoint never has to fetch arbitrary web URLs.
++
++export const MAX_INTERPRETER_IMAGES = 4;
++export const MAX_INTERPRETER_IMAGE_BYTES = 2 * 1024 * 1024;
++export const MIN_INTERPRETER_IMAGE_DIMENSION = 16;
++const MAX_CANDIDATES = 16;
++const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
++
++export interface InterpreterImageResult {
++	images: string[];
++	skipped: { url: string; reason: string }[];
++}
++
++// Only the default OpenAI-compatible request format carries image parts.
++// Providers with their own request formats stay text-only.
++export function providerSupportsImageParts(provider: Provider): boolean {
++	const name = provider.name.toLowerCase();
++	const baseUrl = provider.baseUrl;
++	return !(
++		name.includes('hugging') ||
++		baseUrl.includes('openai.azure.com') ||
++		name.includes('deepseek') ||
++		baseUrl.includes('generativelanguage.googleapis.com') ||
++		name.includes('anthropic') ||
++		name.includes('perplexity') ||
++		name.includes('ollama')
++	);
++}
++
++export function shouldSendImages(model: ModelConfig, provider: Provider): boolean {
++	return model.sendImages === true && providerSupportsImageParts(provider);
++}
++
++// Image URLs from Markdown image syntax, in document order, deduplicated.
++// Skips non-http(s) URLs (including data: URLs) and SVG files.
++export function extractImageUrls(markdown: string, limit: number = MAX_CANDIDATES): string[] {
++	const urls: string[] = [];
++	const pattern = /!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
++	let match: RegExpExecArray | null;
++	while ((match = pattern.exec(markdown)) !== null && urls.length < limit) {
++		const raw = match[1];
++		let url: URL;
++		try {
++			url = new URL(raw);
++		} catch {
++			continue;
++		}
++		if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
++		if (url.pathname.toLowerCase().endsWith('.svg')) continue;
++		const href = url.href;
++		if (!urls.includes(href)) urls.push(href);
++	}
++	return urls;
++}
++
++function toBase64(bytes: Uint8Array): string {
++	let binary = '';
++	const chunk = 0x8000;
++	for (let i = 0; i < bytes.length; i += chunk) {
++		binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
++	}
++	return btoa(binary);
++}
++
++async function imageDimensions(blob: Blob): Promise<{ width: number; height: number } | null> {
++	if (typeof createImageBitmap !== 'function') return null;
++	const bitmap = await createImageBitmap(blob);
++	const size = { width: bitmap.width, height: bitmap.height };
++	bitmap.close();
++	return size;
++}
++
++export async function fetchImageAsDataUrl(url: string, fetchImpl: typeof fetch = fetch): Promise<string> {
++	const response = await fetchImpl(url, { credentials: 'omit', redirect: 'follow' });
++	if (!response.ok) throw new Error(`HTTP ${response.status}`);
++	const type = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
++	if (!ALLOWED_IMAGE_TYPES.includes(type)) throw new Error(`unsupported type ${type || 'unknown'}`);
++	const declared = Number(response.headers.get('content-length') || '0');
++	if (declared > MAX_INTERPRETER_IMAGE_BYTES) throw new Error('too large');
++	const buffer = new Uint8Array(await response.arrayBuffer());
++	if (buffer.byteLength > MAX_INTERPRETER_IMAGE_BYTES) throw new Error('too large');
++	const size = await imageDimensions(new Blob([buffer], { type }));
++	if (size && (size.width < MIN_INTERPRETER_IMAGE_DIMENSION || size.height < MIN_INTERPRETER_IMAGE_DIMENSION)) {
++		throw new Error('too small');
++	}
++	return `data:${type};base64,${toBase64(buffer)}`;
++}
++
++export async function collectInterpreterImages(
++	markdown: string,
++	fetchImpl: typeof fetch = fetch,
++	max: number = MAX_INTERPRETER_IMAGES
++): Promise<InterpreterImageResult> {
++	const result: InterpreterImageResult = { images: [], skipped: [] };
++	for (const url of extractImageUrls(markdown)) {
++		if (result.images.length >= max) break;
++		try {
++			result.images.push(await fetchImageAsDataUrl(url, fetchImpl));
++		} catch (error) {
++			result.skipped.push({ url, reason: error instanceof Error ? error.message : String(error) });
++		}
++	}
++	return result;
++}
+diff --git a/src/utils/interpreter.ts b/src/utils/interpreter.ts
+index 7243e5b..8d909cc 100644
+--- a/src/utils/interpreter.ts
++++ b/src/utils/interpreter.ts
+@@ -7,6 +7,7 @@ import { adjustNoteNameHeight } from './ui-utils';
+ import { debugLog } from './debug';
+ import { getMessage } from './i18n';
+ import { updateTokenCount } from './token-counter';
++import { collectInterpreterImages, shouldSendImages } from './interpreter-images';
+ 
+ const RATE_LIMIT_RESET_TIME = 60000; // 1 minute in milliseconds
+ let lastRequestTime = 0;
+@@ -14,7 +15,7 @@ let lastRequestTime = 0;
+ // Store event listeners for cleanup
+ const eventListeners = new WeakMap<HTMLElement, { [key: string]: EventListener }>();
+ 
+-export async function sendToLLM(promptContext: string, content: string, promptVariables: PromptVariable[], model: ModelConfig): Promise<{ promptResponses: any[] }> {
++export async function sendToLLM(promptContext: string, content: string, promptVariables: PromptVariable[], model: ModelConfig, images: string[] = []): Promise<{ promptResponses: any[] }> {
+ 	debugLog('Interpreter', 'Sending request to LLM...');
+ 	
+ 	// Find the provider for this model
+@@ -181,12 +182,19 @@ export async function sendToLLM(promptContext: string, content: string, promptVa
+ 		} else {
+ 			// Default request format
+ 			requestUrl = provider.baseUrl;
++			// Opt-in page images ride along as OpenAI-compatible image_url parts.
++			const promptMessageContent: any = images.length > 0
++				? [
++					{ type: 'text', text: `${JSON.stringify(promptContent)}` },
++					...images.map(url => ({ type: 'image_url', image_url: { url } }))
++				]
++				: `${JSON.stringify(promptContent)}`;
+ 			requestBody = {
+ 				model: model.providerModelId,
+ 				messages: [
+ 					{ role: 'system', content: systemContent },
+ 					{ role: 'user', content: `${promptContext}` },
+-					{ role: 'user', content: `${JSON.stringify(promptContent)}` }
++					{ role: 'user', content: promptMessageContent }
+ 				],
+ 				stream: false
+ 			};
+@@ -639,7 +647,15 @@ export async function handleInterpreterUI(
+ 			responseTimer.textContent = formatDuration(elapsedTime);
+ 		}, 10);
+ 
+-		const { promptResponses } = await sendToLLM(contextToUse, contentToProcess, promptVariables, modelConfig);
++		let images: string[] = [];
++		if (shouldSendImages(modelConfig, provider)) {
++			// Template variables are keyed '{{name}}'; the page Markdown carries the image links.
++			const imageResult = await collectInterpreterImages(variables['{{content}}'] || contentToProcess);
++			images = imageResult.images;
++			debugLog('Interpreter', `Attaching ${images.length} page image(s)`, imageResult.skipped);
++		}
++
++		const { promptResponses } = await sendToLLM(contextToUse, contentToProcess, promptVariables, modelConfig, images);
+ 		debugLog('Interpreter', 'LLM response:', { promptResponses });
+ 
+ 		// Stop the timer and update UI
+-- 
+2.55.0
+
