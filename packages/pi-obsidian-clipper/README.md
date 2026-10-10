@@ -72,6 +72,12 @@ and returned HTTP 200 with `prompts_responses`. The loopback endpoint was observ
 was used in that isolated profile only. Personal profiles were not touched. Details
 and limits: [AK6870 qualification](docs/project/2026-10-10-ak6870-browser-qualification.md).
 
+**Images in notes (AK6888, 2026-10-10):** Clipper and this package never download
+image files. Images become remote Markdown links. On Wikipedia, lazy images point
+to `/wiki/File:` HTML pages because of an upstream Defuddle bug, so they render
+broken. Pi's native extract fails on long articles because native output is
+capped at 32 KiB. See [AK6888 image handling](docs/project/2026-10-10-ak6888-image-handling.md).
+
 Operator-approved grouped follow-ups are bound in AK, with first-class deferrals
 and a **2026-10-17** resolution/review target:
 
