@@ -1,0 +1,17 @@
+{
+  "schema": "ak5589-owner-coordination-handoff/v1",
+  "to": "claude-session-b78f9b01-3a20-44e5-8e41-6dab716fd3aa",
+  "task": 5480,
+  "coordination_task": 5589,
+  "observed_entity_version": 14,
+  "observed_expiry": "2026-10-07T19:22:33.274528908+00:00",
+  "canonical_head": "7571f5c197ce25095c3d2d4ba6ee072271e54a3a",
+  "owner_worktree": "/home/tryinget/.local/state/pi-quests/tmp/pe5480-b78f9b01",
+  "message": "AK5589 is completing docs-only queue reconciliation. Your task/claim/worktree and existing admitted effects remain yours. No competing source edit, landing, install or activation is started. No pause or new effect is requested. Any later coordinated landing needs your exact current-base/effects/validation/rollback handoff and one designated executor. Other rows remain held until their owners qualify them.",
+  "response_required_for_5589_snapshot": false,
+  "response_required_before_any_new_landing": true,
+  "queue_path": "/home/tryinget/.local/state/pi-quests/tmp/ak5589-main-convergence-20261007-nq9ydrgs/worktree/docs/project/main-convergence/queue-2026-10-07.json",
+  "new_effect_authority": false,
+  "delivery_status": "unestablished_exact_peer_missing_or_cwd_mismatch",
+  "acknowledgement_received": false
+}

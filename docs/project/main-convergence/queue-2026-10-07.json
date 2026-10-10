@@ -1,0 +1,409 @@
+{
+  "schema": "ak5589-coordination-queue/v1",
+  "captured_at": "2026-10-07T14:42:53.724972+00:00",
+  "task": 5589,
+  "controller": "codex-session-01a0fe2f-adf5-7630-9470-27b464611696",
+  "authority": {
+    "done_contract": {
+      "id": 1604,
+      "version": 1
+    },
+    "guardrails": {
+      "id": 1612,
+      "version": 1
+    },
+    "scope": "docs/project/main-convergence/**"
+  },
+  "projection_not_runtime_authority": true,
+  "base_main": "7571f5c197ce25095c3d2d4ba6ee072271e54a3a",
+  "cached_origin_main": "17340249bcb5d9e9f18fc8f0d1bd41375287bbe6",
+  "new_landing_reservation": null,
+  "admitted_landing_count": 0,
+  "active_owner_protected": [
+    5480
+  ],
+  "rows": [
+    {
+      "order": 0,
+      "task": 5480,
+      "state": "active_owner_protected",
+      "eligible_to_land": false,
+      "next_owner": "claude-session-b78f9b01-3a20-44e5-8e41-6dab716fd3aa",
+      "action": "Continue only the existing owner-admitted task-session slice. Before a new coordinated landing supply exact target ref, current canonical HEAD, changed paths, scope/effect approval, validation and rollback; no reassignment by 5589.",
+      "blocker": "Active claim and owner worktree; no new landing handoff or queue acknowledgement received."
+    },
+    {
+      "order": 1,
+      "task": 6740,
+      "state": "already_reconciled",
+      "eligible_to_land": false,
+      "next_owner": "pi-extensions canonical owner",
+      "action": "Retain the recorded reconciliation and backup; do not replay it. The cached origin tip is an ancestor of current main. Remote publication, if desired, remains a separate owner action.",
+      "blocker": "No publication authority in 5589; cached origin is not an authoritative current remote query."
+    },
+    {
+      "order": 2,
+      "task": 6449,
+      "state": "qualification_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-mono host owner",
+      "action": "Retain the accepted final-counter source/helper proof. Obtain exact next full-wrapper verification admission and actual host CLI/SDK/transport/journal/summary handback before consumer integration.",
+      "blocker": "Focused three-case helper proof is accepted; full-wrapper counters and public host integration remain unproved. No further test attempt admitted by 5589."
+    },
+    {
+      "order": 3,
+      "task": 6679,
+      "state": "owner_effect_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-mono catalog owner",
+      "action": "Deliver actual coherent schema6 catalog provenance and exact Codex gpt-6.1-sol entry under an owner-approved acquisition/emission stage.",
+      "blocker": "Current task is docs-only; generator declarations are not actual qualified catalog bytes."
+    },
+    {
+      "order": 4,
+      "task": 6680,
+      "state": "dependency_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-mono package owner",
+      "action": "After 6449 and 6679, qualify exact emitted SDK/CLI/lazy/catalog package closure. Keep installed adoption in 6682.",
+      "blocker": "Dependencies [6449,6679] open; current task is docs-only and does not admit build/emission."
+    },
+    {
+      "order": 5,
+      "task": 6681,
+      "state": "package_owner_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-little-helpers package owner",
+      "action": "Issue row-by-row package HOLD/effect/test/build disposition for the retained nine-path consumer proposal on a fresh target.",
+      "blocker": "Current task is docs-only; source/mock/test/build stages require exact owner effect admission."
+    },
+    {
+      "order": 6,
+      "task": 6427,
+      "state": "dependency_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-little-helpers consumer owner",
+      "action": "Use actual qualified host and package handbacks to admit a bounded source/offline stage. Qualify effective PI_SIDEQUEST_PI_BIN before explicit-model candidate effects; omitted model preserves inherited behavior.",
+      "blocker": "Dependency 6449 open; no current host/capability/catalog/durable first-request handback. Queue does not activate task_session."
+    },
+    {
+      "order": 7,
+      "task": 6682,
+      "state": "installed_composition_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-extensions adoption coordinator with pi-mono release owner",
+      "action": "After 6680/6681 and stage-specific accepted 6427 source, obtain actual installed composition/activation/rollback proof. Do not wait on final 6427 live completion to avoid a cycle.",
+      "blocker": "Dependencies [6680,6681] open; current docs-only scope grants no install/activation/live permission."
+    },
+    {
+      "order": 8,
+      "task": 5554,
+      "state": "historical_owner_reconciliation",
+      "eligible_to_land": false,
+      "next_owner": "pi-extensions release-tooling owner",
+      "action": "Reconcile retained unique release-discovery patch and source-only history with completed 5733/5743/5746 before selecting anything for current main.",
+      "blocker": "Pending task and retained branch are not current-target selection or validation evidence."
+    },
+    {
+      "order": 9,
+      "task": 5552,
+      "state": "historical_owner_reconciliation",
+      "eligible_to_land": false,
+      "next_owner": "pi-activity-strip owner",
+      "action": "Compare the retained integration carrier with already completed main convergence. Preserve the pending lifecycle until its owner supplies exact acceptance/supersession.",
+      "blocker": "A retained merge commit and completed adjacent tasks do not complete this pending task."
+    },
+    {
+      "order": 10,
+      "task": 6634,
+      "state": "unlanded_owner_candidate",
+      "eligible_to_land": false,
+      "next_owner": "pi-obsidian-clipper owner",
+      "action": "Preserve the three dirty candidate paths; obtain frozen source, current-base acceptance and admitted package verification before requesting a landing slot.",
+      "blocker": "Pending/unclaimed task, dirty isolated candidate, no current exact landing handback."
+    },
+    {
+      "order": 11,
+      "task": 6664,
+      "state": "diagnosis_only_hold",
+      "eligible_to_land": false,
+      "next_owner": "pi-little-helpers Ghostty diagnosis owner",
+      "action": "Retain the failed automatic-tab effect as indeterminate; continue only an explicitly admitted diagnosis stage. AK6626 successful explicit-window proof is already landed.",
+      "blocker": "Read-only diagnosis task; no rerun or unrelated renderer repair authority."
+    }
+  ],
+  "task_readbacks": [
+    {
+      "id": 5480,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Implement Decision151 sealed Pi task host shared transport state provider guards and emitted CLI adapter",
+      "status": "claimed",
+      "entity_version": 14,
+      "claimed_by": "claude-session-b78f9b01-3a20-44e5-8e41-6dab716fd3aa",
+      "claimed_at": "2026-10-07T13:22:33.274528908+00:00",
+      "lease_expires_at": "2026-10-07T19:22:33.274528908+00:00",
+      "depends_on": [
+        5478
+      ]
+    },
+    {
+      "id": 5589,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Coordinate preservation-first main convergence and exclusive landing queue without disrupting active owners",
+      "status": "claimed",
+      "entity_version": 14,
+      "claimed_by": "codex-session-01a0fe2f-adf5-7630-9470-27b464611696",
+      "claimed_at": "2026-10-07T14:35:19.279795664+00:00",
+      "lease_expires_at": "2026-10-07T15:35:19.279795664+00:00",
+      "depends_on": null
+    },
+    {
+      "id": 6740,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Reconcile pi-extensions local main with origin/main (owner 2026-10-06 'reconcile pi-extensions'): local main lacked release d0f344bbe and carried patch-duplicate AK6618 originals; replay AK6485/AK6490/AK6626/AK6739 onto origin/main, verify the full pre-push gate, land via land-canonical.sh, no push",
+      "status": "done",
+      "entity_version": 3,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6449,
+      "repo": "/home/tryinget/ai-society/softwareco/contrib/pi-mono",
+      "title": "AK6427 prerequisite: bind explicit worker model pins to final serialized provider requests; reject post-hook identity drift before transport",
+      "status": "pending",
+      "entity_version": 32,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6679,
+      "repo": "/home/tryinget/ai-society/softwareco/contrib/pi-mono",
+      "title": "AK6427 gap: qualify the coherent current Pi schema6 runtime catalog and exact openai-codex/gpt-6.1-sol entry. Owner pi-mono; source target a13d35a742c6ef8462812a28fbe1d8c8b7431c32/v1.0.0 unless explicitly repinned. Generator declaration is not runtime availability; old0.84.4 schema3/5.6 fixtures are not substitutes. Deliver hash-bound origin, full schema6 provider manifest/index agreement and exact6.1 provider/model/API/canonical inference route/thinking proof; reject missing/duplicate/fuzzy/virtual identities. Independently inspect actual catalog bytes and checks; hand off qualified immutable inputs to AK6449 and later host packaging/AK6427. Record owner-selected released/cached acquisition route and separately authorized network/generator effects before execution. This task records qualification obligations only: no generated-source edits, fabricated catalog, install/auth/inference/candidate launch, or bypass of AK6449 forbidden paths. Pending until actual evidence; never close from source declaration alone.",
+      "status": "pending",
+      "entity_version": 1,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6680,
+      "repo": "/home/tryinget/ai-society/softwareco/contrib/pi-mono",
+      "title": "AK6427 gap: qualify coherent emitted Pi host packages outside workspace source aliases after AK6449 strict routing/journal source proof and AK6679 catalog qualification. Bind exact source/dependencies/toolchain, ai SDK/dist and lazy Codex implementation, coding-agent SDK/dist and bundled CLI, complete schema6 catalog/assets and actual module/export resolution. Exercise exact packed CLI->services->SDK->audited transport/journal with synthetic auth and fake transport; prove strict refusal/no fallback and preserved unpinned behavior from packed outputs, not Vitest source aliases or version strings. Deliver reproducible hash-bound artifact manifest, admitted build/pack effect inventory, external-workspace smoke receipts and independent inspection; installed adoption remains separate. Owner pi-mono; docs-only recording scope until precise build/package/fixture effects authorized. No global install, release push, real auth/network/inference, consumer edits, canonical sync or cleanup.",
+      "status": "pending",
+      "entity_version": 2,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": [
+        6449,
+        6679
+      ]
+    },
+    {
+      "id": 6681,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "AK6427 gap: obtain exact pi-little-helpers package-owner shared-resolver/build HOLD disposition and effect-qualified regression/build handback, without activating dormant Decision151 task_session. Bind retained nine-path proposal and current base; sidequestGhostty19a2b92c and task-session-build df360c5d are historical input hashes, not emitted qualification. Separate allowed source/offline stage, fixture/process public-registration and launch regressions, package gate/prepack/native build, load/adoption/live and landing; admit exact commands/closures/state roots/teardown before execution. Preserve completed5733/5743/5746 convergence, pending6358/6013 and publication/profile identity; no blanket HOLD release or replay. Deliver owner-issued disposition.json with row-by-row accepted/held test evidence, fresh aggregate build/closure hashes and precise downstream conditions. Reuse AK6427 for consumer implementation/live proof; reuse5589 for exclusive landing. Task recording alone grants no code edits, tests, build, launch, install, cleanup or approval.",
+      "status": "pending",
+      "entity_version": 1,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6427,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Prove supported explicit Sol6.1 candidate-worker routing for AK5622; preserve admission and fail closed on missing model without silent fallback",
+      "status": "pending",
+      "entity_version": 6,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": [
+        6449
+      ]
+    },
+    {
+      "id": 6682,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "AK6427 gap: coordinate exact qualified host+consumer installed adoption and prove effective child executable/module/extension identity before any candidate reservation. Prerequisites: AK6449 current strictCLI/SDK/transport durable correlation; AK6679 actual6.1 schema6 catalog; coherent emitted host package proof; exact pi-little-helpers owner build/HOLD disposition and AK6427 source/offline integration. Establish owner-approved activation path, shared-reader/landing custody, actual default and PI_SIDEQUEST_PI_BIN composition, reload/new-session behavior, packed SDK/lazy/catalog hashes and safe exact rollback; stale or unsupported composition refuses before permit/Git/registry/dispatch. Record real isolated and separately authorized installed smoke results in adoption.json; no capability inferred from metadata, old0.84.4 source tests, generator declaration or successful installer exit. Pi-extensions coordinates; pi-mono retains host release/adoption authority. No task-session activation, broad settings/auth change, campaign, permit minting, live inference, force synchronization or cleanup; AK6427 owns later one-permit live fidelity and5589 landing queue.",
+      "status": "pending",
+      "entity_version": 2,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": [
+        6680,
+        6681
+      ]
+    },
+    {
+      "id": 5552,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Integrate committed activity-ribbon branch into main without duplicating cherry-picked work or altering dirty progress",
+      "status": "pending",
+      "entity_version": 5,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 5554,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Fix release package discovery treating generated runtime-scope manifests as publishable packages; add regression coverage for AK5552 full CI",
+      "status": "pending",
+      "entity_version": 3,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6634,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Create pi-obsidian-clipper: native capture tools and workstation baseline-multimodal Interpreter setup",
+      "status": "pending",
+      "entity_version": 3,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6664,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Investigate retained AK6626 automatic Ghostty tab smoke: Activate transport accepted but no renderer startup/PTY witness appeared; effect remains indeterminate, not proof of a transport defect. Read-only diagnosis only; no automatic retry or unrelated renderer changes. Successful explicit-window proof completed AK6626.",
+      "status": "pending",
+      "entity_version": 7,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 5758,
+      "repo": "/home/tryinget/ai-society/softwareco/infra/workstation",
+      "title": "Decide whether heavy-job admission must stay coupled to old-run deletion: enforce_retained_caps deletes inside run_child's admission path and promotes any cleanup failure to exit 74, so an unprovable old run blocks all new work (D154/D160 already break this per-invocation; primary fix identified by the task5757 adjudication, prior to the 5757 RFC)",
+      "status": "done",
+      "entity_version": 46,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 6425,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins",
+      "title": "Enable authenticated bounded native candidate/control comparison and complete failure-focus checks for AK5622 campaign; preserve historical evidence and limits",
+      "status": "done",
+      "entity_version": 11,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": [
+        5758
+      ]
+    },
+    {
+      "id": 6426,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Repair exact campaign/lane and per-run protocol provenance handoff for LayerManager matrix dashboard without weakening quarantine or redesigning UI",
+      "status": "pending",
+      "entity_version": 30,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 5622,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/obsidian-plugins",
+      "title": "Drive first bounded Level-4 LayerManager optimization iteration with dashboard observation",
+      "status": "pending",
+      "entity_version": 6,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": [
+        6425,
+        6426,
+        6427
+      ]
+    },
+    {
+      "id": 5597,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Qualify isolated Pi0.84.4 with repaired scenario coverage and exact SDK consumption before conditional repository baseline alignment; no live upgrade",
+      "status": "failed",
+      "entity_version": 29,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 5733,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Operator-directed main convergence successor: preserve accepted M2 candidate; reconcile current feature/local/remote main source and histories, run existing landing gates with bounded repairs, coordinate main landing and canonical checkout return, then verified inactive fully preserved worktree retirement; no SDK-harness expansion or live upgrade; preserve foreign claims and retained failures",
+      "status": "done",
+      "entity_version": 9,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 5743,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Resume operator-directed main convergence from accepted Q2ZM1kiy integrate/main-5733 at6a3c7fef: current-session successor of5733/5737 with SDK retirement5738 retained; bounded concrete repairs and standard landing validation, coordinated main merge and safe canonical return, then only proven preserved inactive local retirement; no foreign claim takeover, live upgrade, publication or destructive cleanup",
+      "status": "done",
+      "entity_version": 5,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    },
+    {
+      "id": 5746,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "title": "Post-restart verification and normal push of accepted main e54cc3a3; inspect release wave and retire only preserved inactive local refs/worktrees through supported owner paths, retain blocked resources",
+      "status": "done",
+      "entity_version": 3,
+      "claimed_by": null,
+      "claimed_at": null,
+      "lease_expires_at": null,
+      "depends_on": null
+    }
+  ],
+  "exclusive_protocol": {
+    "enforcement": "Coordination protocol only; no global Git lock or executable admission adapter is introduced. Installed AK ownership remains authority.",
+    "before_reservation": [
+      "Fresh owning task/scope/contract/guard/effect authority and successful own claim.",
+      "Exact source ref/commit, target main, changed paths, current validation, emitted/runtime proof if relevant, rollback and preservation handback.",
+      "Current affected owners acknowledge one exact designated canonical executor; absence of acknowledgement is HOLD.",
+      "No conflicting affected owner or unacknowledged canonical work; re-read tips and status immediately before effect."
+    ],
+    "on_drift": "Stop before effects; retain both observations and return to owners. Do not merge, reset, rebase, prune or release foreign claims.",
+    "completion": "Only observed owner effect/readback clears a landing reservation; message queued or process exit alone is not proof.",
+    "canonical_path": "scripts/land-canonical.sh in canonical checkout, only under separate exact source-owner effect authority. Its fetch/install/smoke/rollback effects require admission.",
+    "activation": "Separate installed runtime/consumer acceptance, not inferred from landing or source tests."
+  },
+  "source_receipts": {
+    "git_inventory": "/home/tryinget/.local/state/pi-quests/tmp/ak5589-main-convergence-20261007-nq9ydrgs/receipts/git-inventory.json",
+    "git_inventory_sha256": "21988ae21ffc195c019e331334d00e8645a729c6703a1f63357e0fba3efad910",
+    "owner_readbacks": "/home/tryinget/.local/state/pi-quests/tmp/ak5589-main-convergence-20261007-nq9ydrgs/receipts/owner-task-readbacks.json",
+    "owner_readbacks_sha256": "8a92cd5aa28a9e25bdc57eabfcb46e989a7eeae47e48f8ceec2f5f5047e8fb95"
+  },
+  "limits": [
+    "No new source-owner assignment or leaf implementation.",
+    "No cleanup, deletion, fetch, push, build, install, activation, SDK or native invocation.",
+    "This ordered list is owner-input routing; row order is not authority to skip dependencies.",
+    "AK5758 and AK6425 are freshly done; their owner results are not reproduced or new campaign approval."
+  ]
+}
