@@ -89,7 +89,7 @@ Package-local ignored logs:
 `.scratch/ak6634-live-{help,status}.log`, and
 `.scratch/ak6634-root-landing-gate.log`.
 
-## Unfinished obligations and nonblocking inspection findings
+## Initial handback obligations and nonblocking inspection findings (04:29Z)
 
 1. **Canonical landing blocked.** `just loop-landing-check` (declared `just ci`)
    exits 1 at install admission: 38 other package roots lack their local hidden
@@ -116,3 +116,48 @@ Package-local ignored logs:
    resolved or turned into a broader certification.
 
 No task completion or AK6856 closeout is inferred from these observations.
+
+## Resumed environment preparation and audit alignment
+
+The controller corrected the first handback's scope interpretation: ignored
+`node_modules` installations in this worktree are scratch; the frozen path scope
+governs tracked edits. Evidence 14564's claim that such installation required a
+scope widening is superseded by that correction, not a continuing blocker.
+AK6634 was reclaimed at 04:35Z with a finite two-hour lease.
+
+Through `heavy-job run --label ak6634-existing-lock-installs --task 6634`, all 38
+missing installations were prepared from their existing locks with exactly
+`npm ci --prefer-offline --ignore-scripts --no-audit --no-fund`. No dependency
+pin, lock, tracked source, canonical installation or repaired clipper file changed.
+Tracked-file SHA-256 checks passed immediately after installation. Installation
+admission now passes for 39 roots; local-link admission passes for 40 roots and
+19 links. The dependency-free root has no lock requiring installation.
+
+Current main `972098f00` was merged into the candidate before validation; its
+one changed upstream reply-draft document explains the later difference from
+the pre-merge hash inventory. `git diff HEAD` remains clean outside the explicitly
+authored audit/evidence documents. Repo-declared `prepare-gate-builds.sh` passed,
+using owner build commands for ignored ASC/orchestrator/little-helpers/telemetry
+outputs, not `prepack` manifest rewrites or service/browser operations.
+
+The hydrated `just loop-landing-check` progressed through installation, root
+checks, isolated ROCS and release-contract checks, then failed
+`scripts/root-doc-alignment.test.mjs:166`, test 5: the engineering audit document
+still reported 39 packages rather than live 40. Live audit classifies clipper
+as `none`, raising that bucket from 8 to 9, with other buckets unchanged.
+
+A native operator interview explicitly authorized adding only
+`docs/project/engineering-review-surfaces.md` to AK6634's allowed paths and
+refreshing that factual projection. AK scope entity version 7 records the
+one-path addition, preserving all other allowed, required and forbidden paths.
+The authored refresh changes only 39→40, 8→9, adds clipper to the `none` bucket
+and dates the refresh. It changes no policy, test or existing package surface.
+The unchanged root/package gates still determine landing permission; this
+refresh and environment preparation are not themselves a passing landing gate.
+Browser setup remains deferred and the six AK6856 repaired files stay unchanged.
+
+Logs: `.scratch/ak6634-installs/` (per-owner installs, subjects and hash inventory),
+`.scratch/ak6634-hydrated-builds.log`, `.scratch/ak6634-hydrated-root-gate.log`,
+and `.scratch/ak6634-engineering-audit.json`. Failed-gate scratch was retained by
+the heavy-job runner at
+`~/.cache/ai-society-scratch/runs/run-1791607072-1dfecb770dbda4c0`.

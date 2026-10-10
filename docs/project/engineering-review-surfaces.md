@@ -65,14 +65,15 @@ Refreshed on 2026-08-03 after adding `packages/pi-session-insights`, which raise
 Refreshed on 2026-08-15 after adding `packages/pi-telemetry`, which raised the audited package count to `36`.
 Refreshed on 2026-08-27 after adding `packages/pi-context-corpus` and `packages/pi-agent-registry`, which raised the audited package count to `38`.
 Refreshed on 2026-09-09 for the already committed `packages/pi-typescript-tool` (AK5508), which raised the audited package count to `39` and the legacy-full count to `30`. This refresh records the existing surface; it does not authorize a package-local reduction.
+Refreshed on 2026-10-10 for `packages/pi-obsidian-clipper` (AK6634), which raises the audited package count to `40` and the no-local-surface count to `9`. This records the new package's root-owned engineering adoption; no existing package surface is reduced.
 
 Snapshot summary:
 
-- package entries audited: `39`
+- package entries audited: `40`
 - legacy-full: `30`
 - reduced-form: `1`
 - policy-only: `0`
-- no local surface: `8`
+- no local surface: `9`
 
 ### Legacy full surface (`docs/engineering.local.md` + `policy/engineering-lane.json`)
 
@@ -123,6 +124,7 @@ Snapshot summary:
 - `packages/pi-interaction/pi-interaction-kit`
 - `packages/pi-interaction/pi-runtime-registry`
 - `packages/pi-interaction/pi-trigger-adapter`
+- `packages/pi-obsidian-clipper`
 - `packages/pi-peer-messaging`
 - `packages/pi-prompt-template-accelerator`
 
