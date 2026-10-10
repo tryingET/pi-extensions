@@ -73,8 +73,8 @@ group/world write on every entry, no special files, every symlink resolving insi
 `<root>`, at most 50,000 entries/depth 64), then runs the child under
 `node --permission` with read access to `<root>` and the private inputs only. Network
 is denied by the runtime permission model where Node supports `--allow-net`, else by
-an in-process guard (`src/native-guard.cjs`); result `engine.boundary` names the
-mechanism. These checks do not attest source/build identity. Contract:
+an in-process deny-list guard (`src/native-guard.cjs`) that may miss an unenumerated
+path; result `engine.boundary` names the mechanism. These checks do not attest source/build identity. Contract:
 [2026-10-10-ak6872-native-closure-contract.md](2026-10-10-ak6872-native-closure-contract.md).
 Public `engine` metadata declares the required version, source base and lock, null
 local patch and empty repairs, with that limitation.

@@ -1,8 +1,10 @@
 "use strict";
 // AK6872 contract C5: preloaded into the native child only on Node runtimes whose permission
 // model cannot deny network (no --allow-net, e.g. Node 22-24). It locks every public Node
-// network entry point. It is in-process and NOT kernel-enforced or an OS sandbox; the
-// permission model (C4) separately denies process.binding, child processes, workers and addons.
+// network entry point it enumerates, including constructors that create native handles. It is a
+// deny-list: in-process, NOT kernel-enforced, not an OS sandbox, and may miss an unenumerated
+// path. The permission model (C4) separately denies process.binding, child processes, workers
+// and addons.
 const CODE = "ERR_PI_CLIPPER_NETWORK_DENIED";
 function denied(api) {
   const error = new Error(`Outbound network denied for native capture (${api})`);
@@ -31,16 +33,17 @@ function lockAll(target, pattern, api) {
 }
 const net = require("node:net");
 lock(net.Socket.prototype, "connect", "tcp");
-lock(net.Server.prototype, "listen", "listen");
-for (const name of ["connect", "createConnection"]) lock(net, name, "tcp");
+for (const name of ["listen", "_listen2"]) lock(net.Server.prototype, name, "listen");
+for (const name of ["connect", "createConnection", "_createServerHandle"]) lock(net, name, "tcp");
 lock(require("node:tls"), "connect", "tls");
 for (const name of ["http", "https"]) {
   const mod = require(`node:${name}`);
-  for (const fn of ["request", "get"]) lock(mod, fn, name);
+  for (const fn of ["request", "get", "WebSocket"]) lock(mod, fn, name);
 }
 lock(require("node:http2"), "connect", "http2");
 const dgram = require("node:dgram");
-lock(dgram, "createSocket", "udp");
+// The dgram.Socket constructor creates a native UDP handle before bind/send (AK6872 review).
+for (const name of ["createSocket", "Socket", "_createSocketHandle"]) lock(dgram, name, "udp");
 for (const name of ["bind", "connect", "send"]) lock(dgram.Socket.prototype, name, "udp");
 const DNS = /^(lookup|lookupService|resolve|reverse)/;
 for (const dns of [require("node:dns"), require("node:dns").promises]) {

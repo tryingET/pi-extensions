@@ -142,6 +142,9 @@ test("native child outbound network, child processes and outside file access are
     const control = JSON.parse(direct.stdout.replace(/^Probe report /, ""));
     assert.equal(control.tcp, "connected");
     assert.equal(control.udp, "sent");
+    assert.equal(control.udpHandle, "sent");
+    assert.equal(control.unix, "connected");
+    assert.equal(control.listen, "listening");
     assert.equal(control.outsideRead, "read");
     const before = { tcp: seen.tcp, udp: seen.udp };
     assert.ok(before.tcp >= 1 && before.udp >= 1, JSON.stringify(before));
@@ -156,6 +159,10 @@ test("native child outbound network, child processes and outside file access are
       "http",
       "fetch",
       "udp",
+      "udpHandle",
+      "listen",
+      "listen2",
+      "unix",
       "dns",
       "child",
       "outsideRead",
@@ -186,6 +193,12 @@ test("closure budgets, flag-unsafe roots and spawn-time re-admission fail closed
     const aborted = new AbortController();
     aborted.abort();
     await assert.rejects(admitNative(a.cli, aborted.signal), /cancelled/);
+    // C1 is checked on the realpath: a cli.cjs link to another dist file is refused.
+    await writeFile(join(a.root, "dist/other.cjs"), "process.stdout.write('Body text')", {
+      mode: 0o600,
+    });
+    await symlink(join(a.root, "dist/other.cjs"), join(f.dir, "cli.cjs"));
+    await assert.rejects(admitNative(join(f.dir, "cli.cjs")), /realpath must be/);
     const comma = await artifactRoot(join(f.dir, "a,b"), "process.stdout.write('Body text')");
     await assert.rejects(capture(comma.cli, f.dir), /permission flags/);
     // runNative re-admits right before spawning, independent of extract's preflight.
@@ -217,7 +230,18 @@ test("each network-denial mechanism independently blocks the probe the observers
     // The in-process guard alone (no permission model) on this runtime.
     const guard = await probe(["--require", NETWORK_GUARD]);
     assert.deepEqual(guard.traffic, { tcp: 0, udp: 0 });
-    for (const key of ["tcp", "tls", "http", "fetch", "udp", "dns"])
+    for (const key of [
+      "tcp",
+      "tls",
+      "http",
+      "fetch",
+      "udp",
+      "udpHandle",
+      "listen",
+      "listen2",
+      "unix",
+      "dns",
+    ])
       assert.match(guard.report[key], /^denied:ERR_PI_CLIPPER_NETWORK_DENIED/, key);
     // The permission model alone (no guard).
     const permission = await probe(["--permission", `--allow-fs-read=${a.root}`]);
@@ -227,6 +251,8 @@ test("each network-denial mechanism independently blocks the probe the observers
       assert.deepEqual(permission.traffic, { tcp: 0, udp: 0 });
       for (const key of ["tcp", "fetch", "udp", "dns"])
         assert.match(permission.report[key], /^denied:ERR_ACCESS_DENIED/, key);
+      for (const key of ["udpHandle", "unix", "listen"])
+        assert.match(permission.report[key], /^denied:/, key);
     } else {
       // Why the guard exists: this runtime's permission model does not cover network.
       assert.equal(permission.report.tcp, "connected");

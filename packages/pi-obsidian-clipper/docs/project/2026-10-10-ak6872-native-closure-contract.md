@@ -52,11 +52,14 @@ modules and files outside `<R>` (including ancestor `node_modules` and user file
 unreadable; child processes, workers, addons and `process.binding` are denied.
 
 **C5 Network.** On Node with `--allow-net` support (≥25; the current Pi runtime is
-26.9.0) the runtime permission model denies TCP, UDP, DNS and `fetch`. On Node without it
-(22–24, including the pinned gate Node 22.23.3) an adapter-owned preload guard locks every
-public Node network entry point (`net.Socket#connect`, `dgram`, `dns`, `fetch`,
-`WebSocket`, inspector). That guard is in-process and not kernel-enforced; C4 removes the
-obvious bypasses (bindings, child processes, workers, addons). Result metadata states which
+26.9.0) the runtime permission model denies TCP, UDP, Unix sockets, listening, DNS and
+`fetch`. On Node without it (22–24, including the pinned gate Node 22.23.3) an
+adapter-owned preload guard locks the public Node network entry points it enumerates
+(`net` connect/listen and server handles, the `dgram` socket constructor and methods,
+`tls`, `http`/`https`/`http2`, `dns`, `fetch`, `WebSocket`, inspector). That guard is
+a deny-list: in-process, not kernel-enforced, and it may miss an unenumerated path; C4
+removes the obvious bypasses (bindings, child processes, workers, addons). The tests
+prove denial only for the probes they run (listed below). Result metadata states which
 mechanism applied and `osSandbox: false`.
 
 **C6 Unchanged.** Environment stripping, 0600/0700 private inputs, output/stderr/line
@@ -69,6 +72,10 @@ and inactive module load stay as they are; no test thresholds are weakened.
   adapter itself; root is trusted.
 - Node's permission model is a "seat belt" for trusted code (Node documentation), not
   protection against deliberately malicious code; nothing here is an OS sandbox.
+- The native child can still signal processes of the same user, including Pi
+  (`process.kill`), on both runtimes; the permission model does not cover signals.
+- C4 grants read access by path: a hard link inside `<R>` to a file elsewhere is
+  admitted and readable. Planting one requires the same UID (first assumption).
 - Foreign-owner rejection is implemented but not causally tested (needs `chown`/root).
 - A peer that closes a close-delimited HTTP/1.1 body early is indistinguishable from a
   complete response; length/chunk truncation is detected and rejected.
@@ -85,8 +92,9 @@ All fixtures are test-owned and loopback-only; certificates are generated per ru
   stalled headers/body (deadline and parent abort) and peer-interrupted length/chunked
   bodies reject and release client and server sockets.
 - `tests/native-boundary.test.ts` + `tests/native-fixture.ts`: unsafe closure fixtures
-  through `extract()`; a probe CLI tries TCP/TLS/HTTP/fetch/UDP/DNS, child process and
-  outside read/write while loopback observers count arrivals. A direct run of the same
+  through `extract()`; a probe CLI tries TCP, TLS, HTTP, `fetch`, UDP (socket API and a
+  raw handle from the `dgram.Socket` constructor), listen/`_listen2`, a Unix socket, DNS,
+  a child process and outside read/write while loopback observers count arrivals. A direct run of the same
   probe is the causal control (observers must see it).
 
 Pre-change results (Node 22.23.3 and 26.9.0): real-transport 10/10 pass against the
@@ -103,3 +111,11 @@ the permission arguments, allow escaping symlinks, skip the write-bit check, ski
 guard on Node 22 or allow special files each turn the matching tests red. The installed
 engine (`6d56d618-afa7c192`) passes admission and the native smoke (114 body bytes) on
 both Node versions.
+
+Independent review (read-only reviewer, before landing) found a Node 22 guard bypass:
+`new dgram.Socket()` creates a native UDP handle whose raw `send` reached a loopback
+observer. Node 26 denied it. The guard now locks the `dgram.Socket` constructor,
+`_createSocketHandle`, `_createServerHandle` and `Server#_listen2`; the probe covers
+the raw-handle path, listen and Unix sockets, and removing the constructor lock turns
+both network tests red on Node 22. C1 is now also checked on the CLI realpath's file
+name. Signals and hard links were added to the remaining assumptions above.

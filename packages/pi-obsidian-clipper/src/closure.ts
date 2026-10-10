@@ -33,6 +33,8 @@ export async function admitNative(path: string, signal?: AbortSignal, limits = C
   if (!file.isFile() || file.size < 1 || file.size > 50 * 1024 * 1024)
     throw new Error("Invalid native artifact");
   // C1: <root>/dist/cli.cjs with a regular <root>/package.json.
+  if (basename(cli) !== "cli.cjs")
+    throw new Error("Native CLI realpath must be <root>/dist/cli.cjs");
   const root = dirname(dirname(cli));
   const manifest = await lstat(join(root, "package.json")).catch(() => undefined);
   if (basename(dirname(cli)) !== "dist" || !manifest?.isFile())

@@ -209,8 +209,10 @@ writes, child processes, workers or addons. Outbound network is denied by the ru
 permission model on Node with `--allow-net` support (≥25) and by an in-process guard
 on older Node; result `engine.boundary` says which. Neither is an OS sandbox, and
 same-UID changes between admission and spawn are not prevented: install trusted
-artifacts. Real loopback TLS, cancellation and outbound-observer tests prove these
-boundaries; see the [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md).
+artifacts. The older-Node guard is a deny-list that may miss an unenumerated path.
+Real loopback TLS, cancellation and outbound-observer tests prove denial for the
+specific probes they run; see the [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md)
+for those probes and the remaining assumptions (signals, hard links, same-UID TOCTOU).
 
 The native template emits `space: input`, `kind: source`, `state: captured`, source
 URL and captured timestamp; `Input` is template metadata only, not a write target.
