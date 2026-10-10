@@ -1,0 +1,22 @@
+{
+  "activities": [
+    "prompts/activities/*.md"
+  ],
+  "creation_task": "AK-5105",
+  "defaults": {
+    "model": null,
+    "thinking": "medium"
+  },
+  "extensions": [],
+  "name": "fixture-agent",
+  "role": "fixture-agent-role",
+  "schema": "ai-society.agent/1",
+  "scope": {"repos": [], "forbidden": [], "note": ""},
+  "skills": {
+    "extra": [],
+    "profile": null
+  },
+  "system_prompt_file": "docs/person/system-prompt.md",
+  "tools": [],
+  "version": "0.1.0"
+}
