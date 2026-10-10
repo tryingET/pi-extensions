@@ -9,10 +9,12 @@ read_when:
 # AK6872 native closure contract and real transport/process harness
 
 Status: **approved and implemented; task completion is the operator's decision.**
-On 2026-10-10 the receiver and accountable owner (tryingET) approved C1–C5 as written,
-the hybrid network option and the additive `engine.boundary` result metadata in a
-native interview, before admission behaviour changed. AK task/deferral state and
-evidence, not this projection, are canonical.
+On 2026-10-10 the receiver and accountable owner (tryingET) approved C1–C4, a hybrid
+network option and the additive `engine.boundary` metadata in a native interview,
+before admission behaviour changed. After independent review, a second interview
+replaced the hybrid with fail-closed-by-default plus an explicit opt-in on Node < 25
+(B2, C5) and chose to record the `node:sqlite` exception (C4). AK task/deferral state
+and evidence, not this projection, are canonical.
 
 ## Threat being closed
 
@@ -44,15 +46,16 @@ closed before spawning, with an error naming the closure. The installed engine
 (7,811 entries, 3 in-root `.bin` links) walks in about 0.12 s.
 
 **C4 Runtime permission boundary, every spawn.**
-`node --permission --allow-fs-read=<R> --allow-fs-read=<private dir> --allow-fs-read=<guard>
---require <guard> <R>/dist/cli.cjs URL --template … --html …`. No `--allow-fs-write`,
+`node --permission --allow-fs-read=<R> --allow-fs-read=<private dir>
+<R>/dist/cli.cjs URL --template … --html …`; on Node < 25 with the C5 opt-in,
+`--allow-fs-read=<guard> --require <guard>` is added. No `--allow-fs-write`,
 `--allow-child-process`, `--allow-worker`, `--allow-addons`, `--allow-wasi`; no
 `--allow-net` where it exists. A runtime without `--permission` fails closed. Effect:
 through Node's filesystem APIs, modules and files outside `<R>` (including ancestor
 `node_modules` and user files) are unreadable and nothing is writable; child processes,
 workers, addons and `process.binding` are denied. **Exception:** `node:sqlite` is not
-covered by Node's permission model; the child can read and write SQLite files the user
-can access (for example browser cookie or history stores) on both runtimes. The owner
+covered by Node's permission model; the child can read, write and create SQLite files
+wherever the user can (for example browser cookie or history stores) on both runtimes. The owner
 chose to record this rather than disable the module (second interview, 2026-10-10).
 
 **C5 Network.** On Node with `--allow-net` support (≥25; the current Pi runtime is
@@ -81,7 +84,8 @@ and inactive module load stay as they are; no test thresholds are weakened.
 - Node < 25 with the opt-in guard: review showed that internal request wraps captured
   through `async_hooks` let raw handles connect to Unix sockets (including the D-Bus
   session bus, which can start processes outside the permission model) and send DNS/UDP
-  queries to arbitrary addresses. Node 26 denies both. This is why the default is refusal.
+  queries to arbitrary addresses, and a pipe handle can bind and listen on a Unix socket
+  outside the grants. Node 26 denies all of these. This is why the default is refusal.
 - `node:sqlite` file access outside the grants (see C4).
 - The native child can still signal processes of the same user, including Pi
   (`process.kill`), on both runtimes; the permission model does not cover signals.
@@ -114,8 +118,8 @@ dropped request `signal` and resolve-partial-on-close each turn the matching tes
 Native boundary: 1/8 pass (in-root control); all six closure cases are admitted and the
 adapter-run probe reached the observers (4 TCP, 1 UDP).
 
-Post-change results: package suite green on Node 22.23.3 (gate) and 26.9.0; native
-boundary 10/10, including independent tests of each denial mechanism (guard alone;
+Post-change results (first implementation; see the review notes below for later
+additions): package suite green on Node 22.23.3 (gate) and 26.9.0; native boundary 10/10, including independent tests of each denial mechanism (guard alone;
 permission model alone, which on Node 22 is shown *not* to deny network) and a fixture
 extraction through the packaged tarball under the real host loader. Mutations that drop
 the permission arguments, allow escaping symlinks, skip the write-bit check, skip the

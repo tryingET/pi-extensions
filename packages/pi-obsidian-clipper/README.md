@@ -206,7 +206,7 @@ Node preload flags. Before every spawn the whole native dependency closure under
 every symlink resolving inside `<root>`, bounded size), and the child runs under Node's
 permission model with filesystem-API read access to that root and its private inputs
 only: no fs writes, child processes, workers or addons (`node:sqlite` is not covered by
-Node's permission model and can still reach SQLite files the user can access). Outbound
+Node's permission model and can still read, write and create SQLite files wherever the user can). Outbound
 network is denied by the runtime permission model on Node with `--allow-net` support
 (≥25, the current Pi runtime). Older Node fails closed unless the operator sets
 `PI_OBSIDIAN_CLIPPER_INPROCESS_NETWORK_GUARD=1`, which accepts an in-process guard with

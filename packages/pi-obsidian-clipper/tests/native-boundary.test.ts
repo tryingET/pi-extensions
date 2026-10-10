@@ -288,6 +288,8 @@ test("runtimes without --allow-net refuse native capture unless the operator opt
         assert.equal((await capture(a.cli, f.dir)).markdown, "Body text");
       } else {
         assert.throws(() => nativeBoundary(), /refused.*cannot deny network/);
+        // Ordering: refusal precedes closure admission (a missing CLI is not reported).
+        await assert.rejects(capture(join(f.dir, "missing/dist/cli.cjs"), f.dir), /refused/);
         await assert.rejects(capture(a.cli, f.dir), /refused.*cannot deny network/);
         await assert.rejects(
           runNative(a.cli, "https://example.com/", f.dir, new AbortController().signal),
