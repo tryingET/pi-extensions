@@ -67,9 +67,17 @@ Short articles and image references are not rejected by an arbitrary word thresh
 
 Private inputs are 0600 in a 0700 directory. The child environment excludes user
 configuration/preloads/secrets, but the native process is trusted code, **not an OS
-sandbox**. Artifact metadata checks require safe owner/root ancestry; they do not
-attest source/build identity. Public `engine` metadata declares the required version,
-source base and lock, null local patch and empty repairs, with that limitation.
+sandbox**. AK6872 admission checks the whole production closure before every spawn
+(layout `<root>/dist/cli.cjs` + `<root>/package.json`, safe ancestry, owner/root and no
+group/world write on every entry, no special files, every symlink resolving inside
+`<root>`, at most 50,000 entries/depth 64), then runs the child under
+`node --permission` with read access to `<root>` and the private inputs only. Network
+is denied by the runtime permission model where Node supports `--allow-net`, else by
+an in-process guard (`src/native-guard.cjs`); result `engine.boundary` names the
+mechanism. These checks do not attest source/build identity. Contract:
+[2026-10-10-ak6872-native-closure-contract.md](2026-10-10-ak6872-native-closure-contract.md).
+Public `engine` metadata declares the required version, source base and lock, null
+local patch and empty repairs, with that limitation.
 
 ## Observed native proof
 
@@ -92,8 +100,11 @@ PI_OBSIDIAN_CLIPPER_CLI=/absolute/owner-installed/dist/cli.cjs \
 ```
 
 Hermetic tests cover fake subprocess cancellation, bounded argv/environment and
-metadata-only rejection. Production-tarball tests cover actual Pi loading and
-read-only commands/tools. Neither substitutes for the native fixture above.
+metadata-only rejection; AK6872 adds unsafe-closure fixtures, loopback outbound
+observers with a direct-run causal control, and real loopback TLS/cancellation tests.
+Production-tarball tests cover actual Pi loading, read-only commands/tools and a
+fixture extraction through the packaged boundary. None substitutes for the native
+fixture above.
 Defuddle may intentionally remove an uncaptioned image matching `og:image`;
 this adapter preserves native extraction policy rather than promising every image.
 

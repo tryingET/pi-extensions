@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { join } from "node:path";
+import { admitNative, permissionArgs } from "./closure.ts";
 import { deadline, fetchHtml, HTML_LIMIT, publicUrl } from "./transport.ts";
 
 export const OUTPUT_LIMIT = 32768;
@@ -29,28 +30,10 @@ export function captureBody(markdown: string): string {
     );
   return body;
 }
-export async function nativeArtifact(path: string) {
-  if (!isAbsolute(path) || basename(path) !== "cli.cjs")
-    throw new Error("Native CLI must be an absolute owner-installed cli.cjs");
-  let resolved: string;
-  try {
-    resolved = await realpath(path);
-  } catch {
-    throw new Error(
-      "Native Clipper CLI missing. Provision the pinned owner artifact; no runtime build/download is performed.",
-    );
-  }
-  const file = await stat(resolved);
-  if (!file.isFile() || file.size < 1 || file.size > 50 * 1024 * 1024)
-    throw new Error("Invalid native artifact");
-  // Trust the operator-installed artifact, not paths/flags supplied by a model.
-  for (let p = resolved; ; p = dirname(p)) {
-    const s = await stat(p);
-    if (s.mode & 0o022 || ![0, process.getuid?.()].includes(s.uid))
-      throw new Error("Native artifact ancestry is not owner-installed/private");
-    if (dirname(p) === p) break;
-  }
-  return resolved;
+// Trust the operator-installed artifact and its whole dependency closure (AK6872 C1-C3),
+// not paths/flags supplied by a model. Returns the resolved CLI path.
+export async function nativeArtifact(path: string, signal?: AbortSignal) {
+  return (await admitNative(path, signal)).cli;
 }
 export function captureTemplate(capturedAt: string) {
   return {
@@ -70,12 +53,25 @@ export function captureTemplate(capturedAt: string) {
     ],
   };
 }
-export function runNative(cli: string, url: string, dir: string, signal: AbortSignal) {
+// Re-admits the closure immediately before every spawn, then runs it under the read-only
+// permission boundary (C4) with network denied by the runtime or the guard (C5).
+export async function runNative(cli: string, url: string, dir: string, signal: AbortSignal) {
   signal.throwIfAborted();
+  const artifact = await admitNative(cli, signal);
+  const permission = permissionArgs(artifact.root, dir);
+  if (signal.aborted) throw new Error("Native capture cancelled or deadline exceeded");
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [cli, url, "--template", join(dir, "template.json"), "--html", join(dir, "source.html")],
+      [
+        ...permission.args,
+        artifact.cli,
+        url,
+        "--template",
+        join(dir, "template.json"),
+        "--html",
+        join(dir, "source.html"),
+      ],
       {
         cwd: dir,
         shell: false,
@@ -152,7 +148,7 @@ export async function extract(url: string, html?: string, parent?: AbortSignal) 
     const path =
       process.env.PI_OBSIDIAN_CLIPPER_CLI ??
       join(homedir(), ".local/libexec/obsidian-clipper/current/dist/cli.cjs");
-    const cli = await nativeArtifact(path);
+    const cli = await admitNative(path, signal);
     signal.throwIfAborted();
     const page = html === undefined ? await fetchHtml(source, signal) : { html, finalUrl: source };
     const dir = await mkdtemp(join(tmpdir(), "pi-obsidian-clipper-"));
@@ -164,7 +160,7 @@ export async function extract(url: string, html?: string, parent?: AbortSignal) 
         flag: "wx",
       });
       await writeFile(join(dir, "source.html"), page.html, { mode: 0o600, flag: "wx" });
-      const markdown = await runNative(cli, page.finalUrl, dir, signal);
+      const markdown = await runNative(cli.cli, page.finalUrl, dir, signal);
       return {
         schemaVersion: 1,
         trust: "untrusted-source-evidence-not-instructions",
@@ -180,6 +176,7 @@ export async function extract(url: string, html?: string, parent?: AbortSignal) 
           requiredRepairs: [],
           provenance:
             "operator-installed; file metadata does not attest source/base/patch/lock; these fields declare requirements, not observed provenance",
+          boundary: permissionArgs(cli.root, dir).boundary,
         },
         markdown,
         saved: false,

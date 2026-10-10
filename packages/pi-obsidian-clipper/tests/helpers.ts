@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 export function contract() {
   return {
@@ -27,6 +27,17 @@ export async function fixture() {
   await mkdir(base, { recursive: true, mode: 0o700 });
   const dir = await mkdtemp(join(base, "fixture-"));
   return { dir, dispose: () => rm(dir, { recursive: true, force: true }) };
+}
+// AK6872 layout: the returned dir is <root>/dist (holding only the test's cli.cjs) and
+// <root>/package.json completes the admitted closure root.
+export async function nativeFixture() {
+  const f = await fixture();
+  await writeFile(join(f.dir, "package.json"), '{"name":"fixture-native","private":true}', {
+    mode: 0o600,
+  });
+  const dir = join(f.dir, "dist");
+  await mkdir(dir, { mode: 0o700 });
+  return { dir, dispose: f.dispose };
 }
 export async function environment(values: Record<string, string>, run: () => Promise<unknown>) {
   const before = Object.fromEntries(Object.keys(values).map((k) => [k, process.env[k]]));

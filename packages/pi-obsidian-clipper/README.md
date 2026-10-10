@@ -78,7 +78,9 @@ and a **2026-10-17** resolution/review target:
 - **AK6870:** owner-authorized workstation/browser Interpreter integration. Isolated-browser
   proof recorded 2026-10-10; read AK for its current lifecycle state.
 - **AK6871:** TS7 migration and separate adapter/native advisory qualification.
-- **AK6872:** native dependency-closure enforcement and real transport/process tests.
+- **AK6872:** native dependency-closure enforcement and real transport/process tests —
+  implemented under the receiver-approved [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md);
+  completion remains the operator's decision.
 - **AK6873:** original-owner acceptance/closeout handback for AK6856; no duplicate repair.
 
 Read current AK contracts/deferrals for owners, triggers, deadlines and acceptance
@@ -199,7 +201,16 @@ post-frontmatter body also fails clearly; the adapter never fabricates missing
 content. This bounded body guard is not extraction-completeness proof. Cancellation kills the Node child, waits for close,
 then removes private temporary files. Native stderr is counted but withheld from
 model output. Child environment excludes browser/provider/session secrets and
-Node preload flags. Node subprocess is not an OS sandbox: install trusted artifacts.
+Node preload flags. Before every spawn the whole native dependency closure under
+`<root>/dist/cli.cjs` is admitted (owner/root, no group/world write, no special files,
+every symlink resolving inside `<root>`, bounded size), and the child runs under Node's
+permission model with read-only access to that root and its private inputs only: no
+writes, child processes, workers or addons. Outbound network is denied by the runtime
+permission model on Node with `--allow-net` support (≥25) and by an in-process guard
+on older Node; result `engine.boundary` says which. Neither is an OS sandbox, and
+same-UID changes between admission and spawn are not prevented: install trusted
+artifacts. Real loopback TLS, cancellation and outbound-observer tests prove these
+boundaries; see the [closure contract](docs/project/2026-10-10-ak6872-native-closure-contract.md).
 
 The native template emits `space: input`, `kind: source`, `state: captured`, source
 URL and captured timestamp; `Input` is template metadata only, not a write target.
