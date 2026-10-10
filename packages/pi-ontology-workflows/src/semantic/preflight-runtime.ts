@@ -195,7 +195,7 @@ export function createSemanticPreflightRuntime(deps: SemanticPreflightRuntimeDep
           visibleUnavailable(ctx, "stale development grant");
           return;
         }
-        return legacyHint(event.prompt);
+        return legacyHint(event.prompt, (rawCtx as { sessionManager?: unknown }).sessionManager);
       }
 
       const generation = state.generation;

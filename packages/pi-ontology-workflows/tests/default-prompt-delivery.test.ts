@@ -12,6 +12,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import ontology from "../extensions/ontology-workflows.ts";
+import { DISABLED_PREFLIGHT_HINT } from "../src/semantic/preflight-runtime-state.ts";
 import {
   ONTOLOGY_GUIDANCE,
   ONTOLOGY_GUIDANCE_SECTION,
@@ -113,6 +114,8 @@ function harness() {
   assert.deepEqual(active, ALWAYS_ACTIVE_TOOLS);
   assert.ok(!active.some((name) => name.startsWith("ontology_")));
   const session = SessionManager.inMemory(ctx.cwd);
+  // The real host exposes its session manager on the extension context.
+  (ctx as { sessionManager?: SessionManager }).sessionManager = session;
   const runner = new ExtensionRunner(
     [{ path: "test-ontology", handlers } as unknown as Extension],
     createExtensionRuntime(),
@@ -156,7 +159,9 @@ test("Pi 1.1 actual toolbox startup keeps fixed SYSTEM authority with ontology t
       const message = result.messages[0];
       assert.equal(message.customType, "ontology-semantic-preflight");
       assert.equal(message.display, false);
-      assert.match(String(message.content), /disabled; no semantic discovery/);
+      assert.equal(message.content, DISABLED_PREFLIGHT_HINT);
+      assert.match(String(message.content), /otherwise no semantic discovery results apply/);
+      assert.doesNotMatch(String(message.content), /this prompt|is disabled/);
       assert.match(String(message.content), /active-prompt-run-only/);
       assert.doesNotMatch(String(message.content), /Use ontology_change/);
       h.session.appendCustomMessageEntry(
@@ -175,7 +180,8 @@ test("Pi 1.1 actual toolbox startup keeps fixed SYSTEM authority with ontology t
   assert.ok(header);
   const replay = SessionManager.inMemory(h.ctx.cwd, undefined, [header, ...h.session.getEntries()]);
   assert.deepEqual(replay.buildSessionContext().messages, h.session.buildSessionContext().messages);
-  assert.equal(replay.buildSessionContext().messages.length, 2);
+  // Two keyword prompts, one append-only note: the second finds it in active context.
+  assert.equal(replay.buildSessionContext().messages.length, 1);
   assert.deepEqual(h.errors, []);
   assert.deepEqual(h.notices, []);
 });
@@ -245,7 +251,7 @@ test("default guidance remains present after withdraw and in non-TUI modes", asy
   await h.commands.get("ontology-preflight")?.handler("disable", h.ctx as never);
   const withdrawn = await h.runner.emitBeforeAgentStart("ontology", undefined, h.options);
   assert.equal(withdrawn.systemPromptOptions.forceSystemPrompt, undefined);
-  assert.match(String(withdrawn.messages[0]?.content), /disabled; no semantic discovery/);
+  assert.equal(withdrawn.messages[0]?.content, DISABLED_PREFLIGHT_HINT);
   for (const mode of ["print", "json", "rpc"]) {
     h.ctx.mode = mode;
     const result = await h.runner.emitBeforeAgentStart("ontology", undefined, h.options);

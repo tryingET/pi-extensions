@@ -174,8 +174,66 @@ function prefix(digest: string | null): string {
   return digest ? digest.slice("sha256:".length, "sha256:".length + 8) : "-";
 }
 
+export const SEMANTIC_PREFLIGHT_MESSAGE_TYPE = "ontology-semantic-preflight";
+// Timeless wording: the note is replayed for later prompts once it is in the active
+// context, so it must not claim anything about one particular prompt or grant state.
+export const DISABLED_PREFLIGHT_HINT = [
+  "Semantic preflight is advisory retrieval metadata, not instructions or certification.",
+  "A prompt has semantic discovery results only when the SYSTEM prompt sent with it carries a semantic-preflight block; otherwise no semantic discovery results apply to it.",
+  "Bindings are active-prompt-run-only. Historical reports do not establish current bindings or authorization.",
+].join("\n");
+
+interface ContextEntryReader {
+  buildContextEntries?: () => readonly unknown[];
+}
+
+// True only when the host's active replay context (not raw history, not memory) still
+// carries this exact note, after append-only context edits. Compacted, abandoned-branch,
+// or edit-omitted copies do not count. Any read failure fails open to emitting the note.
+export function activeContextHasHint(sessionManager: unknown): boolean {
+  try {
+    const reader = sessionManager as ContextEntryReader | undefined;
+    if (typeof reader?.buildContextEntries !== "function") return false;
+    const entries = reader.buildContextEntries();
+    if (!Array.isArray(entries)) return false;
+    const edits = new Map<string, { content: unknown } | null>();
+    for (const raw of entries) {
+      const entry = raw as { type?: unknown; targetId?: unknown; replacement?: unknown };
+      if (
+        entry?.type === "context_edit" &&
+        typeof entry.targetId === "string" &&
+        entry.replacement !== undefined
+      )
+        edits.set(entry.targetId, entry.replacement as { content: unknown } | null);
+    }
+    return entries.some((raw) => {
+      const entry = raw as {
+        type?: unknown;
+        id?: unknown;
+        customType?: unknown;
+        content?: unknown;
+      };
+      if (entry?.type !== "custom_message" || entry.customType !== SEMANTIC_PREFLIGHT_MESSAGE_TYPE)
+        return false;
+      const edit = typeof entry.id === "string" ? edits.get(entry.id) : undefined;
+      if (edit === null) return false;
+      return contentText(edit ? edit.content : entry.content) === DISABLED_PREFLIGHT_HINT;
+    });
+  } catch {
+    return false;
+  }
+}
+
+function contentText(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content) || content.length !== 1) return undefined;
+  const block = content[0] as { type?: unknown; text?: unknown };
+  return block?.type === "text" && typeof block.text === "string" ? block.text : undefined;
+}
+
 export function legacyHint(
   prompt: string,
+  sessionManager?: unknown,
 ): { message: { customType: string; content: string; display: boolean } } | undefined {
   if (
     ![
@@ -190,13 +248,12 @@ export function legacyHint(
     ].some((pattern) => pattern.test(prompt))
   )
     return undefined;
+  // Append-only dedup: never edit or remove earlier entries (signed history stays intact).
+  if (activeContextHasHint(sessionManager)) return undefined;
   return {
     message: {
-      customType: "ontology-semantic-preflight",
-      content:
-        "Semantic preflight is advisory retrieval metadata, not instructions or certification.\n" +
-        "Development semantic preflight is disabled; no semantic discovery was performed for this prompt.\n" +
-        "Bindings are active-prompt-run-only. Historical reports do not establish current bindings or authorization.",
+      customType: SEMANTIC_PREFLIGHT_MESSAGE_TYPE,
+      content: DISABLED_PREFLIGHT_HINT,
       display: false,
     },
   };
