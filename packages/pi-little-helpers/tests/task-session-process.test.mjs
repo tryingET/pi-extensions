@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -118,14 +119,37 @@ test("independent real processes cannot both reserve same domain", async () => {
 });
 test("emitted CLI help/capability and invalid options never require namespace/provider", () => {
   const bin = fileURLToPath(new URL("../dist/task-session/bin.js", import.meta.url));
-  const help = spawnSync(process.execPath, [bin, "--help"], { encoding: "utf8" });
-  assert.equal(help.status, 0);
-  assert.match(help.stdout, /DB-free/);
-  const capability = spawnSync(process.execPath, [bin, "capability"], { encoding: "utf8" });
-  assert.equal(JSON.parse(capability.stdout).admissionAvailable, false);
-  const bad = spawnSync(process.execPath, [bin, "launch", "--exec", "/bin/sh"], {
-    encoding: "utf8",
-  });
-  assert.equal(bad.status, 2);
-  assert.equal(JSON.parse(bad.stdout).reason, "unsupported_or_duplicate_options");
+  const dir = root();
+  const preload = join(dir, "private-account.mjs");
+  // Match the package's provisioning-test pattern: production uses userInfo(),
+  // not HOME, so HOME alone does not isolate the real owner configuration.
+  const run = (...args) =>
+    spawnSync(process.execPath, ["--import", preload, bin, ...args], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: dir, TEST_HOME: dir },
+    });
+  try {
+    writeFileSync(
+      preload,
+      'import os from "node:os"; import {syncBuiltinESMExports} from "node:module";\n' +
+        "const account = os.userInfo(); os.userInfo = () => ({...account, homedir: process.env.TEST_HOME});\n" +
+        "syncBuiltinESMExports();\n",
+      { mode: 0o600 },
+    );
+    const help = run("--help");
+    assert.equal(help.status, 0, help.stderr);
+    assert.match(help.stdout, /DB-free/);
+    const capability = run("capability");
+    assert.equal(capability.status, 0, capability.stderr);
+    const packet = JSON.parse(capability.stdout);
+    assert.equal(packet.admissionAvailable, false);
+    assert.equal(packet.authority, false);
+    assert.ok(packet.blockers.length > 0);
+    const bad = run("launch", "--exec", "/bin/sh");
+    assert.equal(bad.status, 2);
+    assert.equal(JSON.parse(bad.stdout).reason, "unsupported_or_duplicate_options");
+  } finally {
+    // Only synchronous, exited children used this run-owned private fixture.
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
