@@ -8,6 +8,8 @@ import type {
 import type { AutoresearchLedgerReplayIssue } from "./ledger.ts";
 import type { LlamacppCampaignProjectionOverallState } from "./llamacppCampaign.ts";
 
+import type { RunExecutionRecord, RunProvenance } from "./runtime-provenance.ts";
+
 export type MetricDirection = "lower" | "higher";
 export type RunStatus = "baseline" | "candidate" | "keep" | "discard" | "crash" | "checks_failed";
 export type AutoresearchRunKind = "ordinary" | "calibration";
@@ -127,6 +129,8 @@ export interface AutoresearchExperimentLineageInput {
 export interface AutoresearchRunReceipt {
   type: "run";
   version: 1;
+  provenance?: RunProvenance;
+  execution?: RunExecutionRecord;
   status: RunStatus;
   runKind?: AutoresearchRunKind;
   experiment?: AutoresearchExperimentLineage;
@@ -247,5 +251,9 @@ export interface AutoresearchSegmentCloseoutRun {
   description: string;
   timestamp: number;
   checks: string;
+  provenance?: RunProvenance;
+  execution?: RunExecutionRecord;
+  benchmarkCommand?: string | null;
+  checksCommand?: string | null;
   experiment: AutoresearchExperimentLineage | null;
 }

@@ -17,6 +17,7 @@ import {
   getRecordField as rec,
   getStringField as str,
 } from "../../pi-autoresearch/src/core/runtime-matrix-fields.ts";
+import { parseRunProvenance } from "../../pi-autoresearch/src/core/runtime-provenance.ts";
 import {
   OBJECTIVE,
   withDashboardDir,
@@ -59,6 +60,7 @@ function appendLane(cwd, lane, iteration, hypothesis) {
       iteration,
       timestamp: iteration + 1,
       description: `Run ${id}`,
+      provenance: parseRunProvenance(run.provenance),
       empiricalDecisionClass: "candidate_improvement",
       checksCommand: "node checks.mjs",
       checksPassed: true,

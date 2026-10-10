@@ -9,12 +9,14 @@ import type {
   MetricMap,
 } from "./runtime-model-basic.ts";
 import type { AutoresearchRuntimeStatus } from "./runtime-model-packets.ts";
+import type { RunProvenance } from "./runtime-provenance.ts";
 
 export interface CommandExecutionSummary {
   command: string;
   exitCode: number | null;
   timedOut: boolean;
   aborted: boolean;
+  outputLimitExceeded?: boolean;
   durationSeconds: number;
   stdout: string;
   stderr: string;
@@ -36,6 +38,7 @@ export interface ExecuteAutoresearchRunLiveDecisionInput {
 
 export interface ExecuteAutoresearchRunInput {
   cwd: string;
+  provenance?: RunProvenance;
   description: string;
   runKind?: AutoresearchRunKind;
   experiment?: AutoresearchExperimentLineageInput;

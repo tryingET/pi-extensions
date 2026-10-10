@@ -1,3 +1,4 @@
+import { validateRunProvenanceFields } from "./runtime-adapter-provenance.ts";
 import { isRecord } from "./runtime-common.ts";
 
 export interface AutoresearchAdapterContractEntry {
@@ -327,6 +328,7 @@ function validateCandidateResultRunFields(
   validateStringField(candidateRun, "status", addIssue, "candidateRun.");
   validateStringField(candidateRun, "empiricalDecisionClass", addIssue, "candidateRun.");
   validateNumberField(candidateRun, "metric", addIssue, "candidateRun.");
+  validateRunProvenanceFields(candidateRun, "candidateRun.", addIssue);
 }
 
 function validateCloseoutPacketFields(
@@ -348,6 +350,13 @@ function validateCloseoutPacketFields(
   validateStringField(packet, "empiricalDecisionClass", addIssue, prefix);
   validateEmpiricalPostureField(packet, "empiricalPosture", addIssue, prefix);
   validateArrayField(packet, "runs", addIssue, prefix);
+  if (Array.isArray(packet.runs) && packet.runCount !== packet.runs.length)
+    addIssue(`${prefix}runCount`, "Declared history count does not match exported runs.");
+  if (Array.isArray(packet.runs))
+    packet.runs.forEach((run, index) => {
+      if (isRecord(run)) validateRunProvenanceFields(run, `${prefix}runs[${index}].`, addIssue);
+      else addIssue(`${prefix}runs[${index}]`, "Historical run must be an object.");
+    });
   validateArrayField(packet, "candidateBindings", addIssue, prefix);
   validateStringField(packet, "recommendedAction", addIssue, prefix);
   const oracleReadyEvidence = packet.oracleReadyEvidence;

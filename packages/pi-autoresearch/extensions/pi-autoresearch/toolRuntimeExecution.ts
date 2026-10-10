@@ -2,6 +2,7 @@
 // read_when:
 //   - Tracing how autoresearch execution requests become configured runs or bounded campaigns.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { RunProvenance } from "../../src/core/runtime-provenance.ts";
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
@@ -45,6 +46,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         description: string;
         runKind?: "ordinary" | "calibration";
         hypothesisId?: string;
+        provenance?: RunProvenance;
         hypothesis?: string;
         interventionSummary?: string;
         expectedPrimaryEffect?: string;
@@ -86,6 +88,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         description: request.description,
         runKind: request.runKind,
+        provenance: request.provenance,
         experiment: {
           hypothesisId: request.hypothesisId,
           hypothesis: request.hypothesis,

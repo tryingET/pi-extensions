@@ -203,6 +203,8 @@ export function summarizeMatrixArtifact(
         : "unspecified lane");
     const lane = laneFor(cell, laneId, packet);
     const kind = str(artifact, "kind");
+    mergeText(cell, "scenario", str(row, "scenario"));
+    mergeText(cell, "hypothesis", str(row, "hypothesis"));
     if (
       [
         "autoresearch.matrix_campaign_runner_contract.v1",
@@ -230,6 +232,8 @@ export function summarizeMatrixArtifact(
       const id = str(row, "cellId");
       if (!id) continue;
       const cell = cellFor(campaign, id);
+      mergeText(cell, "scenario", str(row, "scenario"));
+      mergeText(cell, "hypothesis", str(row, "hypothesis"));
       for (const item of arr(row, "lanes")) {
         const laneId = str(item, "laneId");
         if (!laneId) continue;

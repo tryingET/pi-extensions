@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "sourceBaseCommit": "36c7dc2ec31cfffa31e115d4c922fccda0f7100f",
   "sourceEntrypoint": "packages/pi-autoresearch/extensions/pi-autoresearch.ts",
-  "generation": "Captured from the unmodified source base by registering the entrypoint with a no-op ExtensionAPI and serializing every registered tool's parameters, sorted by literal tool name.",
+  "generation": "Historical fixture origin is sourceBaseCommit, captured through a no-op ExtensionAPI. Inherited autoresearch_campaign_start.name and reconfigure.description updates from commit 35a3af3ed70c6c85fc8d6b8f14880961cb391b35 precede AK6426. AK6426 adds only optional autoresearch_runtime_run.provenance relative to additiveDelta.implementationBaseCommit (6b3e46df74c72bf25f3d7a6ddb38d1db69ea1def). All other parameters, defaults, required arrays and tool names remain identical to that implementation preimage.",
   "fixture": "eager-tool-parameters.json",
-  "fixtureSha256": "a9c4e9a0d677c344c0fc5a10275b0e027fda5f4f871df3cfe78fc5ab4b88104e",
+  "fixtureSha256": "5f0e11875dfce4a9e2f0d0dfabd3cf39f34de5ccef642053862b2e2a2a8a190d",
   "expectedToolNames": [
     "autoresearch_campaign_start",
     "autoresearch_candidate_bind",
@@ -22,5 +22,11 @@
     "autoresearch_runtime_status",
     "autoresearch_self_hosting_run",
     "autoresearch_vllm_campaign"
-  ]
+  ],
+  "additiveDelta": {
+    "taskId": 6426,
+    "implementationBaseCommit": "6b3e46df74c72bf25f3d7a6ddb38d1db69ea1def",
+    "field": "autoresearch_runtime_run.properties.provenance",
+    "sourceSchemaSha256": "1da12e00c7f22f92b3b53c347df6813b94cca52ec8dfe67ac947e3f40cfce927"
+  }
 }

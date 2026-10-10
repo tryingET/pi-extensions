@@ -4,6 +4,7 @@ import type {
   DashboardCampaign,
   DashboardLane,
 } from "./runtime-matrix-model.ts";
+import { parseRunProvenance, sameMatrixContext } from "./runtime-provenance.ts";
 
 /** Owner-requested config label and run ID; the label need not become the retained runtime config. */
 export function declareMatrixLaneSegment(
@@ -36,6 +37,23 @@ export function inspectMatrixMeasurementCall(
   try {
     const payload: unknown = JSON.parse(match[1]);
     const hypothesis = str(payload, "hypothesis");
+    const provenance = parseRunProvenance(
+      rec(payload, "provenance") ??
+        (Object.hasOwn(payload as object, "provenance") ? null : undefined),
+    );
+    const context = provenance?.matrix;
+    if (provenance && !context) throw new Error("Missing matrix context.");
+    if (
+      context &&
+      (context.taskId !== campaign.taskId ||
+        context.objective !== campaign.objective ||
+        context.cellId !== cell.cellId ||
+        context.laneId !== lane.laneId ||
+        context.hypothesis !== cell.hypothesis ||
+        (lane.segmentIdentity?.matrixContext &&
+          !sameMatrixContext(lane.segmentIdentity.matrixContext, { provenance })))
+    )
+      throw new Error("Matrix context identity mismatch.");
     if (
       !lane.segmentIdentity ||
       !hypothesis ||
@@ -48,6 +66,7 @@ export function inspectMatrixMeasurementCall(
     )
       throw new Error("identity mismatch");
     lane.segmentIdentity.hypothesis = hypothesis;
+    if (context) lane.segmentIdentity.matrixContext = context;
     lane.segmentIdentity.source = source;
     lane.objective = hypothesis;
   } catch {
@@ -55,11 +74,54 @@ export function inspectMatrixMeasurementCall(
   }
 }
 
+/** Reconcile structured declarations, never let an older observation remove stronger identity. */
+export function reconcileMatrixLaneDeclaration(
+  cell: AutoresearchMatrixCampaignCellSummary,
+  observed: DashboardLane,
+  declared: DashboardLane,
+): void {
+  const conflict = () =>
+    cell.issues.push(
+      "Conflicting observed/declared lane identity; source reconciliation required.",
+    );
+  if (observed.laneId !== declared.laneId) conflict();
+  if (observed.objective && declared.objective && observed.objective !== declared.objective)
+    conflict();
+  else observed.objective ??= declared.objective;
+  observed.expectedPacketPaths = [
+    ...new Set([...observed.expectedPacketPaths, ...declared.expectedPacketPaths]),
+  ];
+  const incoming = declared.segmentIdentity;
+  if (!incoming) return;
+  if (!observed.segmentIdentity) {
+    observed.segmentIdentity = structuredClone(incoming);
+    return;
+  }
+  const current = observed.segmentIdentity;
+  if (current.name !== incoming.name || current.hypothesisId !== incoming.hypothesisId) conflict();
+  if (current.hypothesis && incoming.hypothesis && current.hypothesis !== incoming.hypothesis)
+    conflict();
+  else current.hypothesis ??= incoming.hypothesis;
+  if (
+    current.matrixContext &&
+    incoming.matrixContext &&
+    !sameMatrixContext(current.matrixContext, { provenance: { matrix: incoming.matrixContext } })
+  )
+    conflict();
+  else if (incoming.matrixContext) current.matrixContext = structuredClone(incoming.matrixContext);
+  current.observedSegmentLabels = [
+    ...new Set([...current.observedSegmentLabels, ...incoming.observedSegmentLabels]),
+  ];
+}
+
 function matchesDeclaredRun(lane: DashboardLane, run: unknown): boolean {
   const declared = lane.segmentIdentity;
   const experiment = rec(run, "experiment");
   return (
     !!declared?.hypothesis &&
+    (declared.matrixContext
+      ? sameMatrixContext(declared.matrixContext, run)
+      : !Object.hasOwn(rec(run, "provenance") ?? {}, "matrix")) &&
     lane.objective === declared.hypothesis &&
     str(experiment, "hypothesisId") === declared.hypothesisId &&
     str(experiment, "hypothesis") === declared.hypothesis
@@ -97,7 +159,7 @@ export function finalizeMatrixLaneObservations(lane: DashboardLane): void {
   if (declared) {
     const shared = declared.observedSegmentLabels.filter((name) => name !== declared.name);
     const note = shared.length
-      ? `Shared/preconfigured segment label(s) in this lane's packet inventory: ${shared.map((name) => JSON.stringify(name)).join(", ")}. Requested label: ${JSON.stringify(declared.name)}. Configuration labels are not campaign identity or permission to combine measurements; evaluator comparisons remain withheld.`
+      ? `Shared/preconfigured segment label(s) in this lane's packet inventory: ${shared.map((name) => JSON.stringify(name)).join(", ")}. Requested label: ${JSON.stringify(declared.name)}. Configuration labels are not campaign identity or permission to combine measurements; comparisons still require exact per-run provenance.`
       : null;
     if (note) lane.verificationReport += ` ${note}`;
     for (const attempt of lane.attempts) {

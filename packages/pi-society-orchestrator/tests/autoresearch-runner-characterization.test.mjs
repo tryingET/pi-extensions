@@ -311,7 +311,7 @@ for (const testCase of CASES) {
       // complete normalized v2 output by digest; retain other historical goldens.
       assert.equal(
         createHash("sha256").update(normalized).digest("hex"),
-        "634058ec710fad2f66ee0ba15661c9e11acd3d266582b79e7b73b0ca0a35856b",
+        "3aad16424d78fcb3a112217a231c9ef8a3c843f6c41b52fb89ee57de8f1d9627",
       );
       assert.equal(result.execution, "not_executed_by_orchestrator");
       assert.equal(result.metric.status, "blocked");

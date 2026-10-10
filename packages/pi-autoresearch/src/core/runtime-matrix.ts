@@ -145,21 +145,26 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
         const target = observation.cells.find((c) => c.cellId === cell.cellId);
         if (!target) observation.cells.push(cell);
         else {
-          target.hypothesis = cell.hypothesis;
-          target.prediction = cell.prediction;
-          target.rejectionCriteria = cell.rejectionCriteria;
-          target.scenario = cell.scenario;
+          for (const key of ["hypothesis", "scenario"] as const) {
+            if (target[key] && cell[key] && target[key] !== cell[key])
+              target.issues.push(
+                `Conflicting observed/declared ${key}; source reconciliation required.`,
+              );
+            else target[key] ??= cell[key];
+          }
+          target.prediction ??= cell.prediction;
+          target.rejectionCriteria ??= cell.rejectionCriteria;
           target.sources.push(...cell.sources);
           target.issues.push(...cell.issues);
-          for (const lane of cell.lanes)
-            if (
-              !target.lanes.some(
-                (l) =>
-                  l.laneId === lane.laneId ||
-                  l.expectedPacketPaths.some((p) => lane.expectedPacketPaths.includes(p)),
-              )
-            )
-              target.lanes.push(lane);
+          for (const lane of cell.lanes) {
+            const observed = target.lanes.find(
+              (l) =>
+                l.laneId === lane.laneId ||
+                l.expectedPacketPaths.some((p) => lane.expectedPacketPaths.includes(p)),
+            );
+            if (observed) reconcileMatrixLaneDeclaration(target, observed, lane);
+            else target.lanes.push(lane);
+          }
         }
       }
       campaigns.set(observation.key, observation);
@@ -268,7 +273,10 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
   };
 }
 
-import { matchesMatrixPacketSegment } from "./runtime-matrix-segment.ts";
+import {
+  matchesMatrixPacketSegment,
+  reconcileMatrixLaneDeclaration,
+} from "./runtime-matrix-segment.ts";
 
 function invalidate(attempt: DashboardAttempt, reason: string): void {
   attempt.validMeasurement = false;

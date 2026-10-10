@@ -17,6 +17,8 @@ export interface AutoresearchMatrixCampaignRunnerRequest extends AutoresearchMat
 
 export interface AutoresearchMatrixCampaignRunnerLane {
   cellId: string;
+  scenario?: string;
+  hypothesis?: string;
   laneId: string;
   objective: string;
   cellObjective: string;
@@ -130,6 +132,8 @@ export interface AutoresearchMatrixCampaignControllerCommandPacket {
   cells: readonly {
     cellId: string;
     objective: string;
+    scenario?: string;
+    hypothesis?: string;
     exactControllerSequence: readonly [
       "autoresearch_candidate_bind",
       "autoresearch_runtime_run",

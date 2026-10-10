@@ -21,6 +21,12 @@ import type {
 } from "./runtime.ts";
 import { coerceNumber, isRecord, parseStringArray } from "./runtime-common.ts";
 import { normalizeExperimentLineage, parseExperimentLineage } from "./runtime-lineage.ts";
+import {
+  parseRunExecution,
+  parseRunProvenance,
+  type RunExecutionRecord,
+  type RunProvenance,
+} from "./runtime-provenance.ts";
 
 const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -81,6 +87,8 @@ export function createConfigReceipt(input: {
 
 export function createRunReceipt(input: {
   status: RunStatus;
+  provenance?: RunProvenance;
+  execution?: RunExecutionRecord;
   runKind?: AutoresearchRunKind;
   experiment?: AutoresearchExperimentLineageInput;
   empiricalDecisionClass?: AutoresearchEmpiricalDecisionClass;
@@ -106,6 +114,8 @@ export function createRunReceipt(input: {
     status: input.status,
     runKind: input.runKind,
     experiment: normalizeExperimentLineage(input.experiment),
+    provenance: parseRunProvenance(input.provenance),
+    execution: parseRunExecution(input.execution),
     empiricalDecisionClass: input.empiricalDecisionClass,
     metric: input.metric,
     metrics: { ...(input.metrics ?? {}) },
@@ -241,12 +251,19 @@ function parseRunReceipt(value: Record<string, unknown>): AutoresearchRunReceipt
   if (typeof value.description !== "string") {
     throw new Error("Run receipt requires a string description field");
   }
+  if (
+    value.empiricalDecisionClass !== undefined &&
+    !isAutoresearchEmpiricalDecisionClass(value.empiricalDecisionClass)
+  )
+    throw new Error("Invalid present empirical classification; no legacy downgrade.");
   return {
     type: "run",
     version: 1,
     status: value.status,
     runKind: isAutoresearchRunKind(value.runKind) ? value.runKind : undefined,
     experiment: parseExperimentLineage(value.experiment),
+    provenance: parseRunProvenance(value.provenance),
+    execution: parseRunExecution(value.execution),
     empiricalDecisionClass: isAutoresearchEmpiricalDecisionClass(value.empiricalDecisionClass)
       ? value.empiricalDecisionClass
       : undefined,
@@ -387,7 +404,7 @@ function isAutoresearchRunKind(value: unknown): value is AutoresearchRunKind {
   return value === "ordinary" || value === "calibration";
 }
 
-function isAutoresearchEmpiricalDecisionClass(
+export function isAutoresearchEmpiricalDecisionClass(
   value: unknown,
 ): value is AutoresearchEmpiricalDecisionClass {
   return (
