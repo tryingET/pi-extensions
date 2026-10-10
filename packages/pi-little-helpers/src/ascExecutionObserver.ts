@@ -285,6 +285,11 @@ export function createAscExecutionObserverController(
       };
     }
     if (disposed) return;
+    // A rejected callback or unclassified failure may settle after terminal dispatch. Only an
+    // explicit no-effects receipt rules out that attempt; keep immediate/late ACK inspection.
+    if (!outcome.ok && outcome.effectDisposition !== "confirmed_no_effects") {
+      outcome = { ...outcome, effectDisposition: "effect_indeterminate" };
+    }
     const note = boundString(outcome.note, MAX_LABEL_CHARS);
     const failure =
       boundString(outcome.failure, MAX_LABEL_CHARS) || "Ghostty observer launch failed";
