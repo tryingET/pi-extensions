@@ -1,3 +1,7 @@
+// pi-autoresearch's dashboard reader against what this package's owner runners
+// actually write. It lives here, not in pi-autoresearch, because the dependency
+// points this way: the orchestrator installs and imports autoresearch, so its
+// publish job can run this; autoresearch's cannot import the orchestrator.
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -5,29 +9,23 @@ import {
   createConfigReceipt,
   createRunReceipt,
   loadReceiptLog,
-} from "../src/core/runtime.ts";
-import { buildAutoresearchCandidateResultPacket } from "../src/core/runtime-candidate-result.ts";
-import { discoverAutoresearchMatrixCampaignArtifacts as discover } from "../src/core/runtime-matrix.ts";
+} from "../../pi-autoresearch/src/core/runtime.ts";
+import { buildAutoresearchCandidateResultPacket } from "../../pi-autoresearch/src/core/runtime-candidate-result.ts";
+import { discoverAutoresearchMatrixCampaignArtifacts as discover } from "../../pi-autoresearch/src/core/runtime-matrix.ts";
 import {
   getArrayField as arr,
   getRecordField as rec,
   getStringField as str,
-} from "../src/core/runtime-matrix-fields.ts";
-import { OBJECTIVE, withDashboardDir, writeDashboardSource } from "./runtime-dashboard-fixtures.ts";
+} from "../../pi-autoresearch/src/core/runtime-matrix-fields.ts";
+import {
+  OBJECTIVE,
+  withDashboardDir,
+  writeDashboardSource,
+} from "../../pi-autoresearch/tests/runtime-dashboard-fixtures.ts";
 
-const ownerUrl = new URL(
-  "../../pi-society-orchestrator/src/runtime/autoresearch-matrix-campaign.ts",
-  import.meta.url,
-).href;
-const owner = (await import(ownerUrl)) as {
-  buildAutoresearchMatrixCampaignRunnerContract(
-    input: Record<string, unknown>,
-  ): Record<string, unknown>;
-  checkpointAutoresearchMatrixCampaignRunner(
-    input: Record<string, unknown>,
-  ): Record<string, unknown>;
-};
-const request = (cwd: string) => ({
+import * as owner from "../src/runtime/autoresearch-matrix-campaign.ts";
+
+const request = (cwd) => ({
   taskId: 5621,
   cwd,
   objective: OBJECTIVE,
@@ -38,19 +36,19 @@ const request = (cwd: string) => ({
   metricName: "total_ms",
   direction: "lower",
 });
-function required(value: unknown, key: string): string {
+function required(value, key) {
   const s = str(value, key);
   assert.ok(s);
   return s;
 }
-function emittedRun(lane: unknown): Record<string, unknown> {
+function emittedRun(lane) {
   const call = arr(lane, "measurementPlan").find(
     (v) => typeof v === "string" && v.startsWith("autoresearch_runtime_run("),
   );
   assert.equal(typeof call, "string");
   return JSON.parse(String(call).slice("autoresearch_runtime_run(".length, -1));
 }
-function appendLane(cwd: string, lane: unknown, iteration: number, hypothesis?: string) {
+function appendLane(cwd, lane, iteration, hypothesis) {
   const run = emittedRun(lane);
   const id = required(lane, "laneId");
   appendReceipt(
@@ -82,7 +80,7 @@ function appendLane(cwd: string, lane: unknown, iteration: number, hypothesis?: 
   writeDashboardSource(cwd, required(lane, "candidateResultPacketPath"), packet);
   return packet;
 }
-function initialize(cwd: string, name: string) {
+function initialize(cwd, name) {
   appendReceipt(
     cwd,
     createConfigReceipt({
