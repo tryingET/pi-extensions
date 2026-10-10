@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.2](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.1...pi-society-orchestrator-v0.13.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* **autoresearch:** preserve exact matrix and per-run protocol provenance (AK6426) ([84c303e](https://github.com/tryingET/pi-extensions/commit/84c303e9757a2d63d2e57a2c7f8b1e0a2f92d7c9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.4
+
 ## [0.13.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.0...pi-society-orchestrator-v0.13.1) (2026-10-10)
 
 

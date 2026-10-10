@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.4](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.3...pi-autoresearch-v0.5.4) (2026-10-10)
+
+
+### Bug Fixes
+
+* **autoresearch:** preserve exact matrix and per-run protocol provenance (AK6426) ([84c303e](https://github.com/tryingET/pi-extensions/commit/84c303e9757a2d63d2e57a2c7f8b1e0a2f92d7c9))
+
 ## [0.5.3](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.5.2...pi-autoresearch-v0.5.3) (2026-10-10)
 
 
