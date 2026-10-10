@@ -1,0 +1,15 @@
+minimum_prek_version = "0.3.0"
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "validate-structure",
+    name = "validate structure",
+    language = "system",
+    entry = "bash ./scripts/validate-structure.sh",
+    pass_filenames = false,
+    always_run = true,
+    stages = ["pre-commit"]
+  }
+]

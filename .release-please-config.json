@@ -89,6 +89,10 @@
       "release-type": "node",
       "component": "pi-modes"
     },
+    "packages/pi-obsidian-clipper": {
+      "release-type": "node",
+      "component": "pi-obsidian-clipper"
+    },
     "packages/pi-ontology-workflows": {
       "release-type": "node",
       "component": "pi-ontology-workflows"
