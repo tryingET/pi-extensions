@@ -94,6 +94,13 @@ mode, size and restored content hash are preserved. Only ownership changes. The
 fixture is removed, no native subprocess starts, and no network target is contacted.
 Observed on this host: uid 1000 -> 100000 -> 1000, on Node 22.23.3 and 26.9.0.
 
+AK6999 later repaired a fixture portability assumption: a setgid scratch parent can
+supply an inherited secondary GID absent from the namespace mapping. Only the fresh
+dependency inode is normalized to the operator's primary group before controls.
+`scripts/native-owner-group-proof.ts` causally verifies primary and inherited-secondary
+GID ancestry; see the [atomic handback](2026-10-11-ak6999-atomic-handback.md). This does
+not change production admission or reopen AK6872's accepted contract/result.
+
 ## Peer coordination and evidence limits
 
 - AK6871 peer confirmed its source/dependency qualification is separate; the native

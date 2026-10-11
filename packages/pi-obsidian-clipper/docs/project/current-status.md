@@ -38,17 +38,19 @@ tracked patched build, not the Web Store build; see
 
 ## Work and evidence map
 
-Task states below were observed on 2026-10-10; consult AK for changes.
+Task states below include bounded AK6999 handback updates observed on 2026-10-11;
+consult AK for current state and immutable historical receipts.
 
 | Work | Observed disposition | Evidence / detailed qualification |
 | --- | --- | --- |
 | AK6634 original delivery | Open; terminal acceptance remains the operator's decision | 14605/14606 delivery/receiver; 14621 delivery CI |
 | AK6856 host/TypeBox repair and AK6873 handback | Both done; separately explicit operator takeover, no repair reapplication | 14641 and 14656 |
 | AK6870 browser Interpreter | Isolated-browser qualification recorded; task still open | 14665/14666; [report](2026-10-10-ak6870-browser-qualification.md) |
-| AK6871 compiler/dependencies | TS7/tsx qualified, adapter audit clear; native DOMPurify disposition separate; task still open | 14763/14771/14775; [dossier](2026-10-10-ak6871-dependency-qualification.md) |
-| AK6872 closure/transport | Enforcement and real receiver proof delivered; final verification under the unchanged trusted-engine contract explicitly authorized. Read current AK for final proofs and lifecycle | 14668/14671; continuation authority 15199; `ak evidence task 6872`; [contract](2026-10-10-ak6872-native-closure-contract.md), [residual assessment](2026-10-10-ak6872-residual-assessment.md) |
+| AK6871 compiler/dependencies | Done under its separate owner authorization; accepted TS7 exact-release upstream-green exception and native advisory disposition remain limits | 15334 completion authority; 15213 named exception; 14763/14771/14775 historical qualification; [dossier](2026-10-10-ak6871-dependency-qualification.md) |
+| AK6872 closure/transport | Done under the unchanged trusted-engine contract; retained limits remain explicit. Historical advisory missing matches arose from caller result-field shape, not an established AK defect | 15199 terminal authority; 15263/15269 final proof; 15271 historical discrepancy preserved; [contract](2026-10-10-ak6872-native-closure-contract.md), [residual assessment](2026-10-10-ak6872-residual-assessment.md), [caller clarification](2026-10-11-ak6999-atomic-handback.md) |
 | AK6888 note images / AK6889 optional Interpreter images | Qualification and tracked patch delivered; both tasks still open | 14680/14681; [image findings](2026-10-10-ak6888-image-handling.md) |
 | AK6898 test/custody/documentation debt | Offline artifact and synchronized credential-isolated teardown fixtures; reversible custody quarantine done. Exact qualification, delivery and lifecycle are in current AK receipts, not inferred from this description | `ak evidence task 6898`; custody 14841; [fixture contract](../../tests/fixtures/README.md) |
+| AK6881 cache-defect duplicate / AK6999 atomic handback | Existing AK6898 fix freshly verified offline; host proof hardened against inherited GID; closed AK6872 state preserved. Read AK for final receipts and lifecycle | `ak evidence task 6881`; `ak evidence task 6999`; [atomic handback](2026-10-11-ak6999-atomic-handback.md) |
 
 ## Limits and unresolved findings
 

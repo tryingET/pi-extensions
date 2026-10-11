@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, readFile } from "node:fs/promises";
+import { chown, lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { admitNative } from "../src/closure.ts";
@@ -25,7 +25,14 @@ try {
     createHash("sha256")
       .update(await readFile(path))
       .digest("hex");
+  const inherited = await lstat(path);
+  // A setgid scratch parent can give this fresh inode a secondary group not mapped by
+  // --map-root-user. Normalize this test-owned file only, before the ownership controls.
+  assert.equal(inherited.uid, process.getuid?.());
+  assert.ok(process.getgid, "Owner proof requires a primary GID");
+  await chown(path, inherited.uid, process.getgid());
   const before = await lstat(path);
+  assert.equal(before.gid, process.getgid());
   const hash = await digest();
   const control = await admitNative(a.cli);
   const changeOwner = async (owner: string) => {
@@ -62,6 +69,8 @@ try {
       node: process.versions.node,
       mechanism: "host-visible inode ownership via unprivileged subordinate-ID namespace",
       hostUid: before.uid,
+      inheritedGid: inherited.gid,
+      normalizedGid: before.gid,
       foreignUid: foreign.uid,
       sameInodeModeBytes: true,
       controlAdmitted: true,
