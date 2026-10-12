@@ -44,10 +44,6 @@ function register(options = {}, piOverrides = {}) {
 
 const COMMANDS = [
   [
-    "subagent-observer",
-    "Troubleshoot ASC telemetry: open/arm the detached read-only observer; status only inspects",
-  ],
-  [
     "fresh-handoff",
     "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session. Unscoped child cwd receives company provenance automatically; session mode is not a company switch",
   ],
@@ -173,7 +169,10 @@ test("sidequest freezes exact public registration names, descriptions, schemas, 
     COMMANDS,
   );
   assert.deepEqual(harness.events, EVENTS);
-  assert.deepEqual(harness.busEvents, ["asc:execution-observation:v1"]);
+  assert.deepEqual(harness.busEvents, [
+    "asc:subagent-observer:diagnose:v1",
+    "asc:execution-observation:v1",
+  ]);
   assert.deepEqual(
     harness.tools.map((tool) => [
       tool.name,
@@ -218,7 +217,10 @@ test("sidequest registration flags preserve command, tool, observer, and complet
   );
   assert.deepEqual(commandsOnly.tools, []);
   assert.deepEqual(commandsOnly.events, [...TAB_HOST_EVENTS, ...BASE_EVENTS]);
-  assert.deepEqual(commandsOnly.busEvents, ["asc:execution-observation:v1"]);
+  assert.deepEqual(commandsOnly.busEvents, [
+    "asc:subagent-observer:diagnose:v1",
+    "asc:execution-observation:v1",
+  ]);
 
   const neither = register({ registerCommands: false, registerTools: false });
   assert.deepEqual(neither.commands, []);

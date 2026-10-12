@@ -70,7 +70,7 @@ export async function requestSubagentTabs(
   }
   if (rows.length > 16)
     ctx.ui.notify(
-      "Opening at most 16 children; use /subagent-inspect <name> for others.",
+      "Opening at most 16 children; use /subagents --name <exact name> for others.",
       "warning",
     );
   const items: AttachmentRequest["items"] = [];

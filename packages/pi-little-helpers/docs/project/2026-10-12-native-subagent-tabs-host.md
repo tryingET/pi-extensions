@@ -21,6 +21,14 @@ LH owns only the content-free request consumer and Ghostty transport. The standa
 projection registers it on `session_start`; toolbox-only projections do not. The old detached
 read-only observer remains manual troubleshooting by default, unchanged by this host.
 
+Command consolidation removes the separate observer slash registration. ASC's explicit
+`/subagents diagnose observer [status]` emits `asc:subagent-observer:diagnose:v1` with exactly
+`schema`, `requestId`, `cwd`, `parentSessionKey`, `action` (`open|status`), and `reply`.
+LH admits only its current TUI session/cwd and replies with bounded request-correlated
+`message`/`level`; status never arms or launches. Unknown fields/accessors/malformed envelopes
+refuse, duplicate original payloads share a process-wide weak fence, and shutdown/context migration
+fence callbacks. This is a content-free diagnostic adapter, not a new command or execution API.
+
 No event API deviations: `asc:subagent-tabs:request:v1`, schema
 `asc.subagent-tabs.request.v1`, the fixed descriptor plus synchronous `claim`, `settle`, `read`,
 `reply` callbacks. No ASC runtime/private imports or dependency. Replies are request-correlated,

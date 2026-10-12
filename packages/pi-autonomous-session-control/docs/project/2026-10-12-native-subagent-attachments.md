@@ -19,8 +19,12 @@ contains only `key`, `sessionName`, `dispatchId`, `attemptId`, `ticketPath`, `vi
 No prompt, environment, child file content, arbitrary argv, or control nonce in the event.
 
 `/subagents` and the configurable shortcut default to running children of the current session/repo.
-`/subagent-inspect <name>` requests one original attempt, including terminal read-only history.
-Only explicit `/subagent-dashboard` retains the old legacy diagnostic overlay.
+`/subagents <name>` requests one original attempt, including terminal read-only history.
+`/subagents status` stays read-only; `--name <exact name>` escapes reserved child names.
+The sole controller registration is `/subagents`; separate inspect/dashboard/cancel/status/clear/
+cleanup/observer commands and the legacy overlay implementation are removed. Advanced maintenance
+is nested under `/subagents diagnose`, never performed automatically. Older qualification sections
+below record the pre-consolidation historical command surface, not currently supported aliases.
 No UI picker or overlay is opened by the native command route. Duplicate blocked/pending mirror
 replies cannot finish a request whose owner record still has an admitted pending launch. The
 producer polls owner readiness instead; only owner-confirmed readiness is reported as ready.

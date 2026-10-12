@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createSubagentState, registerSubagentTool } from "../../extensions/self/subagent.ts";
+import { registerSubagentCommands } from "../../extensions/self/subagent-commands.ts";
 import { registerSubagentDashboard } from "../../extensions/self/subagent-dashboard.ts";
 
 export default function proof(pi: ExtensionAPI): void {
@@ -14,6 +15,7 @@ export default function proof(pi: ExtensionAPI): void {
   if (process.env.ASC_TABS_PROOF_INSTALLED !== "1") {
     const state = createSubagentState(join(root, "sessions"));
     registerSubagentTool(pi, state, () => model);
+    registerSubagentCommands(pi, state);
     registerSubagentDashboard(pi, state);
   }
   pi.registerCommand("proof-refuse-tabs", {
@@ -84,7 +86,7 @@ export default function proof(pi: ExtensionAPI): void {
               name: `tab-${name}`,
               tools: "bash",
               thinking: "off",
-              objective: `Owner-authorized AK7039 native attached-view verification. Do not edit any files or run anything besides one bash call with this exact command: ${command}. After it finishes, read any new operator guidance in your context before responding. Finish concisely with ORIGINAL_${name.toUpperCase()} unless guidance changes that word.`,
+              objective: `Owner-authorized AK7039 native attached-view verification. Do not edit files. Run exactly one bash call. Its command is the exact text BETWEEN the following markers (markers are not command text):\nBEGIN_EXACT_COMMAND\n${command}\nEND_EXACT_COMMAND\nAfter the tool finishes, read new operator guidance before responding. Finish concisely with ORIGINAL_${name.toUpperCase()} unless guidance changes that word.`,
               mutationPolicy: "read_only",
               forbiddenPaths: ["**"],
             },
@@ -147,6 +149,11 @@ export default function proof(pi: ExtensionAPI): void {
         sessionId: ctx.sessionManager.getSessionId(),
         cwd: ctx.cwd,
         mode: ctx.mode,
+        subagentCommands: pi
+          .getCommands()
+          .map((command) => command.name)
+          .filter((name) => /^subagents?$|^subagent-/u.test(name))
+          .sort(),
       }),
     );
   });

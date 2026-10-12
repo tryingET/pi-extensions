@@ -1,10 +1,10 @@
 {
   "id": "subagent-clear-preserves-lock-and-jsonl-by-default",
-  "title": "subagent-clear must preserve tracked .lock + .jsonl session artifacts unless deletion is explicit",
+  "title": "subagents diagnose clear must preserve tracked .lock + .jsonl session artifacts unless deletion is explicit",
   "target": "subagent_sessions",
   "command": {
-    "name": "subagent-clear",
-    "args": ""
+    "name": "subagents",
+    "args": "diagnose clear"
   },
   "seedFiles": [
     {

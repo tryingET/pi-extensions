@@ -193,11 +193,7 @@ export function createSubagentState(sessionsDir) {
 }
 
 export function registerSubagentCommands(pi) {
-  pi.registerCommand("subagent-clear", {
-    description: "stub",
-    handler: async () => {},
-  });
-  pi.registerCommand("subagent-status", {
+  pi.registerCommand("subagents", {
     description: "stub",
     handler: async () => {},
   });

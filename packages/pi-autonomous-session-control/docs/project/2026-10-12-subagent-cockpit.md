@@ -1,5 +1,5 @@
 ---
-summary: "AK7039 cockpit implementation, controls, native proof and remaining rollout boundary."
+summary: "Historical AK7039 popup prototype and control proof; command surface and overlay are superseded."
 read_when:
   - "Operating the compact subagent widget or live child popup."
   - "Changing literal guidance delivery, private attempt control, or its verification contract."
@@ -7,6 +7,12 @@ type: "reference"
 ---
 
 # ASC subagent cockpit — AK7039
+
+> Historical prototype: the popup, its commands and implementation have been removed after operator
+> correction. Do not restore them from this record. Current usage is the single `/subagents`
+> controller command with native child tabs, `<name>` and `status`; explicit maintenance lives under
+> `diagnose`. See [the current attachment contract](2026-10-12-native-subagent-attachments.md).
+> The original behavior and proof below are retained as historical evidence, not current guidance.
 
 ## Operator contract
 

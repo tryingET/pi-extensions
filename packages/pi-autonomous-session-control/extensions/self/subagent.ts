@@ -93,7 +93,7 @@ export class DispatchSubagentToolError extends Error {
     const failureKind = result.details.failureKind ?? result.details.reason ?? "unknown_failure";
     const dispatchId = result.details.dispatchId ? ` dispatchId=${result.details.dispatchId}` : "";
     const inspect = result.details.sessionName
-      ? ` Inspect with /subagent-inspect ${result.details.sessionName}.`
+      ? ` Inspect with /subagents --name ${result.details.sessionName}.`
       : "";
     const metadata = renderDispatchSubagentToolFailureMetadata(result);
     super(

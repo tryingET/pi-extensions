@@ -187,10 +187,10 @@ async function runSubagentSessionsCard(card) {
       state,
     );
 
-    const commandName = card.command?.name ?? "subagent-clear";
+    const commandName = card.command?.name ?? "subagents";
     const command = commands.get(commandName);
     assert.ok(command, `${card.id}: command ${commandName} must be registered`);
-    await command.handler(card.command?.args ?? "", { hasUI: false });
+    await command.handler(card.command?.args ?? "diagnose clear", { hasUI: false });
 
     const files = await readdir(sessionsDir);
     return { files, state };

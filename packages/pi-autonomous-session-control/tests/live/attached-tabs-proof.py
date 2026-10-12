@@ -14,7 +14,7 @@ subprocess.run(['node','--input-type=module','-e',"const m=await import(process.
 if os.environ.get('TERM_PROGRAM') != 'ghostty': sys.exit('Real isolated Ghostty controller required')
 (root/'sessions').mkdir(mode=0o700)
 fixture = pathlib.Path(__file__).with_name('attached-tabs-proof-extension.ts').resolve()
-source_files = sorted((package/'extensions/self').glob('subagent-attachment*.ts')) + [package/'extensions/self/subagent-dashboard.ts',package/'attachments.ts',helper/'extensions/sidequestSubagentTabs.ts',helper/'extensions/sidequestSubagentTabsProtocol.ts',helper/'extensions/sidequest.ts',helper/'extensions/sidequestGhostty.ts',helper/'extensions/sidequestGhosttyShell.ts',helper/'extensions/sidequestLaunch.ts',helper/'extensions/sidequestLaunchTypes.ts',fixture,pathlib.Path(__file__).resolve(),guard]
+source_files = sorted((package/'extensions/self').glob('subagent-attachment*.ts')) + [package/'extensions/self/subagent-dashboard.ts',package/'attachments.ts',package/'extensions/self/subagent-commands.ts',helper/'extensions/sidequestSubagentDiagnostics.ts',helper/'extensions/sidequestSubagentTabs.ts',helper/'extensions/sidequestSubagentTabsProtocol.ts',helper/'extensions/sidequest.ts',helper/'extensions/sidequestGhostty.ts',helper/'extensions/sidequestGhosttyShell.ts',helper/'extensions/sidequestLaunch.ts',helper/'extensions/sidequestLaunchTypes.ts',fixture,pathlib.Path(__file__).resolve(),guard]
 def hashes(): return {os.path.relpath(p,package):hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files}
 source_hashes=hashes(); installed=os.environ.get('ASC_TABS_PROOF_INSTALLED')=='1'
 pid,fd=pty.fork()
@@ -95,6 +95,8 @@ def identity(name):
 try:
     until(lambda:read(root/'ready.json'),'native controller ready',45)
     assert read(root/'ready.json')['mode']=='tui'
+    assert read(root/'ready.json')['subagentCommands']==['subagents'],read(root/'ready.json')
+    checks.append('native command registry exposes only subagents; retired aliases absent')
     windows=niri('windows');assert len(windows)==1,windows
     window_id=windows[0]['id'];surface=os.environ['GHOSTTY_SURFACE_ID']
     clients=subprocess.check_output(['busctl','--address='+os.environ['DBUS_SESSION_BUS_ADDRESS'],'--no-pager','--no-legend','list'],text=True).splitlines()
@@ -111,6 +113,14 @@ try:
     for name in ['alpha','beta']:
         until(lambda n=name:(c if (c:=cockpit(n)) and c['phase']=='open' and any(e.get('toolName')=='bash' for e in c['events']) else None),'original '+name+' tool running')
     identities={name:identity(name) for name in ['alpha','beta']}
+    offset=len(buffer);send('/subagents status\r')
+    until(lambda:b'Subagents (current session):' in buffer[offset:] and b'running=2' in buffer[offset:],'single command read-only status reports original children',10)
+    offset=len(buffer);send('/subagents diagnose observer status\r')
+    until(lambda:b'ASC observer: idle' in buffer[offset:],'advanced observer status stays idle without launching',10)
+    offset=len(buffer);send('/subagents diagnose clear\r')
+    until(lambda:b'preserved subagent sessions' in buffer[offset:],'advanced maintenance preserves traces without delete opt-in',10)
+    assert all(identity(name)==identities[name] for name in ['alpha','beta'])
+    assert len(niri('windows'))==1
     assert not (root/'observers').exists() or not list((root/'observers').iterdir())
     offset=len(buffer);send('/subagents\r')
     views=until(lambda:(v if len(v:=ready_views())==2 else None),'two existing children attached as native Pi viewers',25)
@@ -157,7 +167,7 @@ try:
     alpha_after_close=ready_views().get('tab-alpha')
     assert alpha_after_close and alpha_after_close['viewerPid']==viewer_pids['alpha'] and start_ticks(viewer_pids['alpha'])==views['tab-alpha']['viewerStartedAt'], 'native close also detached sibling: '+json.dumps(records())
     checks.append('native beta close leaves original child running and alpha viewer unchanged')
-    send('/subagent-inspect tab-beta\r')
+    send('/subagents tab-beta\r')
     new_beta=until(lambda:(r if (r:=ready_views().get('tab-beta')) and r['viewerPid']!=old_beta_pid else None),'explicit reopen created one new viewer after proven death',25)
     assert len(niri('windows'))==1 and niri('windows')[0]['id']==window_id
     assert ready_views()['tab-alpha']['viewerPid']==viewer_pids['alpha']
@@ -173,7 +183,11 @@ try:
         assert ended['status']=='done',ended
         assert f'TYPED_TAB_{name.upper()}' in ended.get('resultPreview',''),ended
         assert identity(name)==identities[name]
-        committed=[r for line in (root/'sessions'/f'tab-{name}.jsonl').read_text().splitlines() if (r:=json.loads(line)).get('customType')=='asc.subagent-guidance.v1']
+        transcript=[json.loads(line) for line in (root/'sessions'/f'tab-{name}.jsonl').read_text().splitlines()]
+        calls=[part for entry in transcript if entry.get('message',{}).get('role')=='assistant' for part in entry['message'].get('content',[]) if isinstance(part,dict) and part.get('type')=='toolCall']
+        expected_command=f"printf 'TAB_{name.upper()}_STARTED\\n'; while [ ! -f '{root}/release' ]; do sleep 0.2; done; printf 'TAB_{name.upper()}_FINISHED\\n'"
+        assert len(calls)==1 and calls[0]['name']=='bash' and calls[0]['arguments']['command']==expected_command,'fixture child did not use exact single intended command'
+        committed=[r for r in transcript if r.get('customType')=='asc.subagent-guidance.v1']
         assert len(committed)==1 and committed[0]['content']==guidance[name], 'committed native guidance differs from exact operator input'
     checks.append('exactly one byte-faithful guidance request committed per original child')
     checks.append('real original children followed native-view guidance without restart or clone')
@@ -181,7 +195,7 @@ try:
     assert ready_views()['tab-beta']['viewerPid']==new_beta['viewerPid']
     until(lambda:b'done=2' in buffer,'controller count strip observes both settled children',10)
     send('/reload\r');pump(15)
-    send('/subagent-inspect tab-alpha\r');pump(4)
+    send('/subagents tab-alpha\r');pump(4)
     assert ready_views()['tab-alpha']['viewerPid']==viewer_pids['alpha'],'idle extension reload duplicated view'
     assert len(niri('windows'))==1 and niri('windows')[0]['id']==window_id
     checks.append('terminal history remains, count-only completion, idle reload reuses original view')

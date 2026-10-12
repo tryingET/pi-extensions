@@ -79,6 +79,7 @@
     "extensions/package-update-notify.ts",
     "extensions/session-presence.ts",
     "extensions/sidequest.ts",
+    "extensions/sidequestSubagentDiagnostics.ts",
     "extensions/sidequestSubagentTabs.ts",
     "extensions/sidequestSubagentTabsProtocol.ts",
     "docs/project/2026-10-12-native-subagent-tabs-host.md",

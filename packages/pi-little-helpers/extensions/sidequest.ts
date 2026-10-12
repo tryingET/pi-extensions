@@ -38,6 +38,7 @@ import {
 import { registerSidequestCommands } from "./sidequestCommands.ts";
 import { launchAscExecutionObserverSession } from "./sidequestLaunch.ts";
 import { registerSidequestPeerTools } from "./sidequestPeerTools.ts";
+import { createSidequestSubagentDiagnostics } from "./sidequestSubagentDiagnostics.ts";
 import { registerSubagentTabHost, type SubagentTabsOptions } from "./sidequestSubagentTabs.ts";
 import { createSidequestVisibleLoopAdapter } from "./sidequestVisibleLoopAdapter.ts";
 
@@ -115,17 +116,23 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     let ascExecutionObserver = makeAscObserver();
     let observerIdentity: string | undefined;
     let observerDisposed = false;
+    let observerGeneration = 0;
 
     if (registerCommands) {
+      const diagnostics = createSidequestSubagentDiagnostics(pi);
       registerSubagentTabHost(pi, options, DEFAULT_PI_BIN);
       stopAscObservation = pi.events?.on?.(ASC_EXECUTION_OBSERVATION_EVENT, (event) => {
         ascExecutionObserver.handle(event);
       });
       pi.on?.("session_start", async (_event, ctx) => {
+        const generation = ++observerGeneration;
+        diagnostics.stop();
+        currentObserverContext = undefined;
         const sessionId = ctx.sessionManager.getSessionId?.();
         const identity = `${sessionId ?? ""}\0${ctx.cwd}`;
         if (observerDisposed || (observerIdentity !== undefined && observerIdentity !== identity)) {
           await ascExecutionObserver.dispose();
+          if (generation !== observerGeneration) return;
           // Fresh ACK fence, not a fresh slot: the controller keeps the private session reservation.
           ascExecutionObserver = makeAscObserver();
         }
@@ -141,8 +148,11 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           cwd: ctx.cwd,
           sessionId,
         });
+        diagnostics.start(ctx, ascExecutionObserver);
       });
       pi.on?.("session_shutdown", async () => {
+        observerGeneration++;
+        diagnostics.stop();
         stopAscObservation?.();
         stopAscObservation = undefined;
         currentObserverContext = undefined;
@@ -167,47 +177,6 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     });
 
     if (registerCommands) {
-      pi.registerCommand("subagent-observer", {
-        description:
-          "Troubleshoot ASC telemetry: open/arm the detached read-only observer; status only inspects",
-        handler: async (args, ctx) => {
-          if (ctx.mode !== "tui" || !ctx.hasUI) return;
-          const action = args.trim();
-          if (action && action !== "status") {
-            ctx.ui.notify("Usage: /subagent-observer [status]", "warning");
-            return;
-          }
-          // Never fork/replace the session or bypass the generation/cwd fence.
-          ascExecutionObserver.setHostContext({
-            mode: ctx.mode,
-            hasUI: ctx.hasUI,
-            cwd: ctx.cwd,
-            sessionId: ctx.sessionManager.getSessionId?.(),
-          });
-          const outcome =
-            action === "status" ? ascExecutionObserver.status() : await ascExecutionObserver.open();
-          const explanation =
-            outcome.status === "armed"
-              ? "waiting for valid bounded ASC progress; no launch yet"
-              : outcome.status === "launched"
-                ? "renderer ACK verified; visibility/placement and execution are not proven"
-                : outcome.status === "pending" || outcome.status === "unconfirmed"
-                  ? "no verified renderer startup; no retry"
-                  : outcome.status === "closed" || outcome.status === "failed"
-                    ? "session launch slot cannot be reused"
-                    : outcome.status === "idle"
-                      ? "not armed; no launch requested"
-                      : outcome.status === "unavailable" || outcome.status === "disposed"
-                        ? "observer unavailable; startup not proven"
-                        : "no launch requested";
-          ctx.ui.notify(
-            `ASC observer: ${outcome.status}${outcome.effectDisposition ? ` (${outcome.effectDisposition})` : ""} — ${explanation}${outcome.detail ? `. ${outcome.detail}` : ""}`,
-            outcome.status === "launched" || outcome.status === "armed" || outcome.status === "idle"
-              ? "info"
-              : "warning",
-          );
-        },
-      });
       registerSidequestCommands(pi, {
         freshHandoff: async (args, ctx) => {
           await commandHandlers.freshHandoff(args, ctx);
