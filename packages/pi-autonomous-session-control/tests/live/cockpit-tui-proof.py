@@ -32,6 +32,7 @@ def hashes():
     return {os.path.relpath(file, package): hashlib.sha256(file.read_bytes()).hexdigest() for file in source_files}
 source_hashes = hashes()
 mode = os.environ.get("ASC_COCKPIT_TUI_MODE", "fullscreen")
+installed = os.environ.get("ASC_COCKPIT_PROOF_INSTALLED") == "1"
 pid, fd = pty.fork()
 if pid == 0:
     if helpers: os.environ["PI_ASC_OBSERVER_STATE_DIR"] = str(root / "observers")
@@ -39,6 +40,11 @@ if pid == 0:
         "--no-context-files", "--extension", str(fixture), "--provider", "cockpit-proof", "--model", "controller",
         "--tui-mode", mode, "--session", str(root / "controller.jsonl")]
     if helpers: args += ["--extension", helpers]
+    if installed:
+        args.remove("--no-extensions")
+        os.environ["PI_SUBAGENT_SESSIONS_DIR"] = str(root / "sessions")
+        os.environ["PI_SELF_MEMORY_PATH"] = str(root / "self-memory.json")
+        os.environ["PI_SUBAGENT_MODEL"] = os.environ["ASC_COCKPIT_PROOF_MODEL"]
     os.execvp("pi", args)
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 46, 130, 0, 0))
 log = open(root / "terminal.ansi", "wb", buffering=0)
@@ -151,7 +157,7 @@ try:
         assert len(observed.get("groups", [])) == 2
         checks.append("default observer effect-free; explicit troubleshooting opens retained progress")
     assert hashes() == source_hashes, "source changed during proof"
-    report = {"checks": checks, "sourceSha256": source_hashes, "mode": mode, "controllerPid": pid, "realChildModel": os.environ["ASC_COCKPIT_PROOF_MODEL"],
+    report = {"checks": checks, "sourceSha256": source_hashes, "installedExtensions": installed, "mode": mode, "controllerPid": pid, "realChildModel": os.environ["ASC_COCKPIT_PROOF_MODEL"],
         "steering": {"dispatchId": ended["dispatchId"], "attemptId": ended["attemptId"], "status": ended["status"]},
         "cancel": {"dispatchId": cancelled["dispatchId"], "attemptId": cancelled["attemptId"], "status": cancelled["status"]},
         "scope": "real Pi TUI and real ASC child provider; deterministic controller provider; no pixel/focus/placement proof"}

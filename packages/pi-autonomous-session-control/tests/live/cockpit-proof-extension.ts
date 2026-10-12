@@ -11,9 +11,11 @@ export default function proof(pi: ExtensionAPI) {
   const root = process.env.ASC_COCKPIT_PROOF_ROOT;
   const model = process.env.ASC_COCKPIT_PROOF_MODEL;
   if (!root || !model) throw new Error("Explicit proof scratch and real child model required");
-  const state = createSubagentState(join(root, "sessions"));
-  registerSubagentTool(pi, state, () => model);
-  registerSubagentDashboard(pi, state);
+  if (process.env.ASC_COCKPIT_PROOF_INSTALLED !== "1") {
+    const state = createSubagentState(join(root, "sessions"));
+    registerSubagentTool(pi, state, () => model);
+    registerSubagentDashboard(pi, state);
+  }
   pi.registerProvider("cockpit-proof", {
     api: "cockpit-proof-api",
     apiKey: "local-fixture",
