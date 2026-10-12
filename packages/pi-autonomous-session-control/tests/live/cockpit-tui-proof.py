@@ -3,7 +3,7 @@
 Deterministic controller provider only; actual child uses the explicitly selected real provider.
 Run in an owned PTY, or inside isolated Ghostty for the Ghostty-backed assertion.
 """
-import fcntl, glob, hashlib, json, os, pathlib, pty, select, signal, struct, sys, termios, time
+import fcntl, glob, hashlib, json, os, pathlib, pty, select, signal, struct, subprocess, sys, termios, time
 
 if os.environ.get("ASC_COCKPIT_LIVE") != "1":
     sys.exit("Refusing: set ASC_COCKPIT_LIVE=1 for explicit live provider trials")
@@ -17,15 +17,29 @@ package = fixture.parent.parent.parent
 source_files = sorted((package / "extensions/self").glob("subagent-cockpit*.ts")) + [
     package / "extensions/self/subagent-dashboard.ts", package / "extensions/self/subagent-control.ts",
     package / "extensions/self/subagent-spawn.ts", package / "extensions/self/subagent-spawn-args.ts", fixture]
+helpers = os.environ.get("ASC_COCKPIT_PROOF_HELPERS_EXTENSION")
+if helpers:
+    helper_package = pathlib.Path(helpers).resolve().parent.parent
+    guard = helper_package / "tests/ghostty-observer-tab-harness.mjs"
+    subprocess.run(["node", "--input-type=module", "-e",
+        "const m=await import(process.argv[1]); const reason=m.observerIsolationRefusal(); if(reason) throw new Error(reason);",
+        guard.as_uri()], check=True)
+    if os.environ.get("TERM_PROGRAM") != "ghostty": sys.exit("Real isolated Ghostty ancestor required")
+    source_files += [helper_package / "extensions/sidequest.ts", helper_package / "src/ascExecutionObserver.ts",
+        helper_package / "src/ascExecutionObserverProtocol.ts", helper_package / "extensions/sidequestLaunch.ts",
+        helper_package / "extensions/sidequestGhostty.ts"]
 def hashes():
-    return {str(file.relative_to(package)): hashlib.sha256(file.read_bytes()).hexdigest() for file in source_files}
+    return {os.path.relpath(file, package): hashlib.sha256(file.read_bytes()).hexdigest() for file in source_files}
 source_hashes = hashes()
 mode = os.environ.get("ASC_COCKPIT_TUI_MODE", "fullscreen")
 pid, fd = pty.fork()
 if pid == 0:
-    os.execvp("pi", ["pi", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-mcp",
+    if helpers: os.environ["PI_ASC_OBSERVER_STATE_DIR"] = str(root / "observers")
+    args = ["pi", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-mcp",
         "--no-context-files", "--extension", str(fixture), "--provider", "cockpit-proof", "--model", "controller",
-        "--tui-mode", mode, "--session", str(root / "controller.jsonl")])
+        "--tui-mode", mode, "--session", str(root / "controller.jsonl")]
+    if helpers: args += ["--extension", helpers]
+    os.execvp("pi", args)
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 46, 130, 0, 0))
 log = open(root / "terminal.ansi", "wb", buffering=0)
 buffer = bytearray()
@@ -116,6 +130,26 @@ try:
     send("\x1b"); pump(2.5)
     assert b"aborted=1" in buffer
     checks.append("terminal count strip and targeted cancellation outcomes rendered")
+    if helpers:
+        observer_root = root / "observers"
+        assert not observer_root.exists() or not list(observer_root.iterdir()), "default observation must not write or launch"
+        offset = len(buffer); send("/subagent-observer status\r")
+        until(lambda: b"idle" in buffer[offset:], "real slash command inspects observer without opening", 10)
+        assert not observer_root.exists() or not list(observer_root.iterdir()), "status must remain effect-free"
+        send("/subagent-observer\r")
+        def observer_state():
+            for file in observer_root.glob("*.session.json"):
+                value = read(file)
+                if value and value.get("observer", {}).get("launchStatus") == "launched": return value
+            # Session generation filenames are deliberately owner-chosen, not assumed by the driver.
+            for file in observer_root.glob("*.json"):
+                value = read(file)
+                if value and value.get("schema") == "pi.asc_execution_observer_session.v1" and value.get("observer", {}).get("launchStatus") == "launched": return value
+            return None
+        observed = until(observer_state, "real slash command has verified detached Ghostty renderer ACK", 20)
+        assert observed["observer"].get("rendererPid")
+        assert len(observed.get("groups", [])) == 2
+        checks.append("default observer effect-free; explicit troubleshooting opens retained progress")
     assert hashes() == source_hashes, "source changed during proof"
     report = {"checks": checks, "sourceSha256": source_hashes, "mode": mode, "controllerPid": pid, "realChildModel": os.environ["ASC_COCKPIT_PROOF_MODEL"],
         "steering": {"dispatchId": ended["dispatchId"], "attemptId": ended["attemptId"], "status": ended["status"]},
