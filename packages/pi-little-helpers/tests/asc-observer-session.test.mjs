@@ -72,7 +72,7 @@ function fixture(launch, extra = {}) {
   const children = [];
   const requests = [];
   const controller = createAscExecutionObserverController({
-    env: { TERM_PROGRAM: "ghostty" },
+    env: { TERM_PROGRAM: "ghostty", PI_ASC_OBSERVER: "ghostty" },
     stateRoot: root,
     startupTimeoutMs: 100,
     async launch(request) {

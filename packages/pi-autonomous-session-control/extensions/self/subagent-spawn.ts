@@ -1,10 +1,18 @@
 import type { ChildProcessByStdio } from "node:child_process";
 import { spawn } from "node:child_process";
 import type { Readable } from "node:stream";
+import {
+  COCKPIT_CHANNEL_ENV,
+  closeCockpitChannel,
+  createCockpitChannel,
+} from "./subagent-cockpit-channel.ts";
 import { getMatchingSubagentCancelRequest } from "./subagent-control.ts";
 import type { SubagentSettlementMode } from "./subagent-protocol.ts";
 import type { SubagentState } from "./subagent-session.ts";
-import { createSubagentProtocolArgs } from "./subagent-spawn-args.ts";
+import {
+  createSubagentProtocolArgs,
+  resolveCockpitChildExtensionPath,
+} from "./subagent-spawn-args.ts";
 import {
   assertSafeSubagentRequestEnv,
   assertSafeSubagentRuntimeEnv,
@@ -18,6 +26,7 @@ import {
   getSemanticStatus,
 } from "./subagent-spawn-events.ts";
 import {
+  getSubagentSessionFile,
   writeCompletedSubagentStatus,
   writeRunningSubagentStatus,
 } from "./subagent-spawn-status.ts";
@@ -99,8 +108,30 @@ export function spawnSubagentWithSpawn(
     DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES,
   );
 
+  let cockpitChannel: string | undefined;
+  try {
+    if (!signal?.aborted && def.parentSessionKey && def.parentRepoRoot) {
+      cockpitChannel = createCockpitChannel({
+        sessionsDir: state.sessionsDir,
+        sessionName: def.name,
+        dispatchId: def.dispatchId,
+        attemptId: def.attemptId,
+        parentSessionKey: def.parentSessionKey,
+        parentRepoRoot: def.parentRepoRoot,
+        cwd: ctx.cwd || process.cwd(),
+        sessionFile: getSubagentSessionFile(def, state),
+      });
+    }
+  } catch {
+    /* Optional private control failure must not alter custody/transport semantics. */
+  }
   const args = createSubagentProtocolArgs({
-    def,
+    def: cockpitChannel
+      ? {
+          ...def,
+          extensionSources: [...(def.extensionSources ?? []), resolveCockpitChildExtensionPath()],
+        }
+      : def,
     model,
     cwd: ctx.cwd,
     state,
@@ -428,6 +459,7 @@ export function spawnSubagentWithSpawn(
       if (settled) return;
       emitProgress("finalizing", true);
       settled = true;
+      closeCockpitChannel(cockpitChannel, `Parent finalized attempt: ${result.status}`);
       clearTimers();
       removeAbortListener();
       try {
@@ -646,7 +678,13 @@ export function spawnSubagentWithSpawn(
       const runtimeEnv = assertSafeSubagentRuntimeEnv(def.runtimeEnv);
       proc = spawnImpl(process.execPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, ...(runtimeEnv ?? {}), ...(requestEnv ?? {}) },
+        env: {
+          ...process.env,
+          ...(runtimeEnv ?? {}),
+          ...(requestEnv ?? {}),
+          // Never inherit the parent's channel into a nested/legacy child.
+          [COCKPIT_CHANNEL_ENV]: cockpitChannel ?? "",
+        },
         cwd: ctx.cwd || process.cwd(),
       });
       const hasSignalSafeChildPid =

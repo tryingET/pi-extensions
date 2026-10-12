@@ -17,7 +17,11 @@ import {
 } from "../src/ascExecutionObserver.ts";
 
 const createAscExecutionObserverController = (options) =>
-  createObserver({ startupTimeoutMs: 0, ...options });
+  createObserver({
+    startupTimeoutMs: 0,
+    ...options,
+    env: { PI_ASC_OBSERVER: "ghostty", ...options.env },
+  });
 
 function progressEvent(overrides = {}) {
   return {
@@ -253,7 +257,7 @@ test("direct dispatch terminal events terminalize their own observer group", asy
   }
 });
 
-test("headless, RPC, non-Ghostty auto, and explicitly disabled sessions have no observer effects", async () => {
+test("headless, RPC, default manual policy, and explicitly disabled sessions have no observer effects", async () => {
   for (const variant of [
     { env: { TERM_PROGRAM: "ghostty" }, mode: "tui", hasUI: false },
     { env: { TERM_PROGRAM: "ghostty" }, mode: "rpc", hasUI: true },
@@ -262,7 +266,7 @@ test("headless, RPC, non-Ghostty auto, and explicitly disabled sessions have no 
       mode: "tui",
       hasUI: true,
     },
-    { env: {}, mode: "tui", hasUI: true },
+    { env: { PI_ASC_OBSERVER: "auto" }, mode: "tui", hasUI: true },
   ]) {
     const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-"));
     let launches = 0;
@@ -502,7 +506,7 @@ test("capacity admission counts queued retained groups only once", async () => {
   }
 });
 
-test("observer policy supports automatic Ghostty and explicit override modes", () => {
+test("observer policy distinguishes default manual arming and explicit override modes", () => {
   assert.equal(resolveAscObserverPolicy({}), "auto");
   assert.equal(resolveAscObserverPolicy({ PI_ASC_OBSERVER: "ghostty" }), "ghostty");
   assert.equal(resolveAscObserverPolicy({ PI_ASC_OBSERVER: "0" }), "off");

@@ -132,7 +132,15 @@ export interface AscExecutionObserverState {
   notice: typeof NOTICE;
 }
 
+export interface AscObserverCommandOutcome {
+  status: AscObserverLaunchStatus | "idle" | "armed" | "disabled" | "unavailable" | "disposed";
+  effectDisposition?: AscObserverLaunchOutcome["effectDisposition"];
+  detail?: string;
+}
+
 export interface AscExecutionObserverController {
+  open(): Promise<AscObserverCommandOutcome>;
+  status(): AscObserverCommandOutcome;
   setHostContext(context: AscObserverHostContext): void;
   handle(rawEvent: unknown): void;
   flush(): Promise<void>;
@@ -183,6 +191,7 @@ export function createAscExecutionObserverController(
   const stateRoot = resolve(options.stateRoot ?? resolveAscObserverStateRoot(env));
   const now = options.now ?? Date.now;
   const policy = resolveAscObserverPolicy(env);
+  let armed = policy === "ghostty";
   const controllerInstanceId = randomUUID();
   const ownerProcessStart = processStart(ownerPid);
   const createdAt = new Date(now()).toISOString();
@@ -331,7 +340,20 @@ export function createAscExecutionObserverController(
     if (disposed || hostContext.mode !== "tui" || !hostContext.hasUI || policy === "off") {
       return false;
     }
-    return policy === "ghostty" || env.TERM_PROGRAM?.trim().toLowerCase() === "ghostty";
+    return true;
+  }
+
+  function status(): AscObserverCommandOutcome {
+    if (disposed) return { status: "disposed" };
+    if (hostContext.mode !== "tui" || !hostContext.hasUI) return { status: "unavailable" };
+    if (policy === "off") return { status: "disabled" };
+    observational(checkReceipt);
+    if (!request) return { status: armed ? "armed" : "idle" };
+    return {
+      status: observer.launchStatus,
+      effectDisposition: observer.effectDisposition,
+      detail: observer.failure ?? observer.note,
+    };
   }
 
   function statePathFor(
@@ -356,7 +378,7 @@ export function createAscExecutionObserverController(
       if (!terminalExpired && !inactiveExpired) continue;
       groups.delete(key);
       changed = true;
-      safeUnlinkPrivateState(entry.statePath, stateRoot);
+      if (armed) safeUnlinkPrivateState(entry.statePath, stateRoot);
     }
     if (changed) observational(publishSession);
   }
@@ -364,7 +386,7 @@ export function createAscExecutionObserverController(
   async function applyEvent(event: ObservationEvent): Promise<void> {
     if (!isEnabled() || resolve(event.cwd) !== hostContext.cwd) return;
     const at = now();
-    if (!staleSnapshotsPruned) {
+    if (armed && !staleSnapshotsPruned) {
       staleSnapshotsPruned = true;
       pruneStaleObserverSnapshots(stateRoot, at);
     }
@@ -403,8 +425,14 @@ export function createAscExecutionObserverController(
     const completedGroup = updateState(entry.state, event, at);
     if (completedGroup) entry.terminalAt = at;
     else if (event.event === "dispatch_progress") entry.terminalAt = undefined;
-    writePrivateState(entry.statePath, entry.state, stateRoot);
+    if (armed) {
+      writePrivateState(entry.statePath, entry.state, stateRoot);
+      startRetainedSession();
+    }
+  }
 
+  function startRetainedSession(): void {
+    if (!isEnabled() || !armed || groups.size === 0) return;
     if (!request) {
       const sessionId = hostContext.sessionId || `pid-${ownerPid}`;
       const digest = hashIdentity(`${sessionId}\0${controllerInstanceId}`);
@@ -441,8 +469,7 @@ export function createAscExecutionObserverController(
             : "Private session reservation unavailable; no launch attempted.",
         };
       }
-      entry.state.observer = { ...observer };
-      writePrivateState(entry.statePath, entry.state, stateRoot);
+      publishObserver();
     }
     publishSession();
     // Reservation is synchronous before any launch await, across ALL group queues.
@@ -453,13 +480,40 @@ export function createAscExecutionObserverController(
   }
 
   return {
+    status,
+    async open() {
+      if (!isEnabled()) return status();
+      armed = true;
+      await Promise.all([...queues.values()].map((queue) => queue.catch(() => undefined)));
+      pruneExpiredGroups(now());
+      try {
+        startRetainedSession();
+      } catch {
+        return {
+          status: "unavailable",
+          detail: "Private observer state unavailable; startup not proven.",
+        };
+      }
+      // Transport may never settle. Report pending, not startup, after a bounded command wait.
+      if (launchPromise) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          launchPromise,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, startupTimeoutMs + 1000);
+          }),
+        ]);
+        if (timer) clearTimeout(timer);
+      }
+      return status();
+    },
     setHostContext(context) {
       if (disposed) return;
       if (
-        request &&
+        (request || groups.size > 0 || queues.size > 0) &&
         ((strictIdentity(context.sessionId, MAX_ID_CHARS) || `pid-${ownerPid}`) !==
-          request.sessionId ||
-          normalizeHostCwd(context.cwd) !== request.cwd)
+          (hostContext.sessionId || `pid-${ownerPid}`) ||
+          normalizeHostCwd(context.cwd) !== hostContext.cwd)
       ) {
         // A controller generation cannot absorb a replacement session's groups.
         void this.dispose();
@@ -512,7 +566,7 @@ export function createAscExecutionObserverController(
         entry.state.controllerActive = false;
         entry.state.updatedAt = timestamp;
         try {
-          writePrivateState(entry.statePath, entry.state, stateRoot);
+          if (armed) writePrivateState(entry.statePath, entry.state, stateRoot);
         } catch {
           // The renderer also detects unavailable state; teardown remains best-effort.
         }

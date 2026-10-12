@@ -453,12 +453,22 @@ The child still launches with `--no-extensions`, but ASC supports explicit and n
 - Status sidecars (`<session>.status.json`) are atomically replaced and record `running|done|error|timeout|aborted|abandoned` plus dispatch/attempt identity, helper/raw-child custody, resumability/cancellation metadata, timeout phase, session file path, profile, model, tools, parent session key, parent repo root, bounded result/stderr previews, and pre-settlement transport failure classification; dead running sessions are reconciled to `abandoned` on next startup.
 - Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.
 - `/subagent-status` reports terminal/runtime counts plus bounded shared-capacity holder identities and process states, so operators can inspect repository-scoped capacity before another dispatch fails. It remains read-only; malformed or uncertain leases require owner investigation rather than blind deletion.
-- A read-only widget surfaces recent subagent sessions for the current live session only, appears only after this session dispatches a subagent, and auto-clears once entries age past 1 hour.
+- A compact current-session widget shows at most four running children, with elapsed time, latest tool and observed activity age when available. It never infers failure from silence or age-hides a running attempt. Once all children are terminal, per-child rows disappear: only one outcome-count line remains. With no current-session children the widget is hidden.
 - If you want to keep subagent traces outside Pi's native session tree, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`). The default favors native Pi session storage because subagent traces are useful operator/eval data rather than disposable repo-local clutter.
 
-**Dashboard commands:**
-- `/subagent-dashboard` — open a read-only summary of recent subagent sessions, including current-session scope and bounded result previews
-- `/subagent-inspect <session-name>` — open a derived inspection summary with lifecycle metadata, session scope, bounded replay notes, artifact paths, safety notes, and the raw status sidecar for a specific session
+**Cockpit commands:**
+- `/subagents [all|running|done|error|timeout|aborted|abandoned]` — live interactive popup for children belonging to the current controller session/repository, including terminal history.
+- `/subagent-dashboard` — compatibility alias for `/subagents`.
+- `/subagent-inspect <session-name>` — open the popup with that current-session child selected.
+- `Ctrl+Alt+Shift+S` — open while the controller is awaiting a child; no `waitForIdle`. Set `PI_ASC_COCKPIT_SHORTCUT=off` to disable, or choose another `ctrl+alt+shift+<letter>` chord. Pi diagnoses registered shortcut collisions.
+
+In the popup, **Tab** cycles child picker, timeline and private draft. **Enter** selects/expands a timeline event; tool arguments/results are bounded and inert. **End** follows live activity; **PgUp/PgDn** browse history. In the private composer, **Ctrl+S** sends guidance; Enter never sends. Drafts are isolated by attempt and never replace the main editor draft. **Ctrl+Alt+X** asks for confirmation before cancelling the exact selected attempt. **Esc** dismisses only; closing/reopening does not cancel or restart execution. Cancellation does not undo effects.
+
+Live steering requires an ASC-bootstrapped child, Linux process identity and Pi >=1.1 native boundary support. Already-running legacy children remain inspection-only. Guidance is literal text appended at a successful native turn/final-continuation boundary after current tools finish; it does not execute slash commands, interrupt a tool or resurrect a settled attempt. Receipt states are `queued`, `delivered`, `rejected` and `expired`; **delivered means committed into child context, not obeyed**. Intermediate retry/overflow errors keep telemetry/control alive. Final lock contention has a bounded wait and an explicit rejection fence; uncertain identity/storage fails closed.
+
+The private attempt channel retains at most 80 recent events, 32 guidance records (8 pending) and 1 MiB serialized UTF-8; history clipping is labelled. Guidance expires after five minutes without a boundary. Private control files are retained alongside session artifacts; generic `asc.execution_observation.v1` remains content-free. This channel is not a same-user sandbox or task/effect authority. See [cockpit implementation and proof](docs/project/2026-10-12-subagent-cockpit.md).
+
+When `pi-little-helpers` is present, the detached observer is troubleshooting-only by default: `/subagent-observer` opens/arms it and `/subagent-observer status` only inspects. Existing explicit `PI_ASC_OBSERVER=ghostty` opt-in remains available; closing the singleton does not permit relaunch.
 
 **Example:**
 ```bash
@@ -469,7 +479,7 @@ PI_SUBAGENT_MODEL=github-copilot/gpt-4o pi
 PI_SUBAGENT_EXTENSIONS=vault-client,/abs/path/to/custom-extension.ts pi
 
 # Optional separate ASC session directory instead of Pi-native sessions
-PI_SUBAGENT_SESSIONS_DIR=/tmp/pi-sessions pi
+PI_SUBAGENT_SESSIONS_DIR="$TMPDIR/pi-sessions" pi
 ```
 
 ## Self memory persistence
@@ -497,7 +507,7 @@ Persistence behavior:
 
 ## Current runtime reality
 
-- `dispatch_subagent` is wired, bounded, and backed by session/status artifacts plus the read-only dashboard and inspection commands.
+- `dispatch_subagent` is wired, bounded, and backed by session/status artifacts; the cockpit adds bounded operator visibility and exact-attempt guidance without replacing ASC execution/effect ownership.
 - The package-level `pi-autonomous-session-control/execution` entrypoint now exposes the supported public execution contract for non-tool consumers.
 - ASC now carries an owned rewind runtime slice that captures exact rewind points on turn boundaries, integrates with Pi's built-in `/fork` and `/tree` lifecycle hooks, and can project bounded restore milestones into Replay Fabric when `ASC_REWIND_REPLAY_FABRIC_URL` is configured.
 - Rewind retention now runs after session reconstruction and rewind-state lifecycle changes. Each active session publishes a shared `refs/pi-rewind/active-sessions/*` lease commit that directly protects its current/undo parents across linked worktrees; aggregate store rewrites verify the active-session epoch, collected lease heads, and old store OID in one Git ref transaction, then recollect/retry on drift. Historical op/turn snapshots are bounded to 128 snapshots and 30 days by default. Override with non-negative integers in `PI_ASC_REWIND_MAX_SNAPSHOTS` and `PI_ASC_REWIND_MAX_AGE_DAYS`; supply comma-separated full lowercase SHA-1 pins with `PI_ASC_REWIND_PINNED_COMMITS`. `/asc-rewind-status` reports the last retention result, live/pinned/ordinary snapshot and active-session counts, store head, policy, and any fail-closed error. `refs/pi-rewind/store` is never deleted for an empty live set.

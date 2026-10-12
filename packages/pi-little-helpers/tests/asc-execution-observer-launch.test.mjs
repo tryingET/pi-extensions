@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
-  createSidequestExtension,
+  createSidequestExtension as createSidequest,
   SURFACE_ID_CAPABILITY_PROBE_VALUE,
 } from "../extensions/sidequest.ts";
 import { ASC_EXECUTION_OBSERVATION_EVENT } from "../src/ascExecutionObserver.ts";
@@ -19,6 +19,10 @@ import {
   LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
   registerExtension,
 } from "./sidequest-harness.mjs";
+
+// Existing transport/lifecycle regressions intentionally use the legacy explicit opt-in.
+const createSidequestExtension = (options = {}) =>
+  createSidequest({ ...options, env: { PI_ASC_OBSERVER: "ghostty", ...options.env } });
 
 function observation(sequence = 1, producer = "loop_execute") {
   const directDispatch = producer === "dispatch_subagent";

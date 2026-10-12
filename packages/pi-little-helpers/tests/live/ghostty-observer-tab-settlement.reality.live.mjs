@@ -43,6 +43,7 @@ for (const settlement of ["rejected", "unclassified"]) {
       let transport;
       const controller = createAscExecutionObserverController({
         stateRoot: root,
+        env: { ...process.env, PI_ASC_OBSERVER: "ghostty" },
         startupTimeoutMs: 50,
         async launch(request) {
           requests.push(request);

@@ -44,6 +44,10 @@ function register(options = {}, piOverrides = {}) {
 
 const COMMANDS = [
   [
+    "subagent-observer",
+    "Troubleshoot ASC telemetry: open/arm the detached read-only observer; status only inspects",
+  ],
+  [
     "fresh-handoff",
     "Generate a self-contained handoff and auto-submit it in a fresh clean Ghostty Pi session. Unscoped child cwd receives company provenance automatically; session mode is not a company switch",
   ],

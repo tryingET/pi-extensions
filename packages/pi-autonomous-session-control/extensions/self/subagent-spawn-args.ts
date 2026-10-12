@@ -29,6 +29,14 @@ export function resolveSubagentProtocolHelperPath(moduleUrl = import.meta.url): 
 
 const SUBAGENT_PROTOCOL_HELPER_PATH = resolveSubagentProtocolHelperPath();
 
+export function resolveCockpitChildExtensionPath(moduleUrl = import.meta.url): string {
+  const helperPath = resolveSubagentProtocolHelperPath(moduleUrl);
+  return join(
+    dirname(helperPath),
+    `subagent-cockpit-child${helperPath.endsWith(".js") ? ".js" : ".ts"}`,
+  );
+}
+
 export function createSubagentProtocolArgs(params: {
   def: SubagentDef;
   model: string;

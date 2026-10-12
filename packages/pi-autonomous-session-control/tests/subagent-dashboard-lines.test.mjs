@@ -1,10 +1,13 @@
+import "./subagent-cockpit-ui-loader.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { buildDashboardLines } from "../extensions/self/subagent-dashboard.ts";
+
+const { buildDashboardLines } = await import("../extensions/self/subagent-dashboard.ts");
+
 import { writeStatus } from "./subagent-dashboard-data-harness.mjs";
 
 test("buildDashboardLines never exceeds the requested width", async () => {
@@ -66,7 +69,7 @@ test("buildDashboardLines never exceeds the requested width", async () => {
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-test("buildDashboardLines hides the widget until this live session has recent subagent activity", async () => {
+test("buildDashboardLines preserves old outcomes as one count line and excludes other parents", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-empty-"));
   const theme = {
     fg(_name, value) {
@@ -94,7 +97,8 @@ test("buildDashboardLines hides the widget until this live session has recent su
 
     for (const width of [1, 2, 3, 10, 24, 40]) {
       const lines = buildDashboardLines(width, theme, sessionsDir, "live-session-key");
-      assert.deepEqual(lines, []);
+      assert.equal(lines.length, 1);
+      assert.doesNotMatch(lines.join("\n"), /current-but-stale|other-session|objective/);
     }
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });

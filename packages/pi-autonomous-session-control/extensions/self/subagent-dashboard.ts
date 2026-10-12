@@ -1,135 +1,135 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  Theme,
-  ThemeColor,
-} from "@earendil-works/pi-coding-agent";
-import { type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import { type Component, type KeyId, truncateToWidth } from "@earendil-works/pi-tui";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
+import { readSubagentCockpit } from "./subagent-cockpit-data.ts";
+import { SubagentCockpitUI } from "./subagent-cockpit-ui.ts";
+import {
+  COCKPIT_FILTERS,
+  type CockpitFilter,
+  cockpitText,
+  createCockpitSource,
+} from "./subagent-cockpit-ui-control.ts";
 import {
   createSubagentDashboardSnapshot,
-  createSubagentSessionInspection,
+  formatAgeLabel,
+  type SubagentDashboardRow,
   type SubagentDashboardSnapshot,
 } from "./subagent-dashboard-data.ts";
 import type { SubagentState } from "./subagent-session.ts";
 
 const DASHBOARD_WIDGET_KEY = "subagent-ops-dashboard";
-const DASHBOARD_REFRESH_MS = 2_000;
-const DASHBOARD_HIDE_GRACE_MS = 10_000;
-const DASHBOARD_ROW_LIMIT = 4;
-const DASHBOARD_WIDGET_MAX_AGE_MS = 60 * 60 * 1000;
-
 type DashboardTheme = Pick<Theme, "fg">;
-type RenderRequester = { requestRender(): void };
+const WIDGET_RUNNING_LIMIT = 4;
+interface DashboardWidgetRow extends SubagentDashboardRow {
+  elapsedLabel?: string;
+  latestTool?: string;
+  activityLabel?: string;
+  quiet?: boolean;
+}
+type DashboardWidgetSnapshot = Omit<SubagentDashboardSnapshot, "rows"> & {
+  rows: DashboardWidgetRow[];
+};
 
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  if (maxLength <= 1) return "…";
-  return `${text.slice(0, maxLength - 1)}…`;
+function elapsedLabel(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
-function fitLine(line: string, width: number): string {
-  if (!Number.isFinite(width) || width <= 0) return "";
-  return visibleWidth(line) > width ? truncateToWidth(line, width, "…") : line;
-}
-
-function renderStatus(status: string): { icon: string; color: ThemeColor } {
-  switch (status) {
-    case "running":
-      return { icon: "●", color: "accent" };
-    case "done":
-      return { icon: "✓", color: "success" };
-    case "error":
-      return { icon: "✗", color: "error" };
-    case "timeout":
-      return { icon: "◷", color: "warning" };
-    case "aborted":
-      return { icon: "⊘", color: "warning" };
-    case "abandoned":
-      return { icon: "◌", color: "warning" };
-    default:
-      return { icon: "?", color: "dim" };
-  }
-}
-
-function createWidgetSnapshot(
+export function createWidgetSnapshot(
   sessionsDir: string,
   currentSessionKey?: string,
   currentRepoRoot?: string,
-) {
-  return createSubagentDashboardSnapshot(sessionsDir, {
-    limit: DASHBOARD_ROW_LIMIT,
+  now = Date.now(),
+): DashboardWidgetSnapshot {
+  const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
+    limit: Number.MAX_SAFE_INTEGER,
     currentSessionKey,
     currentRepoRoot,
+    now,
     sessionScope: "current",
-    maxAgeMs: DASHBOARD_WIDGET_MAX_AGE_MS,
+    // Runtime-owned running children do not expire because their sidecar is quiet.
   });
+  const rows = snapshot.rows
+    .filter((row) => row.status === "running")
+    .slice(0, WIDGET_RUNNING_LIMIT)
+    .map((row): DashboardWidgetRow => {
+      try {
+        const telemetry = readSubagentCockpit(sessionsDir, row.sessionName, {
+          currentSessionKey,
+          currentRepoRoot,
+        });
+        // Copy only approved observer metadata from cockpit, not conversation, IDs or objectives.
+        const activityAt = telemetry.lastActivityAt;
+        const activityAge =
+          typeof activityAt === "number" &&
+          Number.isFinite(activityAt) &&
+          activityAt > 0 &&
+          activityAt <= now
+            ? now - activityAt
+            : undefined;
+        return {
+          ...row,
+          elapsedLabel:
+            typeof telemetry.elapsedMs === "number" &&
+            Number.isFinite(telemetry.elapsedMs) &&
+            telemetry.elapsedMs >= 0
+              ? elapsedLabel(telemetry.elapsedMs)
+              : undefined,
+          latestTool: telemetry.latestTool
+            ? cockpitText(telemetry.latestTool, 80).replace(/\s+/g, " ").trim()
+            : undefined,
+          activityLabel: activityAge === undefined ? undefined : formatAgeLabel(activityAge),
+          quiet: activityAge === undefined ? undefined : activityAge >= 60_000,
+        };
+      } catch {
+        return row;
+      } // Legacy/unavailable readers do not imply quiet or stopped children.
+    });
+  return { ...snapshot, rows };
 }
 
-function createEmptyDashboardSnapshot(): SubagentDashboardSnapshot {
-  return {
-    rows: [],
-    total: 0,
-    counts: {
-      running: 0,
-      done: 0,
-      error: 0,
-      timeout: 0,
-      aborted: 0,
-      abandoned: 0,
-    },
-  };
-}
-
-function normalizeSessionKey(value: string | undefined): string | undefined {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
-}
-
-function buildDashboardLinesFromSnapshot(
+export function buildDashboardLinesFromSnapshot(
   width: number,
   theme: DashboardTheme,
-  snapshot: SubagentDashboardSnapshot,
+  snapshot: DashboardWidgetSnapshot,
   currentSessionKey?: string,
 ): string[] {
-  const normalizedSessionKey = normalizeSessionKey(currentSessionKey);
-  if (
-    !Number.isFinite(width) ||
-    width <= 0 ||
-    !normalizedSessionKey ||
-    snapshot.rows.length === 0
-  ) {
+  if (!Number.isFinite(width) || width <= 0 || !currentSessionKey?.trim() || !snapshot.total)
     return [];
+  const fit = (line: string) => truncateToWidth(line, width, "…");
+  const counts = COCKPIT_FILTERS.filter((status) => status !== "all")
+    .filter((status) => status !== "running" || snapshot.counts.running > 0)
+    .map((status) => `${status}=${snapshot.counts[status]}`)
+    .join(" ");
+  const lines = [
+    fit(
+      `${theme.fg("accent", "Subagents")}${snapshot.counts.running ? "" : theme.fg("muted", " · /subagents")} ${theme.fg("dim", counts)}`,
+    ),
+  ];
+  if (!snapshot.counts.running) return lines;
+  const running = snapshot.rows
+    .filter((row) => row.status === "running")
+    .slice(0, WIDGET_RUNNING_LIMIT);
+  for (const row of running) {
+    const metadata = [
+      row.elapsedLabel ? `elapsed ${row.elapsedLabel}` : undefined,
+      row.latestTool,
+      row.activityLabel
+        ? `${row.quiet ? "quiet" : "activity"} ${row.activityLabel}`
+        : `updated ${row.ageLabel} · activity unavailable`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    lines.push(
+      fit(
+        `${theme.fg("accent", "●")} ${cockpitText(row.sessionName, 160).replace(/\s+/g, " ")} ${theme.fg("dim", `· ${metadata}`)}`,
+      ),
+    );
   }
-
-  const header = fitLine(
-    [
-      theme.fg("accent", "Subagent ops"),
-      theme.fg("dim", ` live=${truncate(normalizedSessionKey, 18)}`),
-      theme.fg("dim", ` total=${snapshot.total}`),
-      theme.fg("dim", ` running=${snapshot.counts.running}`),
-      theme.fg("dim", ` done=${snapshot.counts.done}`),
-      theme.fg("dim", ` error=${snapshot.counts.error}`),
-      theme.fg("dim", ` timeout=${snapshot.counts.timeout}`),
-      theme.fg("dim", ` aborted=${snapshot.counts.aborted}`),
-      theme.fg("dim", ` abandoned=${snapshot.counts.abandoned}`),
-    ].join(""),
-    width,
-  );
-
-  const lines = [header];
-
-  for (const row of snapshot.rows) {
-    const { icon, color } = renderStatus(row.status);
-    const lead = `${icon} ${row.sessionName}`;
-    const status = theme.fg(color, lead);
-    const age = theme.fg("dim", ` · ${row.ageLabel}`);
-    const scope = row.sessionScopeBadge ? theme.fg("dim", ` · ${row.sessionScopeBadge}`) : "";
-    lines.push(fitLine(`${status}${age}${scope}`, width));
-    lines.push(fitLine(`  ${theme.fg("muted", row.objectivePreview)}`, width));
-    lines.push(fitLine(`  ${theme.fg("dim", row.recommendedActionHint)}`, width));
-  }
-
+  const overflow = snapshot.counts.running - running.length;
+  if (overflow > 0) lines.push(fit(theme.fg("dim", `+${overflow} more running · /subagents`)));
   return lines;
 }
 
@@ -148,304 +148,131 @@ export function buildDashboardLines(
   );
 }
 
-function sessionArtifactSummary(
-  sessionsDir: string,
-  sessionName: string,
-  currentSessionKey?: string,
-  currentRepoRoot?: string,
-): string {
-  const inspection = createSubagentSessionInspection(sessionsDir, sessionName, {
-    currentSessionKey,
-    currentRepoRoot,
-  });
-  const sections: string[] = [`# Subagent Session: ${sessionName}`, ""];
-
-  if (!inspection.found) {
-    sections.push("No matching session artifacts were found.");
-    sections.push("");
-    sections.push("## Lookup");
-    sections.push(`- Sessions dir: ${sessionsDir}`);
-    sections.push(`- Expected status sidecar: ${inspection.statusArtifact.path}`);
-    sections.push(`- Expected session file: ${inspection.sessionArtifact.path}`);
-    sections.push("");
-
-    if (inspection.recentSessionSuggestions.length > 0) {
-      sections.push("## Recent sessions");
-      for (const suggestion of inspection.recentSessionSuggestions) {
-        sections.push(`- ${suggestion}`);
-      }
-      sections.push("");
-    }
-
-    sections.push("Try an exact session name from `/subagent-dashboard` before retrying.");
-    return sections.join("\n");
-  }
-
-  sections.push("## History boundary");
-  sections.push(`- ${inspection.historyBoundaryNote}`);
-  sections.push(`- Current live session: ${inspection.currentSessionKey ?? "(unavailable)"}`);
-  sections.push(`- Current repo root: ${inspection.currentRepoRoot ?? "(unavailable)"}`);
-  sections.push("");
-
-  sections.push("## Summary");
-  sections.push(`- Status: ${inspection.status ?? "unknown"}`);
-  sections.push(`- Session scope: ${inspection.sessionScopeLabel}`);
-  if (inspection.parentSessionKey) {
-    sections.push(`- Recorded under live session: ${inspection.parentSessionKey}`);
-  }
-  if (inspection.parentRepoRoot) {
-    sections.push(`- Recorded under repo root: ${inspection.parentRepoRoot}`);
-  }
-  if (inspection.updatedAt) {
-    sections.push(
-      `- Updated: ${inspection.updatedAt}${inspection.ageLabel ? ` (${inspection.ageLabel})` : ""}`,
-    );
-  }
-  if (inspection.createdAt) {
-    sections.push(`- Created: ${inspection.createdAt}`);
-  }
-  if (inspection.objective) {
-    sections.push(`- Objective: ${inspection.objective}`);
-  }
-  if (inspection.resultPreview) {
-    sections.push(`- Result preview: ${inspection.resultPreview}`);
-  }
-  sections.push(`- Recommended action: ${inspection.recommendedActionHint}`);
-  if (typeof inspection.pid === "number") {
-    const pidDetails =
-      inspection.pidState === "alive" || inspection.pidState === "dead"
-        ? ` (pid state: ${inspection.pidState})`
-        : inspection.pidState === "not-applicable"
-          ? " (pid state: not applicable)"
-          : "";
-    sections.push(`- PID: ${inspection.pid}${pidDetails}`);
-  }
-  if (typeof inspection.ppid === "number") {
-    sections.push(`- Parent PID: ${inspection.ppid}`);
-  }
-  if (inspection.elapsedLabel) {
-    sections.push(`- Elapsed: ${inspection.elapsedLabel}`);
-  }
-  if (typeof inspection.exitCode === "number") {
-    sections.push(`- Exit code: ${inspection.exitCode}`);
-  }
-  sections.push("");
-
-  sections.push("## Artifact paths");
-  sections.push(
-    `- Status sidecar: ${inspection.statusArtifact.path}${inspection.statusArtifact.exists ? "" : " (missing)"}`,
-  );
-  sections.push(
-    `- Session file: ${inspection.sessionArtifact.path}${inspection.sessionArtifact.exists ? "" : " (missing)"}`,
-  );
-  if (typeof inspection.sessionArtifact.bytes === "number") {
-    sections.push(`- Session bytes: ${inspection.sessionArtifact.bytes}`);
-  }
-  if (inspection.sessionArtifact.modifiedAt) {
-    sections.push(`- Session modified: ${inspection.sessionArtifact.modifiedAt}`);
-  }
-  sections.push("");
-
-  if (inspection.warnings.length > 0) {
-    sections.push("## Safety notes");
-    for (const warning of inspection.warnings) {
-      sections.push(`- ${warning}`);
-    }
-    sections.push("");
-  }
-
-  if (inspection.rawStatusJson) {
-    sections.push("## Raw status sidecar");
-    sections.push("```json");
-    sections.push(inspection.rawStatusJson || "{}");
-    sections.push("```");
-    sections.push("");
-  }
-
-  return sections.join("\n");
+// Restrict configuration to non-default chords; never hijack Ctrl+O/S or editor input.
+// Pi also diagnoses conflicts with registered app/extension shortcuts at load time.
+export function cockpitShortcut(value = process.env.PI_ASC_COCKPIT_SHORTCUT): KeyId | undefined {
+  if (value === "off") return undefined;
+  if (value && !/^ctrl\+alt\+shift\+[a-z]$/.test(value)) return undefined;
+  return (value ?? "ctrl+alt+shift+s") as KeyId;
 }
 
 export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState): void {
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
-  let mountedTui: RenderRequester | null = null;
-  let visibleSnapshot = createEmptyDashboardSnapshot();
-  let visibleSessionKey: string | undefined;
-  let visibleRepoRoot: string | undefined;
-  let lastVisibleAt: number | undefined;
+  let widgetCleanup: (() => void) | undefined;
+  let popup: SubagentCockpitUI | undefined;
+  let opening = false;
+  const drafts = new Map<string, string>();
 
-  const stopRefresh = () => {
-    if (refreshTimer) {
-      clearInterval(refreshTimer);
-      refreshTimer = null;
-    }
-  };
-
-  const clearVisibleSnapshot = (currentSessionKey?: string, currentRepoRoot?: string) => {
-    visibleSnapshot = createEmptyDashboardSnapshot();
-    visibleSessionKey = normalizeSessionKey(currentSessionKey);
-    visibleRepoRoot = normalizeSessionKey(currentRepoRoot);
-    lastVisibleAt = undefined;
-  };
-
-  const refreshVisibleSnapshot = (ctx: ExtensionContext) => {
-    const now = Date.now();
-    const currentSessionKey = normalizeSessionKey(getContextSessionKey(ctx));
-    const currentRepoRoot = normalizeSessionKey(getContextRepoRoot(ctx));
-    const snapshot = createWidgetSnapshot(state.sessionsDir, currentSessionKey, currentRepoRoot);
-
-    if (snapshot.rows.length > 0 && currentSessionKey) {
-      visibleSnapshot = snapshot;
-      visibleSessionKey = currentSessionKey;
-      visibleRepoRoot = currentRepoRoot;
-      lastVisibleAt = now;
-      return;
-    }
-
-    const sessionChanged =
-      currentSessionKey !== undefined &&
-      visibleSessionKey !== undefined &&
-      currentSessionKey !== visibleSessionKey;
-    const repoChanged =
-      currentRepoRoot !== undefined &&
-      visibleRepoRoot !== undefined &&
-      currentRepoRoot !== visibleRepoRoot;
-    const withinHideGrace =
-      visibleSnapshot.rows.length > 0 &&
-      typeof lastVisibleAt === "number" &&
-      now - lastVisibleAt < DASHBOARD_HIDE_GRACE_MS;
-
-    if (!sessionChanged && !repoChanged && withinHideGrace) {
-      return;
-    }
-
-    clearVisibleSnapshot(currentSessionKey, currentRepoRoot);
-  };
-
-  const startRefresh = (ctx: ExtensionContext) => {
-    stopRefresh();
-    mountedTui = null;
-    clearVisibleSnapshot();
-    if (!ctx.hasUI) return;
-
-    ctx.ui.setWidget(
-      DASHBOARD_WIDGET_KEY,
-      (tui: unknown, theme: DashboardTheme): Component & { dispose(): void } => {
-        mountedTui = tui as RenderRequester;
-        return {
-          render: (width: number) =>
-            buildDashboardLinesFromSnapshot(width, theme, visibleSnapshot, visibleSessionKey),
-          invalidate: () => {},
-          dispose: () => {
-            if (mountedTui === tui) {
-              mountedTui = null;
-            }
-          },
-        };
-      },
+  const start = (ctx: ExtensionContext) => {
+    widgetCleanup?.();
+    popup?.close();
+    drafts.clear();
+    if (ctx.mode !== "tui" || !ctx.hasUI) return;
+    let snapshot = createWidgetSnapshot(
+      state.sessionsDir,
+      getContextSessionKey(ctx),
+      getContextRepoRoot(ctx),
     );
-
-    const refresh = () => {
-      refreshVisibleSnapshot(ctx);
-      mountedTui?.requestRender();
+    let sessionKey = getContextSessionKey(ctx);
+    let disposed = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const cleanup = () => {
+      disposed = true;
+      if (timer) clearInterval(timer);
+      timer = undefined;
     };
-
-    refresh();
-    refreshTimer = setInterval(refresh, DASHBOARD_REFRESH_MS);
-    refreshTimer.unref?.();
+    widgetCleanup = cleanup;
+    ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, (tui, theme): Component & { dispose(): void } => {
+      const refresh = () => {
+        if (disposed) return;
+        sessionKey = getContextSessionKey(ctx);
+        snapshot = createWidgetSnapshot(state.sessionsDir, sessionKey, getContextRepoRoot(ctx));
+        tui.requestRender();
+      };
+      if (!disposed) {
+        timer = setInterval(refresh, 2000);
+        timer.unref?.();
+      }
+      return {
+        render: (width) => buildDashboardLinesFromSnapshot(width, theme, snapshot, sessionKey),
+        invalidate: () => {},
+        dispose: cleanup,
+      };
+    });
   };
 
-  pi.on("session_start", (_event, ctx) => {
-    startRefresh(ctx);
-  });
-
-  pi.on("session_shutdown", async (_event, ctx) => {
-    stopRefresh();
-    mountedTui = null;
-    clearVisibleSnapshot();
-    if (ctx.hasUI) {
-      ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, undefined);
+  const open = async (ctx: ExtensionContext, args = "", selectedName?: string) => {
+    if (ctx.mode !== "tui" || !ctx.hasUI) {
+      if (ctx.hasUI) ctx.ui.notify("Subagents requires interactive TUI mode.", "warning");
+      return;
     }
+    if (opening) return;
+    const filter = (args.trim() || "all") as CockpitFilter;
+    if (!COCKPIT_FILTERS.includes(filter)) {
+      ctx.ui.notify(`Usage: /subagents [${COCKPIT_FILTERS.join("|")}]`, "warning");
+      return;
+    }
+    const source = createCockpitSource(state, ctx);
+    if (selectedName && !source.rows().some((row) => row.sessionName === selectedName)) {
+      ctx.ui.notify("No matching child owned by the current session/repository.", "warning");
+      return;
+    }
+    opening = true;
+    try {
+      // Shortcuts receive ExtensionContext: intentionally no waitForIdle or main editor access.
+      await ctx.ui.custom<void>(
+        (tui, theme, keybindings, done) => {
+          popup = new SubagentCockpitUI(
+            tui,
+            theme,
+            source,
+            () => done(),
+            filter,
+            selectedName,
+            drafts,
+            keybindings,
+          );
+          return popup;
+        },
+        {
+          overlay: true,
+          overlayOptions: { width: "92%", maxHeight: "90%", anchor: "center", margin: 1 },
+        },
+      );
+    } finally {
+      popup?.dispose();
+      popup = undefined;
+      opening = false;
+    }
+  };
+
+  pi.on("session_start", (_event, ctx) => start(ctx));
+  pi.on("session_shutdown", (_event, ctx) => {
+    widgetCleanup?.();
+    widgetCleanup = undefined;
+    popup?.close();
+    drafts.clear();
+    if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, undefined);
   });
-
-  pi.registerCommand("subagent-dashboard", {
-    description: "Open a read-only summary of recent subagent sessions",
-    handler: async (_args, ctx) => {
-      const currentSessionKey = getContextSessionKey(ctx);
-      const currentRepoRoot = getContextRepoRoot(ctx);
-      const snapshot = createSubagentDashboardSnapshot(state.sessionsDir, {
-        limit: 25,
-        currentSessionKey,
-        currentRepoRoot,
-      });
-      const lines = [
-        "# Subagent Operations Dashboard",
-        "",
-        `- Sessions dir: ${state.sessionsDir}`,
-        `- Current live session: ${currentSessionKey ?? "(unavailable)"}`,
-        `- Current repo root: ${currentRepoRoot ?? "(unavailable)"}`,
-        `- Total sessions: ${snapshot.total}`,
-        `- Running: ${snapshot.counts.running}`,
-        `- Done: ${snapshot.counts.done}`,
-        `- Error: ${snapshot.counts.error}`,
-        `- Timeout: ${snapshot.counts.timeout}`,
-        `- Aborted: ${snapshot.counts.aborted}`,
-        `- Abandoned: ${snapshot.counts.abandoned}`,
-        "",
-        "## History boundary",
-        "",
-        "- This dashboard summarizes bounded local subagent history only.",
-        "- Use Pi's native session tree for the live session authority.",
-        "",
-        "## Recent sessions",
-        "",
-      ];
-
-      if (snapshot.rows.length === 0) {
-        lines.push("No subagent sessions recorded yet.");
-      } else {
-        for (const row of snapshot.rows) {
-          lines.push(`### ${row.sessionName}`);
-          lines.push(`- Status: ${row.status}`);
-          lines.push(`- Updated: ${row.updatedAt} (${row.ageLabel})`);
-          lines.push(`- Session scope: ${row.sessionScopeLabel}`);
-          lines.push(`- Objective: ${row.objectivePreview}`);
-          if (row.resultPreview) {
-            lines.push(`- Result preview: ${row.resultPreview}`);
-          }
-          lines.push(`- Recommended action: ${row.recommendedActionHint}`);
-          lines.push(`- Inspect: /subagent-inspect ${row.sessionName}`);
-          lines.push("");
-        }
-      }
-
-      if (ctx.hasUI) {
-        await ctx.ui.editor("Subagent Operations Dashboard", lines.join("\n"));
-      }
-    },
-  });
-
+  for (const name of ["subagents", "subagent-dashboard"]) {
+    pi.registerCommand(name, {
+      description: "Live child cockpit [all|running|done|error|timeout|aborted|abandoned]",
+      handler: (args, ctx) => open(ctx, args),
+    });
+  }
   pi.registerCommand("subagent-inspect", {
-    description: "Open a derived inspection summary for a specific subagent session",
+    description: "Open live cockpit for a current-session child",
     handler: async (args, ctx) => {
-      const sessionName = args.trim();
-      if (!sessionName) {
-        if (ctx.hasUI) {
-          ctx.ui.notify("Usage: /subagent-inspect <session-name>", "warning");
-        }
+      if (!args.trim()) {
+        if (ctx.hasUI) ctx.ui.notify("Usage: /subagent-inspect <name>", "warning");
         return;
       }
-
-      if (ctx.hasUI) {
-        await ctx.ui.editor(
-          `Subagent Session ${sessionName}`,
-          sessionArtifactSummary(
-            state.sessionsDir,
-            sessionName,
-            getContextSessionKey(ctx),
-            getContextRepoRoot(ctx),
-          ),
-        );
-      }
+      await open(ctx, "all", args.trim());
     },
   });
+  const shortcut = cockpitShortcut();
+  if (shortcut)
+    pi.registerShortcut(shortcut, {
+      description: "Open subagent cockpit (PI_ASC_COCKPIT_SHORTCUT; off disables)",
+      handler: (ctx) => open(ctx),
+    });
 }

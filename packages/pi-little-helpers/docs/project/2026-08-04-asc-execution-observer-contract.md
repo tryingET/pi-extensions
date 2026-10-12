@@ -1,5 +1,5 @@
 ---
-summary: "Contract for automatic read-only Ghostty observation of ASC-backed dispatch and loop progress."
+summary: "Contract for troubleshooting-only read-only Ghostty observation of ASC-backed dispatch and loop progress."
 read_when:
   - "Changing ASC execution observation events, automatic Ghostty observer launch, loop grouping, or long-running-agent supervision."
   - "Debugging why dispatch_subagent or loop_execute did not open one progress observer tab."
@@ -15,7 +15,7 @@ system4d:
 
 ## Decision
 
-Interactive Ghostty Pi sessions automatically project ASC-backed execution into a read-only observer tab when `pi-little-helpers` is loaded.
+AK7039 makes detached observation troubleshooting-only by default. `pi-little-helpers` retains valid content-free telemetry in bounded TUI memory without files, reservations, probes or tab launches until the operator invokes `/subagent-observer`. The command opens from retained progress or arms for future valid progress; it does not fork, replace the current session identity, or wait for agent idle. `/subagent-observer status` only inspects. Explicit `PI_ASC_OBSERVER=ghostty`/`on`/`1`/`true` preserves the old automatic TUI opt-in, with all existing launch protections.
 
 The first implementation does **not** relocate the ASC helper or raw Pi child into Ghostty. ASC retains its owned helper process, pipes, PID/start identity, capacity lease, cancellation, settlement protocol, and effect receipt.
 
@@ -29,7 +29,7 @@ ASC-owned headless execution
 
 AK6844 changes the observer projection to one shared viewer per Pi controller session across **all** direct dispatches, loops and resumed/later batches. Each group's existing ASC identity, phases, events and execution/effect truth remain separate and unchanged. The controller synchronously reserves its singleton attempt before any transport await; group queues continue collecting telemetry while startup is pending.
 
-Receiver selection and placement limitations are described in the [package README](../../README.md#automatic-asc-execution-observer); older exact-placement claims below are historical, not verified guarantees.
+Receiver selection and placement limitations are described in the [package README](../../README.md#troubleshooting-only-asc-execution-observer); older exact-placement claims below are historical, not verified guarantees.
 
 ## Owner split
 
@@ -122,25 +122,26 @@ pi.asc_execution_observer_reservation.v1 # durable one-attempt tombstone per Pi 
 
 The snapshot is diagnostic UI state, not a session trace, checkpoint, KES artifact, evidence receipt, or authority projection.
 
-## Automatic launch policy
+## Troubleshooting launch policy
 
-Default `PI_ASC_OBSERVER=auto` behavior attempts launch only when:
+Unset/`PI_ASC_OBSERVER=auto` retains telemetry but has no external observer effects. Launch is armed only by `/subagent-observer`, or the legacy explicit environment opt-in, and still requires:
 
 1. the exact host mode is `ctx.mode === "tui"` and the session reports `hasUI=true`;
-2. the host process is running inside Ghostty (`TERM_PROGRAM=ghostty`);
-3. the standard `pi-little-helpers` sidequest extension is loaded;
-4. the first valid `dispatch_progress` event for the active cwd arrives;
-5. the controller exposes a surface ID, its actual Ghostty ancestor executable maps to a recognized broker family, and that family's well-known owner resolves to one unique D-Bus peer. The primary origin/main family uses `com.mitchellh.ghostty` at `/com/mitchellh/ghostty`; transitional legacy controllers use `com.tryinget.ghosttysidequest` at `/com/tryinget/ghosttysidequest`. The resolver never crosses between families.
+2. the standard `pi-little-helpers` sidequest extension is loaded;
+3. valid `dispatch_progress` for the active cwd has established a retained group (terminal updates alone cannot create one);
+4. the controller exposes a surface ID, its actual Ghostty ancestor executable maps to a recognized broker family, and that family's well-known owner resolves to one unique D-Bus peer. The primary origin/main family uses `com.mitchellh.ghostty` at `/com/mitchellh/ghostty`; transitional legacy controllers use `com.tryinget.ghosttysidequest` at `/com/tryinget/ghosttysidequest`. The resolver never crosses between families.
 
 Overrides:
 
 | Value | Behavior |
 |---|---|
-| unset / `auto` | Attempt exact same-window tab launch (single-instance server + controller surface id) only for interactive Ghostty Pi sessions. |
+| unset / `auto` | Retain bounded TUI telemetry in memory only; `/subagent-observer` explicitly arms the guarded launch path. |
 | `1`, `on`, `true`, `ghostty` | Request observation-policy evaluation for any TUI session. Exact single-instance server targeting is still mandatory; this never enables an untargeted tab, new-window fallback, or RPC/JSON/print mode. |
-| `0`, `off`, `false`, `headless`, `disabled` | Do not write observer state or launch Ghostty. |
+| `0`, `off`, `false`, `headless`, `disabled` | Do not retain telemetry, write observer state or launch Ghostty, even on command. |
 
-`pi -p`, JSON, RPC, CI, SSH, and other non-TUI callers remain headless even when RPC reports `hasUI=true` or the process inherits a Ghostty environment variable.
+`pi -p`, JSON, RPC and other non-TUI callers remain effect-free even on command and explicit opt-in, including RPC reporting `hasUI=true` or inherited Ghostty variables. The command is registered only on the standard command projection, not toolbox-only projections.
+
+Command outcomes are exact diagnostic states: `idle` (status only; not armed), `armed` (waiting for valid progress), `pending`/`unconfirmed` (startup unproved), `launched` (verified renderer ACK), `failed`/`closed` (launch slot not reusable), `disabled`, `unavailable`, or `disposed`. Transport disposition and bounded failure/note are included when available. The command waits at most the bounded startup timeout plus one second for a hung transport, then reports pending without retry. A late ACK can only confirm the original attempt. Replay preserves original observation timestamps; it never fabricates a heartbeat or current activity. Terminal/inactive expiry and the 128-group/64-phase bounds apply before and after arming. Unarmed disposal drops memory without observer file effects. Reload cannot recover unarmed memory; future progress can still be armed. Once reserved, reload never restores a launch slot.
 
 The observer reuses the visible-session launch primitives but selects a stricter placement policy than operator-requested visible peers: only the unique peer of the controller executable family's well-known single-instance owner may open its tab, the owner's `/proc/<pid>/exe` must equal the actual controller build, and the controller surface ID routes the tab to the exact window. Capability probes use the actual controller ancestor and ignore `PI_SIDEQUEST_GHOSTTY_BIN`. Under `--gtk-single-instance`, targeting the nearest ancestor PID can misroute when that ancestor is a launcher client, so the exact-build well-known owner is authoritative. It never substitutes another executable family, invokes an untargeted `+new-tab`, uses the transitional wrapper for a normal controller, or retries in a new window. If exact placement is unavailable or activation fails, the observer records/reports one launch failure and ASC execution continues headlessly. Toolbox-only sidequest projection does not register a second listener.
 
@@ -201,7 +202,7 @@ Routine 5–10 minute cutoffs should not be supplied for ordinary long-running m
 | Loop result remains exactly retryable after `confirmed_no_effects` | Do not emit `group_terminal`; preserve the shared run observer for lawful resume. |
 | Loop terminates | Emit `group_terminal`; render final run state. |
 
-Ghostty transport acceptance is **not** renderer startup. Session launch status is `pending` during the bounded startup check (2 seconds by default, not an execution timeout), `unconfirmed` without an ACK, `failed` for genuine transport refusal/rejection (`confirmed_no_effects`), `launched` only after a verified renderer ACK, and `closed` after its process ends. None permits an automatic retry, new window or focus operation. The adapter preserves the transport's disposition; the controller conservatively normalizes thrown callbacks and unsuccessful settlements other than explicit `confirmed_no_effects` to `effect_indeterminate`. A `settled` label on an unsuccessful callback is not no-effects proof. An `effect_indeterminate` result remains pending/unconfirmed and eligible for a valid immediate or late ACK for that **exact same attempt**, without retry; `confirmed_no_effects` remains failed even if a contradictory receipt appears. These observer transport dispositions are not ASC execution/effect receipts. A late matching ACK may confirm the original accepted/indeterminate request only while its generation is live; it does not create another tab or revive disposed state.
+Ghostty transport acceptance is **not** renderer startup. Session launch status is `pending` during the bounded startup check (2 seconds by default, not an execution timeout), `unconfirmed` without an ACK, `failed` for genuine transport refusal/rejection (`confirmed_no_effects`), `launched` only after a verified renderer ACK, and `closed` after its process ends. None permits a retry (including another explicit command), new window or focus operation. The adapter preserves the transport's disposition; the controller conservatively normalizes thrown callbacks and unsuccessful settlements other than explicit `confirmed_no_effects` to `effect_indeterminate`. A `settled` label on an unsuccessful callback is not no-effects proof. An `effect_indeterminate` result remains pending/unconfirmed and eligible for a valid immediate or late ACK for that **exact same attempt**, without retry; `confirmed_no_effects` remains failed even if a contradictory receipt appears. These observer transport dispositions are not ASC execution/effect receipts. A late matching ACK may confirm the original accepted/indeterminate request only while its generation is live; it does not create another tab or revive disposed state.
 
 The renderer validates session id/controller instance and live controller PID/start identity, renders the first frame, awaits its stdout write completion, then creates a private exclusive mode-0600 startup receipt. The receipt binds session, instance, random one-attempt token, renderer PID and Linux `/proc` start ticks. The controller opens it with `O_NOFOLLOW|O_NONBLOCK`, checks the opened inode's owner/type/link count/exact mode/size, reads at most 4097 bytes, and checks the live PID/start identity and exact Node/script/identity arguments. Symlinks, hardlinks, non-private, malformed, oversized, wrong-token/instance/session/PID/start receipts are not ACKs. This is a same-user diagnostic handshake, not a security boundary against the controller's own user forging files/processes.
 
@@ -223,11 +224,13 @@ Ghostty observer owner:
 
 ```bash
 cd packages/pi-little-helpers
-node --test tests/asc-observer-session.test.mjs tests/asc-execution-observer.test.mjs tests/asc-execution-observer-unavailable.test.mjs tests/asc-execution-observer-launch.test.mjs
+node --test tests/subagent-observer-command.test.mjs tests/asc-observer-session.test.mjs tests/asc-execution-observer.test.mjs tests/asc-execution-observer-unavailable.test.mjs tests/asc-execution-observer-launch.test.mjs
 # Real Ghostty path: only inside a parent-provided nested/sandbox GUI, private session bus
 # and an isolated Ghostty controller surface. This launches no models.
 PI_ASC_OBSERVER_LIVE_ISOLATED=1 node --test tests/live/asc-observer-unavailable.reality.live.mjs
-npm run check
+npm run quality:pre-push
+# npm run check additionally rebuilds task-session artifacts via packaging;
+# do not run while the README build/publication reconciliation HOLD remains.
 ```
 
 Loop consumer/grouping:
@@ -238,7 +241,7 @@ node --test --test-concurrency=1 tests/loop-observation.test.mjs tests/runtime-s
 npm run check
 ```
 
-The source-only ACK tests launch the actual renderer against private scratch, not Ghostty. The isolated real-Ghostty assertion exercises one real targeted activation for four concurrent dispatch groups plus a loop, verifies its renderer receipt/process, terminal-batch persistence and manual-close/no-relaunch behavior. A skipped assertion is not GUI proof. Installed Pi behavior additionally needs parent-authorized landing/install/reload and TUI exercise; AK6844 child execution does not authorize those steps.
+The source-only ACK tests launch the actual renderer against private scratch, not Ghostty. The isolated real-Ghostty assertion requires the existing nested-compositor/private-bus identity preflight, verifies default no-effects before explicit controller opening from four retained dispatch groups plus a loop, then one real targeted activation, its renderer receipt/process, terminal-batch persistence and explicit-open/manual-close/reload no-relaunch behavior. Source-loaded command tests exercise registration/notifications with an actual Node renderer but no Ghostty; the isolated assertion exercises the controller API, not a real Pi slash-command parser. A skipped assertion is not GUI proof. Installed Pi behavior additionally needs parent-authorized landing/install/reload and TUI exercise; AK6844 child execution does not authorize those steps.
 
 ## Non-authorizations
 

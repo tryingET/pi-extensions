@@ -21,6 +21,7 @@ function createPiHarness() {
     registerCommand(name, definition) {
       commands.set(name, definition);
     },
+    registerShortcut() {},
     on(eventName, handler) {
       eventHandlers.set(eventName, handler);
     },

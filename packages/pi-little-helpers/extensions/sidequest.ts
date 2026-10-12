@@ -164,6 +164,47 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     });
 
     if (registerCommands) {
+      pi.registerCommand("subagent-observer", {
+        description:
+          "Troubleshoot ASC telemetry: open/arm the detached read-only observer; status only inspects",
+        handler: async (args, ctx) => {
+          if (ctx.mode !== "tui" || !ctx.hasUI) return;
+          const action = args.trim();
+          if (action && action !== "status") {
+            ctx.ui.notify("Usage: /subagent-observer [status]", "warning");
+            return;
+          }
+          // Never fork/replace the session or bypass the generation/cwd fence.
+          ascExecutionObserver.setHostContext({
+            mode: ctx.mode,
+            hasUI: ctx.hasUI,
+            cwd: ctx.cwd,
+            sessionId: ctx.sessionManager.getSessionId?.(),
+          });
+          const outcome =
+            action === "status" ? ascExecutionObserver.status() : await ascExecutionObserver.open();
+          const explanation =
+            outcome.status === "armed"
+              ? "waiting for valid bounded ASC progress; no launch yet"
+              : outcome.status === "launched"
+                ? "renderer ACK verified; visibility/placement and execution are not proven"
+                : outcome.status === "pending" || outcome.status === "unconfirmed"
+                  ? "no verified renderer startup; no retry"
+                  : outcome.status === "closed" || outcome.status === "failed"
+                    ? "session launch slot cannot be reused"
+                    : outcome.status === "idle"
+                      ? "not armed; no launch requested"
+                      : outcome.status === "unavailable" || outcome.status === "disposed"
+                        ? "observer unavailable; startup not proven"
+                        : "no launch requested";
+          ctx.ui.notify(
+            `ASC observer: ${outcome.status}${outcome.effectDisposition ? ` (${outcome.effectDisposition})` : ""} — ${explanation}${outcome.detail ? `. ${outcome.detail}` : ""}`,
+            outcome.status === "launched" || outcome.status === "armed" || outcome.status === "idle"
+              ? "info"
+              : "warning",
+          );
+        },
+      });
       registerSidequestCommands(pi, {
         freshHandoff: async (args, ctx) => {
           await commandHandlers.freshHandoff(args, ctx);

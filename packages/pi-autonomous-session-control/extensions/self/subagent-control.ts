@@ -98,7 +98,19 @@ export function cancelSubagentDispatch(params: {
   requestedBy: string;
   reason?: string;
   parentRepoRoot?: string;
+  expectedAttemptId?: string;
+  expectedParentSessionKey?: string;
+  expectedSessionName?: string;
 }): SubagentCancelResult {
+  const matchesExpected = (
+    status: NonNullable<ReturnType<typeof readLifecycleOwnedSessionStatus>>,
+  ) =>
+    (params.expectedAttemptId === undefined || status.attemptId === params.expectedAttemptId) &&
+    (params.expectedParentSessionKey === undefined ||
+      status.parentSessionKey === params.expectedParentSessionKey) &&
+    (params.expectedSessionName === undefined ||
+      status.sessionName === params.expectedSessionName) &&
+    (params.parentRepoRoot === undefined || status.parentRepoRoot === params.parentRepoRoot);
   const dispatchId = params.dispatchId.trim();
   const matches = listSubagentSessionStatuses(params.state.sessionsDir).filter(
     (status) => status.dispatchId === dispatchId,
@@ -110,11 +122,11 @@ export function cancelSubagentDispatch(params: {
     return { ok: false, status: "ambiguous", error: `Ambiguous dispatch id ${dispatchId}` };
   }
   const status = matches[0];
-  if (params.parentRepoRoot && status.parentRepoRoot !== params.parentRepoRoot) {
+  if (!matchesExpected(status)) {
     return {
       ok: false,
       status: "not_found",
-      error: `Dispatch ${dispatchId} belongs to a different repository`,
+      error: `Dispatch ${dispatchId} does not match the expected attempt, parent, session or repository`,
     };
   }
   if (status.status !== "running") {
@@ -182,14 +194,24 @@ export function cancelSubagentDispatch(params: {
 
   // Reconcile lifecycle and PID identity after publishing intent but immediately before signal.
   const current = readLifecycleOwnedSessionStatus(params.state.sessionsDir, status.sessionName);
+  const sameIdentity =
+    current &&
+    matchesExpected(current) &&
+    current.sessionName === status.sessionName &&
+    current.dispatchId === dispatchId &&
+    current.attemptId === status.attemptId &&
+    current.parentSessionKey === status.parentSessionKey &&
+    current.parentRepoRoot === status.parentRepoRoot &&
+    current.pid === status.pid &&
+    current.pidStartedAt === status.pidStartedAt;
   if (
-    current?.status !== "running" ||
-    current.dispatchId !== dispatchId ||
-    current.attemptId !== status.attemptId ||
+    !sameIdentity ||
+    current.status !== "running" ||
+    current.cancelSupported !== true ||
     !runningStatusHasLiveOwner(current)
   ) {
     removeCancelRequestIfOwned(requestPath, activeRequest.token);
-    return current && current.status !== "running"
+    return sameIdentity && current.status !== "running"
       ? { ok: true, status: "already_terminal", dispatchId, sessionName: status.sessionName }
       : {
           ok: false,
@@ -199,7 +221,7 @@ export function cancelSubagentDispatch(params: {
   }
 
   try {
-    process.kill(status.pid, "SIGTERM");
+    process.kill(current.pid, "SIGTERM");
   } catch (error) {
     removeCancelRequestIfOwned(requestPath, activeRequest.token);
     return {

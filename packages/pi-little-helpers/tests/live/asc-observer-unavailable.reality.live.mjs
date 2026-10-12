@@ -7,6 +7,7 @@ import {
   chmodSync,
   existsSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   unlinkSync,
@@ -23,13 +24,15 @@ import { buildGhosttyArgs, findGhosttyAncestor } from "../../extensions/sideques
 import { launchAscExecutionObserverSession } from "../../extensions/sidequestLaunch.ts";
 import { createAscExecutionObserverController } from "../../src/ascExecutionObserver.ts";
 import { processStart } from "../../src/ascExecutionObserverProtocol.ts";
+import { observerIsolationRefusal } from "../ghostty-observer-tab-harness.mjs";
 
 const scriptPath = fileURLToPath(
   new URL("../../scripts/asc-execution-observer.mjs", import.meta.url),
 );
 const ghostty = findGhosttyAncestor(process.pid);
+const isolationRefusal = observerIsolationRefusal();
 const desktopAvailable =
-  process.env.PI_ASC_OBSERVER_LIVE_ISOLATED === "1" &&
+  !isolationRefusal &&
   process.platform === "linux" &&
   process.env.TERM_PROGRAM === "ghostty" &&
   ghostty?.exe;
@@ -164,7 +167,7 @@ test(
 // No models, installs, window fallback, focus commands, or dispatch replay. Run this file only
 // inside a parent-provided sandbox/nested GUI Ghostty surface with an isolated session bus.
 test(
-  "reality: four dispatches plus loop use one real Ghostty activation and renderer ACK",
+  "reality: default has no effects; explicit observer opening replays retained groups once and cannot reopen after close/reload",
   {
     skip:
       desktopAvailable && process.env.GHOSTTY_SURFACE_ID
@@ -178,6 +181,7 @@ test(
     const requests = [];
     const makeController = () =>
       createAscExecutionObserverController({
+        env: { ...process.env, PI_ASC_OBSERVER: "auto" },
         stateRoot: root,
         launch(request) {
           requests.push(request);
@@ -239,7 +243,14 @@ test(
       for (let i = 0; i < 4; i++) controller.handle(progress(`direct-${i}`));
       controller.handle(progress("loop", true));
       await controller.flush();
+      assert.equal(requests.length, 0);
+      assert.equal(calls.length, 0);
+      assert.deepEqual(readdirSync(root), []);
+      assert.equal(controller.status().status, "idle");
+      const opened = await controller.open();
+      assert.ok(["launched", "unconfirmed", "pending"].includes(opened.status));
       assert.equal(requests.length, 1);
+      assert.equal(requests[0].sessionId, host.sessionId);
       await waitFor(
         state,
         (s) => s.observer.launchStatus === "launched",
@@ -276,6 +287,7 @@ test(
       await waitFor(state, (s) => s.observer.launchStatus === "closed", "manual renderer close");
       controller.handle(progress("later-batch"));
       await controller.flush();
+      assert.equal((await controller.open()).status, "closed");
       assert.equal(requests.length, 1);
       assert.equal(
         calls.filter((c) => c.command === "busctl" && c.args.includes("Activate")).length,
@@ -287,6 +299,7 @@ test(
       controller.setHostContext(host); // Same Pi session ID, fresh generation/ACK fence.
       controller.handle(progress("after-reload"));
       await controller.flush();
+      assert.equal((await controller.open()).status, "closed");
       const reloaded = JSON.parse(
         readFileSync(
           controller.statePathFor("after-reload", "dispatch_subagent", "dispatch"),

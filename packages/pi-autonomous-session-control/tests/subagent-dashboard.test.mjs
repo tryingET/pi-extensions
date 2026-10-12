@@ -1,10 +1,12 @@
+import "./subagent-cockpit-ui-loader.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { registerSubagentDashboard } from "../extensions/self/subagent-dashboard.ts";
+const { registerSubagentDashboard } = await import("../extensions/self/subagent-dashboard.ts");
+
 import { createSubagentState, getSessionStatusPath } from "../extensions/self/subagent-session.ts";
 
 async function writeStatus(sessionsDir, sessionName, updatedAt, extras = {}) {
@@ -36,6 +38,7 @@ function createPiHarness() {
       registerCommand(name, definition) {
         commands.set(name, definition);
       },
+      registerShortcut() {},
     },
     getHandler(eventName) {
       return handlers.get(eventName);
@@ -51,6 +54,7 @@ function createUiHarness(cwd = process.cwd()) {
     ctx: {
       cwd,
       hasUI: true,
+      mode: "tui",
       sessionKey: "live-session-key",
       ui: {
         setWidget(key, content, options) {
@@ -107,7 +111,6 @@ test("registerSubagentDashboard mounts the widget once and refreshes it in place
     assert.equal(uiHarness.widgetCalls.length, 1);
     assert.equal(uiHarness.widgetCalls[0].key, "subagent-ops-dashboard");
     assert.equal(typeof uiHarness.widgetCalls[0].content, "function");
-    assert.equal(typeof intervalState.callback, "function");
 
     const component = uiHarness.widgetCalls[0].content(
       {
@@ -119,11 +122,16 @@ test("registerSubagentDashboard mounts the widget once and refreshes it in place
     );
 
     assert.ok(component.render(80).length > 0);
+    assert.equal(typeof intervalState.callback, "function");
 
     intervalState.callback();
     intervalState.callback();
 
     assert.equal(uiHarness.widgetCalls.length, 1);
+    assert.equal(renderRequests, 2);
+    component.dispose();
+    assert.equal(intervalState.cleared, 1);
+    intervalState.callback();
     assert.equal(renderRequests, 2);
   } finally {
     globalThis.setInterval = originalSetInterval;
@@ -132,7 +140,7 @@ test("registerSubagentDashboard mounts the widget once and refreshes it in place
   }
 });
 
-test("registerSubagentDashboard keeps the widget stable across one empty poll and hides only after the grace window", async () => {
+test("registerSubagentDashboard hides immediately when current parent identity is unavailable", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-grace-"));
   const intervalState = { callback: null };
   const originalSetInterval = globalThis.setInterval;
@@ -175,7 +183,7 @@ test("registerSubagentDashboard keeps the widget stable across one empty poll an
     uiHarness.ctx.sessionKey = undefined;
     Date.now = () => baseNow + 2_000;
     intervalState.callback();
-    assert.ok(component.render(80).length > 0);
+    assert.deepEqual(component.render(80), []);
 
     Date.now = () => baseNow + 12_000;
     intervalState.callback();
@@ -256,6 +264,7 @@ test("registerSubagentDashboard clears its timer and widget on session_shutdown"
     const sessionStart = getHandler("session_start");
     const sessionShutdown = getHandler("session_shutdown");
     await sessionStart?.({}, uiHarness.ctx);
+    uiHarness.widgetCalls[0].content({ requestRender() {} }, { fg: (_name, text) => text });
     await sessionShutdown?.({}, uiHarness.ctx);
 
     assert.equal(intervalState.cleared, 1);
