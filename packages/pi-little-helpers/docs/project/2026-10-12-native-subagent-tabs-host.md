@@ -167,3 +167,19 @@ LH consumer. The integration's ASC imports are test-only public surfaces.
 
 No packaging/build/Decision151 artifacts, commits, AK mutations, landing, install/activation,
 real model or operator GUI actions are authorized by this implementation slice.
+
+## Parent qualification (separate from the source-only child slice)
+
+Parent execution under AK7039 subsequently provided changed-package CI (ASC 713 / LH 955
+passing tests), guarded canonical landing/install, and a normally installed, non-skipped native
+assertion with two real original children. See the [parent evidence and retained limits](../../../pi-autonomous-session-control/docs/project/2026-10-12-native-subagent-attachments.md#installed-canonical-qualification).
+The new `subagent-attachments.reality.live.mjs` requires explicit real-provider/isolation opt-in;
+`npm run reality:check -- --only=subagent-attachments.reality.live.mjs` selects exactly that fixture
+without starting independent GUI assertions concurrently. Unknown/unsafe selection fails closed.
+
+The successful fixture uses owned nested repeat settings, private unique-owner PID readback,
+native presentation and focus-dependent `close-tab("this")`, exact guidance-byte assertions and
+surviving-sibling checks. It does not establish normal-repeat virtual-key behavior, atomic
+surface-ID close, broad platform/split/race support, exhaustive absence of execution/network,
+standalone task-session behavior or full fleet CI. The canonical 39 held task-session artifacts
+were not rebuilt; only the isolated worktree's new shell-module emission was built and checked.

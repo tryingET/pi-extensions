@@ -202,7 +202,34 @@ packages; root control CI passed with the declared `PI_SKIP_PACKAGES=1`,
 `PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1`, `PI_SKIP_GOVERNED_DEEP_REVIEW=1` selections, paired with both
 changed-package CI gates. This is not a full fleet/registry-consumer-canary pass.
 
-Installation/activation and fresh installed-session qualification remain pending. No automatic
-indeterminate launch retry is acceptable. Character-by-character typing, Unicode, malformed native
-input/cancellation, competing focus/splits/multiple windows, and broader platform checks remain
-outside this bounded native trial.
+## Installed canonical qualification
+
+Guarded landing of `f9f7bae797c436470e9735dc12ed51c181275252` succeeded through
+`scripts/land-canonical.sh`, including both changed-package installs, host links/install-health
+and the normal-extension no-model smoke. Both local packages were reinstalled with `pi install`.
+All 39 pre-existing canonical `dist/task-session` file hashes remained unchanged. The standalone
+worktree build separately required a lower-case `shared-ghostty-shell.js` emission name to satisfy
+its sealed build-identity filename grammar; after that correction, final package CI logs report
+ASC 713/713 and LH 955/955 tests passing, zero skipped. No canonical task-session rebuild or
+standalone task-session runtime qualification is claimed.
+
+Normally installed qualification: `$TMPDIR/ak7039-native-tabs-installed.RZDIcU/proof/proof.json`.
+One real assertion passed, zero skipped, in a fresh canonical TUI with normal extensions enabled.
+The fixture skipped substitute delegation/dashboard registrations; startup lists canonical
+`self.ts` / `sidequest.ts`. It proves the same bounded workflow above through installed discovery,
+including exact single 91/90-byte queued-and-committed guidance, followed by real original-child
+responses, same-window native surfaces, close/reopen sibling safety, terminal counts and idle reload
+reuse. Private viewer hooks remain zero. Independent inspection (`dispatch-1791836721096`) checked
+all 17 source hashes against canonical files **and HEAD blobs**, the installed registration paths,
+receipts/transcripts and screenshots. Ghostty's retained protocol log reports `repeat_info(1, 5000)`,
+matching the retained test configuration; this is not a normal-repeat-settings qualification.
+
+The installed alpha fixture child appended the instruction sentence's period to the supplied bash
+command, causing an extra `.` in its output. Exact command/output equality was not asserted. This
+limits exact fixture-command conformance, not the separately checked guidance bytes or original
+execution continuity. No source implementation fix is inferred from test-specific repeat settings.
+
+No automatic indeterminate launch retry is acceptable. Character-by-character typing, Unicode,
+normal-repeat virtual-key delivery, malformed native input/cancellation, competing focus/splits/
+multiple windows, and broader platform checks remain outside this bounded native trial. Existing
+controller sessions require `/reload` to replace their already-loaded legacy command closures.
