@@ -48,7 +48,7 @@ Retained workstation evidence roots (diagnostic evidence, not AK authority):
 - `$TMPDIR/ak7039-asc-gate.log`
 - `$TMPDIR/ak7039-helpers-gate.log`
 
-The proof's controller provider is deterministic; its child provider and native execution/TUI are real. ANSI substring checks are not reconstructed-screen/pixel/IME/placement proof. Installed complete-extension-set coexistence and canonical activation are not established by this fixture.
+The proof's controller provider is deterministic; its child provider and native execution/TUI are real. ANSI substring checks are not reconstructed-screen/pixel/IME/placement proof. The original source-only fixture does not establish installed extension coexistence; the separate installed trial below does.
 
 ### Recovery and isolated Ghostty evidence
 
@@ -58,4 +58,14 @@ The first GUI preparation was blocked because niri had zero outputs/no empty wor
 
 `$TMPDIR/ak7039-ghostty-proof.xe22Ic/observer-reality.log` preserves a mixed result: the changed default/manual singleton/ACK/close/reload reality assertion passed; the pre-existing fresh-window stale-progress fixture failed its launch handshake with `effect_indeterminate`. Overall that file was **one pass, one failure**, not a green suite. This separate fresh-window issue is not claimed fixed, causally explained or no-effects; no unconfirmed observer attempt was retried. Its scratch is retained at `$TMPDIR/asc-observer-live-v0Cobw/`; the successful scoped assertion's scratch is `$TMPDIR/asc-session-6844-live-Ye8Op7/`.
 
-A final independent inspection matched the proof hashes, renderer session/startup identity and all 39 unchanged task-session artifact hashes, and found no concrete blocker to bounded source landing. Canonical installation/complete-extension coexistence remain a separate proof step. No task-session rebuild, full CI packaging, AK lifecycle closeout, publication or knowledge promotion is implied.
+A final independent inspection matched the proof hashes, renderer session/startup identity and all 39 unchanged task-session artifact hashes, and found no concrete blocker to bounded source landing. No task-session rebuild, full CI packaging, AK lifecycle closeout, publication or knowledge promotion is implied.
+
+### Canonical installation and installed-stack proof
+
+The guarded `scripts/land-canonical.sh` fast-forward landed the source, preserved foreign canonical changes and passed host-link/install-health plus fresh Pi loading smoke. ASC's supported runtime graph was rebuilt; both actual local package paths were reinstalled with `pi install`. All 39 held helper task-session artifact hashes remained unchanged.
+
+The first installed trial, `$TMPDIR/ak7039-installed-ghostty.oXGaMJ/cockpit/`, passed native steering but failed the cancellation qualification because the deterministic provider fixture read a transcript content field transformed by installed adapters. It launched a second steering objective instead; both attempts settled `done`. The retained failure is not labelled cancellation proof. The fixture was repaired to classify the native `before_agent_start.prompt`; production cockpit code did not change.
+
+The subsequent explicitly scoped qualification at canonical source `afd41116d0e1ef09ac639b1919c357db4d95592c`, `$TMPDIR/ak7039-installed-verified.OLqyM6/cockpit/proof.json`, passed all controls and the real troubleshooting slash command, with `installedExtensions=true` and per-source SHA-256 bindings. The fixture did **not** register/replace production dispatch or dashboard surfaces in this mode: the normal configured extension set supplied them. Default observer/status inspection remained effect-free; explicit opening received a real isolated Ghostty renderer startup ACK from retained progress.
+
+Existing long-running Pi processes retain their previously loaded closures until reload/restart. Already-running legacy children are inspection-only; new children after reload gain the native endpoint. Reload is an operator runtime action, not a request to repeat the verified tests.
