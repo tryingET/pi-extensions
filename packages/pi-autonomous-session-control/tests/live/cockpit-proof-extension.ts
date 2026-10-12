@@ -16,6 +16,12 @@ export default function proof(pi: ExtensionAPI) {
     registerSubagentTool(pi, state, () => model);
     registerSubagentDashboard(pi, state);
   }
+  // Installed context adapters may transform user content before provider serialization.
+  // Classify only the test's native prompt, not a provider-specific transcript content shape.
+  let cancelNext = false;
+  pi.on("before_agent_start", (event) => {
+    cancelNext = event.prompt.includes("CANCEL-PROOF");
+  });
   pi.registerProvider("cockpit-proof", {
     api: "cockpit-proof-api",
     apiKey: "local-fixture",
@@ -35,8 +41,7 @@ export default function proof(pi: ExtensionAPI) {
       const stream = createAssistantMessageEventStream();
       queueMicrotask(() => {
         const last = context.messages.at(-1);
-        const text = JSON.stringify(last?.content);
-        const cancel = text?.includes("CANCEL-PROOF");
+        const cancel = cancelNext;
         const isRequest = last?.role === "user";
         const call = {
           type: "toolCall" as const,
