@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, type KeyId, truncateToWidth } from "@earendil-works/pi-tui";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
+import { requestSubagentTabs } from "./subagent-attachment-commands.ts";
 import { readSubagentCockpit } from "./subagent-cockpit-data.ts";
 import { SubagentCockpitUI } from "./subagent-cockpit-ui.ts";
 import {
@@ -208,7 +209,10 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
     if (opening) return;
     const filter = (args.trim() || "all") as CockpitFilter;
     if (!COCKPIT_FILTERS.includes(filter)) {
-      ctx.ui.notify(`Usage: /subagents [${COCKPIT_FILTERS.join("|")}]`, "warning");
+      ctx.ui.notify(
+        `Usage: /subagent-dashboard [${COCKPIT_FILTERS.join("|")}] (legacy diagnostic)`,
+        "warning",
+      );
       return;
     }
     const source = createCockpitSource(state, ctx);
@@ -253,26 +257,30 @@ export function registerSubagentDashboard(pi: ExtensionAPI, state: SubagentState
     drafts.clear();
     if (ctx.mode === "tui" && ctx.hasUI) ctx.ui.setWidget(DASHBOARD_WIDGET_KEY, undefined);
   });
-  for (const name of ["subagents", "subagent-dashboard"]) {
-    pi.registerCommand(name, {
-      description: "Live child cockpit [all|running|done|error|timeout|aborted|abandoned]",
-      handler: (args, ctx) => open(ctx, args),
-    });
-  }
+  pi.registerCommand("subagent-dashboard", {
+    description: "Legacy diagnostic overlay (explicit only; not native attached tabs)",
+    handler: (args, ctx) => open(ctx, args),
+  });
+  pi.registerCommand("subagents", {
+    description:
+      "Open same-window native view-only child tabs [running (default)|all|done|error|timeout|aborted|abandoned]",
+    handler: (args, ctx) => requestSubagentTabs(pi, state, ctx, args),
+  });
   pi.registerCommand("subagent-inspect", {
-    description: "Open live cockpit for a current-session child",
+    description:
+      "Open one current-session child in a native view-only tab (terminal history allowed)",
     handler: async (args, ctx) => {
       if (!args.trim()) {
         if (ctx.hasUI) ctx.ui.notify("Usage: /subagent-inspect <name>", "warning");
         return;
       }
-      await open(ctx, "all", args.trim());
+      await requestSubagentTabs(pi, state, ctx, "all", args.trim());
     },
   });
   const shortcut = cockpitShortcut();
   if (shortcut)
     pi.registerShortcut(shortcut, {
-      description: "Open subagent cockpit (PI_ASC_COCKPIT_SHORTCUT; off disables)",
-      handler: (ctx) => open(ctx),
+      description: "Open native subagent tabs (PI_ASC_COCKPIT_SHORTCUT; off disables)",
+      handler: (ctx) => requestSubagentTabs(pi, state, ctx),
     });
 }

@@ -13,6 +13,8 @@
   },
   "include": [
     "execution.ts",
+    "attachments.ts",
+    "extensions/self/subagent-attachment-viewer.ts",
     "extensions/self/subagent-pi-json-filter.ts",
     "extensions/self/subagent-pi-json-filter-v2.ts",
     "extensions/self/subagent-raw-supervisor-v1.ts",

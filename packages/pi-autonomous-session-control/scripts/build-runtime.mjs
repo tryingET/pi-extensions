@@ -17,6 +17,9 @@ execFileSync(process.execPath, [tsc, "-p", join(packageRoot, "tsconfig.runtime.j
 for (const required of [
   join(distDir, "execution.js"),
   join(distDir, "execution.d.ts"),
+  join(distDir, "attachments.js"),
+  join(distDir, "attachments.d.ts"),
+  join(distDir, "extensions", "self", "subagent-attachment-viewer.js"),
   join(distDir, "extensions", "self", "subagent-pi-json-filter.js"),
   join(distDir, "extensions", "self", "subagent-pi-json-filter-v2.js"),
   join(distDir, "extensions", "self", "subagent-raw-supervisor-v1.js"),

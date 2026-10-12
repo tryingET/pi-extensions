@@ -75,12 +75,12 @@ const emitRoot = mkdtempSync(resolve(tmpdir(), "pi-task-session-emit-"));
 try {
   writeFileSync(
     resolve(emitRoot, "shared-ghostty.ts"),
-    readFileSync("extensions/sidequestGhostty.ts", "utf8").replace(
-      "../src/taskSessionTransport.ts",
-      "./restricted-transport.js",
-    ),
+    readFileSync("extensions/sidequestGhostty.ts", "utf8")
+      .replace("../src/taskSessionTransport.ts", "./restricted-transport.js")
+      .replaceAll("./sidequestGhosttyShell.ts", "./shared-ghostty-shell.js"),
   );
   copyFileSync("src/taskSessionTransport.ts", resolve(emitRoot, "restricted-transport.ts"));
+  copyFileSync("extensions/sidequestGhosttyShell.ts", resolve(emitRoot, "shared-ghostty-shell.ts"));
   run(process.execPath, [
     "node_modules/typescript/bin/tsc",
     "--ignoreConfig",
@@ -94,6 +94,7 @@ try {
     "dist/task-session",
     resolve(emitRoot, "shared-ghostty.ts"),
     resolve(emitRoot, "restricted-transport.ts"),
+    resolve(emitRoot, "shared-ghostty-shell.ts"),
   ]);
 } finally {
   rmSync(emitRoot, { recursive: true, force: true });

@@ -6,7 +6,10 @@ import { existsSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { GhosttyWindowLaunchHandshake } from "./sidequestDetachedWindow.ts";
+import { buildPiShellCommand, type ShellExitPolicy } from "./sidequestGhosttyShell.ts";
 import type { ControllerGhosttyDbusTarget } from "./sidequestGhosttyTargetTypes.ts";
+
+export type { ShellExitPolicy } from "./sidequestGhosttyShell.ts";
 
 export const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
 
@@ -55,44 +58,6 @@ export type LaunchResult = {
   stderr: string;
   killed: boolean;
 };
-
-function shellSingleQuote(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`;
-}
-
-function buildPiShellCommand(
-  titleBase: string | undefined,
-  cwd: string,
-  launchHandshake?: GhosttyWindowLaunchHandshake,
-): string {
-  const titleSetup = titleBase
-    ? [
-        `export PI_SESSION_PRESENCE_TITLE_BASE=${shellSingleQuote(titleBase)}`,
-        'printf "\\033]0;%s\\007" "$PI_SESSION_PRESENCE_TITLE_BASE"',
-      ]
-    : [];
-
-  return [
-    `cd ${shellSingleQuote(cwd)}`,
-    "status=$?",
-    'if [ "$status" -ne 0 ]; then echo; echo "[sidequest] failed to enter working directory"; echo "[sidequest] leaving an interactive shell open for debugging"; exec "$' +
-      '{SHELL:-/bin/bash}" -i; fi',
-    ...titleSetup,
-    'cmd="$1"',
-    "shift",
-    ...(launchHandshake
-      ? [
-          'if ! command -v "$cmd" >/dev/null 2>&1; then echo "[sidequest] Pi command is unavailable: $cmd"; exit 127; fi',
-          `launch_handshake_tmp=${shellSingleQuote(launchHandshake.path)}.tmp.$$`,
-          `if ! (umask 077; printf '%s\\n' ${shellSingleQuote(launchHandshake.token)} > "$launch_handshake_tmp" && mv -f -- "$launch_handshake_tmp" ${shellSingleQuote(launchHandshake.path)}); then rm -f -- "$launch_handshake_tmp"; echo "[sidequest] launch handshake failed"; exit 125; fi`,
-        ]
-      : []),
-    '"$cmd" "$@"',
-    "status=$?",
-    'if [ "$status" -ne 0 ]; then echo; echo "[sidequest] pi exited with status $status"; echo "[sidequest] leaving an interactive shell open for debugging"; exec "$' +
-      '{SHELL:-/bin/bash}" -i; fi',
-  ].join("; ");
-}
 
 export function isGhosttySession(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.TERM_PROGRAM?.trim().toLowerCase() === "ghostty";
@@ -329,18 +294,20 @@ export function buildGhosttyExecArgs({
   title,
   piArgs,
   launchHandshake,
+  shellExitPolicy,
 }: {
   cwd: string;
   title: string;
   piArgs: string[];
   launchHandshake?: GhosttyWindowLaunchHandshake;
+  shellExitPolicy?: ShellExitPolicy;
 }): string[] {
   return [
     `--working-directory=${cwd}`,
     "-e",
     "/bin/sh",
     "-lc",
-    buildPiShellCommand(title, cwd, launchHandshake),
+    buildPiShellCommand(title, cwd, launchHandshake, shellExitPolicy),
     "sidequest-pi",
     ...piArgs,
   ];
@@ -353,6 +320,7 @@ export function buildGhosttyArgs({
   surfaceId,
   piArgs,
   launchHandshake,
+  shellExitPolicy,
 }: {
   cwd: string;
   title: string;
@@ -360,12 +328,13 @@ export function buildGhosttyArgs({
   surfaceId?: string;
   piArgs: string[];
   launchHandshake?: GhosttyWindowLaunchHandshake;
+  shellExitPolicy?: ShellExitPolicy;
 }): string[] {
   const args = launchMode === "tab" ? ["+new-tab"] : [];
   if (launchMode === "tab" && surfaceId) {
     args.push(`--surface-id=${surfaceId}`);
   }
-  args.push(...buildGhosttyExecArgs({ cwd, title, piArgs, launchHandshake }));
+  args.push(...buildGhosttyExecArgs({ cwd, title, piArgs, launchHandshake, shellExitPolicy }));
   return args;
 }
 

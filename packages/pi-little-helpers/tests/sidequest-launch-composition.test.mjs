@@ -496,3 +496,51 @@ test("guard and finite deadline must be supplied together; malformed guard refus
     assert.equal(h.execStub.calls.length, 0);
   }
 });
+
+for (const detached of [false, true]) {
+  test(`shell exit policy reaches ${detached ? "detached handshake" : "direct"} window scaffold without changing defaults`, async () => {
+    for (const shellExitPolicy of [undefined, "fail-closed"]) {
+      const h = createLaunchHarness({ targetCwd: "/repo", parentCwd: "/repo" });
+      let captured;
+      const detachedGhosttyWindowLaunch = async (request) => {
+        captured = request.buildArgs({ path: "/private/handshake", token: "0123456789abcdef" });
+        return {
+          ok: true,
+          effectDisposition: "settled",
+          code: 0,
+          stdout: "",
+          stderr: "",
+          killed: false,
+        };
+      };
+      const result = await launchPiQuestSession({
+        pi: h.pi,
+        ctx: { cwd: h.parentCwd },
+        options: {
+          env: h.env,
+          exec: h.execStub.exec,
+          pathExists: () => true,
+          ...(detached ? { detachedGhosttyWindowLaunch } : {}),
+        },
+        defaultPiBin: "pi",
+        prompt: "",
+        titlePrompt: "view",
+        cwd: h.targetCwd,
+        shellExitPolicy,
+      });
+      assert.equal(result.ok, true);
+      assert.equal(result.launchMode, "window");
+      const argv = detached ? captured : h.execStub.calls.at(-1).args;
+      const scaffold = argv[argv.indexOf("-lc") + 1];
+      if (shellExitPolicy === "fail-closed") {
+        assert.match(scaffold, /exec "\$cmd" "\$@"/);
+        assert.match(scaffold, /exit "\$status"/);
+        assert.doesNotMatch(scaffold, /SHELL|interactive shell/);
+      } else {
+        assert.match(scaffold, /leaving an interactive shell open for debugging/);
+        assert.doesNotMatch(scaffold, /exec "\$cmd" "\$@"/);
+      }
+      if (detached) assert.ok(scaffold.indexOf("mv -f --") < scaffold.indexOf('"$cmd" "$@"'));
+    }
+  });
+}

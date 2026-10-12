@@ -162,7 +162,8 @@ const BASE_EVENTS = [
   "tool_execution_end",
   "agent_settled",
 ];
-const EVENTS = [...BASE_EVENTS, "tool_result"];
+const TAB_HOST_EVENTS = ["session_start", "session_shutdown"];
+const EVENTS = [...TAB_HOST_EVENTS, ...BASE_EVENTS, "tool_result"];
 
 test("sidequest freezes exact public registration names, descriptions, schemas, and hooks", () => {
   const harness = register();
@@ -207,7 +208,7 @@ test("sidequest registration flags preserve command, tool, observer, and complet
     toolsOnly.tools.map((tool) => tool.name),
     TOOL_CONTRACTS.slice(1).map(([name]) => name),
   );
-  assert.deepEqual(toolsOnly.events, EVENTS.slice(3));
+  assert.deepEqual(toolsOnly.events, [...BASE_EVENTS.slice(3), "tool_result"]);
   assert.deepEqual(toolsOnly.busEvents, []);
 
   const commandsOnly = register({ registerCommands: true, registerTools: false });
@@ -216,7 +217,7 @@ test("sidequest registration flags preserve command, tool, observer, and complet
     COMMANDS.map(([name]) => name),
   );
   assert.deepEqual(commandsOnly.tools, []);
-  assert.deepEqual(commandsOnly.events, BASE_EVENTS);
+  assert.deepEqual(commandsOnly.events, [...TAB_HOST_EVENTS, ...BASE_EVENTS]);
   assert.deepEqual(commandsOnly.busEvents, ["asc:execution-observation:v1"]);
 
   const neither = register({ registerCommands: false, registerTools: false });

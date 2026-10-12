@@ -56,6 +56,18 @@ Linux x64 N-API support is built at package build time, never on runtime fallbac
 
 <a id="automatic-asc-execution-observer"></a>
 
+## Native existing-child tabs
+
+ASC owns `/subagents` (default: running current-session children only) and attachment tickets.
+The standard `sidequest` extension hosts `asc:subagent-tabs:request:v1` via owner callbacks,
+without an ASC package dependency. It requests one **view-only native Pi** tab per existing
+attempt: no child JSONL resume, execution tools, model dispatch, discovered resources or MCP.
+Durable ASC claims prevent duplicate launches across listeners/reloads; reuse launches nothing,
+and blocked/indeterminate requests are never retried automatically. Controller-only Ghostty
+receiver correlation has no wrapper/new-window fallback. A native-ready ACK proves bootstrap
+and input handlers, **not** visible painting or same-window placement. Those require real
+parent-owned proof, not a positive surface ID. See the [host contract](docs/project/2026-10-12-native-subagent-tabs-host.md).
+
 ## Troubleshooting-only ASC execution observer
 
 **Build/publication boundary:** `scripts/task-session-build.mjs` emits the shared resolver

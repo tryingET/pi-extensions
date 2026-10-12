@@ -367,7 +367,7 @@ test("adapter revalidates exact attempt + current parent/repo immediately before
   }
 });
 
-test("commands/alias are TUI-only overlays, shortcut opens without idle wait or main editor mutation", async () => {
+test("only explicit legacy diagnostic opens overlay; default/shortcut never mutate main editor", async () => {
   const handlers = new Map(),
     commands = new Map(),
     shortcuts = new Map();
@@ -411,10 +411,12 @@ test("commands/alias are TUI-only overlays, shortcut opens without idle wait or 
   };
   await commands.get("subagents").handler("running", ctx);
   await shortcuts.get("ctrl+alt+shift+s").handler(ctx);
-  assert.equal(custom, 2);
+  assert.equal(custom, 0);
+  await commands.get("subagent-dashboard").handler("running", ctx);
+  assert.equal(custom, 1);
   await commands.get("subagent-dashboard").handler("bad-filter", ctx);
   await commands.get("subagents").handler("", { ...ctx, mode: "rpc" });
-  assert.equal(custom, 2);
+  assert.equal(custom, 1);
   assert.equal(cockpitShortcut("ctrl+o"), undefined);
   assert.equal(cockpitShortcut("off"), undefined);
   assert.equal(cockpitShortcut("ctrl+alt+shift+d"), "ctrl+alt+shift+d");

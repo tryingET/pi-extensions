@@ -5,6 +5,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { DetachedGhosttyWindowLaunchRequest } from "./sidequestDetachedWindow.ts";
 import type { ExecRunner, GhosttyAncestor, LaunchResult } from "./sidequestGhostty.ts";
+import type { ShellExitPolicy } from "./sidequestGhosttyShell.ts";
 import type { BeforeDispatch } from "./sidequestLaunchAdmission.ts";
 
 type GhosttyCommandSpec = { command: string; args: string[] };
@@ -37,6 +38,8 @@ export type SidequestLaunchRequest = {
   titlePrefix?: string;
   command?: GhosttyCommandSpec;
   placementPolicy?: QuestPlacementPolicy;
+  /** Defaults to the ordinary debugging shell; attachment hosts opt into fail-closed. */
+  shellExitPolicy?: ShellExitPolicy;
   /** Replaces controller-derived model/thinking args (Fleet Phase-3 standing agents pin their own). */
   modelArgs?: string[];
   /** Inserted between model args and the trailing prompt on the clean-session path only. */

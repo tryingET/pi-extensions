@@ -38,6 +38,7 @@ import {
 import { registerSidequestCommands } from "./sidequestCommands.ts";
 import { launchAscExecutionObserverSession } from "./sidequestLaunch.ts";
 import { registerSidequestPeerTools } from "./sidequestPeerTools.ts";
+import { registerSubagentTabHost, type SubagentTabsOptions } from "./sidequestSubagentTabs.ts";
 import { createSidequestVisibleLoopAdapter } from "./sidequestVisibleLoopAdapter.ts";
 
 export type { GhosttyAncestor } from "./sidequestGhostty.ts";
@@ -58,24 +59,25 @@ const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(
 );
 
 type PiCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
-type SidequestOptions = SidequestCommandHandlerOptions & {
-  registerCommands?: boolean;
-  registerTools?: boolean;
-  governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
-  createPeerRuntime?: VisibleLoopChildRunnerOptions["createPeerRuntime"];
-  ascExecutionObserver?: AscExecutionObserverController;
-  ascObserverStateRoot?: string;
-  candidateAdmission?: {
-    reserve: typeof reserveCandidateAdmission;
-    bind: typeof bindCandidateAdmission;
-    release: typeof releaseCandidateAdmission;
+type SidequestOptions = SidequestCommandHandlerOptions &
+  SubagentTabsOptions & {
+    registerCommands?: boolean;
+    registerTools?: boolean;
+    governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
+    createPeerRuntime?: VisibleLoopChildRunnerOptions["createPeerRuntime"];
+    ascExecutionObserver?: AscExecutionObserverController;
+    ascObserverStateRoot?: string;
+    candidateAdmission?: {
+      reserve: typeof reserveCandidateAdmission;
+      bind: typeof bindCandidateAdmission;
+      release: typeof releaseCandidateAdmission;
+    };
+    candidateCloseout?: {
+      project: typeof projectCandidatePeerCloseout;
+      execute: typeof executeLifecycleCandidatePeerCloseout;
+      janitor: typeof runCandidatePeerJanitor;
+    };
   };
-  candidateCloseout?: {
-    project: typeof projectCandidatePeerCloseout;
-    execute: typeof executeLifecycleCandidatePeerCloseout;
-    janitor: typeof runCandidatePeerJanitor;
-  };
-};
 
 export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
@@ -115,6 +117,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     let observerDisposed = false;
 
     if (registerCommands) {
+      registerSubagentTabHost(pi, options, DEFAULT_PI_BIN);
       stopAscObservation = pi.events?.on?.(ASC_EXECUTION_OBSERVATION_EVENT, (event) => {
         ascExecutionObserver.handle(event);
       });

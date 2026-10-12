@@ -16,11 +16,22 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const liveDir = join(here, "..", "tests", "live");
+// Exact-file selection keeps independent GUI fixtures from racing for focus.
+const requested = process.argv.slice(2);
+if (
+  requested.length > 1 ||
+  (requested[0] && !/^--only=[a-z0-9-]+\.reality\.live\.mjs$/.test(requested[0]))
+) {
+  console.error("Usage: reality-check.mjs [--only=<name>.reality.live.mjs]");
+  process.exit(2);
+}
+const only = requested[0]?.slice("--only=".length);
 
 const files = [];
 try {
   for (const entry of readdirSync(liveDir)) {
     if (!entry.endsWith(".reality.live.mjs")) continue;
+    if (only && entry !== only) continue;
     const candidate = join(liveDir, entry);
     if (statSync(candidate).isFile()) files.push(candidate);
   }
@@ -31,6 +42,10 @@ try {
 files.sort();
 
 if (files.length === 0) {
+  if (only) {
+    console.error(`reality-check: unknown assertion ${only}`);
+    process.exit(2);
+  }
   console.log("reality-check: no *.reality.live.mjs assertions found in tests/live");
   process.exit(0);
 }

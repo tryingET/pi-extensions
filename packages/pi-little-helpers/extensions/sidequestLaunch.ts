@@ -120,6 +120,7 @@ export async function launchPiQuestSession({
   titlePrefix = "Sidequest",
   command,
   placementPolicy = "visible-fallback",
+  shellExitPolicy,
   modelArgs: modelArgsOverride,
   extraPiArgs,
   childProvenanceEnv,
@@ -251,7 +252,7 @@ export async function launchPiQuestSession({
   const dispatchGuard = { beforeDispatch, dispatchDeadlineMs, signal };
   let launchedAfterMs = Date.now();
   const runWindowLaunch = (onInvoked?: () => void) => {
-    const args = buildGhosttyArgs({ cwd, title, launchMode: "window", piArgs });
+    const args = buildGhosttyArgs({ cwd, title, launchMode: "window", piArgs, shellExitPolicy });
     return runAdmittedLaunch({
       ...dispatchGuard,
       argv: [ghosttyBin, ...args],
@@ -269,6 +270,7 @@ export async function launchPiQuestSession({
                   launchMode: "window",
                   piArgs,
                   launchHandshake,
+                  shellExitPolicy,
                 });
                 assertBoundedLaunchArgv([ghosttyBin, ...complete]);
                 assertDispatchWindow(dispatchGuard);
@@ -347,7 +349,7 @@ export async function launchPiQuestSession({
     } else {
       const args = buildControllerGhosttyDbusArgs({
         target: controllerDbusTarget!,
-        execArgs: buildGhosttyExecArgs({ cwd, title, piArgs }),
+        execArgs: buildGhosttyExecArgs({ cwd, title, piArgs, shellExitPolicy }),
       });
       launchResult = await runAdmittedLaunch({
         ...dispatchGuard,

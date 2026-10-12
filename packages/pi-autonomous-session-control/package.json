@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./extensions/self.ts",
-    "./execution": "./dist/execution.js"
+    "./execution": "./dist/execution.js",
+    "./attachments": "./dist/attachments.js"
   },
   "license": "MIT",
   "repository": {
