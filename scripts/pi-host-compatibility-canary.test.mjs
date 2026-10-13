@@ -399,7 +399,7 @@ test("compatibility canary rejects retired SDK flags before host resolution or e
     assert.equal(result.stderr.trim(), `error: Unknown argument: ${flag}`);
   }
 });
-test("compatibility canary root validation executes all 31 selected-tests regressions", async (t) => {
+test("compatibility canary root validation executes all 44 selected-tests regressions", async (t) => {
   // Trusted builtin fixtures, including real abort/lifetime-pipe checks; not package qualification.
   const { assertCompleteTap, createSourceScratch, syntheticEnvironment } =
     await import("./pi-host-compatibility-canary/source-regression-harness.mjs");
@@ -413,7 +413,7 @@ test("compatibility canary root validation executes all 31 selected-tests regres
     status: result.status, signal: result.signal, error: result.error?.message,
     stdout: result.stdout, stderr: result.stderr,
   }, null, 2), { flag: "wx", mode: 0o600 });
-  assertCompleteTap(result, 31);
+  assertCompleteTap(result, 44);
 });
 test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
