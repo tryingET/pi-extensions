@@ -21,7 +21,7 @@
       "binding": {
         "ontology_tree": "80e050c0de548aef3519e8a11ddf9aaf65eaf920",
         "requested_ref": "main",
-        "resolved_commit": "3493a866366283caf4dc8cb9391ecf16bab7be6e"
+        "resolved_commit": "60790d43ba0f4cfea946df9b07865b877432a7dd"
       },
       "kind": "ref",
       "locator_kind": "repo",
