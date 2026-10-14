@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateAuthoredLocks } from './validate-package-installs.mjs';
+import { registryLockIdentityIssues, validateAuthoredLocks } from './validate-package-installs.mjs';
 
 const SCRIPT = fileURLToPath(import.meta.url);
 const DEFAULT_ROOT = path.resolve(path.dirname(SCRIPT), '..');
@@ -30,9 +30,41 @@ function runNpm(args, cwd) {
 export function syncReleaseLocks(repoRoot = DEFAULT_ROOT, { run = runNpm } = {}) {
   const root = fs.realpathSync(repoRoot);
   const drifted = [...new Set(validateAuthoredLocks(root).issues.map((issue) => issue.package))];
-  for (const label of drifted) run(NPM_LOCK_ONLY, path.join(root, label));
-  const after = validateAuthoredLocks(root);
-  return { synced: drifted, ok: after.ok, remaining: after.issues };
+  const originals = new Map();
+  try {
+    for (const label of drifted) {
+      const cwd = path.join(root, label);
+      const lockPath = path.join(cwd, 'package-lock.json');
+      const bytes = fs.readFileSync(lockPath);
+      originals.set(lockPath, bytes);
+      const lock = JSON.parse(bytes);
+      const invalidKeys = Object.entries(lock.packages)
+        .filter(([key, entry]) => registryLockIdentityIssues({ packages: { [key]: entry } }).length)
+        .map(([key]) => key);
+      // npm otherwise trusts the misleading installed-entry version and preserves old bytes.
+      // Evict the entire affected subtree; npm alone must supply replacement URL and SRI.
+      if (invalidKeys.length) {
+        for (const key of Object.keys(lock.packages)) {
+          if (invalidKeys.some(invalid => key === invalid || key.startsWith(`${invalid}/`))) delete lock.packages[key];
+        }
+        fs.writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+      }
+      run(NPM_LOCK_ONLY, cwd);
+      if (invalidKeys.length) {
+        const regenerated = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+        for (const key of invalidKeys) {
+          if (!regenerated.packages?.[key]) throw new Error(`npm did not re-resolve ${label}: ${key}`);
+        }
+      }
+    }
+    const after = validateAuthoredLocks(root);
+    if (!after.ok) for (const [file, bytes] of originals) fs.writeFileSync(file, bytes);
+    return { synced: drifted, ok: after.ok, remaining: after.issues };
+  } catch (error) {
+    // An unpublished dependency must fail closed, not leave a fabricated or partial lock.
+    for (const [file, bytes] of originals) fs.writeFileSync(file, bytes);
+    throw error;
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT) {

@@ -216,6 +216,7 @@ export function withGovernedNpmPolicyFixture(run) {
     "npm_config_offline",
     "npm_config_prefer_offline",
     "npm_config_registry",
+    "PI_ASC_CANDIDATE_RECEIPT",
   ];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const restore = () => {
@@ -237,7 +238,8 @@ export function withGovernedNpmPolicyFixture(run) {
       key === "TMPDIR" ||
       key === "npm_config_userconfig" ||
       key === "npm_config_globalconfig" ||
-      key === "npm_config_cache"
+      key === "npm_config_cache" ||
+      key === "PI_ASC_CANDIDATE_RECEIPT"
     ) {
       continue;
     }
@@ -271,11 +273,14 @@ export function createImmutableMaterializationCandidate(scratch) {
     });
     assert.equal(applied.status, 0, applied.stderr?.toString());
   }
-  const generatedOwnerRel =
-    "packages/pi-society-orchestrator/src/runtime/governed-runtime-asc-owner.generated.ts";
-  const generatedOwnerSrc = resolve(SOURCE_ROOT, generatedOwnerRel);
-  if (existsSync(generatedOwnerSrc)) {
-    copyFileSync(generatedOwnerSrc, resolve(stagingRoot, generatedOwnerRel));
+  // git diff omits new untracked modules during local implementation checks.
+  // Carry the exact bounded ASC owner/qualification seam into this fixture too.
+  for (const rel of [
+    "packages/pi-society-orchestrator/src/runtime/governed-runtime-asc-owner.generated.ts",
+    "packages/pi-society-orchestrator/src/runtime/asc-candidate-artifact.ts",
+  ]) {
+    const source = resolve(SOURCE_ROOT, rel);
+    if (existsSync(source)) copyFileSync(source, resolve(stagingRoot, rel));
   }
   execFileSync("git", ["-C", stagingRoot, "add", "--all"]);
   execFileSync(
@@ -303,6 +308,23 @@ export function createImmutableMaterializationCandidate(scratch) {
 }
 
 export function materializeProductionCandidate(candidateRoot, commit) {
+  if (process.env.PI_ASC_CANDIDATE_RECEIPT) {
+    // The fixture has its own immutable commit. Never relabel or pass through
+    // the caller's receipt: derive a real new same-head qualification instead.
+    const artifactDir = mkdtempSync(join(tmpdir(), "governed-fixture-candidate-"));
+    const qualified = spawnSync(
+      process.execPath,
+      [
+        resolve(candidateRoot, "scripts/asc-candidate-artifact.mjs"),
+        "qualify",
+        "--artifact-dir",
+        artifactDir,
+      ],
+      { cwd: candidateRoot, encoding: "utf8", env: process.env, maxBuffer: 50 * 1024 * 1024 },
+    );
+    assert.equal(qualified.status, 0, qualified.stderr || qualified.stdout);
+    process.env.PI_ASC_CANDIDATE_RECEIPT = resolve(artifactDir, "candidate-receipt.json");
+  }
   const result = spawnSync(
     process.execPath,
     [

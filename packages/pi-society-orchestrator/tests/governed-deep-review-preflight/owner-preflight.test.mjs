@@ -50,7 +50,7 @@ test("a newer owner runtime revokes stale same-root runtime attestation", () => 
 });
 
 test(
-  "production manifest preflight accepts one exact registry ASC owner and rejects local or duplicate owners",
+  "manifest preflight accepts one exact installed ASC owner in its proof category and rejects local or duplicate owners",
   { timeout: 12 * 60 * 1000 },
   async () => {
     const materializationScratch = mkdtempSync(`${tmpdir()}/governed-registry-asc-production-`);
@@ -132,7 +132,10 @@ test(
         for (const specifier of GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.specifiers) {
           const resolution =
             graph.resolutions[`${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.consumer} -> ${specifier}`];
-          assert.equal(resolution.ownership, "registry_external");
+          assert.equal(
+            resolution.ownership,
+            process.env.PI_ASC_CANDIDATE_RECEIPT ? "candidate_artifact" : "registry_external",
+          );
           assert.equal(resolution.ownerName, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name);
           assert.equal(resolution.ownerVersion, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version);
           assert.equal(resolution.ownerRoot, registryAscRoot);

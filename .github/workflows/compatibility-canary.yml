@@ -178,6 +178,13 @@ jobs:
           npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
           echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
 
+      - name: Qualify explicit same-head ASC candidate before installation
+        if: startsWith(github.head_ref, 'release-please--branches--main') || hashFiles('policy/asc-candidate-plan.json') != ''
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc-candidate-tmp"
+          TMPDIR="$RUNNER_TEMP/asc-candidate-tmp" node ./scripts/asc-candidate-artifact.mjs qualify-if-needed \
+            --artifact-dir "$RUNNER_TEMP/asc-candidate-canary" --output-env-file "$GITHUB_ENV"
+
       - name: Prepare linked ASC source runtime
         if: matrix.cwd == 'packages/pi-society-orchestrator'
         run: bash ./scripts/prepare-asc-source-build-owner.sh
@@ -208,7 +215,12 @@ jobs:
 
       - name: Bind prepared local ASC before baseline
         if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'
-        run: node ./scripts/bind-prepared-asc-ci.mjs
+        run: |
+          if [[ -n "${PI_ASC_CANDIDATE_RECEIPT:-}" ]]; then
+            node ./scripts/asc-candidate-artifact.mjs verify-installed --receipt "$PI_ASC_CANDIDATE_RECEIPT"
+          else
+            node ./scripts/bind-prepared-asc-ci.mjs
+          fi
 
       - name: Validate prepared local source closure before baseline
         if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'

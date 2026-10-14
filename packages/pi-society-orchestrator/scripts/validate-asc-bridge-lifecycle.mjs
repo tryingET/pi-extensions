@@ -3,6 +3,11 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  verifyAscCandidateInstalled,
+  verifyAscCandidateLocks,
+  verifyAscCandidateReceipt,
+} from "../src/runtime/asc-candidate-artifact.ts";
 import { syncGeneratedAscRegistryOwner } from "./generate-asc-registry-owner.mjs";
 
 export const ASC_PACKAGE_NAME = "@tryinget/pi-autonomous-session-control";
@@ -467,6 +472,20 @@ function main() {
   if (!classification.ok) {
     for (const issue of classification.issues) console.error(issue);
     process.exit(1);
+  }
+
+  if (process.env.PI_ASC_CANDIDATE_RECEIPT) {
+    const root = path.resolve(packageDir, "../..");
+    const receipt = verifyAscCandidateReceipt(root, process.env.PI_ASC_CANDIDATE_RECEIPT);
+    const lock = JSON.parse(fs.readFileSync(path.join(packageDir, "package-lock.json"), "utf8"));
+    verifyAscCandidateLocks(receipt, manifest, lock);
+    verifyAscCandidateInstalled(root, process.env.PI_ASC_CANDIDATE_RECEIPT, packageDir);
+    const generated = syncGeneratedAscRegistryOwner(packageDir, { check: true });
+    if (!generated.ok) throw new Error(generated.issues.join("\n"));
+    console.log(
+      `ASC candidate-artifact lifecycle OK (${receipt.artifact.version}; ${receipt.sourceCommit}); NOT published registry evidence.`,
+    );
+    return;
   }
 
   const registryReleaseState = lookupAscRegistryReleaseState();

@@ -122,17 +122,39 @@ jobs:
           RELEASE_BRANCH: release-please--branches--main
         run: |
           set -euo pipefail
+          release_tmp="$(mktemp -d "$RUNNER_TEMP/asc-release-plan.XXXXXX")"
+          export TMPDIR="$release_tmp"
           mkdir -p "$RUNNER_TEMP/npm-global"
           npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
           export PATH="$RUNNER_TEMP/npm-global/bin:$PATH"
           git fetch --no-tags origin "$RELEASE_BRANCH"
           git switch --detach FETCH_HEAD
+          # Prepare real future ASC SRI and the generated consumer owner BEFORE
+          # Release Please can freeze this combined wave in tags. Not registry proof.
+          base_asc="$(git show origin/main:packages/pi-autonomous-session-control/package.json | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>console.log(JSON.parse(s).version))')"
+          candidate_asc="$(node -p 'require("./packages/pi-autonomous-session-control/package.json").version')"
+          if [[ "$candidate_asc" != "$base_asc" ]]; then
+            node ./scripts/asc-candidate-artifact.mjs prepare-plan \
+              --artifact-dir "$RUNNER_TEMP/asc-planned-artifact"
+            echo 'ASC_PLANNED=true' >> "$GITHUB_ENV"
+          fi
           node ./scripts/sync-release-locks.mjs
-          if git diff --quiet; then
-            echo "Release PR lockfiles already mirror their manifests."
+          if [[ -f policy/asc-candidate-plan.json ]]; then git add policy/asc-candidate-plan.json; fi
+          git add packages/pi-society-orchestrator/src/runtime/governed-runtime-asc-owner.generated.ts
+          if git diff --quiet HEAD; then
+            echo "Release PR lockfiles and planned owners already mirror their manifests."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qam "chore(release): sync package lockfiles with released manifests"
+          git commit -qam "chore(release): coordinate planned ASC artifact owner and package locks"
           git push origin "HEAD:refs/heads/$RELEASE_BRANCH"
+
+      - name: Retain planned ASC bytes (not publication evidence)
+        if: ${{ !cancelled() && env.ASC_PLANNED == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: asc-planned-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asc-planned-artifact
+          if-no-files-found: error
+          retention-days: 90

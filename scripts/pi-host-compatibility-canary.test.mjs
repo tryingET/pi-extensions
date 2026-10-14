@@ -479,7 +479,10 @@ test("compatibility workflow prepares orchestrator siblings before baseline and 
   assert.match(workflow.slice(sibling, install), /working-directory: packages\/pi-autoresearch\n\s+run: npm ci --include=dev --no-audit --no-fund/);
   const binding = workflow.slice(bind, validate);
   assert.ok(binding.includes(condition));
-  assert.ok(binding.includes("run: node ./scripts/bind-prepared-asc-ci.mjs"));
+  assert.ok(binding.includes("node ./scripts/bind-prepared-asc-ci.mjs"));
+  assert.match(binding, /if \[\[ -n "\$\{PI_ASC_CANDIDATE_RECEIPT:-\}" \]\]; then\s+node .* verify-installed/);
+  assert.ok(binding.indexOf("verify-installed") < binding.indexOf("else"));
+  assert.ok(binding.indexOf("else") < binding.indexOf("bind-prepared-asc-ci.mjs"));
   assert.doesNotMatch(binding, /npm install|symlink|realpathSync/);
 });
 

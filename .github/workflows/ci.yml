@@ -122,6 +122,13 @@ jobs:
           npm config get min-release-age
           npm config get min-release-age-exclude
           npm config get before
+          if [[ "${{ github.head_ref }}" == release-please--branches--main* || -f policy/asc-candidate-plan.json ]]; then
+            node ./scripts/asc-candidate-artifact.mjs qualify-if-needed \
+              --artifact-dir "$RUNNER_TEMP/asc-candidate-ci" --output-env-file "$GITHUB_ENV"
+            if [[ -f "$RUNNER_TEMP/asc-candidate-ci/candidate-receipt.json" ]]; then
+              export PI_ASC_CANDIDATE_RECEIPT="$RUNNER_TEMP/asc-candidate-ci/candidate-receipt.json"
+            fi
+          fi
           node ./scripts/governed-deep-review-canary.mjs materialize \
             --source-root "$GOVERNED_CI_ROOT" \
             --expected-commit "$GITHUB_SHA"

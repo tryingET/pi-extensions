@@ -168,6 +168,10 @@ jobs:
             echo "archive_name=$archive_name"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Verify published ASC predecessor before consumer effects
+        if: env.RELEASE_COMPONENT == 'pi-society-orchestrator' && hashFiles('scripts/asc-candidate-artifact.mjs') != ''
+        run: node "$GITHUB_WORKSPACE/release-tooling/scripts/asc-candidate-artifact.mjs" registry-handoff-check --repo-root "$GITHUB_WORKSPACE"
+
       - name: Prepare linked ASC source runtime
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
         run: bash ./scripts/prepare-asc-source-build-owner.sh
@@ -302,6 +306,9 @@ jobs:
             --package-path "$RELEASE_PACKAGE_PATH" \
             --artifact-dir "$RUNNER_TEMP/release-package" \
             --output-env-file "$GITHUB_ENV"
+
+      - name: Enforce retained candidate equality (never candidate publication authority)
+        run: node "$GITHUB_WORKSPACE/release-tooling/scripts/asc-candidate-artifact.mjs" publication-check --repo-root "$GITHUB_WORKSPACE" --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
 
       - name: Run snapshot-edit release checks against retained tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
@@ -449,6 +456,7 @@ jobs:
           NPM_CONFIG_BIN_LINKS: "false"
         run: |
           set -euo pipefail
+          node "$GITHUB_WORKSPACE/release-tooling/scripts/asc-candidate-artifact.mjs" publication-check --repo-root "$GITHUB_WORKSPACE" --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
@@ -497,6 +505,7 @@ jobs:
           NPM_CONFIG_BIN_LINKS: "false"
         run: |
           set -euo pipefail
+          node "$GITHUB_WORKSPACE/release-tooling/scripts/asc-candidate-artifact.mjs" publication-check --repo-root "$GITHUB_WORKSPACE" --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"

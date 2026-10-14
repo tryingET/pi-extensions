@@ -89,6 +89,7 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
   node --test ./scripts/release-components.test.mjs
 fi
 
+node --test ./scripts/asc-candidate-artifact.test.mjs ./scripts/asc-candidate-workflow.test.mjs ./scripts/asc-registry-handoff.test.mjs
 node --test ./scripts/release-artifact.test.mjs
 node --test ./scripts/release-artifact-workflow.test.mjs
 node --test ./scripts/release-sbom.test.mjs
