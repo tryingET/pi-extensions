@@ -13,6 +13,19 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.7.0...pi-autonomous-session-control-v0.8.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **asc:** Replace retired subagent controller commands with /subagents, /subagents <name>, /subagents status, and the explicit diagnose namespace. Confirm cancellation inside child tabs; reload existing controllers. No Decision151 worker/profile enrollment is authorized.
+
+### Features
+
+* **asc:** add compact live subagent cockpit and attempt-bound guidance (AK7039) ([340367f](https://github.com/tryingET/pi-extensions/commit/340367f398ee95f33849e7d37e846b8693bea618))
+* **asc:** attach original subagents in same-window native tabs (AK7039) ([f9f7bae](https://github.com/tryingET/pi-extensions/commit/f9f7bae797c436470e9735dc12ed51c181275252))
+* **asc:** migrate to original-child native tabs and one controller command ([134aa87](https://github.com/tryingET/pi-extensions/commit/134aa87296e9f85cf4b2fd98b30e6ab0771fd0b2))
+
 ## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.6.0...pi-autonomous-session-control-v0.7.0) (2026-09-01)
 
 
