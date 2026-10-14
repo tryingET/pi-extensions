@@ -208,16 +208,7 @@ jobs:
 
       - name: Bind prepared local ASC before baseline
         if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'
-        working-directory: packages/pi-society-orchestrator
-        run: |
-          # The source owner already ran prepare's build:runtime above. Do not
-          # rerun lifecycle hooks or save this CI-only link into source metadata.
-          npm install --no-save --package-lock=false --install-links=false --ignore-scripts --no-audit --no-fund ../pi-autonomous-session-control
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          import { realpathSync } from 'node:fs';
-          assert.equal(realpathSync('node_modules/@tryinget/pi-autonomous-session-control'), realpathSync('../pi-autonomous-session-control'));
-          NODE
+        run: node ./scripts/bind-prepared-asc-ci.mjs
 
       - name: Validate prepared local source closure before baseline
         if: matrix.id == 'orchestrator-autoresearch-supervision-contract' || matrix.id == 'orchestrator-autoresearch-matrix-closeout'

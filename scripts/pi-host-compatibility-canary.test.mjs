@@ -479,9 +479,8 @@ test("compatibility workflow prepares orchestrator siblings before baseline and 
   assert.match(workflow.slice(sibling, install), /working-directory: packages\/pi-autoresearch\n\s+run: npm ci --include=dev --no-audit --no-fund/);
   const binding = workflow.slice(bind, validate);
   assert.ok(binding.includes(condition));
-  assert.match(binding, /working-directory: packages\/pi-society-orchestrator/);
-  assert.ok(binding.includes("npm install --no-save --package-lock=false --install-links=false --ignore-scripts --no-audit --no-fund ../pi-autonomous-session-control"));
-  assert.ok(binding.includes("assert.equal(realpathSync('node_modules/@tryinget/pi-autonomous-session-control'), realpathSync('../pi-autonomous-session-control'))"));
+  assert.ok(binding.includes("run: node ./scripts/bind-prepared-asc-ci.mjs"));
+  assert.doesNotMatch(binding, /npm install|symlink|realpathSync/);
 });
 
 test("compatibility canary root validation executes bounded completion regressions", async (t) => {

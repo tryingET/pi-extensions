@@ -107,6 +107,9 @@ else
   echo "skipping real-Pi immutable-generation concurrency: PI_GENERATION_TEST_PI is not set"
 fi
 
+# Binding-only CI fixtures never resolve packages or touch the canonical installation.
+node --test ./scripts/bind-prepared-asc-ci.test.mjs
+
 # Keep these suites sequential: both intentionally exercise the canonical-checkout lock.
 # Governed CI runs them before runtime materialization publishes package node_modules symlinks.
 if [ "${PI_SKIP_HOST_COMPAT_MUTATION_TESTS:-0}" = "1" ]; then
