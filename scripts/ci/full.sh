@@ -133,6 +133,7 @@ if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then
 fi
 
 if [ -f "./scripts/governed-deep-review-canary.mjs" ]; then
+  node --test ./scripts/governed-deep-review-canary.test.mjs
   if [ "${PI_SKIP_GOVERNED_DEEP_REVIEW:-0}" = "1" ]; then
     echo "skipping governed deep-review canary: PI_SKIP_GOVERNED_DEEP_REVIEW=1"
   else

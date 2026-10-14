@@ -914,9 +914,10 @@ function createVaultFixture(root) {
   run("dolt", ["sql", "-q", sql], { cwd: root });
 }
 
-function createPiHarness() {
+export function createPiHarness() {
   const tools = new Map();
   const commands = new Map();
+  const shortcuts = new Map();
   const events = new Map();
   const userMessages = [];
   let activeTools = ["read", "toolbox", "vault_dispatch_check", "dispatch_subagent"];
@@ -935,6 +936,10 @@ function createPiHarness() {
     },
     registerCommand(name, definition) {
       commands.set(name, definition);
+    },
+    registerShortcut(shortcut, options) {
+      // Match Pi's extension loader: retain the owner and callable handler.
+      shortcuts.set(shortcut, { shortcut, extensionPath, ...options });
     },
     on(name, handler) {
       const handlers = events.get(name) ?? [];
@@ -959,6 +964,7 @@ function createPiHarness() {
     pi,
     tools,
     commands,
+    shortcuts,
     events,
     userMessages,
     activeTools: () => [...activeTools],
