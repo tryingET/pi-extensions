@@ -37,9 +37,11 @@ test("native projection publishes only the focused workspace card with monotonic
       {
         ...raw,
         cardId: "session:session-a",
+        windowId: 44,
         publisherRecordKeys: [sessionRecordKey(raw)],
       },
     ],
+    focusKind: "agent",
     focusedSessionId: raw.sessionId,
     focusedCardId: "session:session-a",
   });
@@ -62,14 +64,14 @@ test("native projection publishes only the focused workspace card with monotonic
   assert.deepEqual(published.at(-1).sessions, []);
 });
 
-test("native projection keeps generic desktops globally visible", () => {
+test("native projection fails closed without compositor ownership facts", () => {
   const published = [];
   const projection = createNativePanelProjection({
     isNiriSession: () => false,
     publish: (view) => published.push(view),
   });
   projection.updateSnapshot({ generatedAt: 100, sessions: [session()] });
-  assert.equal(published.at(-1).visible, true);
+  assert.equal(published.at(-1).visible, false);
   assert.equal(published.at(-1).sessions.length, 1);
 });
 

@@ -1,0 +1,282 @@
+TAP version 13
+# Subtest: actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+ok 1 - actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+  ---
+  duration_ms: 1.944343
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+ok 2 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+  ---
+  duration_ms: 0.371825
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+ok 3 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+  ---
+  duration_ms: 0.172702
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+ok 4 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+  ---
+  duration_ms: 0.172422
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+ok 5 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+  ---
+  duration_ms: 0.209468
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+ok 6 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+  ---
+  duration_ms: 0.142767
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+ok 7 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+  ---
+  duration_ms: 0.208306
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+ok 8 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+  ---
+  duration_ms: 0.13833
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+ok 9 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+  ---
+  duration_ms: 0.446167
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+ok 10 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+  ---
+  duration_ms: 0.358024
+  type: 'test'
+  ...
+# Subtest: owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+ok 11 - owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+  ---
+  duration_ms: 1.04715
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=false
+not ok 12 - production placement revokes lost identity before polling: 019fa4d0, NULL=false
+  ---
+  duration_ms: 1.788055
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:172:5'
+  failureType: 'testCodeFailure'
+  error: |-
+    identity loss requests reconciliation
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:200:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=true
+not ok 13 - production placement revokes lost identity before polling: 019fa4d0, NULL=true
+  ---
+  duration_ms: 0.30283
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:172:5'
+  failureType: 'testCodeFailure'
+  error: |-
+    identity loss requests reconciliation
+    
+    1 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:200:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+not ok 14 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.293826
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:172:5'
+  failureType: 'testCodeFailure'
+  error: |-
+    identity loss requests reconciliation
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:200:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+not ok 15 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.19746
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:172:5'
+  failureType: 'testCodeFailure'
+  error: |-
+    identity loss requests reconciliation
+    
+    1 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:200:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 16 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.497115
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 17 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.232543
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+not ok 18 - production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+  ---
+  duration_ms: 0.246214
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:228:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:232:14)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement invalidates changed admission fact: {"pid":4001}
+not ok 19 - production placement invalidates changed admission fact: {"pid":4001}
+  ---
+  duration_ms: 0.20414
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:228:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:232:14)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement invalidates changed admission fact: {"workspace_id":8}
+ok 20 - production placement invalidates changed admission fact: {"workspace_id":8}
+  ---
+  duration_ms: 0.120033
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+not ok 21 - production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+  ---
+  duration_ms: 0.171571
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:228:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:232:14)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: initial full window inventory forwards exact focus, and a broken stream revokes ownership
+ok 22 - initial full window inventory forwards exact focus, and a broken stream revokes ownership
+  ---
+  duration_ms: 0.199142
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 15
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 64.620896

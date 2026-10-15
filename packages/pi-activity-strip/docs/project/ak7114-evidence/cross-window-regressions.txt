@@ -1,0 +1,594 @@
+v22.23.3
+12.0.2
+TAP version 13
+# Subtest: agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus
+ok 1 - agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 1.565207
+  type: 'test'
+  ...
+# Subtest: agent -> obsidian -> agent keeps cards but hides on exact non-agent focus
+ok 2 - agent -> obsidian -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.966408
+  type: 'test'
+  ...
+# Subtest: agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus
+ok 3 - agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.298152
+  type: 'test'
+  ...
+# Subtest: agent -> another-app -> agent keeps cards but hides on exact non-agent focus
+ok 4 - agent -> another-app -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.198381
+  type: 'test'
+  ...
+# Subtest: classification requires exact admitted window ownership, not app-id or a matching-looking title
+ok 5 - classification requires exact admitted window ownership, not app-id or a matching-looking title
+  ---
+  duration_ms: 0.157209
+  type: 'test'
+  ...
+# Subtest: explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes
+ok 6 - explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes
+  ---
+  duration_ms: 0.13155
+  type: 'test'
+  ...
+# Subtest: keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden
+ok 7 - keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden
+  ---
+  duration_ms: 0.157209
+  type: 'test'
+  ...
+# Subtest: entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed
+ok 8 - entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed
+  ---
+  duration_ms: 1.157488
+  type: 'test'
+  ...
+# Subtest: known non-agent event dominates stale visible status and a late active panel acknowledgement
+ok 9 - known non-agent event dominates stale visible status and a late active panel acknowledgement
+  ---
+  duration_ms: 0.494601
+  type: 'test'
+  ...
+# Subtest: failed writes revoke provisional keyboard ownership
+ok 10 - failed writes revoke provisional keyboard ownership
+  ---
+  duration_ms: 0.696107
+  type: 'test'
+  ...
+# Subtest: closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus
+ok 11 - closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus
+  ---
+  duration_ms: 0.186824
+  type: 'test'
+  ...
+# Subtest: empty workspaces reject entry even before the old visibility receipt arrives
+ok 12 - empty workspaces reject entry even before the old visibility receipt arrives
+  ---
+  duration_ms: 0.13136
+  type: 'test'
+  ...
+# Subtest: loss of the admitted owner hides even when another window's cards remain, including keyboard NULL
+ok 13 - loss of the admitted owner hides even when another window's cards remain, including keyboard NULL
+  ---
+  duration_ms: 0.291993
+  type: 'test'
+  ...
+# Subtest: a focused-card hint without exact Niri window identity cannot authorize entry
+ok 14 - a focused-card hint without exact Niri window identity cannot authorize entry
+  ---
+  duration_ms: 0.168686
+  type: 'test'
+  ...
+# Subtest: native projection publishes only the focused workspace card with monotonic revisions
+ok 15 - native projection publishes only the focused workspace card with monotonic revisions
+  ---
+  duration_ms: 1.209016
+  type: 'test'
+  ...
+# Subtest: native projection fails closed without compositor ownership facts
+ok 16 - native projection fails closed without compositor ownership facts
+  ---
+  duration_ms: 0.129737
+  type: 'test'
+  ...
+# Subtest: native projection carries workspace placement onto display cards
+ok 17 - native projection carries workspace placement onto display cards
+  ---
+  duration_ms: 0.323351
+  type: 'test'
+  ...
+# Subtest: native projection drops a workspace number that is not an integer
+ok 18 - native projection drops a workspace number that is not an integer
+  ---
+  duration_ms: 0.19766
+  type: 'test'
+  ...
+# Subtest: native projection joins AK task chips onto cards and clears them fail-closed
+ok 19 - native projection joins AK task chips onto cards and clears them fail-closed
+  ---
+  duration_ms: 0.524878
+  type: 'test'
+  ...
+# Subtest: focused workspace events reconcile immediately while other events are ignored
+ok 20 - focused workspace events reconcile immediately while other events are ignored
+  ---
+  duration_ms: 1.069014
+  type: 'test'
+  ...
+# Subtest: event-stream spawn failure leaves the polling fallback operational
+ok 21 - event-stream spawn failure leaves the polling fallback operational
+  ---
+  duration_ms: 0.155245
+  type: 'test'
+  ...
+# Subtest: window open, change, close, and focus events are forwarded alongside workspace focus
+ok 22 - window open, change, close, and focus events are forwarded alongside workspace focus
+  ---
+  duration_ms: 0.958606
+  type: 'test'
+  ...
+# Subtest: workspace list changes are forwarded, since reordering renumbers the focused workspace
+ok 23 - workspace list changes are forwarded, since reordering renumbers the focused workspace
+  ---
+  duration_ms: 0.19146
+  type: 'test'
+  ...
+# Subtest: window observation learns memory, reports meaningful changes, and forgets closed windows
+ok 24 - window observation learns memory, reports meaningful changes, and forgets closed windows
+  ---
+  duration_ms: 1.188304
+  type: 'test'
+  ...
+# Subtest: unplaced counting only counts bound surfaces that resolve to no window
+ok 25 - unplaced counting only counts bound surfaces that resolve to no window
+  ---
+  duration_ms: 1.161373
+  type: 'test'
+  ...
+# Subtest: tab inventory runs bounded, never concurrently, and backs off per failure kind
+ok 26 - tab inventory runs bounded, never concurrently, and backs off per failure kind
+  ---
+  duration_ms: 1.200483
+  type: 'test'
+  ...
+# Subtest: actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+ok 27 - actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+  ---
+  duration_ms: 2.209405
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+ok 28 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+  ---
+  duration_ms: 0.345524
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+ok 29 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+  ---
+  duration_ms: 0.774106
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+ok 30 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+  ---
+  duration_ms: 0.207816
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+ok 31 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+  ---
+  duration_ms: 0.214826
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+ok 32 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+  ---
+  duration_ms: 0.172221
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+ok 33 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+  ---
+  duration_ms: 0.18426
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+ok 34 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+  ---
+  duration_ms: 0.156508
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+ok 35 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+  ---
+  duration_ms: 0.437313
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+ok 36 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+  ---
+  duration_ms: 0.369461
+  type: 'test'
+  ...
+# Subtest: owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+ok 37 - owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+  ---
+  duration_ms: 0.306024
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=false
+ok 38 - production placement revokes lost identity before polling: 019fa4d0, NULL=false
+  ---
+  duration_ms: 1.198019
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=true
+ok 39 - production placement revokes lost identity before polling: 019fa4d0, NULL=true
+  ---
+  duration_ms: 0.432497
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 40 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.228047
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 41 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.241617
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 42 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.366968
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 43 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.321218
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeef, NULL=false
+ok 44 - Claude hex suffix collision revokes before polling: deadbeef, NULL=false
+  ---
+  duration_ms: 0.402
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeef, NULL=true
+ok 45 - Claude hex suffix collision revokes before polling: deadbeef, NULL=true
+  ---
+  duration_ms: 0.22352
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=false
+ok 46 - Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=false
+  ---
+  duration_ms: 0.175287
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=true
+ok 47 - Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=true
+  ---
+  duration_ms: 0.708355
+  type: 'test'
+  ...
+# Subtest: Pi prefix revealing a non-Pi title predicate invalidates: NULL=false
+ok 48 - Pi prefix revealing a non-Pi title predicate invalidates: NULL=false
+  ---
+  duration_ms: 0.266124
+  type: 'test'
+  ...
+# Subtest: Pi prefix revealing a non-Pi title predicate invalidates: NULL=true
+ok 49 - Pi prefix revealing a non-Pi title predicate invalidates: NULL=true
+  ---
+  duration_ms: 0.206594
+  type: 'test'
+  ...
+# Subtest: unknown or retired Pi source facts retain full title: retired=false
+ok 50 - unknown or retired Pi source facts retain full title: retired=false
+  ---
+  duration_ms: 0.156007
+  type: 'test'
+  ...
+# Subtest: unknown or retired Pi source facts retain full title: retired=true
+ok 51 - unknown or retired Pi source facts retain full title: retired=true
+  ---
+  duration_ms: 0.095755
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, changed
+ok 52 - cross-window conflict revokes established Pi legacy8: NULL=false, changed
+  ---
+  duration_ms: 0.455091
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, opened
+ok 53 - cross-window conflict revokes established Pi legacy8: NULL=false, opened
+  ---
+  duration_ms: 0.198041
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, inventory-other-workspace
+ok 54 - cross-window conflict revokes established Pi legacy8: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.271883
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, changed
+ok 55 - cross-window conflict revokes established Pi legacy8: NULL=true, changed
+  ---
+  duration_ms: 0.341058
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, opened
+ok 56 - cross-window conflict revokes established Pi legacy8: NULL=true, opened
+  ---
+  duration_ms: 0.324422
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, inventory-other-workspace
+ok 57 - cross-window conflict revokes established Pi legacy8: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.313386
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, changed
+ok 58 - cross-window conflict revokes established Pi token32: NULL=false, changed
+  ---
+  duration_ms: 0.248106
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, opened
+ok 59 - cross-window conflict revokes established Pi token32: NULL=false, opened
+  ---
+  duration_ms: 0.61956
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, inventory-other-workspace
+ok 60 - cross-window conflict revokes established Pi token32: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.301127
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, changed
+ok 61 - cross-window conflict revokes established Pi token32: NULL=true, changed
+  ---
+  duration_ms: 0.297712
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, opened
+ok 62 - cross-window conflict revokes established Pi token32: NULL=true, opened
+  ---
+  duration_ms: 0.214816
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, inventory-other-workspace
+ok 63 - cross-window conflict revokes established Pi token32: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.244872
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, changed
+ok 64 - cross-window conflict revokes established Pi surface: NULL=false, changed
+  ---
+  duration_ms: 0.350042
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, opened
+ok 65 - cross-window conflict revokes established Pi surface: NULL=false, opened
+  ---
+  duration_ms: 0.23706
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, inventory-other-workspace
+ok 66 - cross-window conflict revokes established Pi surface: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.21056
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, changed
+ok 67 - cross-window conflict revokes established Pi surface: NULL=true, changed
+  ---
+  duration_ms: 0.264942
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, opened
+ok 68 - cross-window conflict revokes established Pi surface: NULL=true, opened
+  ---
+  duration_ms: 0.258863
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, inventory-other-workspace
+ok 69 - cross-window conflict revokes established Pi surface: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.822139
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, changed
+ok 70 - cross-window conflict revokes established Claude suffix8: NULL=false, changed
+  ---
+  duration_ms: 0.253014
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, opened
+ok 71 - cross-window conflict revokes established Claude suffix8: NULL=false, opened
+  ---
+  duration_ms: 0.155186
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, inventory-other-workspace
+ok 72 - cross-window conflict revokes established Claude suffix8: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.179132
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, changed
+ok 73 - cross-window conflict revokes established Claude suffix8: NULL=true, changed
+  ---
+  duration_ms: 0.201346
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, opened
+ok 74 - cross-window conflict revokes established Claude suffix8: NULL=true, opened
+  ---
+  duration_ms: 0.176588
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, inventory-other-workspace
+ok 75 - cross-window conflict revokes established Claude suffix8: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.219073
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, changed
+ok 76 - cross-window conflict revokes established Claude suffix32: NULL=false, changed
+  ---
+  duration_ms: 0.179503
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, opened
+ok 77 - cross-window conflict revokes established Claude suffix32: NULL=false, opened
+  ---
+  duration_ms: 0.149777
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, inventory-other-workspace
+ok 78 - cross-window conflict revokes established Claude suffix32: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.176057
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, changed
+ok 79 - cross-window conflict revokes established Claude suffix32: NULL=true, changed
+  ---
+  duration_ms: 0.767596
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, opened
+ok 80 - cross-window conflict revokes established Claude suffix32: NULL=true, opened
+  ---
+  duration_ms: 0.222238
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, inventory-other-workspace
+ok 81 - cross-window conflict revokes established Claude suffix32: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.221577
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi legacy8: NULL=false
+ok 82 - cached move/close/reopen facts revoke Pi legacy8: NULL=false
+  ---
+  duration_ms: 0.403322
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi legacy8: NULL=true
+ok 83 - cached move/close/reopen facts revoke Pi legacy8: NULL=true
+  ---
+  duration_ms: 0.287757
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi token32: NULL=false
+ok 84 - cached move/close/reopen facts revoke Pi token32: NULL=false
+  ---
+  duration_ms: 0.212883
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi token32: NULL=true
+ok 85 - cached move/close/reopen facts revoke Pi token32: NULL=true
+  ---
+  duration_ms: 0.237
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi surface: NULL=false
+ok 86 - cached move/close/reopen facts revoke Pi surface: NULL=false
+  ---
+  duration_ms: 0.228297
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi surface: NULL=true
+ok 87 - cached move/close/reopen facts revoke Pi surface: NULL=true
+  ---
+  duration_ms: 0.264452
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix8: NULL=false
+ok 88 - cached move/close/reopen facts revoke Claude suffix8: NULL=false
+  ---
+  duration_ms: 0.250941
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix8: NULL=true
+ok 89 - cached move/close/reopen facts revoke Claude suffix8: NULL=true
+  ---
+  duration_ms: 0.400918
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix32: NULL=false
+ok 90 - cached move/close/reopen facts revoke Claude suffix32: NULL=false
+  ---
+  duration_ms: 0.325784
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix32: NULL=true
+ok 91 - cached move/close/reopen facts revoke Claude suffix32: NULL=true
+  ---
+  duration_ms: 0.378084
+  type: 'test'
+  ...
+# Subtest: focus transfer revalidates a stale non-owner card before publishing any eligible frame
+ok 92 - focus transfer revalidates a stale non-owner card before publishing any eligible frame
+  ---
+  duration_ms: 0.306526
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+ok 93 - production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+  ---
+  duration_ms: 0.191391
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"pid":4001}
+ok 94 - production placement invalidates changed admission fact: {"pid":4001}
+  ---
+  duration_ms: 0.131299
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"workspace_id":8}
+ok 95 - production placement invalidates changed admission fact: {"workspace_id":8}
+  ---
+  duration_ms: 0.12528
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+ok 96 - production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+  ---
+  duration_ms: 0.144359
+  type: 'test'
+  ...
+# Subtest: initial full window inventory forwards exact focus, and a broken stream revokes ownership
+ok 97 - initial full window inventory forwards exact focus, and a broken stream revokes ownership
+  ---
+  duration_ms: 0.172542
+  type: 'test'
+  ...
+1..97
+# tests 97
+# suites 0
+# pass 97
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 92.018735

@@ -7,14 +7,12 @@
 import path from "node:path";
 import { ACTIVITY_STRIP_SOCKET_DIR } from "../common/constants.mjs";
 import { resolvePiSessionIdentity, resolveSessionWindow } from "../common/niri-focus.mjs";
-import {
-  createSurfaceBindingStore,
-  parseTerminalTitleBinding,
-} from "../common/surface-bindings.mjs";
+import { createSurfaceBindingStore } from "../common/surface-bindings.mjs";
 import {
   canonicalGhosttyTerminalKey,
   resolveTerminalHostPid,
 } from "../common/terminal-identity.mjs";
+import { resolveWorkspaceView } from "../common/workspace-view.mjs";
 import { mapTabInventoryToBindings, probeGhosttyTabInventory } from "./tab-inventory.mjs";
 
 // The AT-SPI tab inventory is the only exact source for tabs that have never been shown while the
@@ -59,8 +57,13 @@ export function createPlacementRuntime({
   });
   /** @type {Map<string, number>} */
   const hostPidCache = new Map();
-  /** @type {Map<unknown, string>} */
-  const windowSignatures = new Map();
+  /** Complete latest window inventory, advanced synchronously by compositor events. */
+  /** @type {Map<unknown, NiriWindow>} */
+  const observedWindows = new Map();
+  let windowCacheValid = false;
+  /** Established publisher facts from the last full projection, not title-shape inference. */
+  /** @type {Array<Record<string, unknown>> | null} */
+  let sourceSessions = null;
   let inventoryInFlight = false;
   let inventoryNextAt = 0;
 
@@ -72,10 +75,58 @@ export function createPlacementRuntime({
     lookupBinding: (bindingKey) => bindings.lookup(bindingKey),
   };
 
-  /** Workspace plus visible surface: everything about a window that can move a card. */
-  /** @param {NiriWindow} window */
-  function signatureOf(window) {
-    return `${window.workspace_id}|${parseTerminalTitleBinding(window.title)?.terminalKey ?? ""}`;
+  /** @param {NiriWindow[]} windows */
+  function cacheWindowList(windows) {
+    observedWindows.clear();
+    windowCacheValid = windows.every((window) => Number.isInteger(window?.id));
+    for (const window of windows) {
+      if (observedWindows.has(window?.id)) windowCacheValid = false;
+      observedWindows.set(window?.id, { ...window });
+    }
+  }
+
+  /** The same complete-window admission resolver used by full reconciliation.
+   * @param {Record<string, unknown>} workspace
+   */
+  function resolveCachedWorkspaceView(workspace) {
+    if (!windowCacheValid || sourceSessions === null) return null;
+    return resolveWorkspaceView([...observedWindows.values()], workspace, sourceSessions, options);
+  }
+
+  // Only admission changes schedule work. A Pi display prefix or an unrelated browser title
+  // cannot churn eligibility, but a new claimant anywhere changes the canonical projection.
+  function admissionSignature() {
+    const windows = [...observedWindows.values()];
+    if (!sourceSessions?.length) {
+      // Unknown source facts: preserve full title sensitivity, never normalize by hex shape.
+      return JSON.stringify(
+        windows.map((window) => [
+          window.id,
+          window.workspace_id,
+          window.app_id,
+          window.pid,
+          window.title,
+        ]),
+      );
+    }
+    const workspaceIds = [...new Set(windows.map((window) => window.workspace_id))];
+    const cards = workspaceIds.flatMap((id) => {
+      const view = resolveCachedWorkspaceView({ id });
+      return (view?.sessions ?? []).map((card) => {
+        const window = observedWindows.get(card.windowId);
+        return JSON.stringify([
+          id,
+          card.cardId,
+          card.windowId,
+          card.placement,
+          card.surfaceVisible,
+          card.publisherRecordKeys,
+          window?.app_id,
+          window?.pid,
+        ]);
+      });
+    });
+    return JSON.stringify([windowCacheValid, cards.sort()]);
   }
 
   /**
@@ -97,14 +148,11 @@ export function createPlacementRuntime({
 
   /** @param {NiriWindow[]} windows */
   function observeWindowList(windows) {
+    cacheWindowList(windows);
     if (windows.length === 0) return;
     bindings.observeWindows(windows);
     bindings.prune(windows);
     bindings.persist();
-    windowSignatures.clear();
-    for (const window of windows) {
-      if (Number.isInteger(window?.id)) windowSignatures.set(window.id, signatureOf(window));
-    }
   }
 
   /**
@@ -113,11 +161,10 @@ export function createPlacementRuntime({
    */
   function observeWindowEvent(window) {
     if (!Number.isInteger(window?.id)) return false;
+    const before = admissionSignature();
+    observedWindows.set(window.id, { ...window });
     const learned = bindings.observeWindows([window]);
-    const signature = signatureOf(window);
-    const changed = windowSignatures.get(window.id) !== signature;
-    windowSignatures.set(window.id, signature);
-    return learned.length > 0 || changed;
+    return learned.length > 0 || before !== admissionSignature();
   }
 
   /**
@@ -125,8 +172,11 @@ export function createPlacementRuntime({
    * same tab stays placed once it is hidden behind another tab.
    * @param {Array<Record<string, unknown>>} cards
    * @param {NiriWindow[]} windows
+   * @param {Array<Record<string, unknown>>} [sessions] All raw publishers, including other agents.
    */
-  function learnFromPlacements(cards, windows) {
+  function learnFromPlacements(cards, windows, sessions = cards) {
+    sourceSessions = sessions.map((session) => ({ ...session }));
+    cacheWindowList(windows);
     const byId = new Map(
       windows.filter((window) => Number.isInteger(window?.id)).map((window) => [window.id, window]),
     );
@@ -149,7 +199,7 @@ export function createPlacementRuntime({
 
   /** @param {number} windowId */
   function forgetWindow(windowId) {
-    return windowSignatures.delete(windowId);
+    return observedWindows.delete(windowId);
   }
 
   /** @param {NiriWindow[]} windows */
@@ -213,6 +263,7 @@ export function createPlacementRuntime({
     options,
     observeWindowList,
     observeWindowEvent,
+    resolveCachedWorkspaceView,
     learnFromPlacements,
     forgetWindow,
     countUnplaced,

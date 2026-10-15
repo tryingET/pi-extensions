@@ -17,11 +17,15 @@ import { resolveFocusedWorkspaceView, resolveWindowDirectory } from "../common/w
 import { discoverAgentTabs } from "./agent-discovery.mjs";
 import { startAkTaskProjection } from "./ak-runtime.mjs";
 import { createHeightRepair } from "./height-repair.mjs";
+import { createKeyboardEntry } from "./keyboard-entry.mjs";
 import { resolvePanelBinary } from "./panel-binary.mjs";
 import { createNativePanelProjection } from "./panel-projection.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
 import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
-import { createNiriWorkspaceEventWatcher } from "./workspace-events.mjs";
+import {
+  createNiriWorkspaceEventWatcher,
+  createWorkspaceProjectionHandlers,
+} from "./workspace-events.mjs";
 
 /** @typedef {import("../common/contracts.ts").ActivityStripRuntimeStatus} ActivityStripRuntimeStatus */
 /** @typedef {import("node:child_process").ChildProcessWithoutNullStreams & {_activityBuffer?: string; _readyTimer?: NodeJS.Timeout; _stableTimer?: NodeJS.Timeout}} PanelChild */
@@ -189,17 +193,12 @@ async function jumpToWindow(windowId) {
   return { ok: true };
 }
 
-async function focusStrip() {
-  if (runtimeStatus.clickThrough) {
-    return { ok: false, error: "Keyboard entry is disabled in click-through mode." };
-  }
-  if (!runtimeStatus.windowVisible || runtimeStatus.rendererCardCount === 0) {
-    return { ok: false, error: "No visible native strip exists on this workspace." };
-  }
-  return writePanel({ type: "focus-strip" })
-    ? { ok: true }
-    : { ok: false, error: "Native panel is not ready for keyboard entry." };
-}
+const requestKeyboardEntry = createKeyboardEntry({
+  projection,
+  runtimeStatus,
+  writePanel,
+});
+const focusStrip = async () => requestKeyboardEntry();
 
 /** @param {PanelChild} child @param {unknown} chunk */
 function consumePanelEvents(child, chunk) {
@@ -243,6 +242,12 @@ function consumePanelEvents(child, chunk) {
           // Showing or hiding the surface is the only moment the exclusive zone changes, so it is
           // the only moment a tiled window can be left at the previous working area's height.
           if (changed) void heightRepair.repairAfterZoneChange();
+        } else if (event.type === "keyboard-active") {
+          const accepted = projection.keyboardChanged(
+            Number(event.revision),
+            event.active === true,
+          );
+          if (accepted && event.active !== true) reconcileRunner.request();
         } else if (event.type === "expanded") {
           runtimeStatus.panelExpanded = event.expanded === true;
         } else if (event.type === "activate") {
@@ -323,6 +328,7 @@ function startPanel() {
     clearTimeout(child._stableTimer);
     if (panel !== child) return;
     panelReady = false;
+    projection.cancelKeyboard();
     runtimeStatus.windowVisible = false;
     runtimeStatus.panelPid = null;
     if (shuttingDown) return;
@@ -403,7 +409,7 @@ const reconcileRunner = createLatestOnlyRunner(async ({ isCurrent }) => {
   const sessions = projection.getRawSessions();
   runtimeStatus.unplacedSurfaceCount = placement.countUnplaced(windows, sessions);
   const view = resolveFocusedWorkspaceView(windows, workspaces, sessions, placement.options);
-  if (view) placement.learnFromPlacements(view.sessions, windows);
+  placement.learnFromPlacements(view?.sessions ?? [], windows, sessions);
   projection.setDirectory(resolveWindowDirectory(windows, workspaces, sessions, placement.options));
   projection.publishWorkspaceView(
     view ?? { workspace: null, sessions: [], focusedSessionId: null, focusedCardId: null },
@@ -460,16 +466,11 @@ async function main() {
     watcher = createNiriWorkspaceEventWatcher({
       spawn,
       env: process.env,
-      onFocusedWorkspace: () => reconcileRunner.request(),
-      onFallback: () => reconcileRunner.request(),
-      onWindowChanged: (window) => {
-        if (placement.observeWindowEvent(window)) reconcileRunner.request();
-      },
-      onWindowClosed: (windowId) => {
-        if (placement.forgetWindow(windowId)) reconcileRunner.request();
-      },
-      onWindowFocusChanged: () => reconcileRunner.request(),
-      onWorkspacesChanged: () => reconcileRunner.request(),
+      ...createWorkspaceProjectionHandlers({
+        projection,
+        placement,
+        reconcile: () => reconcileRunner.request(),
+      }),
       fallbackMs: ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
     });
   }

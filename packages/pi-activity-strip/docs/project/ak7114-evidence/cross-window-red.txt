@@ -1,0 +1,1000 @@
+TAP version 13
+# Subtest: actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+ok 1 - actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+  ---
+  duration_ms: 2.057504
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+ok 2 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+  ---
+  duration_ms: 0.385055
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+ok 3 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+  ---
+  duration_ms: 0.145311
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+ok 4 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+  ---
+  duration_ms: 0.702838
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+ok 5 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+  ---
+  duration_ms: 0.243259
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+ok 6 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+  ---
+  duration_ms: 0.219944
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+ok 7 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+  ---
+  duration_ms: 0.193104
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+ok 8 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+  ---
+  duration_ms: 0.149106
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+ok 9 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+  ---
+  duration_ms: 0.455412
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+ok 10 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+  ---
+  duration_ms: 0.340878
+  type: 'test'
+  ...
+# Subtest: owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+ok 11 - owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+  ---
+  duration_ms: 0.294467
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=false
+ok 12 - production placement revokes lost identity before polling: 019fa4d0, NULL=false
+  ---
+  duration_ms: 0.891583
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=true
+ok 13 - production placement revokes lost identity before polling: 019fa4d0, NULL=true
+  ---
+  duration_ms: 0.273145
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 14 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.241597
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 15 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.206623
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 16 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.356862
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 17 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.242989
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeef, NULL=false
+ok 18 - Claude hex suffix collision revokes before polling: deadbeef, NULL=false
+  ---
+  duration_ms: 0.380858
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeef, NULL=true
+ok 19 - Claude hex suffix collision revokes before polling: deadbeef, NULL=true
+  ---
+  duration_ms: 0.204801
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=false
+ok 20 - Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=false
+  ---
+  duration_ms: 0.153053
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=true
+ok 21 - Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=true
+  ---
+  duration_ms: 0.156988
+  type: 'test'
+  ...
+# Subtest: Pi prefix revealing a non-Pi title predicate invalidates: NULL=false
+ok 22 - Pi prefix revealing a non-Pi title predicate invalidates: NULL=false
+  ---
+  duration_ms: 0.293766
+  type: 'test'
+  ...
+# Subtest: Pi prefix revealing a non-Pi title predicate invalidates: NULL=true
+ok 23 - Pi prefix revealing a non-Pi title predicate invalidates: NULL=true
+  ---
+  duration_ms: 0.181706
+  type: 'test'
+  ...
+# Subtest: unknown or retired Pi source facts retain full title: retired=false
+ok 24 - unknown or retired Pi source facts retain full title: retired=false
+  ---
+  duration_ms: 0.16482
+  type: 'test'
+  ...
+# Subtest: unknown or retired Pi source facts retain full title: retired=true
+ok 25 - unknown or retired Pi source facts retain full title: retired=true
+  ---
+  duration_ms: 0.124809
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, changed
+not ok 26 - cross-window conflict revokes established Pi legacy8: NULL=false, changed
+  ---
+  duration_ms: 0.70519
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, opened
+not ok 27 - cross-window conflict revokes established Pi legacy8: NULL=false, opened
+  ---
+  duration_ms: 0.299775
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, inventory-other-workspace
+not ok 28 - cross-window conflict revokes established Pi legacy8: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.933117
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, changed
+not ok 29 - cross-window conflict revokes established Pi legacy8: NULL=true, changed
+  ---
+  duration_ms: 0.239574
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, opened
+not ok 30 - cross-window conflict revokes established Pi legacy8: NULL=true, opened
+  ---
+  duration_ms: 0.210069
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, inventory-other-workspace
+not ok 31 - cross-window conflict revokes established Pi legacy8: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.163598
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, changed
+not ok 32 - cross-window conflict revokes established Pi token32: NULL=false, changed
+  ---
+  duration_ms: 0.153173
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, opened
+not ok 33 - cross-window conflict revokes established Pi token32: NULL=false, opened
+  ---
+  duration_ms: 0.140613
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, inventory-other-workspace
+not ok 34 - cross-window conflict revokes established Pi token32: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.257912
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, changed
+not ok 35 - cross-window conflict revokes established Pi token32: NULL=true, changed
+  ---
+  duration_ms: 0.206022
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, opened
+not ok 36 - cross-window conflict revokes established Pi token32: NULL=true, opened
+  ---
+  duration_ms: 0.149547
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, inventory-other-workspace
+not ok 37 - cross-window conflict revokes established Pi token32: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.170238
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, changed
+not ok 38 - cross-window conflict revokes established Pi surface: NULL=false, changed
+  ---
+  duration_ms: 0.295028
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, opened
+not ok 39 - cross-window conflict revokes established Pi surface: NULL=false, opened
+  ---
+  duration_ms: 0.173333
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, inventory-other-workspace
+not ok 40 - cross-window conflict revokes established Pi surface: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.193895
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, changed
+not ok 41 - cross-window conflict revokes established Pi surface: NULL=true, changed
+  ---
+  duration_ms: 0.195257
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, opened
+not ok 42 - cross-window conflict revokes established Pi surface: NULL=true, opened
+  ---
+  duration_ms: 0.21726
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, inventory-other-workspace
+not ok 43 - cross-window conflict revokes established Pi surface: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.196289
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, changed
+not ok 44 - cross-window conflict revokes established Claude suffix8: NULL=false, changed
+  ---
+  duration_ms: 0.193905
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, opened
+not ok 45 - cross-window conflict revokes established Claude suffix8: NULL=false, opened
+  ---
+  duration_ms: 0.147995
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, inventory-other-workspace
+not ok 46 - cross-window conflict revokes established Claude suffix8: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.179052
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, changed
+not ok 47 - cross-window conflict revokes established Claude suffix8: NULL=true, changed
+  ---
+  duration_ms: 0.173264
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, opened
+not ok 48 - cross-window conflict revokes established Claude suffix8: NULL=true, opened
+  ---
+  duration_ms: 0.148836
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, inventory-other-workspace
+not ok 49 - cross-window conflict revokes established Claude suffix8: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.179583
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, changed
+not ok 50 - cross-window conflict revokes established Claude suffix32: NULL=false, changed
+  ---
+  duration_ms: 0.152552
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, opened
+not ok 51 - cross-window conflict revokes established Claude suffix32: NULL=false, opened
+  ---
+  duration_ms: 0.134034
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, inventory-other-workspace
+not ok 52 - cross-window conflict revokes established Claude suffix32: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.152652
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, changed
+not ok 53 - cross-window conflict revokes established Claude suffix32: NULL=true, changed
+  ---
+  duration_ms: 0.716808
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, opened
+not ok 54 - cross-window conflict revokes established Claude suffix32: NULL=true, opened
+  ---
+  duration_ms: 0.132862
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, inventory-other-workspace
+not ok 55 - cross-window conflict revokes established Claude suffix32: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.134905
+  type: 'test'
+  location: '/home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:377:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoke affected owner synchronously before polling
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    assertRevoked (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:396:18)
+    TestContext.<anonymous> (file:///home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs:422:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+ok 56 - production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+  ---
+  duration_ms: 0.142587
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"pid":4001}
+ok 57 - production placement invalidates changed admission fact: {"pid":4001}
+  ---
+  duration_ms: 0.094854
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"workspace_id":8}
+ok 58 - production placement invalidates changed admission fact: {"workspace_id":8}
+  ---
+  duration_ms: 0.094614
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+ok 59 - production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+  ---
+  duration_ms: 0.104398
+  type: 'test'
+  ...
+# Subtest: initial full window inventory forwards exact focus, and a broken stream revokes ownership
+ok 60 - initial full window inventory forwards exact focus, and a broken stream revokes ownership
+  ---
+  duration_ms: 0.141275
+  type: 'test'
+  ...
+1..60
+# tests 60
+# suites 0
+# pass 30
+# fail 30
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 78.114109

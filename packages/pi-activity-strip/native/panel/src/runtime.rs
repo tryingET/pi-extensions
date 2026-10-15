@@ -111,7 +111,12 @@ fn consume_line(sender: &relm4::Sender<AppMsg>, line: &str) {
             }
         }
         Some("focus-strip") => {
-            let _ = sender.send(AppMsg::FocusStrip);
+            let _ = sender.send(AppMsg::FocusStrip(
+                value
+                    .get("revision")
+                    .and_then(|item| item.as_u64())
+                    .unwrap_or(0),
+            ));
         }
         Some("collapse") => {
             let _ = sender.send(AppMsg::Collapse);

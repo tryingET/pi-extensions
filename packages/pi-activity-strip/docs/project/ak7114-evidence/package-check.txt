@@ -1,0 +1,1001 @@
+npm notice run @tryinget/pi-activity-strip@0.9.0 check
+npm notice run npm run quality:ci
+npm notice run @tryinget/pi-activity-strip@0.9.0 quality:ci
+npm notice run bash ./scripts/quality-gate.sh ci
+==> package quality gate: packages/pi-activity-strip [ci]
+ok: pi host contract pins (9 declaration(s)/lock entries at 1.1.0)
+local-package-links: ok (1 package(s), 0 link(s))
+structure: skipped (packages/pi-activity-strip, no monorepo structure contract detected)
+file-budget: ok
+Checked 95 files in 18ms. No fixes applied.
+tests: per-file timeout 120000ms (packages/pi-activity-strip)
+tests: tests/card-display.test.mjs
+✔ wedged streams are stalled when no real event arrived within the threshold (0.693623ms)
+✔ long silent tools are only stalled after generous thresholds (0.115034ms)
+✔ duplicate repo labels gain a short process suffix (0.193284ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10.511621
+tests: tests/ak-tasks.test.mjs
+✔ claim list parses only session-bound live-shape claims (1.540068ms)
+✔ claim list fails closed on malformed envelopes (0.147454ms)
+✔ deferred list keeps only active deferrals with valid repos (0.249819ms)
+✔ timestamps parse RFC3339 with offsets and reject garbage (0.112972ms)
+✔ repo containment requires the card cwd to sit inside the task repo (0.139111ms)
+✔ a live claim by the card session renders one clickable chip (0.444174ms)
+✔ expired leases are vacant custody and render nothing (0.162958ms)
+✔ a claim resumed into two terminals is ambiguous and binds nothing (0.161966ms)
+✔ claims by dead sessions badge cards inside the task repo, never as buttons (0.339726ms)
+✔ deferred tasks of the card repo render as badges (0.323581ms)
+✔ a deferred claim never becomes a button even for its own claiming session (0.791001ms)
+✔ chips are bounded per card with an overflow count (0.234075ms)
+✔ agent-kind session ids can never join a session-bound claim (0.097688ms)
+✔ summarizeAkTasks counts live, orphaned, and deferred state (0.173714ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18.787186
+tests: tests/ak-runtime.test.mjs
+✔ refresh reads only the read-only ak CLI surface (1.657757ms)
+✔ missing ak binary fails closed and clears chips (0.301888ms)
+✔ malformed output fails closed (0.213665ms)
+✔ the runtime stays inert when disabled by environment (0.157368ms)
+✔ an alternate ak binary is honored (0.207144ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17.395983
+tests: tests/agent-tabs.test.mjs
+✔ agent recognition admits known CLIs and refuses runtimes, Pi, and disabled kinds (0.82348ms)
+✔ an agent record carries a terminal card identity and whole-millisecond timestamps (0.324142ms)
+✔ the Claude adapter reads the session from an open scratchpad and the last recorded title (0.991536ms)
+✔ discovery admits only agent processes bound to a live Ghostty surface (1.354417ms)
+✔ an agent tab is placed by its own title, and ambiguity places nothing (0.452718ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21.337558
+tests: tests/activity-order.test.mjs
+✔ calm ordering puts green monitoring sessions next to the Activity tile (1.357272ms)
+✔ new sessions append immediately and manual arrow moves are bounded (0.204691ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13.500118
+tests: tests/alignment-controller.test.mjs
+✔ latest-only alignment invalidates stale asynchronous geometry work (1.382509ms)
+✔ latest-only runner cannot drop a request during worker finalization (1.62634ms)
+✔ alignment runner recovers after a best-effort attempt fails (0.273766ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15.119558
+tests: tests/broker-client.test.mjs
+✔ broker accepts upsert and answers ping (6.639952ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21.693499
+tests: tests/claude-telemetry.test.mjs
+✔ transcript state comes from the newest timestamped record (1.15909ms)
+✔ transcript parsing survives fragments, attachments, and empty input (0.186303ms)
+✔ hook payloads map to ribbon state and refuse records without an identity (0.38193ms)
+✔ event file paths admit only exact session ids (0.136437ms)
+✔ a newer hook event overrides the transcript, and a stale or older one never does (0.435691ms)
+✔ the hook settings fragment covers only low-frequency events and merges without duplicating (1.228455ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17.905127
+tests: tests/codex-telemetry.test.mjs
+✔ a Codex tool call reads as running until its output arrives (1.220954ms)
+✔ Codex turn boundaries, previews and other tool shapes are reported (0.21688ms)
+✔ Codex tool targets survive unparseable arguments and empty rollouts (0.218241ms)
+✔ the newest state database wins and a Codex-free home yields nothing (0.906617ms)
+✔ a Codex process binds to its thread only on exact or unambiguous evidence (0.520801ms)
+✔ orphaned hook records are retired once no live session claims them (0.405937ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19.536473
+tests: tests/ghostty-present.test.mjs
+✔ object paths follow the admitted Ghostty family (0.620853ms)
+✔ present-surface targets the unique bus name of the proven host process (0.791161ms)
+✔ present-surface fails closed on incomplete targets, missing or ambiguous bus owners, and rejection (0.388189ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15.895235
+tests: tests/interaction-runtime.test.mjs
+✔ CLI launches only the native controller and routes keyboard entry through the broker (1.205601ms)
+✔ every stop path waits for the runtime to exit, so a following open cannot race it (0.341188ms)
+✔ native controller supervises a receipt-verified panel and coalesces backpressure (0.249018ms)
+✔ GTK panel owns layer-shell reservation, click-through, keyboard, and parent death (0.208477ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17.007193
+tests: tests/focus-visibility.test.mjs
+✔ agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus (2.828435ms)
+✔ agent -> obsidian -> agent keeps cards but hides on exact non-agent focus (0.452957ms)
+✔ agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus (0.320887ms)
+✔ agent -> another-app -> agent keeps cards but hides on exact non-agent focus (0.208777ms)
+✔ classification requires exact admitted window ownership, not app-id or a matching-looking title (0.156808ms)
+✔ explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes (0.176688ms)
+✔ keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden (0.122016ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 22.595739
+tests: tests/ghostty-theme.test.mjs
+✔ colours are normalized and anything else is refused (0.79014ms)
+✔ config parsing keeps repeated keys and ignores comments (0.535363ms)
+✔ a theme setting may name one theme or one per colour scheme (0.303882ms)
+✔ terminal colours map onto ribbon roles, and an unreadable theme falls back (0.498326ms)
+✔ definitions name every role the stylesheet derives from (0.365705ms)
+✔ the configured theme is resolved per colour scheme from Ghostty's own files (1.281185ms)
+✔ the colour scheme comes from the desktop portal, and may be pinned (0.282459ms)
+✔ the panel is only sent colours when they change, and always after it restarts (0.394328ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19.373986
+tests: tests/height-repair.test.mjs
+✔ a window is stale only when it still sits at a height other windows just left (1.270259ms)
+✔ no observed movement means no evidence and no repair (0.156267ms)
+✔ floating, unknown, and newly appeared windows are excluded from the evidence (0.140723ms)
+✔ a repair pass resets exactly the stranded windows and never repeats one (0.510505ms)
+✔ repair is bounded, skippable, and survives a rejected action (1.200673ms)
+✔ repair never runs concurrently and needs an observation first (0.21731ms)
+✔ a window that moves again may be repaired again (0.192142ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17.699444
+tests: tests/native-panel-artifact.test.mjs
+✔ staged native panel is executable and bound to its Cargo lock (3.465192ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18.735938
+tests: tests/keyboard-entry.test.mjs
+✔ entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed (1.397151ms)
+✔ known non-agent event dominates stale visible status and a late active panel acknowledgement (0.633542ms)
+✔ failed writes revoke provisional keyboard ownership (0.252283ms)
+✔ closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus (0.176638ms)
+✔ empty workspaces reject entry even before the old visibility receipt arrives (0.166643ms)
+✔ loss of the admitted owner hides even when another window's cards remain, including keyboard NULL (0.303321ms)
+✔ a focused-card hint without exact Niri window identity cannot authorize entry (3.454486ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20.386063
+tests: tests/niri-workspace-events.test.mjs
+✔ focused workspace events reconcile immediately while other events are ignored (1.293564ms)
+✔ event-stream spawn failure leaves the polling fallback operational (0.148255ms)
+✔ window open, change, close, and focus events are forwarded alongside workspace focus (0.25672ms)
+✔ workspace list changes are forwarded, since reordering renumbers the focused workspace (0.205091ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14.689904
+tests: tests/native-panel-projection.test.mjs
+✔ native projection publishes only the focused workspace card with monotonic revisions (1.431353ms)
+✔ native projection fails closed without compositor ownership facts (0.167375ms)
+✔ native projection carries workspace placement onto display cards (0.30357ms)
+✔ native projection drops a workspace number that is not an integer (0.173253ms)
+✔ native projection joins AK task chips onto cards and clears them fail-closed (0.610547ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19.285212
+tests: tests/placement.test.mjs
+✔ window observation learns memory, reports meaningful changes, and forgets closed windows (1.306164ms)
+✔ unplaced counting only counts bound surfaces that resolve to no window (0.71816ms)
+✔ tab inventory runs bounded, never concurrently, and backs off per failure kind (1.449872ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19.798861
+tests: tests/surface-bindings.test.mjs
+✔ title binding parsing accepts only the canonical surface segment before a full token (1.245771ms)
+✔ bindings learn from visible titles, follow surfaces across windows, and prune dead windows (0.55991ms)
+✔ bindings persist atomically and reload only for the same Niri instance (0.528252ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12.412366
+tests: tests/status-report.test.mjs
+✔ formatBrokerRuntimeStatus renders runtime warnings and readiness metadata (0.804321ms)
+✔ summarizeBrokerRuntimeStatus returns operator headlines (0.505247ms)
+✔ formatBrokerRuntimeStatus reports hidden-tab placement counters (0.172241ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13.911684
+tests: tests/session-cards.test.mjs
+✔ publishers on one terminal aggregate into one card and active real work wins (0.851673ms)
+✔ the same logical session on two terminal surfaces produces two cards (0.549013ms)
+✔ unbound duplicate publishers remain one containment card (4.372419ms)
+✔ record and card membership comparisons are reflexive with duplicate logical ids (0.262629ms)
+✔ cards carry the distinct session ids of every aggregated publisher (0.178832ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20.091546
+tests: tests/session-store.test.mjs
+✔ session store sorts active sessions ahead of idle ones (1.417433ms)
+✔ session store purges stale sessions (0.15776ms)
+✔ two live processes sharing one session id keep separate cards (0.641324ms)
+✔ publisher sequence rejects late state regression (0.147464ms)
+✔ publisher tombstone prevents late resurrection and expires boundedly (0.15802ms)
+✔ unknown removes cannot evict a live publisher tombstone (0.114264ms)
+✔ broker receipt time governs expiry instead of publisher clock (0.121845ms)
+✔ session cardinality is bounded (0.122547ms)
+✔ legacy publishers without publisherId keep bare session keys (0.155726ms)
+✔ normalization defaults lastEventAt to updatedAt for legacy publishers (0.200444ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20.682965
+tests: tests/window-placement.test.mjs
+✔ a single host window is an exact placement without any memory (0.720815ms)
+✔ several host windows need the remembered window, which must still belong to the host (0.301978ms)
+✔ placement fails closed without a host, a canonical surface, or a matching family (0.200715ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12.113693
+tests: tests/niri-focus.test.mjs
+✔ bounded Niri list reads preserve query options and fail closed (1.354847ms)
+✔ session focus resolves only one exact Ghostty title suffix (0.456082ms)
+✔ terminal surface title segment disambiguates two windows sharing one logical session (0.165421ms)
+✔ Niri projection prefers one bound terminal card over an unbound mixed-version publisher (0.565819ms)
+✔ session focus rejects colliding legacy prefixes and resolves full identity titles (0.196037ms)
+✔ legacy telemetry resolves through a process-bound session-presence sidecar (0.206954ms)
+✔ focusNiriSession invokes focus only after an unambiguous lookup (0.536154ms)
+✔ snapshot focus selection rejects missing and duplicate session ids (0.137118ms)
+✔ focused session resolution highlights only the exact focused Ghostty session (0.257592ms)
+✔ focused workspace view includes every exact tracked terminal on only that workspace (4.899259ms)
+✔ the window list names every agent window on every workspace, alphabetically (0.492728ms)
+✔ workspace membership includes every activity state (0.25676ms)
+✔ focused-workspace resolution is exact and supports empty focused workspaces (0.074773ms)
+✔ focused workspace view places hidden Ghostty tabs through their host process and memory (0.684419ms)
+✔ focusNiriSession presents a hidden tab and confirms it through the window title (0.613201ms)
+✔ an agent tab whose visibility cannot be read is presented without a false failure (0.253534ms)
+✔ visibility is only claimed hidden on evidence (0.340076ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 28.897387
+tests: tests/terminal-identity.test.mjs
+✔ Ghostty surface ids normalize to bounded unsigned decimal (0.633642ms)
+✔ terminal key, family, and surface must form one coherent identity (0.147534ms)
+✔ interactive Ghostty TUI receives a namespaced terminal identity (0.522543ms)
+✔ headless descendants cannot claim an inherited Ghostty surface (0.136677ms)
+✔ Ghostty ancestor discovery walks procfs and host resolution requires a matching family (0.651469ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14.865512
+tests: tests/workspace-focus-projection.test.mjs
+✔ actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read (1.919865ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}} (0.246795ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}} (0.133493ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}} (0.145732ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}} (0.153072ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}} (0.133582ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}} (0.158301ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}} (0.13819ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}} (0.164579ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}} (0.243229ms)
+✔ owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity (0.237911ms)
+✔ initial full window inventory forwards exact focus, and a broken stream revokes ownership (0.146893ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17.550809
+tests: tests/tab-inventory.test.mjs
+✔ tab inventory maps frames to unique same-process windows and binds only surface labels (1.443231ms)
+✔ tab inventory probe distinguishes unavailable bindings from transient helper failures (0.74405ms)
+✔ the AT-SPI helper reports only frames of requested pids and their page tabs (42.986108ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 58.436258
+tests: tests/native-runtime-lock.test.mjs
+✔ flock singleton cannot unlink or replace a live concurrent owner (177.834377ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 187.00335
+tests: tests/compatibility.test.mjs
+✔ detectDisplayServer distinguishes wayland, x11, and headless sessions (0.785073ms)
+✔ detectWindowManager prefers niri and falls back to desktop hints (0.139922ms)
+✔ detectDisplayCount parses niri output listings when available (0.235298ms)
+✔ assessActivityStripCompatibility fails closed for headless sessions (68.20506ms)
+✔ assessActivityStripCompatibility fails closed when niri has no connected outputs (0.316991ms)
+✔ assessActivityStripCompatibility reports multi-display warnings and niri alignment (64.004012ms)
+✔ native compatibility reports the layer-shell backend on Niri (0.316861ms)
+✔ native compatibility rejects unsupported packaged architectures (62.775467ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 213.26846
+tests: tests/launcher.test.mjs
+✔ ensureActivityStripRunning reuses an already ready broker (1.305232ms)
+✔ ensureActivityStripRunning waits for overlay readiness after spawning (125.851659ms)
+✔ ensureActivityStripRunning fails closed on compatibility blockers (0.462693ms)
+✔ ensureActivityStripRunning surfaces starting-state timeout context (125.802104ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 271.761684
+tests: tests/broker-server.test.mjs
+✔ broker treats client pipe resets during reply as a normal disconnect (1.623625ms)
+✔ broker treats synchronous writes to a destroyed client as a normal disconnect (0.24332ms)
+✔ broker reports unexpected socket failures without using the fatal error channel (0.137428ms)
+✔ broker destroys clients whose unterminated message exceeds the byte limit (0.333927ms)
+✔ malformed upsert fails closed and leaves the broker responsive (0.24383ms)
+✔ broker delegates exact card focus and returns the bounded result (1.787714ms)
+✔ broker delegates keyboard entry to the native strip controller (0.298733ms)
+✔ broker restricts its control socket to the current user (1.967427ms)
+✔ remove messages scope to one publisher when publisherId is present (304.188659ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 329.578771
+tests: tests/runtime-lock.test.mjs
+✔ stop's wait returns at once for a free lock and says it did not wait (6.157299ms)
+✔ stop's wait returns once a real owner that is still exiting releases the lock (425.347493ms)
+✔ stop's wait reports a lock still held at its deadline without calling it an error (308.715203ms)
+✔ a lock that cannot be checked is an error, not a held lock (2.729204ms)
+✔ a controller that takes the lock is waited on until it is ready (0.34926ms)
+✔ a controller another open is starting counts as running, not as a failure (0.315519ms)
+✔ a lock held past the deadline by a runtime that never answers is named as held (0.267597ms)
+✔ a controller that exits during startup fails the start with its exit code (0.136957ms)
+✔ a controller that reports an error fails the start with that status (0.117629ms)
+✔ a controller that never becomes ready times out as itself, not as a held lock (0.281067ms)
+✔ stopping a running runtime waits for its lock and reports it stopped (0.268167ms)
+✔ a runtime whose broker already closed is still waited out before stop returns (0.133172ms)
+✔ nothing to stop is reported as not running (0.079ms)
+✔ a runtime still holding its lock at the deadline is reported as still stopping (0.094854ms)
+✔ a lock that cannot be checked is reported as an error (0.081484ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 764.480832
+tests: tests/telemetry.test.mjs
+✔ createInitialSnapshot seeds an idle session (4.289132ms)
+✔ session start adopts Pi's exact session identity for fail-closed window matching (7.96292ms)
+✔ describeToolCall highlights bash and read details (0.260686ms)
+✔ summarizeToolResult surfaces structured content and error details (0.339956ms)
+✔ activity telemetry reaches terminal state only when the agent settles (0.597608ms)
+✔ activity-strip wires terminal completion to agent_settled, not agent_end (0.29003ms)
+✔ heartbeat republish keeps liveness without advancing lastEventAt (50.690968ms)
+✔ publisher delivery is serialized and shutdown removal follows in-flight publication (150.922155ms)
+✔ session start binds only an admitted interactive terminal surface (0.317472ms)
+✔ provider error on turn end surfaces as error, not silent done (0.392246ms)
+✔ aborted runs settle as stopped rather than done (0.247906ms)
+✔ lost state transitions are retried with a bounded backoff (1200.345504ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1433.855888
+tests: 34 file(s) passed
+packaging: running scripts.release:check:quick (packages/pi-activity-strip)
+== release-check: @tryinget/pi-activity-strip@0.9.0
+== npm pack --dry-run --json
+{
+  "@tryinget/pi-activity-strip": {
+    "id": "@tryinget/pi-activity-strip@0.9.0",
+    "name": "@tryinget/pi-activity-strip",
+    "version": "0.9.0",
+    "size": 539596,
+    "unpackedSize": 1369684,
+    "shasum": "a034f06791484e354ba15c7a74372548517afa79",
+    "integrity": "sha512-+RsuRRo0CMLRQMTB0VPsn2kgOVYhiVYGJ4w+PTiz7/wN7pzu7v+NDdXKvC8DeBnr1P9KoUBHoyJgDMwqZnYf9A==",
+    "filename": "tryinget-pi-activity-strip-0.9.0.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 4376,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 20616,
+        "mode": 420
+      },
+      {
+        "path": "bin/pi-activity-strip-claude-hook.mjs",
+        "size": 1854,
+        "mode": 493
+      },
+      {
+        "path": "bin/pi-activity-strip.mjs",
+        "size": 10053,
+        "mode": 493
+      },
+      {
+        "path": "examples/simulate-sessions.mjs",
+        "size": 2109,
+        "mode": 420
+      },
+      {
+        "path": "extensions/activity-strip.js",
+        "size": 7545,
+        "mode": 420
+      },
+      {
+        "path": "extensions/activity-strip.ts",
+        "size": 245,
+        "mode": 420
+      },
+      {
+        "path": "native/bin/linux-x64-gnu/artifact.json",
+        "size": 714,
+        "mode": 420
+      },
+      {
+        "path": "native/bin/linux-x64-gnu/pi-activity-strip-panel",
+        "size": 873576,
+        "mode": 493
+      },
+      {
+        "path": "native/panel/Cargo.lock",
+        "size": 25515,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/Cargo.toml",
+        "size": 517,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/app_gui_tests.rs",
+        "size": 12554,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/app.rs",
+        "size": 52663,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/card_view.rs",
+        "size": 26000,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/directory_view.rs",
+        "size": 14327,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/interaction.rs",
+        "size": 2235,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/main.rs",
+        "size": 3550,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/protocol.rs",
+        "size": 16024,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/runtime.rs",
+        "size": 6615,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/style.css",
+        "size": 8404,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 3560,
+        "mode": 420
+      },
+      {
+        "path": "policy/security-policy.json",
+        "size": 190,
+        "mode": 420
+      },
+      {
+        "path": "prompts/pi-activity-strip-implementation-planning.md",
+        "size": 805,
+        "mode": 420
+      },
+      {
+        "path": "prompts/pi-activity-strip-security-review.md",
+        "size": 826,
+        "mode": 420
+      },
+      {
+        "path": "src/broker/server.mjs",
+        "size": 7038,
+        "mode": 420
+      },
+      {
+        "path": "src/broker/session-store.mjs",
+        "size": 3679,
+        "mode": 420
+      },
+      {
+        "path": "src/client/broker-client.mjs",
+        "size": 4604,
+        "mode": 420
+      },
+      {
+        "path": "src/client/launcher.mjs",
+        "size": 3709,
+        "mode": 420
+      },
+      {
+        "path": "src/client/runtime-lock.mjs",
+        "size": 5782,
+        "mode": 420
+      },
+      {
+        "path": "src/client/session-telemetry.mjs",
+        "size": 10655,
+        "mode": 420
+      },
+      {
+        "path": "src/common/activity-order.mjs",
+        "size": 3208,
+        "mode": 420
+      },
+      {
+        "path": "src/common/agent-identity.mjs",
+        "size": 6764,
+        "mode": 420
+      },
+      {
+        "path": "src/common/ak-tasks.mjs",
+        "size": 13046,
+        "mode": 420
+      },
+      {
+        "path": "src/common/alignment-controller.mjs",
+        "size": 1586,
+        "mode": 420
+      },
+      {
+        "path": "src/common/card-display.mjs",
+        "size": 2080,
+        "mode": 420
+      },
+      {
+        "path": "src/common/claude-events.mjs",
+        "size": 6985,
+        "mode": 420
+      },
+      {
+        "path": "src/common/claude-hook-config.mjs",
+        "size": 2190,
+        "mode": 420
+      },
+      {
+        "path": "src/common/claude-transcript.mjs",
+        "size": 5361,
+        "mode": 420
+      },
+      {
+        "path": "src/common/codex-transcript.mjs",
+        "size": 5267,
+        "mode": 420
+      },
+      {
+        "path": "src/common/compatibility.mjs",
+        "size": 5627,
+        "mode": 420
+      },
+      {
+        "path": "src/common/constants.mjs",
+        "size": 1509,
+        "mode": 420
+      },
+      {
+        "path": "src/common/contracts.d.ts",
+        "size": 6149,
+        "mode": 420
+      },
+      {
+        "path": "src/common/contracts.ts",
+        "size": 7140,
+        "mode": 420
+      },
+      {
+        "path": "src/common/format.mjs",
+        "size": 2533,
+        "mode": 420
+      },
+      {
+        "path": "src/common/ghostty-present.mjs",
+        "size": 3254,
+        "mode": 420
+      },
+      {
+        "path": "src/common/ghostty-theme.mjs",
+        "size": 5441,
+        "mode": 420
+      },
+      {
+        "path": "src/common/niri-focus.mjs",
+        "size": 16382,
+        "mode": 420
+      },
+      {
+        "path": "src/common/protocol.mjs",
+        "size": 4456,
+        "mode": 420
+      },
+      {
+        "path": "src/common/session-cards.mjs",
+        "size": 4305,
+        "mode": 420
+      },
+      {
+        "path": "src/common/status-report.mjs",
+        "size": 4397,
+        "mode": 420
+      },
+      {
+        "path": "src/common/surface-bindings.mjs",
+        "size": 7971,
+        "mode": 420
+      },
+      {
+        "path": "src/common/telemetry.mjs",
+        "size": 5980,
+        "mode": 420
+      },
+      {
+        "path": "src/common/terminal-identity.mjs",
+        "size": 7782,
+        "mode": 420
+      },
+      {
+        "path": "src/common/window-placement.mjs",
+        "size": 2689,
+        "mode": 420
+      },
+      {
+        "path": "src/common/workspace-view.mjs",
+        "size": 11363,
+        "mode": 420
+      },
+      {
+        "path": "src/native/agent-discovery.mjs",
+        "size": 11090,
+        "mode": 420
+      },
+      {
+        "path": "src/native/ak-runtime.mjs",
+        "size": 5444,
+        "mode": 420
+      },
+      {
+        "path": "src/native/codex-discovery.mjs",
+        "size": 4873,
+        "mode": 420
+      },
+      {
+        "path": "src/native/focus-visibility.mjs",
+        "size": 1719,
+        "mode": 420
+      },
+      {
+        "path": "src/native/ghostty-tab-inventory.py",
+        "size": 3297,
+        "mode": 493
+      },
+      {
+        "path": "src/native/height-repair.mjs",
+        "size": 5629,
+        "mode": 420
+      },
+      {
+        "path": "src/native/keyboard-entry.mjs",
+        "size": 1259,
+        "mode": 420
+      },
+      {
+        "path": "src/native/main.mjs",
+        "size": 18498,
+        "mode": 420
+      },
+      {
+        "path": "src/native/panel-binary.mjs",
+        "size": 2099,
+        "mode": 420
+      },
+      {
+        "path": "src/native/panel-projection.mjs",
+        "size": 10327,
+        "mode": 420
+      },
+      {
+        "path": "src/native/placement.mjs",
+        "size": 8246,
+        "mode": 420
+      },
+      {
+        "path": "src/native/tab-inventory.mjs",
+        "size": 7039,
+        "mode": 420
+      },
+      {
+        "path": "src/native/theme-runtime.mjs",
+        "size": 2587,
+        "mode": 420
+      },
+      {
+        "path": "src/native/theme-source.mjs",
+        "size": 6778,
+        "mode": 420
+      },
+      {
+        "path": "src/native/workspace-events.mjs",
+        "size": 6994,
+        "mode": 420
+      }
+    ],
+    "entryCount": 70,
+    "bundled": []
+  }
+}
+File whitelist OK (70 files).
+== npm publish --dry-run
+npm notice
+npm notice package: @tryinget/pi-activity-strip@0.9.0
+npm notice Tarball Contents
+npm notice 4.4kB LICENSE
+npm notice 20.6kB README.md
+npm notice 1.9kB bin/pi-activity-strip-claude-hook.mjs
+npm notice 10.1kB bin/pi-activity-strip.mjs
+npm notice 2.1kB examples/simulate-sessions.mjs
+npm notice 7.5kB extensions/activity-strip.js
+npm notice 245B extensions/activity-strip.ts
+npm notice 714B native/bin/linux-x64-gnu/artifact.json
+npm notice 873.6kB native/bin/linux-x64-gnu/pi-activity-strip-panel
+npm notice 25.5kB native/panel/Cargo.lock
+npm notice 517B native/panel/Cargo.toml
+npm notice 12.6kB native/panel/src/app_gui_tests.rs
+npm notice 52.7kB native/panel/src/app.rs
+npm notice 26.0kB native/panel/src/card_view.rs
+npm notice 14.3kB native/panel/src/directory_view.rs
+npm notice 2.2kB native/panel/src/interaction.rs
+npm notice 3.5kB native/panel/src/main.rs
+npm notice 16.0kB native/panel/src/protocol.rs
+npm notice 6.6kB native/panel/src/runtime.rs
+npm notice 8.4kB native/panel/src/style.css
+npm notice 3.6kB package.json
+npm notice 190B policy/security-policy.json
+npm notice 805B prompts/pi-activity-strip-implementation-planning.md
+npm notice 826B prompts/pi-activity-strip-security-review.md
+npm notice 7.0kB src/broker/server.mjs
+npm notice 3.7kB src/broker/session-store.mjs
+npm notice 4.6kB src/client/broker-client.mjs
+npm notice 3.7kB src/client/launcher.mjs
+npm notice 5.8kB src/client/runtime-lock.mjs
+npm notice 10.7kB src/client/session-telemetry.mjs
+npm notice 3.2kB src/common/activity-order.mjs
+npm notice 6.8kB src/common/agent-identity.mjs
+npm notice 13.0kB src/common/ak-tasks.mjs
+npm notice 1.6kB src/common/alignment-controller.mjs
+npm notice 2.1kB src/common/card-display.mjs
+npm notice 7.0kB src/common/claude-events.mjs
+npm notice 2.2kB src/common/claude-hook-config.mjs
+npm notice 5.4kB src/common/claude-transcript.mjs
+npm notice 5.3kB src/common/codex-transcript.mjs
+npm notice 5.6kB src/common/compatibility.mjs
+npm notice 1.5kB src/common/constants.mjs
+npm notice 6.1kB src/common/contracts.d.ts
+npm notice 7.1kB src/common/contracts.ts
+npm notice 2.5kB src/common/format.mjs
+npm notice 3.3kB src/common/ghostty-present.mjs
+npm notice 5.4kB src/common/ghostty-theme.mjs
+npm notice 16.4kB src/common/niri-focus.mjs
+npm notice 4.5kB src/common/protocol.mjs
+npm notice 4.3kB src/common/session-cards.mjs
+npm notice 4.4kB src/common/status-report.mjs
+npm notice 8.0kB src/common/surface-bindings.mjs
+npm notice 6.0kB src/common/telemetry.mjs
+npm notice 7.8kB src/common/terminal-identity.mjs
+npm notice 2.7kB src/common/window-placement.mjs
+npm notice 11.4kB src/common/workspace-view.mjs
+npm notice 11.1kB src/native/agent-discovery.mjs
+npm notice 5.4kB src/native/ak-runtime.mjs
+npm notice 4.9kB src/native/codex-discovery.mjs
+npm notice 1.7kB src/native/focus-visibility.mjs
+npm notice 3.3kB src/native/ghostty-tab-inventory.py
+npm notice 5.6kB src/native/height-repair.mjs
+npm notice 1.3kB src/native/keyboard-entry.mjs
+npm notice 18.5kB src/native/main.mjs
+npm notice 2.1kB src/native/panel-binary.mjs
+npm notice 10.3kB src/native/panel-projection.mjs
+npm notice 8.2kB src/native/placement.mjs
+npm notice 7.0kB src/native/tab-inventory.mjs
+npm notice 2.6kB src/native/theme-runtime.mjs
+npm notice 6.8kB src/native/theme-source.mjs
+npm notice 7.0kB src/native/workspace-events.mjs
+npm notice Tarball Details
+npm notice name: @tryinget/pi-activity-strip
+npm notice version: 0.9.0
+npm notice filename: tryinget-pi-activity-strip-0.9.0.tgz
+npm notice package size: 539.6 kB
+npm notice unpacked size: 1.4 MB
+npm notice shasum: a034f06791484e354ba15c7a74372548517afa79
+npm notice integrity: sha512-+RsuRRo0CMLRQ[...]yJgDMwqZnYf9A==
+npm notice total files: 70
+npm notice
+npm warn publish This command requires you to be logged in to https://registry.npmjs.org/ (dry-run)
+npm error You cannot publish over the previously published versions: 0.9.0.
+npm notice
+npm notice New minor version of npm available! 12.0.2 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+npm error A complete log of this run can be found in: /home/tryinget/.local/state/pi-quests/tmp/pi-release-command-home.6JVfGJ/.npm-cache/_logs/2026-10-15T15_41_56_574Z-debug-0.log
+npm publish --dry-run hit registry version guard (0.9.0); continuing.
+== npm pack
+Tarball: /home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tryinget-pi-activity-strip-0.9.0.tgz
+Skipping pi smoke tests (SKIP_PI_SMOKE=1).
+== npm view @tryinget/pi-activity-strip version (pre-publish may be 404)
+[
+  "0.9.0"
+]
+npm notice
+npm notice New minor version of npm available! 12.0.2 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+npm view exit: 0
+release-check done
+
+PACKAGE_EXIT_CODE=0
