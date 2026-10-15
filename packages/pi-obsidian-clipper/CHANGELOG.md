@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-obsidian-clipper-v0.2.0...pi-obsidian-clipper-v0.2.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **clipper:** ship updated host custody verification and residual boundaries ([b7ceecf](https://github.com/tryingET/pi-extensions/commit/b7ceecf267c9fb4d7fdc30517450688a7adf345f))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-obsidian-clipper-v0.1.0...pi-obsidian-clipper-v0.2.0) (2026-10-10)
 
 

@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.3](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.2...pi-society-orchestrator-v0.13.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **release:** qualify retained ASC candidates before atomic registry handoff (AK7076) ([a51c425](https://github.com/tryingET/pi-extensions/commit/a51c42526268f731afb0048fddb1951b505c4a5a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from ^0.7.0 to ^0.8.0
+
 ## [0.13.2](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.1...pi-society-orchestrator-v0.13.2) (2026-10-10)
 
 
