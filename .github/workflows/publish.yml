@@ -172,8 +172,10 @@ jobs:
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator' && hashFiles('scripts/asc-candidate-artifact.mjs') != ''
         run: node "$GITHUB_WORKSPACE/release-tooling/scripts/asc-candidate-artifact.mjs" registry-handoff-check --repo-root "$GITHUB_WORKSPACE"
 
+      # Helpers' producer fixture imports the sibling ASC public entrypoint.
+      # Its source needs its own locked dependencies, not helpers' registry copy.
       - name: Prepare linked ASC source runtime
-        if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
+        if: env.RELEASE_COMPONENT == 'pi-society-orchestrator' || env.RELEASE_COMPONENT == 'pi-little-helpers'
         run: bash ./scripts/prepare-asc-source-build-owner.sh
 
       - name: Install package dependencies
