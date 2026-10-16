@@ -227,7 +227,9 @@ export function formatTokens(value: number): string {
   return `${(value / 1_000_000).toFixed(2)}M`;
 }
 const usd = (value: number): string =>
-  `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  value > 0 && value < 0.01
+    ? `$${value.toFixed(4)}`
+    : `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (ts: number): string => new Date(ts).toISOString().slice(0, 10);
 const spend = (totals: MetaUsageTotals): string =>
   `${formatTokens(totals.totalTokens)} tokens · ≈ ${usd(totals.costUsd)} API-equivalent`;
@@ -238,7 +240,7 @@ export function metaUsageFacts(summary: MetaUsageSummary): string[] {
     return ["Muse usage via Pi on this machine: none recorded yet (local ledger)."];
   const { totals } = summary;
   const facts = [
-    `Muse via Pi here since ${day(summary.firstTs)}: ${totals.requests} requests · ${formatTokens(totals.input)} in / ${formatTokens(totals.output)} out · ${formatTokens(totals.cacheRead)} cached · ≈ ${usd(totals.costUsd)} API-equivalent`,
+    `Muse via Pi here since ${day(summary.firstTs)}: ${totals.requests} request${totals.requests === 1 ? "" : "s"} · ${formatTokens(totals.input)} in / ${formatTokens(totals.output)} out · ${formatTokens(totals.cacheRead)} cached · ≈ ${usd(totals.costUsd)} API-equivalent`,
   ];
   if (summary.perModel.length > 1)
     for (const { model, totals: modelTotals } of summary.perModel.slice(0, 3))

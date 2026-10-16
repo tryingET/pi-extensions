@@ -63,6 +63,17 @@ test("records only meta assistant usage and aggregates totals per model", () => 
   assert.match(facts, /muse-spark-1\.3-contributor/);
 });
 
+test("facts keep a single sub-cent request readable", () => {
+  const path = join(dir(), "ledger.jsonl");
+  recordMetaAssistantMessage(
+    message({ usage: { input: 100, output: 5, totalTokens: 105, cost: { total: 0.0029 } } }),
+    path,
+  );
+  const facts = metaUsageFacts(readMetaUsageSummary(path)).join("\n");
+  assert.match(facts, /1 request ·/);
+  assert.match(facts, /\$0\.0029/);
+});
+
 test("zero-usage and malformed state never manufacture spend", () => {
   const path = join(dir(), "ledger.jsonl");
   assert.equal(
