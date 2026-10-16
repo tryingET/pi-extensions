@@ -1,0 +1,51 @@
+{
+  "privateProtocol": 2,
+  "firstGrant": {
+    "at": 1792184241530,
+    "direction": "to-panel",
+    "message": {
+      "type": "hover-grant",
+      "token": 1,
+      "epoch": 7,
+      "request": 1,
+      "protocol": 2
+    }
+  },
+  "firstAppliedAck": {
+    "at": 1792184244526,
+    "direction": "from-panel",
+    "message": {
+      "active": true,
+      "protocol": 2,
+      "revision": 1,
+      "type": "keyboard-active"
+    }
+  },
+  "firstJump": {
+    "at": 1792184260536,
+    "direction": "from-panel",
+    "message": {
+      "epoch": 7,
+      "protocol": 2,
+      "request": 1,
+      "type": "jump",
+      "windowId": 7
+    }
+  },
+  "activeSpanMs": 16010,
+  "viewsDuringActiveSpan": 73,
+  "publisherOrders": [
+    [
+      "019fa4d0-7142-7fb4-8d30-f98e951f0513|dcc91758-0661-401c-82b3-350c9ef4ab9a",
+      "019fa4d0-7142-7fb4-8d30-f98e951f0513|isolated-base-publisher"
+    ],
+    [
+      "019fa4d0-7142-7fb4-8d30-f98e951f0513|isolated-base-publisher",
+      "019fa4d0-7142-7fb4-8d30-f98e951f0513|dcc91758-0661-401c-82b3-350c9ef4ab9a"
+    ]
+  ],
+  "ownerEpochs": [7],
+  "hiddenViews": 0,
+  "inactiveAcksBeforeJump": 0,
+  "queryLengths": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+}

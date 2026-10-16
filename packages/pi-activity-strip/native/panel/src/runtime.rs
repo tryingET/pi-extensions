@@ -66,7 +66,9 @@ pub fn start_input_reader(sender: relm4::Sender<AppMsg>) {
 fn read_input(sender: relm4::Sender<AppMsg>) {
     for line in BufReader::new(std::io::stdin()).lines() {
         match line {
-            Ok(line) if !line.trim().is_empty() => consume_line(&sender, &line),
+            Ok(line) if !line.trim().is_empty() => {
+                consume_line(&sender, &line);
+            }
             Ok(_) => {}
             Err(error) => {
                 let _ = sender.send(AppMsg::InputError(format!("panel input failed: {error}")));
@@ -87,6 +89,12 @@ fn consume_line(sender: &relm4::Sender<AppMsg>, line: &str) {
             return;
         }
     };
+    if value.get("protocol").and_then(|p| p.as_u64()) != Some(2) {
+        crate::protocol::reject_protocol(format!(
+            "Native panel private protocol mismatch: expected 2, received {}",
+            value.get("protocol").unwrap_or(&serde_json::Value::Null)
+        ));
+    }
     match value.get("type").and_then(|kind| kind.as_str()) {
         Some("view") => match serde_json::from_value::<ViewMessage>(value) {
             Ok(view) => {
@@ -114,6 +122,34 @@ fn consume_line(sender: &relm4::Sender<AppMsg>, line: &str) {
             let _ = sender.send(AppMsg::FocusStrip(
                 value
                     .get("revision")
+                    .and_then(|item| item.as_u64())
+                    .unwrap_or(0),
+                value
+                    .get("epoch")
+                    .and_then(|item| item.as_u64())
+                    .unwrap_or(0),
+            ));
+        }
+        Some("hover-grant") => {
+            let _ = sender.send(AppMsg::HoverGrant(
+                value
+                    .get("token")
+                    .and_then(|item| item.as_u64())
+                    .unwrap_or(0),
+                value
+                    .get("epoch")
+                    .and_then(|item| item.as_u64())
+                    .unwrap_or(0),
+                value
+                    .get("request")
+                    .and_then(|item| item.as_u64())
+                    .unwrap_or(0),
+            ));
+        }
+        Some("hover-denied") => {
+            let _ = sender.send(AppMsg::HoverDenied(
+                value
+                    .get("token")
                     .and_then(|item| item.as_u64())
                     .unwrap_or(0),
             ));

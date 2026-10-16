@@ -9,6 +9,8 @@ import { resolveSnapshotSession } from "../common/niri-focus.mjs";
 import { projectSessionCards, sessionRecordKey } from "../common/session-cards.mjs";
 import { classifyAdmittedWindowFocus } from "../common/workspace-view.mjs";
 import { createFocusVisibility } from "./focus-visibility.mjs";
+import { publisherSet, sourceIdentity } from "./interaction-context.mjs";
+import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 
 /** @typedef {Record<string, unknown>} SessionRecord */
 /** @typedef {{generatedAt: number; sessions: SessionRecord[]}} Snapshot */
@@ -44,6 +46,12 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
   /** @type {Map<string, SessionRecord>} */
   let directoryCards = new Map();
   let revision = 0;
+  let nextKeyboardRequest = 0;
+  let interactionEpoch = 0;
+  let intentGeneration = 0;
+  let consumedJumpRequest = -1;
+  /** @type {string | null} */
+  let interactionContext = null;
   const visibility = createFocusVisibility();
   /** @type {import("./focus-visibility.mjs").FocusKind} */
   let focusKind = "unknown";
@@ -83,7 +91,8 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
       current?.workspace?.id === workspace?.id &&
       established.length === 1 &&
       owned.length === 1 &&
-      owned[0]?.cardId === established[0]?.cardId
+      owned[0]?.cardId === established[0]?.cardId &&
+      JSON.stringify(publisherSet(owned[0])) === JSON.stringify(publisherSet(established[0]))
     );
   }
 
@@ -133,15 +142,42 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
     ) {
       clearFocusState();
     }
+    let owner = sessions.find(
+      (card) => card.windowId === focusWindowId && card.surfaceVisible !== false,
+    );
+    const rawOwner = owner
+      ? projectSessionCards(allSessions(), null).find((card) => card.cardId === owner?.cardId)
+      : undefined;
+    // Newly added publishers cannot inherit an admission established for a smaller set.
+    if (owner && JSON.stringify(publisherSet(owner)) !== JSON.stringify(publisherSet(rawOwner))) {
+      clearFocusState();
+      owner = undefined;
+    }
+    const facts = {
+      workspaceId: workspace?.id ?? null,
+      focus: isNiriSession() ? focusKind : "unknown",
+      hasCards: workspace?.is_focused === true && sessions.length > 0,
+    };
+    // Source identity outlives the action's own keyboard release/NULL, not an app switch or
+    // admission loss. Presentation visibility and capture ownership are independent facts.
+    const context =
+      focusContextValid &&
+      workspace?.is_focused === true &&
+      ["agent", "none"].includes(focusKind) &&
+      owner
+        ? sourceIdentity(workspace?.id, focusWindowId, owner)
+        : null;
+    if (context !== interactionContext) {
+      interactionEpoch += 1;
+      visibility.resetKeyboard();
+      interactionContext = context;
+    }
     return {
-      protocol: 1,
+      protocol: PANEL_PROTOCOL,
       type: "view",
       revision,
-      visible: visibility.observe({
-        workspaceId: workspace?.id ?? null,
-        focus: isNiriSession() ? focusKind : "unknown",
-        hasCards: workspace?.is_focused === true && sessions.length > 0,
-      }),
+      interactionEpoch,
+      visible: visibility.observe(facts),
       focusedSessionId,
       focusedCardId,
       generatedAt: snapshot.generatedAt,
@@ -165,9 +201,81 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
   return {
     getDisplaySessions,
     /** Reserve ownership before sending; cancel on a failed write or panel exit. */
-    requestKeyboard: (clickThrough = false) =>
-      visibility.requestKeyboard(revision, clickThrough) ? revision : null,
-    cancelKeyboard: () => visibility.resetKeyboard(),
+    requestKeyboard: (clickThrough = false) => {
+      const request = ++nextKeyboardRequest;
+      if (!visibility.requestKeyboard(request, clickThrough)) return null;
+      intentGeneration += 1;
+      return request;
+    },
+    /** @param {number} epoch @param {number} token @param {boolean} clickThrough */
+    requestHoverKeyboard(epoch, token, clickThrough) {
+      if (epoch !== interactionEpoch) return null;
+      const request = ++nextKeyboardRequest;
+      if (!visibility.requestKeyboard(request, clickThrough, "hover", token)) return null;
+      intentGeneration += 1;
+      return request;
+    },
+    getInteractionEpoch: () => interactionEpoch,
+    keyboardMode: () => visibility.keyboardMode(),
+    /** @param {number} request */
+    ownsKeyboardRequest: (request) => visibility.ownsRequest(request),
+    /** @param {number} token */
+    cancelHoverKeyboard(token) {
+      const cancelled = visibility.cancelHover(token);
+      if (cancelled) intentGeneration += 1;
+      return cancelled;
+    },
+    cancelKeyboard() {
+      intentGeneration += 1;
+      visibility.resetKeyboard();
+    },
+    /** One accepted action, not a lease to capture keys. Own release must not cancel it.
+     * @param {number} request @param {number} epoch */
+    acceptJumpIntent(request, epoch) {
+      if (
+        !visibility.ownsRequest(request) ||
+        !visibility.isEligible() ||
+        epoch !== interactionEpoch ||
+        !interactionContext ||
+        !focusContextValid ||
+        focusWindowId === null ||
+        consumedJumpRequest === request
+      )
+        return null;
+      consumedJumpRequest = request;
+      const context = interactionContext;
+      const generation = intentGeneration;
+      const sourceWorkspaceId = workspace?.id;
+      const sourceWindowId = focusWindowId;
+      return {
+        workspaceId: sourceWorkspaceId,
+        windowId: sourceWindowId,
+        allowUnlisted: visibility.keyboardMode() === "explicit",
+        isCurrent: () =>
+          generation === intentGeneration &&
+          epoch === interactionEpoch &&
+          focusContextValid &&
+          context === interactionContext &&
+          ["agent", "none"].includes(focusKind),
+        /** @param {WorkspaceView | null} view */
+        matchesSource(view) {
+          if (
+            !view ||
+            view.workspace?.id !== sourceWorkspaceId ||
+            !["agent", "none"].includes(view.focusKind ?? "unknown")
+          )
+            return false;
+          const owned = view.sessions.filter(
+            (card) => card.windowId === sourceWindowId && card.surfaceVisible !== false,
+          );
+          return (
+            owned.length === 1 &&
+            (view.focusKind !== "agent" || view.focusedCardId === owned[0]?.cardId) &&
+            sourceIdentity(sourceWorkspaceId, sourceWindowId, owned[0]) === context
+          );
+        },
+      };
+    },
     /** @param {number} request @param {boolean} active */
     keyboardChanged: (request, active) => visibility.keyboardChanged(request, active),
     isEligible: () => visibility.isEligible(),
@@ -231,6 +339,13 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
       null,
     /** @param {number} windowId */
     hasDirectoryWindow: (windowId) => directory.some((entry) => entry.windowId === windowId),
+    /** @param {number} windowId */
+    getDirectoryWindowIdentities: (windowId) =>
+      directory
+        .filter((entry) => entry.windowId === windowId)
+        .map((entry) =>
+          sourceIdentity(entry.workspaceId, windowId, directoryCards.get(entry.cardId)),
+        ),
     /**
      * Replace the window list; it is published with the next view.
      * @param {{entries: import("../common/workspace-view.mjs").WindowDirectoryEntry[]; cards: Map<string, SessionRecord>}} next

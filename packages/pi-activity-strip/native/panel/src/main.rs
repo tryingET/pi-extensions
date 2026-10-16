@@ -1,6 +1,7 @@
 mod app;
 mod card_view;
 mod directory_view;
+mod hover_keyboard;
 mod interaction;
 mod protocol;
 mod runtime;

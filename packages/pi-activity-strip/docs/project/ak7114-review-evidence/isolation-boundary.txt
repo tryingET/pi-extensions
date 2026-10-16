@@ -1,0 +1,20 @@
+Completed full-run cleanup (operator titles omitted):
+nested wayland-3 /run/user/1000/niri.wayland-3.2108641.sock pid 2108641
+remaining nested layers: []
+nested niri down
+
+Extra optional rerun was NOT a passing run:
+nested-niri: no empty workspace on null to park the nested window
+
+Only owned failed-helper PID 2875827 was recovered by exact config/socket identity and canonical down:
+nested niri down
+
+Operator processes, read only:
+    PID                  STARTED COMMAND
+3290373 Thu Oct 15 18:32:08 2026 node-MainThread
+3290412 Thu Oct 15 18:32:08 2026 pi-activity-str
+
+Host AT-SPI inode (before: 18947):
+18947 /run/user/1000/at-spi/bus_0
+
+Git index (must be empty):

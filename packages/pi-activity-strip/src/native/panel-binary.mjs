@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -33,7 +34,6 @@ export function resolvePanelBinary(env) {
   if (!binary) {
     throw new Error(`Native panel binary is unavailable. Checked: ${candidates.join(", ")}`);
   }
-  if (allowUnverified) return binary;
   if (process.platform !== "linux" || process.arch !== "x64") {
     throw new Error(`Native panel requires Linux x64, got ${process.platform} ${process.arch}.`);
   }
@@ -44,6 +44,12 @@ export function resolvePanelBinary(env) {
   } catch {
     throw new Error(`Native panel receipt is unavailable: ${artifactPath}`);
   }
+  if (artifact.panelProtocol !== PANEL_PROTOCOL) {
+    throw new Error(
+      `Native panel private protocol mismatch in receipt: expected ${PANEL_PROTOCOL}, received ${String(artifact.panelProtocol)} (${artifactPath}). Rebuild/use a matching panel.`,
+    );
+  }
+  if (allowUnverified) return binary;
   const digest = createHash("sha256").update(fs.readFileSync(binary)).digest("hex");
   if (
     artifact.schema !== "pi-activity-strip-native-artifact.v1" ||

@@ -7,7 +7,9 @@ use std::time::Instant;
 
 fn pump() {
     if let Some(display) = gdk::Display::default() {
-        display.sync();
+        // Flush without a blocking roundtrip before pumping GTK: nested compositor replies must
+        // be dispatched while bounded hover timers and input callbacks are actually running.
+        display.flush();
     }
     let until = Instant::now() + Duration::from_millis(250);
     while Instant::now() < until {
@@ -18,12 +20,24 @@ fn pump() {
     }
 }
 
+fn pump_until(check: impl Fn() -> bool, label: &str) {
+    let start = Instant::now();
+    while !check() {
+        assert!(start.elapsed() < Duration::from_secs(30), "{label}");
+        pump();
+    }
+}
+
 fn move_pointer(pointer: &mut Child, events: &mut BufReader<ChildStdout>, x: i32, y: i32) {
     writeln!(pointer.stdin.as_mut().unwrap(), "{x} {y}").unwrap();
     let mut line = String::new();
     assert!(events.read_line(&mut line).unwrap() > 0);
     assert_eq!(line.trim(), "moved");
     pump();
+}
+
+fn type_keys(args: &[&str]) {
+    assert!(Command::new("wtype").args(args).status().unwrap().success());
 }
 
 fn assert_clean(app: &App) {
@@ -37,6 +51,9 @@ fn assert_clean(app: &App) {
     assert!(app.pending_request.is_none());
     assert!(app.query.is_empty());
     assert_eq!(app.key_capture.get(), KeyCapture::None);
+    assert!(!app.hover_keyboard.active);
+    assert!(!app.hover_keyboard.captured);
+    assert!(app.hover_keyboard.pending.is_none());
 }
 
 #[test]
@@ -175,13 +192,7 @@ fn isolated_gtk_interaction() {
                 .stdout
         )
     );
-    assert!(
-        Command::new("wtype")
-            .arg("hover-typing")
-            .status()
-            .unwrap()
-            .success()
-    );
+    type_keys(&["hover-typing"]);
     pump();
     assert_eq!(
         entry.text().as_str(),
@@ -211,64 +222,43 @@ fn isolated_gtk_interaction() {
     assert_eq!(app.model().open_card_id.as_deref(), Some(id.as_str()));
     assert_eq!(root.keyboard_mode(), KeyboardMode::None);
     assert_eq!(app.model().key_capture.get(), KeyCapture::None);
-    assert!(
-        Command::new("wtype")
-            .arg("card-typing")
-            .status()
-            .unwrap()
-            .success()
-    );
+    type_keys(&["card-typing"]);
     pump();
     assert_eq!(entry.text().as_str(), "hover-typingcard-typing");
+    // Demo emits requests but has NO Node authority. Actual admission/typing/Enter is tested
+    // with the production controller in the separate harness, never inferred from this demo.
+    let (token, epoch) = app.model().hover_keyboard.pending.unwrap();
     move_pointer(&mut pointer, &mut events, 300, 900);
     assert_clean(&app.model());
     println!(
-        "GUI PASS: real card enter/leave expands only the hovered card; keys still reach fixture"
+        "GUI PASS: real pointer expands card but cannot capture without controller grant; leave clears pending request"
     );
+    app.emit(AppMsg::HoverGrant(token, epoch, 41));
     app.emit(AppMsg::Focus(id.clone(), true));
     pump();
+    assert_eq!(
+        root.keyboard_mode(),
+        KeyboardMode::None,
+        "late grant after leave denied"
+    );
     assert!(!app.model().expanded());
     let revision = app.model().revision;
-    app.emit(AppMsg::FocusStrip(revision));
+    app.emit(AppMsg::FocusStrip(revision, app.model().interaction_epoch));
     pump();
     assert!(app.model().keyboard_active);
     assert!(app.model().expanded());
     assert_eq!(root.keyboard_mode(), KeyboardMode::Exclusive);
     let next = app.model().order[1].clone();
-    assert!(
-        Command::new("wtype")
-            .args(["-k", "Right"])
-            .status()
-            .unwrap()
-            .success()
-    );
+    type_keys(&["-k", "Right"]);
     pump();
     assert_eq!(app.model().keyboard_focused.as_deref(), Some(next.as_str()));
-    assert!(
-        Command::new("wtype")
-            .args(["-M", "shift", "-k", "Right", "-m", "shift"])
-            .status()
-            .unwrap()
-            .success()
-    );
+    type_keys(&["-M", "shift", "-k", "Right", "-m", "shift"]);
     pump();
     assert_eq!(app.model().order[2], next);
-    assert!(
-        Command::new("wtype")
-            .arg("fixture")
-            .status()
-            .unwrap()
-            .success()
-    );
+    type_keys(&["fixture"]);
     pump();
     assert_eq!(app.model().query, "fixture");
-    assert!(
-        Command::new("wtype")
-            .args(["-k", "Escape"])
-            .status()
-            .unwrap()
-            .success()
-    );
+    type_keys(&["-k", "Escape"]);
     pump();
     assert_clean(&app.model());
     assert_eq!(root.keyboard_mode(), KeyboardMode::None);
@@ -288,9 +278,9 @@ fn isolated_gtk_interaction() {
     app.emit(AppMsg::View(scrollable.clone()));
     pump();
     let adjustment = app.widgets().scroller.hadjustment();
-    assert!(
-        adjustment.upper() > adjustment.page_size(),
-        "fixture must actually overflow for stale-scroll proof"
+    pump_until(
+        || adjustment.upper() > adjustment.page_size(),
+        "fixture must actually overflow for stale-scroll proof",
     );
     move_pointer(&mut pointer, &mut events, 60, 40);
     assert!(app.model().brand_hovered);
@@ -313,7 +303,7 @@ fn isolated_gtk_interaction() {
     app.emit(AppMsg::BrandHover(true));
     app.emit(AppMsg::DirectoryHover(true));
     app.emit(AppMsg::DirectoryKey(DirectoryKey::Char('4')));
-    app.emit(AppMsg::FocusStrip(revision));
+    app.emit(AppMsg::FocusStrip(revision, app.model().interaction_epoch));
     pump();
     assert_clean(&app.model());
     assert!(!root.is_visible());
@@ -355,7 +345,10 @@ fn isolated_gtk_interaction() {
         })
         .detach();
     pump();
-    app.emit(AppMsg::FocusStrip(app.model().revision));
+    app.emit(AppMsg::FocusStrip(
+        app.model().revision,
+        app.model().interaction_epoch,
+    ));
     app.emit(AppMsg::BrandHover(true));
     pump();
     assert_clean(&app.model());

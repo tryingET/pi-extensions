@@ -1,0 +1,40 @@
+Source-only snapshot: /home/tryinget/.local/state/pi-quests/tmp/ak7114-history-free.MShzMc
+v22.23.3
+12.0.2
+fatal: not a git repository (or any parent up to mount point /)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+Confirmed historical git show unavailable
+TAP version 13
+# Subtest: private protocol 2 is independent of the unchanged public broker protocol
+ok 1 - private protocol 2 is independent of the unchanged public broker protocol
+  ---
+  duration_ms: 1.994581
+  type: 'test'
+  ...
+# Subtest: synthetic v1 receipt is rejected before launch, including override bypass
+ok 2 - synthetic v1 receipt is rejected before launch, including override bypass
+  ---
+  duration_ms: 0.757928
+  type: 'test'
+  ...
+# Subtest: actual Node controller refuses a synthetic v1 override receipt without launching any GUI
+ok 3 - actual Node controller refuses a synthetic v1 override receipt without launching any GUI
+  ---
+  duration_ms: 128.298398
+  type: 'test'
+  ...
+# Subtest: incompatible ready is fatal, cannot become ready via a later packet, and revokes once
+ok 4 - incompatible ready is fatal, cannot become ready via a later packet, and revokes once
+  ---
+  duration_ms: 0.239553
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 184.432548

@@ -46,6 +46,7 @@ test("staged native panel is executable and bound to its Cargo lock", () => {
 
   assert.equal(artifact.schema, "pi-activity-strip-native-artifact.v1");
   assert.equal(artifact.target, "x86_64-unknown-linux-gnu");
+  assert.equal(artifact.panelProtocol, 2);
   assert.equal(binary.subarray(0, 4).toString("hex"), "7f454c46");
   assert.notEqual(mode & 0o111, 0);
   assert.equal(artifact.sha256, sha256(binaryPath));

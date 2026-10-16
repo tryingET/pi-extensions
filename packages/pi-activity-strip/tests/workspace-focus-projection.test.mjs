@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
+import { sessionRecordKey } from "../src/common/session-cards.mjs";
 import { resolveWorkspaceView } from "../src/common/workspace-view.mjs";
+import { createHoverKeyboard } from "../src/native/hover-keyboard.mjs";
 import { createKeyboardEntry } from "../src/native/keyboard-entry.mjs";
 import { createNativePanelProjection } from "../src/native/panel-projection.mjs";
 import { createPlacementRuntime } from "../src/native/placement.mjs";
@@ -57,7 +59,14 @@ function fixture({
     ? project(owner)
     : {
         workspace,
-        sessions: [{ ...raw, cardId: "session:agent", windowId: 44 }],
+        sessions: [
+          {
+            ...raw,
+            cardId: "session:agent",
+            windowId: 44,
+            publisherRecordKeys: [sessionRecordKey(raw)],
+          },
+        ],
         focusedCardId: "session:agent",
         focusedSessionId: "agent",
         focusKind: "agent",
@@ -643,3 +652,51 @@ test("initial full window inventory forwards exact focus, and a broken stream re
     f.watcher.stop();
   }
 });
+
+for (const entry of duplicateCases) {
+  for (const nullBeforeAck of [false, true]) {
+    for (const loss of ["browser", "workspace", "close", "replacement", "conflict"]) {
+      test(`hover production binding revokes ${entry.name}: ${loss}, NULL=${nullBeforeAck}`, () => {
+        const f = fixture({ productionTitle: entry.title, rawSession: entry.raw });
+        const writes = [];
+        const hover = createHoverKeyboard({
+          projection: f.projection,
+          runtimeStatus: { windowVisible: true },
+          writePanel: (message) => {
+            writes.push(message);
+            return true;
+          },
+        });
+        try {
+          const epoch = f.projection.getInteractionEpoch();
+          assert.equal(hover.request(1, epoch), true);
+          const request = writes.at(-1).request;
+          if (nullBeforeAck) f.emit({ WindowFocusChanged: { id: null } });
+          assert.equal(f.projection.keyboardChanged(request, true), true);
+          if (loss === "browser") f.emit({ WindowFocusChanged: { id: 99 } });
+          if (loss === "workspace") f.emit({ WorkspaceActivated: { id: 8, focused: true } });
+          if (loss === "close") f.emit({ WindowClosed: { id: 44 } });
+          if (loss === "replacement")
+            f.emit({ WindowOpenedOrChanged: { window: { ...f.owner, title: "ordinary shell" } } });
+          if (loss === "conflict")
+            f.emit({
+              WindowOpenedOrChanged: { window: { ...f.owner, id: 45, is_focused: false } },
+            });
+          assert.equal(
+            f.views.at(-1).visible,
+            false,
+            "production event path revokes immediately without a poll",
+          );
+          assert.equal(f.projection.keyboardChanged(request, true), false);
+          assert.equal(hover.request(2, epoch), false);
+          if (loss !== "browser") {
+            f.emit({ WindowFocusChanged: { id: 44 } });
+            assert.equal(f.views.at(-1).visible, false, "stale focus cannot revive invalid proof");
+          }
+        } finally {
+          f.watcher.stop();
+        }
+      });
+    }
+  }
+}

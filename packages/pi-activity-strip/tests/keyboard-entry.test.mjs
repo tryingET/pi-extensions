@@ -49,7 +49,8 @@ test("entry is synchronous, reserves before panel NULL/ack, and hidden/click-thr
     "no delayed command can capture after returning failure",
   );
   assert.equal(result.ok, true);
-  assert.equal(f.writes[0].revision, f.views.at(-1).revision);
+  assert.ok(f.projection.ownsKeyboardRequest(f.writes[0].revision));
+  assert.equal(f.writes[0].epoch, f.views.at(-1).interactionEpoch);
   f.projection.publishWindowFocus(null);
   assert.equal(f.views.at(-1).visible, true, "NULL before panel acknowledgement is safe");
 });

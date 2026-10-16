@@ -47,7 +47,7 @@ test("native projection publishes only the focused workspace card with monotonic
   });
 
   const visible = published.at(-1);
-  assert.equal(visible.protocol, 1);
+  assert.equal(visible.protocol, 2);
   assert.equal(visible.type, "view");
   assert.equal(visible.visible, true);
   assert.equal(visible.sessions.length, 1);

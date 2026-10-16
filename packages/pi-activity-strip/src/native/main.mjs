@@ -17,9 +17,12 @@ import { resolveFocusedWorkspaceView, resolveWindowDirectory } from "../common/w
 import { discoverAgentTabs } from "./agent-discovery.mjs";
 import { startAkTaskProjection } from "./ak-runtime.mjs";
 import { createHeightRepair } from "./height-repair.mjs";
+import { createHoverKeyboard } from "./hover-keyboard.mjs";
 import { createKeyboardEntry } from "./keyboard-entry.mjs";
 import { resolvePanelBinary } from "./panel-binary.mjs";
 import { createNativePanelProjection } from "./panel-projection.mjs";
+import { admitPanelEvent, PANEL_PROTOCOL } from "./panel-protocol.mjs";
+import { createPanelWindowJump } from "./panel-window-jump.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
 import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
 import {
@@ -28,7 +31,7 @@ import {
 } from "./workspace-events.mjs";
 
 /** @typedef {import("../common/contracts.ts").ActivityStripRuntimeStatus} ActivityStripRuntimeStatus */
-/** @typedef {import("node:child_process").ChildProcessWithoutNullStreams & {_activityBuffer?: string; _readyTimer?: NodeJS.Timeout; _stableTimer?: NodeJS.Timeout}} PanelChild */
+/** @typedef {import("node:child_process").ChildProcessWithoutNullStreams & {_protocolError?: string; _activityBuffer?: string; _readyTimer?: NodeJS.Timeout; _stableTimer?: NodeJS.Timeout}} PanelChild */
 /** @typedef {{type: string; protocol?: number; revision?: number; visible?: boolean; sessions?: Array<Record<string, unknown>>; [key: string]: unknown}} PanelMessage */
 
 const execFileAsync = promisify(execFile);
@@ -100,7 +103,9 @@ function writePanel(message) {
     return false;
   }
   try {
-    const accepted = panel.stdin.write(`${JSON.stringify(message)}\n`);
+    const accepted = panel.stdin.write(
+      `${JSON.stringify({ ...message, protocol: PANEL_PROTOCOL })}\n`,
+    );
     if (!accepted) {
       panelWriteReady = false;
       const child = panel;
@@ -162,36 +167,19 @@ async function focusSession(targetId) {
   return result;
 }
 
-/**
- * Jump to a window by the number Niri gives it, as typed into the window list. Only a window that
- * exists right now is focused; any other number does nothing.
- * @param {number} windowId
- * @returns {Promise<{ok: boolean; error?: string}>}
- */
-async function jumpToWindow(windowId) {
-  if (!isNiriSession()) return { ok: false, error: "Niri is not available; nothing moved." };
-  if (!Number.isInteger(windowId) || windowId < 0) {
-    return { ok: false, error: "Not a window number; nothing moved." };
-  }
-  let windows;
-  try {
-    windows = await getNiriWindows();
-  } catch {
-    return { ok: false, error: "Could not read Niri windows; nothing moved." };
-  }
-  if (!windows.some((window) => window?.id === windowId)) {
-    return { ok: false, error: `No window #${windowId}; nothing moved.` };
-  }
-  try {
-    await execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(windowId)], {
+const requestWindowJump = createPanelWindowJump({
+  projection,
+  placementOptions: placement.options,
+  getWindowFacts: placement.getObservedWindow,
+  isNiriSession,
+  readWindows: () => getNiriWindows(),
+  readWorkspaces: () => getNiriWorkspaces(),
+  focusWindow: (id) =>
+    execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(id)], {
       env: process.env,
-    });
-  } catch {
-    return { ok: false, error: `Niri refused to focus #${windowId}; nothing moved.` };
-  }
-  reconcileRunner.request();
-  return { ok: true };
-}
+    }),
+  reconcile: () => reconcileRunner.request(),
+});
 
 const requestKeyboardEntry = createKeyboardEntry({
   projection,
@@ -199,6 +187,7 @@ const requestKeyboardEntry = createKeyboardEntry({
   writePanel,
 });
 const focusStrip = async () => requestKeyboardEntry();
+let hoverKeyboard = createHoverKeyboard({ projection, runtimeStatus, writePanel });
 
 /** @param {PanelChild} child @param {unknown} chunk */
 function consumePanelEvents(child, chunk) {
@@ -211,7 +200,8 @@ function consumePanelEvents(child, chunk) {
     if (line) {
       try {
         const event = JSON.parse(line);
-        if (event.protocol !== 1) throw new Error("unsupported native panel protocol");
+        if (!admitPanelEvent(child, event, runtimeStatus, () => projection.cancelKeyboard()))
+          return;
         if (event.type === "ready") {
           clearTimeout(child._readyTimer);
           panelReady = true;
@@ -242,6 +232,10 @@ function consumePanelEvents(child, chunk) {
           // Showing or hiding the surface is the only moment the exclusive zone changes, so it is
           // the only moment a tiled window can be left at the previous working area's height.
           if (changed) void heightRepair.repairAfterZoneChange();
+        } else if (event.type === "hover-request") {
+          hoverKeyboard.request(Number(event.token), Number(event.epoch));
+        } else if (event.type === "hover-cancel") {
+          if (hoverKeyboard.cancel(Number(event.token))) reconcileRunner.request();
         } else if (event.type === "keyboard-active") {
           const accepted = projection.keyboardChanged(
             Number(event.revision),
@@ -270,7 +264,7 @@ function consumePanelEvents(child, chunk) {
         } else if (event.type === "jump") {
           runtimeStatus.panelJumpCount = (runtimeStatus.panelJumpCount ?? 0) + 1;
           const windowId = Number(event.windowId);
-          void jumpToWindow(windowId).then((result) =>
+          void requestWindowJump(event).then((result) =>
             writePanel({
               type: "jump-result",
               windowId,
@@ -302,6 +296,7 @@ function startPanel() {
     stdio: ["pipe", "pipe", "pipe"],
   });
   panel = child;
+  hoverKeyboard = createHoverKeyboard({ projection, runtimeStatus, writePanel });
   panelReady = false;
   panelWriteReady = true;
   panelStderr = "";
@@ -332,6 +327,11 @@ function startPanel() {
     runtimeStatus.windowVisible = false;
     runtimeStatus.panelPid = null;
     if (shuttingDown) return;
+    if (child._protocolError) {
+      runtimeStatus.state = "error";
+      runtimeStatus.error = child._protocolError;
+      return;
+    }
     if (panelRestartCount < 3) {
       panelRestartCount += 1;
       runtimeStatus.panelRestartCount = panelRestartCount;
@@ -385,7 +385,7 @@ const theme = createThemeRuntime({
   execFileAsync,
   env: process.env,
   runtimeStatus,
-  publish: (definitions) => writePanel({ protocol: 1, type: "theme", definitions }),
+  publish: (definitions) => writePanel({ protocol: PANEL_PROTOCOL, type: "theme", definitions }),
 });
 
 const heightRepair = createHeightRepair({
@@ -423,7 +423,7 @@ async function shutdown(exitCode = 0) {
   watcher?.stop();
   placement.persist();
   writePanel({
-    protocol: 1,
+    protocol: PANEL_PROTOCOL,
     type: "view",
     revision: Number.MAX_SAFE_INTEGER,
     visible: false,

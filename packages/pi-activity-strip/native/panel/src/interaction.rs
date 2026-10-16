@@ -19,7 +19,7 @@ impl InteractionLifetime {
     }
 }
 
-/// Only an explicit shortcut may request a keyboard mode. Pointer entry is never such a request.
+/// A real mapped pointer is necessary for hover intent, but controller permission is ALSO required.
 pub fn accepts_pointer(visible: bool, interactive: bool, mapped: bool, contains: bool) -> bool {
     visible && interactive && mapped && contains
 }

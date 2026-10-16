@@ -1,0 +1,39 @@
+{
+  "firstHoverGrant": {
+    "at": 1792181432407,
+    "direction": "to-panel",
+    "message": {
+      "type": "hover-grant",
+      "token": 1,
+      "epoch": 7,
+      "request": 1
+    }
+  },
+  "firstAppliedAck": {
+    "at": 1792181438285,
+    "direction": "from-panel",
+    "message": {
+      "active": true,
+      "protocol": 1,
+      "revision": 1,
+      "type": "keyboard-active"
+    }
+  },
+  "firstJump": {
+    "at": 1792181454288,
+    "direction": "from-panel",
+    "message": {
+      "epoch": 7,
+      "protocol": 1,
+      "request": 1,
+      "type": "jump",
+      "windowId": 6
+    }
+  },
+  "activeSpanMs": 16003,
+  "hoverRequestsBeforeJump": 1,
+  "inactiveAcksBeforeJump": 0,
+  "hiddenViewsDuringActiveSpan": 0,
+  "viewsDuringActiveSpan": 54,
+  "actualNativeQueryLengths": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+}

@@ -1,0 +1,116 @@
+ISOLATION {"nestedPid":2108641,"socket":"/run/user/1000/niri.wayland-3.2108641.sock","display":"/run/user/1000/wayland-3","privateRuntime":"/home/tryinget/.local/state/pi-quests/tmp/ak7114-hover-restore.e8cbK2/worktree/packages/pi-activity-strip/native/panel/target/gui-fixture/runtime","accessibility":"disabled (GTK_A11Y=none, NO_AT_BRIDGE=1); AT-SPI untested","renderer":"cairo fixture; host GPU rendering untested"}
+old_runs_preserved=42
+WARN: 7 kernel-protected current-uid process(es) were outside reference inspection
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/main.rs (native/panel/target/debug/deps/pi_activity_strip_panel-3d355a634567f563)
+
+running 1 test
+test app::gui_tests::isolated_gtk_interaction ... {"namespace":"pi-activity-strip","pid":2109050,"protocol":2,"type":"ready"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"revision":1,"type":"visibility-applied","visible":true}
+GUI geometry: mapped=true size=924x84 outputs={"winit":{"current_mode":0,"is_custom_mode":true,"logical":{"height":1152,"scale":1.0,"transform":"Flipped180","width":940,"x":0,"y":0},"make":"Smithay","model":"Winit","modes":[{"height":1152,"is_preferred":true,"refresh_rate":60000,"width":940}],"name":"winit","physical_size":null,"serial":null,"vrr_enabled":false,"vrr_supported":false}}
+GUI before hover focused={"id":2,"title":"AK7114 isolated typing receiver (fixture, not agent)","app_id":"GTK Application","pid":2109050,"workspace_id":1,"is_focused":true,"is_floating":false,"is_urgent":false,"layout":{"pos_in_scrolling_layout":[1,1],"tile_size":[470.0,1060.0],"window_size":[470,1060],"tile_pos_in_workspace_view":null,"window_offset_in_tile":[0.0,0.0]},"focus_timestamp":{"secs":408168,"nanos":189856836}}
+
+GUI root enter 52,32
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"epoch":1,"protocol":2,"token":1,"type":"hover-request"}
+{"cardId":null,"expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+
+(process:2109050): Gtk-WARNING **: 22:55:12.292: GtkBox 0x7f3ae00811a0 (box) reported min height 366 and natural height 334 in measure() with for_size=688; natural size must be >= min size
+GUI typing ownership: fixture_active=true entry_focus=false root_active=false focused={"id":2,"title":"AK7114 isolated typing receiver (fixture, not agent)","app_id":"GTK Application","pid":2109050,"workspace_id":1,"is_focused":true,"is_floating":false,"is_urgent":false,"layout":{"pos_in_scrolling_layout":[1,1],"tile_size":[470.0,1060.0],"window_size":[470,1060],"tile_pos_in_workspace_view":null,"window_offset_in_tile":[0.0,0.0]},"focus_timestamp":{"secs":408168,"nanos":189856836}}
+
+
+(process:2109050): Gtk-WARNING **: 22:55:14.350: GtkBox 0x7f3ae00811a0 (box) reported min height 366 and natural height 334 in measure() with for_size=688; natural size must be >= min size
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"token":1,"type":"hover-cancel"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+GUI PASS: real pointer brand enter/leave, no hover keyboard capture, typing delivered to fixture
+GUI root enter 236,28
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"epoch":1,"protocol":2,"token":2,"type":"hover-request"}
+{"cardId":"demo-monitor","expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+
+(process:2109050): Gtk-WARNING **: 22:55:18.292: GtkBox 0x7f3ae00811a0 (box) reported min height 300 and natural height 268 in measure() with for_size=688; natural size must be >= min size
+
+(process:2109050): Gtk-WARNING **: 22:55:20.349: GtkBox 0x7f3ae00811a0 (box) reported min height 300 and natural height 268 in measure() with for_size=688; natural size must be >= min size
+{"cardId":"demo-monitor","expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"token":2,"type":"hover-cancel"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+GUI PASS: real pointer expands card but cannot capture without controller grant; leave clears pending request
+{"protocol":2,"token":2,"type":"hover-cancel"}
+{"cardId":"demo-monitor","expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+{"active":true,"protocol":2,"revision":1,"type":"keyboard-active"}
+
+(process:2109050): Gtk-WARNING **: 22:55:24.296: GtkBox 0x7f3ae00811a0 (box) reported min height 300 and natural height 268 in measure() with for_size=696; natural size must be >= min size
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+
+(process:2109050): Gtk-WARNING **: 22:55:26.305: GtkBox 0x7f3ae00811a0 (box) reported min height 366 and natural height 334 in measure() with for_size=696; natural size must be >= min size
+{"cardId":"demo-tool","direction":1,"protocol":2,"type":"moved"}
+
+(process:2109050): Gtk-WARNING **: 22:55:27.305: GtkBox 0x7f3ae00811a0 (box) reported min height 366 and natural height 334 in measure() with for_size=696; natural size must be >= min size
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":1,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":2,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":3,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":4,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":5,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":6,"type":"expanded"}
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":7,"type":"expanded"}
+
+(process:2109050): Gtk-WARNING **: 22:55:29.340: GtkBox 0x7f3ae00811a0 (box) reported min height 366 and natural height 334 in measure() with for_size=696; natural size must be >= min size
+{"cardId":"demo-tool","expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+GUI PASS: explicit shortcut captures keyboard/search, real Escape returns it and clears UI
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"active":false,"protocol":2,"revision":1,"type":"keyboard-active"}
+GUI root enter 52,32
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"epoch":1,"protocol":2,"token":3,"type":"hover-request"}
+{"cardId":null,"expanded":true,"protocol":2,"queryLength":0,"type":"expanded"}
+
+(process:2109050): Gtk-WARNING **: 22:55:33.309: GtkBox 0x7f3ae00811a0 (box) reported min height 366 and natural height 334 in measure() with for_size=1616; natural size must be >= min size
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"token":3,"type":"hover-cancel"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"revision":4,"type":"visibility-applied","visible":false}
+{"active":false,"protocol":2,"revision":1,"type":"keyboard-active"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"revision":5,"type":"visibility-applied","visible":true}
+GUI PASS: hidden surface releases zone; late brand/hover/key/focus callbacks no-op; return collapsed
+{"namespace":"pi-activity-strip","pid":2109050,"protocol":2,"type":"ready"}
+{"cardId":null,"expanded":false,"protocol":2,"queryLength":0,"type":"expanded"}
+{"protocol":2,"revision":1,"type":"visibility-applied","visible":true}
+{"active":false,"protocol":2,"revision":1,"type":"keyboard-active"}
+GUI PASS: click-through rejects keyboard and hover engagement
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 39 filtered out; finished in 39.34s
+
+heavy_job_result=success scratch_cleanup=removed
+
+CROSS VERSION PASS new native rejects legacy v1 input, diagnostic + exit 1, no layer [{"message":"Native panel private protocol mismatch: expected 2, received 1","protocol":2,"type":"error"}]
+CROSS VERSION DIAGNOSTIC current-old {"state":"error","readyAt":null,"visible":false,"error":"Native panel private protocol mismatch: expected 2, received 1. Rebuild/use a matching controller and panel.","warnings":[]}
+CROSS VERSION PASS current-old actual base/new pair: never ready, diagnostic, no layer/keyboard; public broker command still works
+CROSS VERSION DIAGNOSTIC old-current {"state":"starting","readyAt":null,"visible":false,"error":null,"warnings":["Ignored malformed native panel event: unsupported native panel protocol"]}
+CROSS VERSION PASS old-current actual base/new pair: never ready, diagnostic, no layer/keyboard; public broker command still works
+CONTROLLER status {"state":"starting","restart":0,"error":null}
+CONTROLLER status {"state":"ready","restart":0,"error":null}
+PUBLIC TELEMETRY PASS actual base publisher and current publisher aggregate into one agent card
+CONTROLLER PASS agent focus [{"namespace":"pi-activity-strip","output":"winit","layer":"Top","keyboard_interactivity":"None"}]
+CONTROLLER PASS non-agent hidden / keyboard refused org.ak7114.obsidian []
+CONTROLLER PASS non-agent hidden / keyboard refused org.ak7114.browser []
+CONTROLLER PASS non-agent hidden / keyboard refused org.ak7114.plain []
+CONTROLLER PASS real hover -> typed listed window id -> Enter; exact cross-workspace target + subsequent typing; NULL ownership survives telemetry/two fallback polls
+CONTROLLER PASS known non-agent focus revokes active hover, unmaps layer, denies keyboard; return compact
+CONTROLLER PASS hover project search after leave/Escape/idle; exact target + subsequent typing
+CONTROLLER PASS leave/Escape/idle(nonempty query)/interrupt return keyboard; no telemetry recapture or stale expansion
+CONTROLLER PASS unlisted hover denied; explicit upgrade survives leave, then toggles off
+CONTROLLER PASS explicit keyboard / real Niri NULL focus remains eligible [{"namespace":"pi-activity-strip","output":"winit","layer":"Top","keyboard_interactivity":"Exclusive"}]
+CONTROLLER PASS empty workspace hide / keyboard refused []
+CONTROLLER PASS closing owned agent fixture revokes keyboard ownership and unmaps layer
+ISOLATED GUI PASS; fixture telemetry/GTK app identities, not actual agent/browser/Obsidian apps or operator runtime
+ISOLATED GUI CLEANUP PASS

@@ -70,6 +70,7 @@ const nativeReceipt = JSON.parse(
 const binarySha = createHash("sha256").update(fs.readFileSync(nativeBinary)).digest("hex");
 assert.equal(nativeReceipt.schema, "pi-activity-strip-native-artifact.v1");
 assert.equal(nativeReceipt.sha256, binarySha);
+assert.equal(nativeReceipt.panelProtocol, 2);
 assert.notEqual(fs.statSync(nativeBinary).mode & 0o111, 0);
 const module = await import(`${pathToFileURL(path.join(root, "extensions/activity-strip.js")).href}?release=${Date.now()}`);
 assert.equal(typeof module.default, "function");

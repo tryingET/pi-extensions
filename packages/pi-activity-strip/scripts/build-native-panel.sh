@@ -52,6 +52,7 @@ jq -n \
   '{
     schema: "pi-activity-strip-native-artifact.v1",
     target: "x86_64-unknown-linux-gnu",
+    panelProtocol: 2,
     sha256: $sha256,
     cargoLockSha256: $cargoLockSha256,
     sourceSha256: $sourceSha256,

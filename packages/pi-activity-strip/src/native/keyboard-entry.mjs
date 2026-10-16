@@ -5,7 +5,7 @@
  * @param {{
  *   projection: ReturnType<typeof import("./panel-projection.mjs").createNativePanelProjection>;
  *   runtimeStatus: {clickThrough?: boolean; windowVisible?: boolean};
- *   writePanel: (message: {type: string; revision: number}) => boolean;
+ *   writePanel: (message: {type: string; revision: number; epoch: number}) => boolean;
  * }} options
  */
 export function createKeyboardEntry({ projection, runtimeStatus, writePanel }) {
@@ -17,7 +17,14 @@ export function createKeyboardEntry({ projection, runtimeStatus, writePanel }) {
       return { ok: false, error: "No eligible visible native strip exists on this workspace." };
     }
     const request = projection.requestKeyboard();
-    if (request !== null && writePanel({ type: "focus-strip", revision: request }))
+    if (
+      request !== null &&
+      writePanel({
+        type: "focus-strip",
+        revision: request,
+        epoch: projection.getInteractionEpoch(),
+      })
+    )
       return { ok: true };
     projection.cancelKeyboard();
     return { ok: false, error: "Native panel is not ready for keyboard entry." };

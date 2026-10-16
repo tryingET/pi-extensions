@@ -264,6 +264,18 @@ export function createPlacementRuntime({
     observeWindowList,
     observeWindowEvent,
     resolveCachedWorkspaceView,
+    /** Read-only established fact copy; never lets an intent mutate the event cache. @param {number} id */
+    getObservedWindow(id) {
+      const window = windowCacheValid ? observedWindows.get(id) : null;
+      return window
+        ? {
+            id: window.id,
+            workspace_id: window.workspace_id,
+            app_id: window.app_id,
+            pid: window.pid,
+          }
+        : null;
+    },
     learnFromPlacements,
     forgetWindow,
     countUnplaced,

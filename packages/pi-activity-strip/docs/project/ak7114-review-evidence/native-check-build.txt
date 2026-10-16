@@ -1,0 +1,105 @@
+old_runs_preserved=42
+WARN: 7 kernel-protected current-uid process(es) were outside reference inspection
+npm notice run @tryinget/pi-activity-strip@0.9.0 native:check
+npm notice run cd native/panel && RUSTUP_TOOLCHAIN=1.98.0 cargo fmt --check && RUSTUP_TOOLCHAIN=1.98.0 cargo test --locked
+   Compiling pi-activity-strip-panel v0.1.0 (/home/tryinget/.local/state/pi-quests/tmp/ak7114-hover-restore.e8cbK2/worktree/packages/pi-activity-strip/native/panel)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.58s
+     Running unittests src/main.rs (target/debug/deps/pi_activity_strip_panel-3d355a634567f563)
+
+running 40 tests
+test app::gui_tests::isolated_gtk_interaction ... ignored, requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer
+test app::tests::keyboard_navigation_wraps_in_both_directions ... ok
+test app::tests::brand_falls_back_to_counts_without_a_focused_window ... ok
+test app::tests::brand_names_the_focused_windows_project_and_folder ... ok
+test app::tests::only_ctrl_alt_super_make_a_chord_and_bare_modifiers_are_not_typing ... ok
+test app::tests::only_the_answer_to_what_the_open_list_asked_acts_on_it ... ok
+test app::tests::explicit_keyboard_mode_takes_precedence_over_pointer_hover ... ok
+test app::tests::stale_gtk_focus_does_not_retain_expansion_outside_keyboard_mode ... ok
+test app::tests::the_focused_card_scrolls_into_view_with_the_least_movement ... ok
+test app::tests::the_window_list_takes_keys_only_while_they_belong_to_it ... ok
+test app::tests::pointer_hover_retains_expansion_without_keyboard_mode ... ok
+test app::tests::short_path_abbreviates_only_the_whole_home_directory ... ok
+test app::tests::wrapped_manual_movement_relocates_instead_of_swapping_endpoints ... ok
+test card_view::tests::ak_chip_states_map_to_classes_and_only_active_is_clickable ... ok
+test card_view::tests::ak_inspector_lists_every_reference_with_overflow ... ok
+test card_view::tests::durations_stay_within_five_characters ... ok
+test card_view::tests::hidden_tabs_carry_a_marker_and_pid_note ... ok
+test directory_view::tests::each_row_names_its_workspace ... ok
+test card_view::tests::window_chip_names_the_niri_window_and_the_detail_adds_its_workspace ... ok
+test directory_view::tests::enter_goes_to_the_typed_number_or_the_first_named_match ... ok
+test directory_view::tests::the_query_takes_name_characters_up_to_a_bound ... ok
+test directory_view::tests::the_status_line_says_what_enter_will_do ... ok
+test directory_view::tests::the_query_matches_names_anywhere_and_numbers_from_the_start ... ok
+test hover_keyboard::tests::applied_focus_at_acquisition_expiry_cannot_restart_an_expired_claim ... ok
+test hover_keyboard::tests::attempts_in_one_epoch_are_unique_and_old_grants_cannot_win ... ok
+test hover_keyboard::tests::grant_expires_even_before_the_next_tick_is_dispatched ... ok
+test hover_keyboard::tests::hide_show_and_explicit_upgrade_revoke_pending_grants ... ok
+test hover_keyboard::tests::idle_is_bounded_even_with_query_and_does_not_invent_new_pointer_entry ... ok
+test hover_keyboard::tests::pending_acquisition_and_actual_capture_have_separate_bounded_lifetimes ... ok
+test interaction::tests::hide_and_return_revoke_old_scroll_and_timer_tickets ... ok
+test interaction::tests::invisible_surface_cannot_expand_or_reclaim_zone ... ok
+test interaction::tests::pending_hover_requires_actual_pointer_on_an_interactive_mapped_surface ... ok
+test protocol::tests::a_malformed_window_or_workspace_number_drops_only_that_field ... ok
+test protocol::tests::monitoring_cards_are_distinct_from_active_work ... ok
+test protocol::tests::stalled_requires_agent_active_and_uses_real_event_time ... ok
+test protocol::tests::view_messages_carry_the_window_list ... ok
+test protocol::tests::view_messages_accept_current_node_projection_shape ... ok
+test protocol::tests::ak_task_chips_parse_with_states ... ok
+test protocol::tests::window_and_workspace_numbers_are_optional_card_fields ... ok
+test tests::uniqueness_is_scoped_to_the_wayland_display ... ok
+
+test result: ok. 39 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+npm notice run @tryinget/pi-activity-strip@0.9.0 native:build
+npm notice run bash ./scripts/build-native-panel.sh
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/main.rs (target/debug/deps/pi_activity_strip_panel-3d355a634567f563)
+
+running 40 tests
+test app::gui_tests::isolated_gtk_interaction ... ignored, requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer
+test app::tests::brand_falls_back_to_counts_without_a_focused_window ... ok
+test app::tests::brand_names_the_focused_windows_project_and_folder ... ok
+test app::tests::explicit_keyboard_mode_takes_precedence_over_pointer_hover ... ok
+test app::tests::keyboard_navigation_wraps_in_both_directions ... ok
+test app::tests::only_ctrl_alt_super_make_a_chord_and_bare_modifiers_are_not_typing ... ok
+test app::tests::only_the_answer_to_what_the_open_list_asked_acts_on_it ... ok
+test app::tests::short_path_abbreviates_only_the_whole_home_directory ... ok
+test app::tests::pointer_hover_retains_expansion_without_keyboard_mode ... ok
+test app::tests::the_focused_card_scrolls_into_view_with_the_least_movement ... ok
+test app::tests::stale_gtk_focus_does_not_retain_expansion_outside_keyboard_mode ... ok
+test app::tests::the_window_list_takes_keys_only_while_they_belong_to_it ... ok
+test app::tests::wrapped_manual_movement_relocates_instead_of_swapping_endpoints ... ok
+test card_view::tests::ak_chip_states_map_to_classes_and_only_active_is_clickable ... ok
+test card_view::tests::ak_inspector_lists_every_reference_with_overflow ... ok
+test card_view::tests::durations_stay_within_five_characters ... ok
+test card_view::tests::hidden_tabs_carry_a_marker_and_pid_note ... ok
+test card_view::tests::window_chip_names_the_niri_window_and_the_detail_adds_its_workspace ... ok
+test directory_view::tests::enter_goes_to_the_typed_number_or_the_first_named_match ... ok
+test directory_view::tests::each_row_names_its_workspace ... ok
+test directory_view::tests::the_query_matches_names_anywhere_and_numbers_from_the_start ... ok
+test directory_view::tests::the_query_takes_name_characters_up_to_a_bound ... ok
+test directory_view::tests::the_status_line_says_what_enter_will_do ... ok
+test hover_keyboard::tests::applied_focus_at_acquisition_expiry_cannot_restart_an_expired_claim ... ok
+test hover_keyboard::tests::attempts_in_one_epoch_are_unique_and_old_grants_cannot_win ... ok
+test hover_keyboard::tests::grant_expires_even_before_the_next_tick_is_dispatched ... ok
+test hover_keyboard::tests::hide_show_and_explicit_upgrade_revoke_pending_grants ... ok
+test hover_keyboard::tests::idle_is_bounded_even_with_query_and_does_not_invent_new_pointer_entry ... ok
+test hover_keyboard::tests::pending_acquisition_and_actual_capture_have_separate_bounded_lifetimes ... ok
+test interaction::tests::hide_and_return_revoke_old_scroll_and_timer_tickets ... ok
+test interaction::tests::invisible_surface_cannot_expand_or_reclaim_zone ... ok
+test interaction::tests::pending_hover_requires_actual_pointer_on_an_interactive_mapped_surface ... ok
+test protocol::tests::a_malformed_window_or_workspace_number_drops_only_that_field ... ok
+test protocol::tests::monitoring_cards_are_distinct_from_active_work ... ok
+test protocol::tests::ak_task_chips_parse_with_states ... ok
+test protocol::tests::stalled_requires_agent_active_and_uses_real_event_time ... ok
+test protocol::tests::view_messages_accept_current_node_projection_shape ... ok
+test protocol::tests::view_messages_carry_the_window_list ... ok
+test protocol::tests::window_and_workspace_numbers_are_optional_card_fields ... ok
+test tests::uniqueness_is_scoped_to_the_wayland_display ... ok
+
+test result: ok. 39 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling pi-activity-strip-panel v0.1.0 (/home/tryinget/.local/state/pi-quests/tmp/ak7114-hover-restore.e8cbK2/worktree/packages/pi-activity-strip/native/panel)
+    Finished `release` profile [optimized] target(s) in 4.02s
+staged /home/tryinget/.local/state/pi-quests/tmp/ak7114-hover-restore.e8cbK2/worktree/packages/pi-activity-strip/native/bin/linux-x64-gnu/pi-activity-strip-panel (aada4b72d4b1f5534e14c0a835d8c0faf7df7a9b062abcc5aa48de09984b1f66)
+heavy_job_result=success scratch_cleanup=removed

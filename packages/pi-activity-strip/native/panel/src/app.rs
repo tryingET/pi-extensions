@@ -2,6 +2,7 @@ use crate::card_view::CardView;
 use crate::directory_view::{
     DirectoryView, JumpChoice, is_query_char, jump_choice, push_query_char,
 };
+use crate::hover_keyboard::{HoverKeyboard, monotonic_ms};
 use crate::interaction::{InteractionLifetime, accepts_pointer, surface_state};
 use crate::protocol::{Card, ViewMessage, WindowEntry, demo_view, emit, emit_error, emit_ready};
 use crate::runtime::{apply_theme, duplicate_labels, install_css, now_ms, start_input_reader};
@@ -36,7 +37,11 @@ pub struct App {
     focused_card_id: Option<String>,
     hovered: HashSet<String>,
     keyboard_focused: Option<String>,
+    /// Explicit/manual keyboard mode; hover must NOT inherit its arrow or unlisted-window powers.
     keyboard_active: bool,
+    hover_keyboard: HoverKeyboard,
+    hover_capture: Rc<Cell<bool>>,
+    interaction_epoch: u64,
     open_card_id: Option<String>,
     revision: u64,
     visible: bool,
@@ -60,7 +65,7 @@ pub struct App {
     pointer: gtk::EventControllerMotion,
     brand_pointer: gtk::EventControllerMotion,
     keyboard_request: u64,
-    /// GTK activity is not permission to expand or capture keys; only explicit keyboard mode is.
+    /// GTK activity alone is never permission to expand or capture keys.
     window_active: bool,
     query: String,
     /// Read by the window's key controller: which keys belong to the window list right now.
@@ -113,7 +118,11 @@ pub enum AppMsg {
     Navigate(String, i32, bool),
     Activate(String),
     ActivationResult(String, bool, String),
-    FocusStrip(u64),
+    FocusStrip(u64, u64),
+    HoverGrant(u64, u64, u64),
+    HoverDenied(u64),
+    HoverInterrupt,
+    PointerIntent,
     Collapse,
     CollapseIf(u64),
     WindowActive(bool),
@@ -246,6 +255,7 @@ impl Component for App {
 
         let directory = DirectoryView::new(sender.input_sender());
         let key_capture = Rc::new(Cell::new(KeyCapture::None));
+        let hover_capture = Rc::new(Cell::new(false));
         let hover = gtk::EventControllerMotion::new();
         let brand_hover = gtk::EventControllerMotion::new();
         let model = App {
@@ -256,6 +266,9 @@ impl Component for App {
             hovered: HashSet::new(),
             keyboard_focused: None,
             keyboard_active: false,
+            hover_keyboard: HoverKeyboard::default(),
+            hover_capture: Rc::clone(&hover_capture),
+            interaction_epoch: 0,
             open_card_id: None,
             revision: 0,
             visible: false,
@@ -282,7 +295,8 @@ impl Component for App {
         widgets.body.set_can_target(!init.click_through);
         widgets.brand.append(&model.directory.root);
 
-        // Hover is pointer-only; it never changes layer-shell keyboard mode.
+        // The body is ONE region (including brand, cards and directory). Entry requests controller
+        // permission; child crossings do not drop/regrab ownership.
         let tx = sender.input_sender().clone();
         hover.connect_enter(move |_, _, _| {
             let _ = tx.send(AppMsg::DirectoryHover(true));
@@ -292,6 +306,13 @@ impl Component for App {
             let _ = tx.send(AppMsg::DirectoryHover(false));
         });
         widgets.body.add_controller(hover);
+        let click = gtk::GestureClick::new();
+        click.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let tx = sender.input_sender().clone();
+        click.connect_pressed(move |_, _, _, _| {
+            let _ = tx.send(AppMsg::PointerIntent);
+        });
+        widgets.body.add_controller(click);
 
         let tx = sender.input_sender().clone();
         brand_hover.connect_enter(move |_, _, _| {
@@ -312,7 +333,15 @@ impl Component for App {
             let chord = is_chord(modifiers);
             let message = match directory_key(key_capture.get(), key, chord) {
                 Some(message) => message,
-                None => return glib::Propagation::Proceed,
+                None => {
+                    if hover_capture.get() && !is_typing_modifier(key) {
+                        // Interrupting keys release hover; they are NOT replayed or injected into
+                        // the underlying application. Subsequent typing belongs to that app.
+                        let _ = tx.send(AppMsg::HoverInterrupt);
+                        return glib::Propagation::Stop;
+                    }
+                    return glib::Propagation::Proceed;
+                }
             };
             let _ = tx.send(AppMsg::DirectoryKey(message));
             glib::Propagation::Stop
@@ -360,6 +389,14 @@ impl Component for App {
             AppMsg::View(view) => self.apply_view(widgets, root, &sender, view),
             AppMsg::Theme(definitions) => apply_theme(&definitions),
             AppMsg::Tick => {
+                // Mapping a surface beneath a stationary pointer is not a fresh keyboard intent.
+                // Observe an actual mapped absence before rearming after release/hide.
+                if root.is_mapped() && !self.pointer.contains_pointer() {
+                    self.hover_keyboard.inside = false;
+                }
+                if self.hover_keyboard.expired(monotonic_ms()) {
+                    self.leave_keyboard_mode(widgets, root);
+                }
                 if now_ms() >= self.next_order_refresh_at {
                     let focused_at = self.focused_position();
                     self.regroup();
@@ -406,13 +443,9 @@ impl Component for App {
                 }
             }
             AppMsg::Activate(id) => {
-                emit(json!({ "protocol": 1, "type": "activate", "cardId": id }));
+                emit(json!({ "protocol": 2, "type": "activate", "cardId": id }));
                 // Activation returns the keyboard to the exact target, never to a hover grab.
-                if self.keyboard_active {
-                    self.leave_keyboard_mode(widgets, root);
-                } else {
-                    self.close_directory(widgets, root);
-                }
+                self.leave_keyboard_mode(widgets, root);
             }
             AppMsg::ActivationResult(id, ok, message) => {
                 if let Some(card) = self.cards.get(&id) {
@@ -426,8 +459,11 @@ impl Component for App {
                     }
                 }
             }
-            AppMsg::FocusStrip(request) => {
-                if request == self.revision && self.visible && self.interactive {
+            AppMsg::FocusStrip(request, epoch) => {
+                if epoch == self.interaction_epoch && self.visible && self.interactive {
+                    // A shortcut upgrades hover first; only a second explicit shortcut exits.
+                    self.cancel_pending_hover();
+                    self.hover_keyboard.clear();
                     self.keyboard_request = request;
                     if self.keyboard_active {
                         self.leave_keyboard_mode(widgets, root);
@@ -446,7 +482,7 @@ impl Component for App {
                         if focus_grabbed {
                             self.reconcile_engagement(widgets, root, &sender);
                             emit(
-                                json!({ "protocol": 1, "type": "keyboard-active", "active": true, "revision": self.keyboard_request }),
+                                json!({ "protocol": 2, "type": "keyboard-active", "active": true, "revision": self.keyboard_request }),
                             );
                         } else {
                             self.leave_keyboard_mode(widgets, root);
@@ -454,10 +490,68 @@ impl Component for App {
                     }
                 } else {
                     emit(
-                        json!({ "protocol": 1, "type": "keyboard-active", "active": false, "revision": request }),
+                        json!({ "protocol": 2, "type": "keyboard-active", "active": false, "revision": request }),
                     );
                 }
             }
+            AppMsg::HoverGrant(token, epoch, request) => {
+                let pointer_valid = accepts_pointer(
+                    self.visible,
+                    self.interactive,
+                    root.is_mapped(),
+                    self.pointer.contains_pointer(),
+                );
+                if !self.keyboard_active
+                    && self.hover_keyboard.grant(
+                        token,
+                        epoch,
+                        self.interaction_epoch,
+                        pointer_valid,
+                        monotonic_ms(),
+                    )
+                {
+                    self.keyboard_request = request;
+                    self.sync_key_capture();
+                    root.set_keyboard_mode(KeyboardMode::Exclusive);
+                    root.present();
+                    // GTK still needs a focus widget to route real key events through the root
+                    // capture controller. This is NOT explicit/manual card-selection permission.
+                    let focus_grabbed = self
+                        .hovered
+                        .iter()
+                        .next()
+                        .or(self.order.first())
+                        .and_then(|id| self.cards.get(id))
+                        .is_some_and(|card| card.root.grab_focus());
+                    if focus_grabbed {
+                        self.refresh_directory_status();
+                        // Capability confirmation comes from the applied compositor focus, not
+                        // grab_focus() (which merely selects a GTK widget before Wayland commits).
+                        if root.is_active() {
+                            self.acknowledge_hover_keyboard();
+                        }
+                    } else {
+                        self.leave_keyboard_mode(widgets, root);
+                    }
+                } else {
+                    emit(json!({ "protocol": 2, "type": "hover-cancel", "token": token }));
+                }
+            }
+            AppMsg::HoverDenied(token) => {
+                if self
+                    .hover_keyboard
+                    .pending
+                    .is_some_and(|(pending, _)| pending == token)
+                {
+                    self.hover_keyboard.clear();
+                }
+            }
+            AppMsg::HoverInterrupt => {
+                if self.hover_keyboard.active {
+                    self.leave_keyboard_mode(widgets, root);
+                }
+            }
+            AppMsg::PointerIntent => self.request_hover_keyboard(root),
             AppMsg::Collapse => {
                 self.leave_keyboard_mode(widgets, root);
             }
@@ -467,11 +561,23 @@ impl Component for App {
                 }
                 self.window_active = active;
                 if active {
+                    if self.hover_keyboard.active {
+                        if accepts_pointer(
+                            self.visible,
+                            self.interactive,
+                            root.is_mapped(),
+                            self.pointer.contains_pointer(),
+                        ) {
+                            self.acknowledge_hover_keyboard();
+                        } else {
+                            self.leave_keyboard_mode(widgets, root);
+                        }
+                    }
                     self.refresh_directory_status();
-                } else {
+                } else if !self.hover_keyboard.active || self.hover_keyboard.captured {
                     self.leave_keyboard_mode(widgets, root);
                     emit(
-                        json!({ "protocol": 1, "type": "keyboard-active", "active": false, "revision": self.keyboard_request }),
+                        json!({ "protocol": 2, "type": "keyboard-active", "active": false, "revision": self.keyboard_request }),
                     );
                 }
             }
@@ -521,25 +627,33 @@ impl Component for App {
             }
             AppMsg::InputError(message) => emit_error(message),
             AppMsg::DirectoryHover(entered) => {
+                let contains = self.pointer.contains_pointer();
                 if entered
-                    && !accepts_pointer(
-                        self.visible,
-                        self.interactive,
-                        root.is_mapped(),
-                        self.pointer.contains_pointer(),
-                    )
+                    && !accepts_pointer(self.visible, self.interactive, root.is_mapped(), contains)
                 {
                     return;
                 }
+                if !entered && contains {
+                    return;
+                } // Not a real region leave.
                 self.directory_hovered = entered;
                 if entered {
+                    let fresh_entry = !self.hover_keyboard.inside;
+                    self.hover_keyboard.inside = true;
                     self.open_directory(widgets, root);
-                } else if !self.keyboard_active {
-                    self.leave_keyboard_mode(widgets, root);
+                    if fresh_entry {
+                        self.request_hover_keyboard(root);
+                    }
+                } else {
+                    self.hover_keyboard.inside = false;
+                    if !self.keyboard_active {
+                        self.leave_keyboard_mode(widgets, root);
+                    }
                 }
             }
             AppMsg::DirectoryKey(key) => {
-                if self.keyboard_active {
+                if self.owns_keyboard() {
+                    self.hover_keyboard.touch(monotonic_ms());
                     self.handle_directory_key(widgets, root, key);
                 }
             }
@@ -549,7 +663,8 @@ impl Component for App {
                     target: RequestTarget::Card(card_id.clone()),
                 });
                 self.directory.set_status("Opening…");
-                emit(json!({ "protocol": 1, "type": "activate", "cardId": card_id }));
+                emit(json!({ "protocol": 2, "type": "activate", "cardId": card_id }));
+                self.leave_keyboard_mode(widgets, root);
             }
             AppMsg::JumpResult(window_id, ok, message) => {
                 if self.take_own_request(&RequestTarget::Window(window_id)) {
@@ -581,6 +696,12 @@ fn scroll_to_show(value: f64, page: f64, start: f64, end: f64) -> f64 {
 /// Whether a result for `target` answers the request the list opened as `session` is waiting on.
 fn answers_request(pending: Option<&PendingRequest>, session: u64, target: &RequestTarget) -> bool {
     pending.is_some_and(|request| request.session == session && &request.target == target)
+}
+
+/// A physical Shift press prepares a capital query character; it is not an interrupt or an idle
+/// extension by itself. Ctrl/Alt/Super remain interrupting shortcut intent in hover mode.
+fn is_typing_modifier(key: gdk::Key) -> bool {
+    matches!(key, gdk::Key::Shift_L | gdk::Key::Shift_R)
 }
 
 /// Ctrl, Alt, Super or Meta held: a shortcut, not typing. Shift is typing (capital letters).
@@ -692,12 +813,53 @@ fn engaged_card_id(
 }
 
 impl App {
+    fn owns_keyboard(&self) -> bool {
+        self.keyboard_active || self.hover_keyboard.active
+    }
+
+    fn acknowledge_hover_keyboard(&mut self) {
+        if self.hover_keyboard.acquired(monotonic_ms()) {
+            emit(
+                json!({ "protocol": 2, "type": "keyboard-active", "active": true, "revision": self.keyboard_request }),
+            );
+        }
+    }
+
+    fn cancel_pending_hover(&mut self) {
+        if let Some((token, _)) = self.hover_keyboard.pending.take() {
+            emit(json!({ "protocol": 2, "type": "hover-cancel", "token": token }));
+        }
+    }
+
+    fn request_hover_keyboard(&mut self, root: &gtk::Window) {
+        if self.keyboard_active
+            || !accepts_pointer(
+                self.visible,
+                self.interactive,
+                root.is_mapped(),
+                self.pointer.contains_pointer(),
+            )
+        {
+            return;
+        }
+        if let Some(token) = self
+            .hover_keyboard
+            .request(self.interaction_epoch, monotonic_ms())
+        {
+            emit(
+                json!({ "protocol": 2, "type": "hover-request", "token": token, "epoch": self.interaction_epoch }),
+            );
+        }
+    }
+
     fn end_engagement(&mut self) {
         self.hovered.clear();
         self.brand_hovered = false;
         self.directory_hovered = false;
         self.keyboard_focused = None;
         self.keyboard_active = false;
+        self.cancel_pending_hover();
+        self.hover_keyboard.clear();
         self.window_active = false;
         self.pending_request = None;
         self.query.clear();
@@ -714,19 +876,26 @@ impl App {
         sender: &ComponentSender<Self>,
         view: ViewMessage,
     ) {
-        if view.protocol != 1 || view.message_type != "view" || view.revision <= self.revision {
+        if view.protocol != 2 || view.message_type != "view" || view.revision <= self.revision {
             return;
         }
         self.revision = view.revision;
+        // Data changes revoke two-frame scroll callbacks, NOT keyboard ownership attempts. The
+        // latter are bound to the controller's exact admission epoch and a unique pointer token.
         self.lifetime.invalidate();
         let should_show = view.visible && !view.sessions.is_empty();
         let visibility_changed = should_show != self.visible;
         self.visible = should_show;
         let focus_moved = self.focused_card_id != view.focused_card_id;
-        // NULL during explicit panel ownership is not an app switch. A hidden view always wins.
-        if !should_show || (focus_moved && !self.keyboard_active) || visibility_changed {
+        // NULL during controller-authorized ownership is not an app switch. Identity loss wins.
+        if !should_show
+            || view.interaction_epoch != self.interaction_epoch
+            || (focus_moved && !self.owns_keyboard())
+            || visibility_changed
+        {
             self.leave_keyboard_mode(widgets, root);
         }
+        self.interaction_epoch = view.interaction_epoch;
         self.focused_card_id = view.focused_card_id;
         if self.windows != view.windows {
             self.windows = view.windows;
@@ -797,7 +966,7 @@ impl App {
                 root.set_visible(false);
             }
             emit(
-                json!({ "protocol": 1, "type": "visibility-applied", "revision": self.revision, "visible": should_show }),
+                json!({ "protocol": 2, "type": "visibility-applied", "revision": self.revision, "visible": should_show }),
             );
         }
     }
@@ -902,7 +1071,7 @@ impl App {
             move_order_item(&mut self.order, index, target);
             self.reorder_widgets(parent);
             self.next_order_refresh_at = now_ms() + ORDER_REFRESH_MS;
-            emit(json!({ "protocol": 1, "type": "moved", "cardId": id, "direction": direction }));
+            emit(json!({ "protocol": 2, "type": "moved", "cardId": id, "direction": direction }));
         }
         let focus_id = if manual { id } else { &self.order[target] };
         if let Some(card) = self.cards.get(focus_id) {
@@ -1008,7 +1177,7 @@ impl App {
             && self.interactive
             && (self.open_card_id.is_some()
                 || (self.directory_open
-                    && (self.brand_hovered || (self.keyboard_active && !self.query.is_empty()))))
+                    && (self.brand_hovered || (self.owns_keyboard() && !self.query.is_empty()))))
     }
 
     /// The list fills the brand column, top to bottom, whenever the ribbon is expanded; compact,
@@ -1029,19 +1198,21 @@ impl App {
         root.set_default_size(1, height);
         root.set_exclusive_zone(zone);
         emit(
-            json!({ "protocol": 1, "type": "expanded", "expanded": expanded, "cardId": self.open_card_id }),
+            json!({ "protocol": 2, "type": "expanded", "expanded": expanded, "cardId": self.open_card_id, "queryLength": self.query.chars().count() }),
         );
     }
 
     fn sync_key_capture(&self) {
+        self.hover_capture
+            .set(self.visible && self.interactive && self.hover_keyboard.active);
         self.key_capture.set(
-            if !self.visible || !self.interactive || !self.keyboard_active {
+            if !self.visible || !self.interactive || !self.owns_keyboard() {
                 KeyCapture::None
             } else if self.directory_open && !self.query.is_empty() {
                 KeyCapture::ListTyped
             } else if self.directory_open {
                 KeyCapture::List
-            } else if self.keyboard_active {
+            } else if self.owns_keyboard() {
                 KeyCapture::Digits
             } else {
                 KeyCapture::None
@@ -1081,7 +1252,10 @@ impl App {
                         });
                         self.directory
                             .set_status(&format!("Jumping to #{window_id}…"));
-                        emit(json!({ "protocol": 1, "type": "jump", "windowId": window_id }));
+                        emit(
+                            json!({ "protocol": 2, "type": "jump", "windowId": window_id, "request": self.keyboard_request, "epoch": self.interaction_epoch }),
+                        );
+                        self.leave_keyboard_mode(widgets, root);
                     }
                     Some(JumpChoice::Card(card_id)) => {
                         self.pending_request = Some(PendingRequest {
@@ -1089,7 +1263,8 @@ impl App {
                             target: RequestTarget::Card(card_id.clone()),
                         });
                         self.directory.set_status("Opening…");
-                        emit(json!({ "protocol": 1, "type": "activate", "cardId": card_id }));
+                        emit(json!({ "protocol": 2, "type": "activate", "cardId": card_id }));
+                        self.leave_keyboard_mode(widgets, root);
                     }
                     None => {}
                 }
@@ -1120,7 +1295,7 @@ impl App {
             self.directory.set_prompt(
                 &self.windows,
                 &self.query,
-                self.window_active || self.keyboard_active,
+                self.owns_keyboard(),
                 self.allow_unlisted(),
             );
         }
@@ -1131,7 +1306,7 @@ impl App {
             self.directory.render(
                 &self.windows,
                 &self.query,
-                self.window_active || self.keyboard_active,
+                self.owns_keyboard(),
                 self.allow_unlisted(),
             );
         }
@@ -1176,7 +1351,7 @@ impl App {
     /// The one way out of keyboard mode. The list closes with it: once the ribbon gives up the
     /// keyboard nothing could type into or dismiss a list left open.
     fn leave_keyboard_mode(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
-        let was_keyboard_active = self.keyboard_active;
+        let was_keyboard_active = self.owns_keyboard();
         self.close_directory(widgets, root);
         self.end_engagement();
         self.refresh_cards();
@@ -1186,7 +1361,7 @@ impl App {
         // applies None. Otherwise the controller could mistake the in-flight NULL for lost identity.
         if was_keyboard_active && !root.is_active() {
             emit(
-                json!({ "protocol": 1, "type": "keyboard-active", "active": false, "revision": self.keyboard_request }),
+                json!({ "protocol": 2, "type": "keyboard-active", "active": false, "revision": self.keyboard_request }),
             );
         }
         self.apply_expansion(widgets, root, None);
@@ -1282,6 +1457,9 @@ mod tests {
 
     #[test]
     fn only_ctrl_alt_super_make_a_chord_and_bare_modifiers_are_not_typing() {
+        assert!(super::is_typing_modifier(gdk::Key::Shift_L));
+        assert!(super::is_typing_modifier(gdk::Key::Shift_R));
+        assert!(!super::is_typing_modifier(gdk::Key::Control_L));
         assert!(super::is_chord(gdk::ModifierType::CONTROL_MASK));
         assert!(super::is_chord(gdk::ModifierType::SUPER_MASK));
         assert!(
