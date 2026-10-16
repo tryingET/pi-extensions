@@ -41,7 +41,7 @@ function ctx(providers, signedOut = []) {
   };
 }
 
-test("discovers six exact supported provider families alongside independent Codex accounts", () => {
+test("discovers seven exact supported provider families alongside independent Codex accounts", () => {
   const providers = ["openai-codex", "openai-codex-2", ...Object.keys(LIMITS_PROVIDERS)];
   assert.deepEqual(
     collectLimitsAccounts(ctx(providers), config())
@@ -117,6 +117,17 @@ test("unsupported aliases never enter the refresh queue or emit a provider reque
   assert.ok(store.rows.every((row) => row.status === "error" && /never borrowed/.test(row.error)));
 });
 
+test("Meta Muse normalization keeps quota unknown and says why, never unlimited", () => {
+  const snapshot = normalizeProviderUsage("meta", { provider: "meta", windows: [] });
+  assert.equal(snapshot.provider, "meta");
+  assert.deepEqual(snapshot.usage.windows, []);
+  assert.equal(snapshot.money, undefined);
+  assert.equal(baseHeadroom({ snapshot }), undefined);
+  const text = snapshot.notes.join("\n");
+  assert.match(text, /Meta publishes no usage endpoint/);
+  assert.match(text, /not unlimited/);
+  assert.doesNotMatch(text, /No quota windows reported/);
+});
 test("normalization binds Pi and core identities without trusting display names", () => {
   for (const provider of Object.keys(LIMITS_PROVIDERS)) {
     const snapshot = normalizeProviderUsage(

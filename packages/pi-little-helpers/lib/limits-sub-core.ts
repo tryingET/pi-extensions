@@ -108,7 +108,11 @@ export function normalizeProviderUsage(
     snapshot.notes.push(
       "OpenCode Go subscription windows, not the Zen wallet. Endpoint is undocumented.",
     );
-  if (!windows.length && !snapshot.money)
+  if (provider === "meta")
+    snapshot.notes.push(
+      "Meta Muse subscription sign-in. Meta publishes no usage endpoint, so quota is unknown — not unlimited.",
+    );
+  else if (!windows.length && !snapshot.money)
     snapshot.notes.push("No quota windows reported. Unknown is not unlimited.");
   return snapshot;
 }

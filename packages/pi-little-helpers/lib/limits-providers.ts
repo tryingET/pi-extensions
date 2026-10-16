@@ -18,6 +18,7 @@ export const LIMITS_PROVIDERS: Readonly<Record<string, { core: string; label: st
   xai: { core: "xai", label: "Grok / xAI" },
   "opencode-go": { core: "opencode", label: "OpenCode Go" },
   openrouter: { core: "openrouter", label: "OpenRouter" },
+  meta: { core: "meta", label: "Meta Muse" },
 };
 export const providerDefinition = (provider: string) =>
   Object.hasOwn(LIMITS_PROVIDERS, provider) ? LIMITS_PROVIDERS[provider] : undefined;
