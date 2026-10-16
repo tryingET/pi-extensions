@@ -17,6 +17,12 @@ import { collectLimitsAccounts } from "../lib/limits-providers.ts";
 import { formatLimitsSnapshot } from "../lib/limits-runway.ts";
 import { fetchSubCoreLimits } from "../lib/limits-sub-core.ts";
 import type { LimitsAccount, LimitsSnapshot } from "../lib/limits-types.ts";
+import {
+  type MetaMessageLike,
+  metaUsageFacts,
+  readMetaUsageSummary,
+  recordMetaAssistantMessage,
+} from "../lib/meta-usage-ledger.ts";
 import { fetchResetInventory } from "../lib/reset-inventory.ts";
 
 interface LimitsDependencies {
@@ -25,6 +31,8 @@ interface LimitsDependencies {
   accounts: typeof collectLimitsAccounts;
   fetchProvider: typeof fetchSubCoreLimits;
   fetchResets: typeof fetchResetInventory;
+  recordMeta: (message: MetaMessageLike) => void;
+  metaFacts: () => string[];
 }
 const defaults: LimitsDependencies = {
   fetchCurrent: fetchCodexLimits,
@@ -32,6 +40,10 @@ const defaults: LimitsDependencies = {
   accounts: collectLimitsAccounts,
   fetchProvider: fetchSubCoreLimits,
   fetchResets: fetchResetInventory,
+  recordMeta: (message) => {
+    recordMetaAssistantMessage(message);
+  },
+  metaFacts: () => metaUsageFacts(readMetaUsageSummary()),
 };
 const USAGE =
   "Usage: /limits [all|current]\n/limits opens the subscription cockpit: quota, wallet and reset timelines. /limits current prints the active subscription. Non-TUI mode prints all allowed subscriptions.";
@@ -107,7 +119,14 @@ export function createLimitsExtension(
             ? dependencies.fetchResets(pi.events, account.provider, signal)
             : undefined,
         ]);
-        return { ...snapshot, ...(resetInventory ? { resetInventory } : {}) };
+        const merged: LimitsSnapshot = {
+          ...snapshot,
+          ...(resetInventory ? { resetInventory } : {}),
+        };
+        // Meta publishes no usage endpoint; the local ledger is the only accounting.
+        if (account.provider === "meta")
+          merged.facts = [...(merged.facts ?? []), ...dependencies.metaFacts()];
+        return merged;
       }
       return dependencies.fetchSnapshot({
         model,
@@ -126,6 +145,14 @@ export function createLimitsExtension(
       if (ctx.hasUI) ctx.ui.notify(text, type);
       else console.log(text);
     };
+    pi.on("message_end", (event) => {
+      // Ledger writes are best-effort local accounting; they must never break a turn.
+      try {
+        dependencies.recordMeta(event.message as MetaMessageLike);
+      } catch {
+        // ignore: quota display is optional, the turn is not
+      }
+    });
     pi.on("session_shutdown", () => {
       disposed = true;
       operationAbort?.abort();

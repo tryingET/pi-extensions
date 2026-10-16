@@ -241,6 +241,8 @@ Account discovery uses the live model registry, with labels and exact project `a
 
 Grok and OpenCode Go usage endpoints are undocumented and may change. Grok reports subscription OAuth quota, not developer API credit; Go windows are not Zen wallet credit. Provider fetchers and credentials stay owned by sub-core. Dashboard snapshots stay in memory and are not sent as model turns. Explicit `subscription_resets` tool results do enter model context; they omit raw token IDs and credentials.
 
+Because Meta publishes no usage endpoint, Muse spend is measured locally instead: the limits extension appends one line per finalized Muse assistant message to `meta-usage-ledger.jsonl` in the Pi agent dir (tokens and API-equivalent USD only — never message content or provider error text). The Meta detail in `/limits` reads it back as requests/tokens/cost since the first recorded message, per model when several are used. A Muse message that fails with a quota-like error stamps a run-out marker; the detail then shows what that cycle used via Pi and what has accumulated since. This counts only Muse traffic through Pi on this machine — Muse use in other apps or on other devices is invisible to it — and whether Meta's credits equal tokens or USD stays unknown until real run-out cycles discriminate.
+
 Reset-credit expiry is distinct from a usage-window reset date; neither is an OAuth token expiry or a subscription cancellation date. Spending is a separate, explicitly confirmed `/codex-reset` operation on the active subscription.
 
 ## Subscription resets
