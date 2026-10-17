@@ -10,6 +10,7 @@ import {
   metaUsageFacts,
   readMetaUsageSummary,
   recordMetaAssistantMessage,
+  summarizeMetaEntries,
 } from "../lib/meta-usage-ledger.ts";
 
 const dir = () => mkdtempSync(join(tmpdir(), "meta-ledger-"));
@@ -225,4 +226,59 @@ test("ledger lines are versioned usage entries carrying no message content", () 
   assert.equal(entry.model, "muse-spark-1.3");
   assert.equal(entry.totals.requests, 1);
   rmSync(path, { force: true });
+});
+
+const usageEntry = (ts, tokens, cost = 0, model = "muse-spark-1.3") => ({
+  ts,
+  kind: "usage",
+  model,
+  totals: {
+    requests: 1,
+    input: tokens,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    reasoning: 0,
+    totalTokens: tokens,
+    costUsd: cost,
+  },
+});
+const runOutEntry = (ts) => ({ ts, kind: "run-out", model: "muse-spark-1.3" });
+
+test("summarizeMetaEntries: empty input is an explicit empty summary", () => {
+  const summary = summarizeMetaEntries([]);
+  assert.equal(summary.totals.requests, 0);
+  assert.equal(summary.firstTs, undefined);
+  assert.equal(summary.runOuts, 0);
+  assert.equal(summary.lastRunOut, undefined);
+  assert.match(metaUsageFacts(summary)[0], /none recorded yet/);
+});
+
+test("summarizeMetaEntries: each run-out closes its cycle and the next starts empty", () => {
+  const summary = summarizeMetaEntries([
+    usageEntry(10, 100, 1),
+    runOutEntry(20),
+    usageEntry(30, 40, 0.4),
+    usageEntry(40, 60, 0.6),
+    runOutEntry(50),
+    usageEntry(60, 7, 0.07),
+  ]);
+  assert.equal(summary.runOuts, 2);
+  assert.equal(summary.totals.totalTokens, 207);
+  // The reported cycle belongs to the LAST run-out, not the first.
+  assert.equal(summary.lastRunOut.ts, 50);
+  assert.equal(summary.lastRunOut.cycle.totalTokens, 100);
+  assert.equal(summary.lastRunOut.cycle.costUsd, 1);
+  assert.equal(summary.lastRunOut.since.totalTokens, 7);
+  assert.equal(summary.perModel.length, 1);
+});
+
+test("summarizeMetaEntries: first/last timestamps are bounds, cycle math follows entry order", () => {
+  const summary = summarizeMetaEntries([usageEntry(300, 3), runOutEntry(200), usageEntry(100, 1)]);
+  assert.equal(summary.firstTs, 100);
+  assert.equal(summary.lastTs, 300);
+  // Entries are consumed in the given (append) order even when timestamps
+  // are out of order: the marker closes the 3-token cycle, then 1 accrues.
+  assert.equal(summary.lastRunOut.cycle.totalTokens, 3);
+  assert.equal(summary.lastRunOut.since.totalTokens, 1);
 });

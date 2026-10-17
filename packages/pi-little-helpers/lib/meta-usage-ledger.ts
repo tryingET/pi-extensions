@@ -41,7 +41,7 @@ export interface MetaUsageSummary {
   runOuts: number;
   lastRunOut?: { ts: number; cycle: MetaUsageTotals; since: MetaUsageTotals };
 }
-interface LedgerEntry {
+export interface MetaLedgerEntry {
   ts: number;
   kind: "usage" | "run-out";
   model: string;
@@ -67,7 +67,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 export function metaLedgerPath(agentDir = getAgentDir()): string {
   return join(agentDir, META_LEDGER_FILENAME);
 }
-function appendEntry(path: string, entry: LedgerEntry): void {
+function appendEntry(path: string, entry: MetaLedgerEntry): void {
   mkdirSync(dirname(path), { recursive: true });
   appendFileSync(path, `${JSON.stringify({ v: 1, ...entry })}\n`, "utf8");
 }
@@ -131,7 +131,7 @@ export function recordMetaAssistantMessage(
   return appended;
 }
 
-function parseEntry(line: string): LedgerEntry | undefined {
+function parseEntry(line: string): MetaLedgerEntry | undefined {
   try {
     const raw = record(JSON.parse(line) as unknown);
     if (!raw || raw.v !== 1 || (raw.kind !== "usage" && raw.kind !== "run-out")) return undefined;
@@ -171,14 +171,15 @@ function add(target: MetaUsageTotals, source: MetaUsageTotals): void {
 }
 const clone = (totals: MetaUsageTotals): MetaUsageTotals => ({ ...totals });
 
-/** Aggregate the ledger. A missing or malformed ledger reads as an empty summary, never an error. */
-export function readMetaUsageSummary(path = metaLedgerPath()): MetaUsageSummary {
-  let text = "";
-  try {
-    text = readFileSync(path, "utf8");
-  } catch {
-    text = "";
-  }
+/**
+ * Pure aggregation over parsed ledger entries, in append order: lifetime and
+ * per-model totals, plus run-out cycles. A cycle is the usage accumulated
+ * since the previous run-out marker (or the ledger start); `since` on the
+ * last run-out is what the current cycle has used so far. Kept free of IO so
+ * the cycle math is testable without a filesystem and reusable by a future
+ * ledger compaction.
+ */
+export function summarizeMetaEntries(entries: Iterable<MetaLedgerEntry>): MetaUsageSummary {
   const totals = emptyTotals();
   const perModel = new Map<string, MetaUsageTotals>();
   let firstTs: number | undefined;
@@ -187,10 +188,7 @@ export function readMetaUsageSummary(path = metaLedgerPath()): MetaUsageSummary 
   let sinceLastRunOut = emptyTotals();
   let lastRunOut: MetaUsageSummary["lastRunOut"];
   let runOuts = 0;
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
-    const entry = parseEntry(line);
-    if (!entry) continue;
+  for (const entry of entries) {
     firstTs = firstTs === undefined ? entry.ts : Math.min(firstTs, entry.ts);
     lastTs = lastTs === undefined ? entry.ts : Math.max(lastTs, entry.ts);
     if (entry.kind === "run-out") {
@@ -219,6 +217,23 @@ export function readMetaUsageSummary(path = metaLedgerPath()): MetaUsageSummary 
     runOuts,
     lastRunOut,
   };
+}
+
+/** Aggregate the ledger. A missing or malformed ledger reads as an empty summary, never an error. */
+export function readMetaUsageSummary(path = metaLedgerPath()): MetaUsageSummary {
+  let text = "";
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    text = "";
+  }
+  const entries: MetaLedgerEntry[] = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    const entry = parseEntry(line);
+    if (entry) entries.push(entry);
+  }
+  return summarizeMetaEntries(entries);
 }
 
 export function formatTokens(value: number): string {
