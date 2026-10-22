@@ -203,7 +203,12 @@ test("limits has no recording hook; loading both extensions writes exactly once"
     handler({ type: "message_end", message: message({ usage: { totalTokens: 0 } }) });
     handler({
       type: "message_end",
-      message: message({ stopReason: "error", errorMessage: "quota exceeded", usage: null }),
+      message: message({
+        stopReason: "error",
+        errorMessage:
+          'meta API error (429): {"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Subscription quota exhausted.","resets_at":1792368000}',
+        usage: null,
+      }),
     });
   }
   const entries = readFileSync(path, "utf8").trim().split("\n").map(JSON.parse);
