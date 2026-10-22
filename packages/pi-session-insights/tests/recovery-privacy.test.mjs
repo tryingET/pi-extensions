@@ -2,7 +2,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -115,6 +123,9 @@ test("F2 exact paths and visible text require exclusive private artifacts, with 
     assert.deepEqual(readFileSync(target), before);
     const shared = join(dir, "shared");
     mkdirSync(shared, { mode: 0o755 });
+    // mkdir's mode is masked by the caller; force the shared-dir refusal precondition.
+    chmodSync(shared, 0o755);
+    assert.equal(statSync(shared).mode & 0o777, 0o755);
     assert.equal(
       run(file, ["--private-output", join(shared, "no.json")]).data.error.code,
       "PRIVATE_OUTPUT_REQUIRED",
