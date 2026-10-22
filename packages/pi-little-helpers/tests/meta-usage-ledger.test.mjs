@@ -91,7 +91,7 @@ test("zero-usage and malformed state never manufacture spend", () => {
   assert.match(metaUsageFacts(readMetaUsageSummary(join(dir(), "missing.jsonl")))[0], /none/);
 });
 
-test("quota-like errors stamp run-out cycles without storing raw error text", () => {
+test("subscription exhaustion stamps run-out cycles without storing raw error text", () => {
   const path = join(dir(), "ledger.jsonl");
   const spend = (ts, tokens, cost) =>
     recordMetaAssistantMessage(
@@ -119,7 +119,8 @@ test("quota-like errors stamp run-out cycles without storing raw error text", ()
     recordMetaAssistantMessage(
       message({
         stopReason: "error",
-        errorMessage: "HTTP 429: quota exceeded for this subscription",
+        errorMessage:
+          'meta API error (429): {"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Subscription quota exhausted.","resets_at":1792368000}',
         timestamp: Date.parse("2026-10-18T10:00:00Z"),
         usage: { totalTokens: 0, cost: { total: 0 } },
       }),

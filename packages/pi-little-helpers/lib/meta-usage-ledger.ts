@@ -14,14 +14,13 @@ import { limitsText } from "./codex-limits.ts";
  * (`META_API_KEY`) traffic never reaches it because only messages served by
  * the base `meta` provider in a Pi session are recorded.
  *
- * When a Muse message fails with a quota-like error, a `run-out` marker line
- * is appended (never the raw provider error text). The cycle totals at that
- * moment — usage since the previous marker, or since the ledger start — are
- * the empirical subscription budget, derived at read time.
+ * Observed subscription-exhaustion errors append `run-out` markers with the
+ * provider's reset timestamp, never raw error text. Repeated failures for the
+ * same model/reset window close only one cycle. Totals are locally observed
+ * spend, not proof of the subscription budget or its credit conversion.
  */
 export const META_LEDGER_FILENAME = "meta-usage-ledger.jsonl";
-const QUOTA_LIKE =
-  /\b429\b|quota|rate[\s_-]?limit|too many requests|insufficient|exhaust|out of credits?|credits? (?:exhausted|depleted|used up)/i;
+const META_QUOTA_PREFIX = "meta API error (429): ";
 
 export interface MetaUsageTotals {
   requests: number;
@@ -39,13 +38,15 @@ export interface MetaUsageSummary {
   firstTs?: number;
   lastTs?: number;
   runOuts: number;
-  lastRunOut?: { ts: number; cycle: MetaUsageTotals; since: MetaUsageTotals };
+  lastRunOut?: { ts: number; resetsAt?: number; cycle: MetaUsageTotals; since: MetaUsageTotals };
 }
 export interface MetaLedgerEntry {
   ts: number;
   kind: "usage" | "run-out";
   model: string;
   totals?: MetaUsageTotals;
+  /** Provider-reported reset time in epoch milliseconds; absent on legacy markers. */
+  resetsAt?: number;
 }
 const emptyTotals = (): MetaUsageTotals => ({
   requests: 0,
@@ -64,6 +65,30 @@ function record(value: unknown): Record<string, unknown> | undefined {
     ? (value as Record<string, unknown>)
     : undefined;
 }
+const validTimestamp = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0 && value <= 8.64e15
+    ? value
+    : undefined;
+
+/** Exact observed Meta envelope (AK7405 evidence 16643), not a generic 429 guess. */
+function subscriptionExhaustion(error: unknown): { resetsAt?: number } | undefined {
+  if (typeof error !== "string" || !error.startsWith(META_QUOTA_PREFIX)) return undefined;
+  try {
+    const body = record(JSON.parse(error.slice(META_QUOTA_PREFIX.length)));
+    if (
+      body?.code !== "rate_limit_exceeded" ||
+      body.type !== "rate_limit_error" ||
+      typeof body.message !== "string" ||
+      !body.message.startsWith("Subscription quota exhausted.")
+    )
+      return undefined;
+    const seconds = validTimestamp(body.resets_at);
+    return { resetsAt: seconds === undefined ? undefined : validTimestamp(seconds * 1000) };
+  } catch {
+    return undefined;
+  }
+}
+
 export function metaLedgerPath(agentDir = getAgentDir()): string {
   return join(agentDir, META_LEDGER_FILENAME);
 }
@@ -102,7 +127,7 @@ export function recordMetaAssistantMessage(
 ): boolean {
   if (!message || message.role !== "assistant" || message.provider !== "meta") return false;
   const model = limitsText(typeof message.model === "string" ? message.model : "") || "unknown";
-  const ts = finite(message.timestamp) || Date.now();
+  const ts = validTimestamp(message.timestamp) ?? Date.now();
   const usage = record(message.usage) ?? {};
   const cost = record(usage.cost) ?? {};
   const totals: MetaUsageTotals = {
@@ -120,12 +145,10 @@ export function recordMetaAssistantMessage(
     appendEntry(path, { ts, kind: "usage", model, totals });
     appended = true;
   }
-  if (
-    message.stopReason === "error" &&
-    typeof message.errorMessage === "string" &&
-    QUOTA_LIKE.test(message.errorMessage)
-  ) {
-    appendEntry(path, { ts, kind: "run-out", model });
+  const exhaustion =
+    message.stopReason === "error" ? subscriptionExhaustion(message.errorMessage) : undefined;
+  if (exhaustion) {
+    appendEntry(path, { ts, kind: "run-out", model, ...exhaustion });
     appended = true;
   }
   return appended;
@@ -135,10 +158,11 @@ function parseEntry(line: string): MetaLedgerEntry | undefined {
   try {
     const raw = record(JSON.parse(line) as unknown);
     if (!raw || raw.v !== 1 || (raw.kind !== "usage" && raw.kind !== "run-out")) return undefined;
-    const ts = finite(raw.ts);
+    const ts = validTimestamp(raw.ts);
     if (!ts) return undefined;
     const model = limitsText(typeof raw.model === "string" ? raw.model : "") || "unknown";
-    if (raw.kind === "run-out") return { ts, kind: "run-out", model };
+    if (raw.kind === "run-out")
+      return { ts, kind: "run-out", model, resetsAt: validTimestamp(raw.resetsAt) };
     const t = record(raw.totals) ?? {};
     return {
       ts,
@@ -174,10 +198,11 @@ const clone = (totals: MetaUsageTotals): MetaUsageTotals => ({ ...totals });
 /**
  * Pure aggregation over parsed ledger entries, in append order: lifetime and
  * per-model totals, plus run-out cycles. A cycle is the usage accumulated
- * since the previous run-out marker (or the ledger start); `since` on the
+ * since the previous distinct run-out window (or the ledger start); `since` on the
  * last run-out is what the current cycle has used so far. Kept free of IO so
  * the cycle math is testable without a filesystem and reusable by a future
- * ledger compaction.
+ * ledger compaction. Legacy markers without reset metadata retain their old
+ * boundaries: we cannot infer whether they were retries or distinct windows.
  */
 export function summarizeMetaEntries(entries: Iterable<MetaLedgerEntry>): MetaUsageSummary {
   const totals = emptyTotals();
@@ -188,12 +213,19 @@ export function summarizeMetaEntries(entries: Iterable<MetaLedgerEntry>): MetaUs
   let sinceLastRunOut = emptyTotals();
   let lastRunOut: MetaUsageSummary["lastRunOut"];
   let runOuts = 0;
+  const seenWindows = new Set<string>();
   for (const entry of entries) {
     firstTs = firstTs === undefined ? entry.ts : Math.min(firstTs, entry.ts);
     lastTs = lastTs === undefined ? entry.ts : Math.max(lastTs, entry.ts);
     if (entry.kind === "run-out") {
+      const resetsAt = validTimestamp(entry.resetsAt);
+      if (resetsAt !== undefined) {
+        const key = JSON.stringify([entry.model, resetsAt]);
+        if (seenWindows.has(key)) continue;
+        seenWindows.add(key);
+      }
       runOuts++;
-      lastRunOut = { ts: entry.ts, cycle: clone(cycle), since: emptyTotals() };
+      lastRunOut = { ts: entry.ts, resetsAt, cycle: clone(cycle), since: emptyTotals() };
       cycle = emptyTotals();
       sinceLastRunOut = emptyTotals();
       continue;
@@ -251,11 +283,11 @@ const spend = (totals: MetaUsageTotals): string =>
 
 /** Display facts for the /limits Meta detail view. Empty ledger stays explicit, never silent. */
 export function metaUsageFacts(summary: MetaUsageSummary): string[] {
-  if (!summary.firstTs || summary.totals.requests === 0)
-    return ["Muse usage via Pi on this machine: none recorded yet (local ledger)."];
   const { totals } = summary;
   const facts = [
-    `Muse via Pi here since ${day(summary.firstTs)}: ${totals.requests} request${totals.requests === 1 ? "" : "s"} · ${formatTokens(totals.input)} in / ${formatTokens(totals.output)} out · ${formatTokens(totals.cacheRead)} cached · ≈ ${usd(totals.costUsd)} API-equivalent`,
+    !summary.firstTs || totals.requests === 0
+      ? "Muse usage via Pi on this machine: none recorded yet (local ledger)."
+      : `Muse via Pi here since ${day(summary.firstTs)}: ${totals.requests} request${totals.requests === 1 ? "" : "s"} · ${formatTokens(totals.input)} in / ${formatTokens(totals.output)} out · ${formatTokens(totals.cacheRead)} cached · ≈ ${usd(totals.costUsd)} API-equivalent`,
   ];
   if (summary.perModel.length > 1)
     for (const { model, totals: modelTotals } of summary.perModel.slice(0, 3))
@@ -265,6 +297,10 @@ export function metaUsageFacts(summary: MetaUsageSummary): string[] {
       `Ran out ${day(summary.lastRunOut.ts)}: that cycle used ${spend(summary.lastRunOut.cycle)} via Pi here`,
     );
     facts.push(`Since then: ${spend(summary.lastRunOut.since)}`);
+    if (summary.lastRunOut.resetsAt !== undefined)
+      facts.push(
+        `Provider-reported reset: ${new Date(summary.lastRunOut.resetsAt).toISOString()} (not a live availability check)`,
+      );
   }
   return facts;
 }
