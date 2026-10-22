@@ -18,6 +18,12 @@ import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 /** @typedef {{placement: string; surfaceVisible: boolean; windowId: number | null; workspaceIdx: number | null}} CardPlacement */
 /** @typedef {{isNiriSession: () => boolean; publish: (view: Record<string, unknown> & {type: string; sessions: SessionRecord[]}) => void}} NativePanelProjectionOptions */
 
+/** Keep exact-window and visibility cardinality identical at every ownership proof.
+ * @param {SessionRecord[]} sessions @param {number | null} windowId */
+function visibleCardsForWindow(sessions, windowId) {
+  return sessions.filter((card) => card.windowId === windowId && card.surfaceVisible !== false);
+}
+
 /** @param {NativePanelProjectionOptions} options */
 export function createNativePanelProjection({ isNiriSession, publish }) {
   /** @type {Snapshot} */
@@ -79,14 +85,9 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
    */
   function focusProofMatches(resolveView) {
     if (focusWindowId === null || !focusContextValid) return true;
-    const established = getDisplaySessions().filter(
-      (card) => card.windowId === focusWindowId && card.surfaceVisible !== false,
-    );
+    const established = visibleCardsForWindow(getDisplaySessions(), focusWindowId);
     const current = workspace ? resolveView(workspace) : null;
-    const owned =
-      current?.sessions.filter(
-        (card) => card.windowId === focusWindowId && card.surfaceVisible !== false,
-      ) ?? [];
+    const owned = visibleCardsForWindow(current?.sessions ?? [], focusWindowId);
     return (
       current?.workspace?.id === workspace?.id &&
       established.length === 1 &&
@@ -136,9 +137,7 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
     // A publisher ending (or becoming ambiguous) must not leave another window's cards eligible.
     if (
       (focusKind === "agent" || (focusKind === "none" && focusWindowId !== null)) &&
-      (focusWindowId === null ||
-        sessions.filter((card) => card.windowId === focusWindowId && card.surfaceVisible !== false)
-          .length !== 1)
+      (focusWindowId === null || visibleCardsForWindow(sessions, focusWindowId).length !== 1)
     ) {
       clearFocusState();
     }
@@ -265,9 +264,7 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
             !["agent", "none"].includes(view.focusKind ?? "unknown")
           )
             return false;
-          const owned = view.sessions.filter(
-            (card) => card.windowId === sourceWindowId && card.surfaceVisible !== false,
-          );
+          const owned = visibleCardsForWindow(view.sessions, sourceWindowId);
           return (
             owned.length === 1 &&
             (view.focusKind !== "agent" || view.focusedCardId === owned[0]?.cardId) &&
