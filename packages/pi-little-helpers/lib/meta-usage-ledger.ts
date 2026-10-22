@@ -38,11 +38,12 @@ export interface MetaUsageSummary {
   firstTs?: number;
   lastTs?: number;
   runOuts: number;
+  unresolvedRunOuts: number;
   lastRunOut?: { ts: number; resetsAt?: number; cycle: MetaUsageTotals; since: MetaUsageTotals };
 }
 export interface MetaLedgerEntry {
   ts: number;
-  kind: "usage" | "run-out";
+  kind: "usage" | "run-out" | "run-out-reset";
   model: string;
   totals?: MetaUsageTotals;
   /** Provider-reported reset time in epoch milliseconds; absent on legacy markers. */
@@ -157,12 +158,20 @@ export function recordMetaAssistantMessage(
 function parseEntry(line: string): MetaLedgerEntry | undefined {
   try {
     const raw = record(JSON.parse(line) as unknown);
-    if (!raw || raw.v !== 1 || (raw.kind !== "usage" && raw.kind !== "run-out")) return undefined;
+    if (
+      !raw ||
+      raw.v !== 1 ||
+      (raw.kind !== "usage" && raw.kind !== "run-out" && raw.kind !== "run-out-reset")
+    )
+      return undefined;
     const ts = validTimestamp(raw.ts);
     if (!ts) return undefined;
     const model = limitsText(typeof raw.model === "string" ? raw.model : "") || "unknown";
-    if (raw.kind === "run-out")
-      return { ts, kind: "run-out", model, resetsAt: validTimestamp(raw.resetsAt) };
+    if (raw.kind === "run-out" || raw.kind === "run-out-reset") {
+      const resetsAt = validTimestamp(raw.resetsAt);
+      if (raw.kind === "run-out-reset" && resetsAt === undefined) return undefined;
+      return { ts, kind: raw.kind, model, resetsAt };
+    }
     const t = record(raw.totals) ?? {};
     return {
       ts,
@@ -183,6 +192,62 @@ function parseEntry(line: string): MetaLedgerEntry | undefined {
     return undefined;
   }
 }
+/**
+ * Explicit maintenance only: caller supplies an evidence-linked source message.
+ * Append metadata for an existing exact marker; never rewrite history or replay
+ * usage. Duplicate annotations are harmless; conflicting annotations fail closed
+ * on read even if concurrent maintenance callers raced this preflight.
+ */
+export function recordMetaRunOutReset(message: MetaMessageLike, path: string): boolean {
+  const ts = validTimestamp(message.timestamp);
+  const model = typeof message.model === "string" ? message.model : "";
+  const resetsAt = subscriptionExhaustion(message.errorMessage)?.resetsAt;
+  if (
+    message.role !== "assistant" ||
+    message.provider !== "meta" ||
+    message.stopReason !== "error" ||
+    ts === undefined ||
+    !model ||
+    limitsText(model) !== model ||
+    resetsAt === undefined
+  )
+    throw new Error("Reset correction requires an exact observed Meta exhaustion message");
+  const text = readFileSync(path, "utf8");
+  if (!text.endsWith("\n"))
+    throw new Error("Ledger must end with a complete line before correction");
+  const entries = text
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => {
+      const entry = parseEntry(line);
+      if (!entry) throw new Error("Cannot annotate a malformed ledger");
+      return entry;
+    });
+  const matching = entries.filter(
+    (entry) => entry.ts === ts && entry.model === model && entry.kind !== "usage",
+  );
+  if (!matching.some((entry) => entry.kind === "run-out"))
+    throw new Error("No exact run-out marker for source message");
+  if (matching.some((entry) => entry.resetsAt !== undefined && entry.resetsAt !== resetsAt))
+    throw new Error("Reset correction conflicts with existing metadata");
+  if (matching.some((entry) => entry.resetsAt === resetsAt)) return false;
+  appendEntry(path, { ts, model, kind: "run-out-reset", resetsAt });
+  return true;
+}
+
+const markerKey = (entry: MetaLedgerEntry): string => JSON.stringify([entry.ts, entry.model]);
+function resetCorrections(entries: MetaLedgerEntry[]): Map<string, number | null> {
+  const result = new Map<string, number | null>();
+  for (const entry of entries) {
+    if (entry.kind !== "run-out-reset") continue;
+    const reset = validTimestamp(entry.resetsAt);
+    if (reset === undefined) continue;
+    const key = markerKey(entry);
+    result.set(key, result.has(key) && result.get(key) !== reset ? null : reset);
+  }
+  return result;
+}
+
 function add(target: MetaUsageTotals, source: MetaUsageTotals): void {
   target.requests += source.requests;
   target.input += source.input;
@@ -202,9 +267,12 @@ const clone = (totals: MetaUsageTotals): MetaUsageTotals => ({ ...totals });
  * last run-out is what the current cycle has used so far. Kept free of IO so
  * the cycle math is testable without a filesystem and reusable by a future
  * ledger compaction. Legacy markers without reset metadata retain their old
- * boundaries: we cannot infer whether they were retries or distinct windows.
+ * boundaries unless exact source-bound reset annotations exist. Conflicting
+ * annotations leave those boundaries unknown rather than choosing a winner.
  */
 export function summarizeMetaEntries(entries: Iterable<MetaLedgerEntry>): MetaUsageSummary {
+  const history = [...entries];
+  const corrections = resetCorrections(history);
   const totals = emptyTotals();
   const perModel = new Map<string, MetaUsageTotals>();
   let firstTs: number | undefined;
@@ -213,12 +281,16 @@ export function summarizeMetaEntries(entries: Iterable<MetaLedgerEntry>): MetaUs
   let sinceLastRunOut = emptyTotals();
   let lastRunOut: MetaUsageSummary["lastRunOut"];
   let runOuts = 0;
+  let unresolvedRunOuts = 0;
   const seenWindows = new Set<string>();
-  for (const entry of entries) {
+  for (const entry of history) {
+    if (entry.kind === "run-out-reset") continue;
     firstTs = firstTs === undefined ? entry.ts : Math.min(firstTs, entry.ts);
     lastTs = lastTs === undefined ? entry.ts : Math.max(lastTs, entry.ts);
     if (entry.kind === "run-out") {
-      const resetsAt = validTimestamp(entry.resetsAt);
+      const resetsAt =
+        validTimestamp(entry.resetsAt) ?? corrections.get(markerKey(entry)) ?? undefined;
+      if (resetsAt === undefined) unresolvedRunOuts++;
       if (resetsAt !== undefined) {
         const key = JSON.stringify([entry.model, resetsAt]);
         if (seenWindows.has(key)) continue;
@@ -247,6 +319,7 @@ export function summarizeMetaEntries(entries: Iterable<MetaLedgerEntry>): MetaUs
     firstTs,
     lastTs,
     runOuts,
+    unresolvedRunOuts,
     lastRunOut,
   };
 }
@@ -292,6 +365,10 @@ export function metaUsageFacts(summary: MetaUsageSummary): string[] {
   if (summary.perModel.length > 1)
     for (const { model, totals: modelTotals } of summary.perModel.slice(0, 3))
       facts.push(`  ${model}: ${spend(modelTotals)}`);
+  if (summary.unresolvedRunOuts > 0)
+    facts.push(
+      `Legacy run-out markers without verified reset metadata: ${summary.unresolvedRunOuts}; cycle boundaries are uncertain.`,
+    );
   if (summary.lastRunOut) {
     facts.push(
       `Ran out ${day(summary.lastRunOut.ts)}: that cycle used ${spend(summary.lastRunOut.cycle)} via Pi here`,
