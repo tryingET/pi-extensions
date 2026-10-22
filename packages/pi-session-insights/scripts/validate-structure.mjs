@@ -43,6 +43,8 @@ for (const path of [
   "bin/pi-session-insights.mjs",
   "lib/session-insights.jq",
   "bin/claude-session-insights.mjs",
+  "bin/recovery-model-projection.mjs",
+  "tests/projection-boundary.test.mjs",
   "lib/claude-session-insights.jq",
   "lib/recovery-model-projection.jq",
   "tests/recovery-privacy.test.mjs",
@@ -85,6 +87,7 @@ if (pkg.engines?.node !== ">=22") fail("engines.node must be >=22");
 for (const expected of [
   "bin/pi-session-insights.mjs",
   "bin/claude-session-insights.mjs",
+  "bin/recovery-model-projection.mjs",
   "lib/session-insights.jq",
   "lib/claude-session-insights.jq",
   "lib/recovery-model-projection.jq",

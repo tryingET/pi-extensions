@@ -32,16 +32,16 @@ For Pi, preserve the existing schema/invocation and withhold raw diagnostics:
 
 ```bash
 (umask 077; set -o noclobber; node ../../bin/pi-session-insights.mjs --format pi \
-  /private/frozen/pi.jsonl > /private/output/pi-facts.json 2>/dev/null)
+  /private/frozen/pi.jsonl 2>/dev/null > /private/output/pi-facts.json)
 ```
 
 Stop on a nonzero exit and record its status without raw diagnostics; do not print private errors. Expose only the package-owned fixed numeric/boolean/digest projection:
 
 ```bash
-jq -f ../../lib/recovery-model-projection.jq /private/output/pi-facts.json
+node ../../bin/recovery-model-projection.mjs /private/output/pi-facts.json
 ```
 
-Use `/skill:pi-session-jsonl` for Pi attribution and interpretation. Pi has bounded active-branch output, **not Claude's views, physical-line pages or custody object**. Obtain source hashes separately (for example `sha256sum /private/frozen/pi.jsonl`), record its truncation/uncertainty fields, and never call its single bounded object complete physical history. Keep any text-bearing artifact private; release sanitized text to synthesis only after owner-approved privacy checking outside the model.
+Use `/skill:pi-session-jsonl` for Pi attribution and interpretation. Pi has bounded active-branch output, **not Claude's views, physical-line pages or custody object**. Obtain source hashes separately from an owner-verified frozen-source manifest, not a model-facing shell command that can leak filenames on failure; record its truncation/uncertainty fields, and never call its single bounded object complete physical history. Keep any text-bearing artifact private; release sanitized text to synthesis only after owner-approved privacy checking outside the model.
 
 For Claude Code, use the distinct physical-history adapter with an exclusive private artifact. Its stdout is a fixed numeric/digest receipt, not full metadata:
 
@@ -49,8 +49,12 @@ For Claude Code, use the distinct physical-history adapter with an exclusive pri
 node ../../bin/pi-session-insights.mjs --format claude \
   --view records --page 1 --page-size 50 \
   --private-output /private/output/claude-page-1.json /private/frozen/claude.jsonl
-jq -f ../../lib/recovery-model-projection.jq /private/output/claude-page-1.json
+# Set ARTIFACT_SHA256 to artifact_sha256 from the successful receipt (not source_sha256).
+node ../../bin/recovery-model-projection.mjs \
+  --artifact-sha256 "$ARTIFACT_SHA256" /private/output/claude-page-1.json
 ```
+
+Never invoke the internal jq filter directly on private filenames in a model-facing tool: jq open/parse/filter error prefixes can leak those filenames even when its filter error text is fixed. The Node projection boundary captures every diagnostic, feeds bounded immutable bytes on stdin, exposes only fixed nonzero errors, and reports the consumed artifact hash. Supply the Claude receipt hash; mismatch fails closed. Pi has no native receipt: if no expected hash is provided, the observed hash is returned with `expected_artifact_hash_verified:false`, not a claim of prior verification.
 
 Use a new output filename for each page. Verify a successful receipt and artifact hash before consumption; a partial file without a successful receipt is not a successful extraction. Exact sidecar paths are withheld by default; `--include-paths` and `--include-text` require `--private-output` and stay inside that artifact. Even that artifact's metadata remains untrusted and private. The fixed projection omits arbitrary source strings, including UUID values; retain source hash + physical line locators for model-facing structural observations and keep exact IDs/path mappings private.
 

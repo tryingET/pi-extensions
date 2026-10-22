@@ -435,7 +435,7 @@ test("documented Pi private-first workflow emits only a selected body-free proje
       "bash",
       [
         "-c",
-        `(umask 077; set -o noclobber; node '${cli}' --format pi '${file}' > '${output}' 2>/dev/null) && jq -f '${join(root, "lib/recovery-model-projection.jq")}' '${output}'`,
+        `(umask 077; set -o noclobber; node '${cli}' --format pi '${file}' 2>/dev/null > '${output}') && node '${join(root, "bin/recovery-model-projection.mjs")}' '${output}'`,
       ],
       { encoding: "utf8" },
     );

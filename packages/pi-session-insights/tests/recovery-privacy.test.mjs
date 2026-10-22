@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const cli = join(root, "bin/pi-session-insights.mjs");
-const projection = join(root, "lib/recovery-model-projection.jq");
+const projection = join(root, "bin/recovery-model-projection.mjs");
 function scratch(fn) {
   const dir = mkdtempSync(join(tmpdir(), "recovery-privacy-test-"));
   try {
@@ -34,7 +34,10 @@ function run(file, args = []) {
   return { ...r, data: JSON.parse(r.stdout) };
 }
 function project(file) {
-  return spawnSync("jq", ["-c", "-f", projection, file], { encoding: "utf8" });
+  const sha = createHash("sha256").update(readFileSync(file)).digest("hex");
+  return spawnSync(process.execPath, [projection, "--artifact-sha256", sha, file], {
+    encoding: "utf8",
+  });
 }
 const privatePath = "/private/tool-results/PUPIL_SYNTHETIC_SENTINEL.txt";
 
