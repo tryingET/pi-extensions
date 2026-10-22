@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "packages": [
+    {
+      "path": "packages/pi-autonomous-session-control",
+      "reason": "subagent-tabs-host-producer.test.mjs imports the real ASC producer source, whose host imports resolve from ASC's own installation."
+    },
+    {
+      "path": "packages/pi-peer-messaging",
+      "reason": "self-evolution-envelope.test.mjs starts a real report-back runtime; its broker launcher resolves tsx/cli from the peer package."
+    }
+  ]
+}

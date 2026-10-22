@@ -121,7 +121,7 @@ else
 fi
 
 if [ -f "./scripts/package-quality-gate.test.mjs" ]; then
-  node --test ./scripts/package-quality-gate.test.mjs ./scripts/package-test-timeout.test.mjs ./scripts/run-package-tests.test.mjs
+  node --test ./scripts/package-quality-gate.test.mjs ./scripts/package-test-timeout.test.mjs ./scripts/run-package-tests.test.mjs ./scripts/validate-test-source-dependencies.test.mjs
 fi
 
 if [ -f "./scripts/validate-local-package-links.test.mjs" ]; then

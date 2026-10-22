@@ -144,6 +144,31 @@ checks also consume working-tree sources. It does not certify that a concurrent
 shared checkout equals the pushed commit. Use the isolated recipe below when
 that distinction matters; these changes do not claim whole-gate hermeticity.
 
+## Source-test prerequisites
+
+A package may declare repo-relative source owners in `policy/test-source-dependencies.json`
+(`version: 1`, `packages: [{path, reason}]`). This is a **test setup** declaration, not an npm
+runtime dependency or release-propagation edge. Use it when integration fixtures import a
+sibling's source and require that owner's development/runtime installation. List all such
+owners explicitly, including their required local `file:` owners. An omitted linked owner
+is refused rather than treating a valid link as proof of its installation. This is not
+automatic discovery of arbitrary source imports.
+
+The root `validate-test-source-dependencies.mjs` checks each declared owner's tracked manifest,
+lock and installed metadata through the existing install validator. Targeted package
+`test`, `pre-push` and `ci` stages run it before tests. Unrelated uninstalled packages do not
+block a selected package. Missing/stale inputs report the consumer → owner edge and an
+explicit `npm ci --prefix` repair; the check never installs, builds or relinks. As with the
+fleet checker, this checks metadata/versions, not installed-code integrity. Existing individual
+Pi-host links remain an explicit host-owned exception; borrowing a foreign package root or
+its whole `node_modules` is refused.
+
+Prepare from the selected checkout's locks after coordinating readers. Installing only the
+consumer does not hydrate source-imported siblings. Little-helpers' exact preparation recipe
+is in [its local engineering guidance](../../packages/pi-little-helpers/docs/engineering.local.md#source-test-prerequisites-in-a-fresh-worktree).
+Its two historical worktree failures were missing ASC and peer-messaging installations, not
+an inherent worktree/host-linking limitation; neither is an accepted failure after preparation.
+
 ## Generated outputs: explicit preparation
 
 Before full validation of a fresh checkout, or after relevant source changes:

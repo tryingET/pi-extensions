@@ -117,11 +117,24 @@ export function validateAuthoredLocks(repoRoot = DEFAULT_ROOT) {
   return { ok: issues.length === 0, packageCount, issues };
 }
 
-export function validatePackageInstalls(repoRoot = DEFAULT_ROOT) {
+export function validatePackageInstalls(repoRoot = DEFAULT_ROOT, { packageRoots } = {}) {
   const root = fs.realpathSync(repoRoot);
   const tracked = new Set(trackedFiles(root));
-  const manifests = trackedManifests(root, tracked);
+  const ownedManifests = trackedManifests(root, tracked);
   const issues = [];
+  // An explicit selection must never silently broaden to the fleet or omit an unknown owner.
+  const manifests = packageRoots === undefined ? ownedManifests : [...new Set(packageRoots)].flatMap(selected => {
+    const dir = path.resolve(root, selected), manifest = path.join(dir, 'package.json');
+    const report = message => issues.push({ package: path.relative(root, dir) || '.', message });
+    try {
+      if (!inside(root, dir) || !inside(root, fs.realpathSync(dir))) throw new Error('package is outside the selected checkout');
+      if (!ownedManifests.includes(manifest)) throw new Error('source owner requires a tracked package.json');
+      if (!tracked.has(path.join(dir, 'package-lock.json'))) throw new Error('source owner requires a tracked package-lock.json');
+      const modules = path.join(dir, 'node_modules');
+      if (!absent(modules) && !inside(root, fs.realpathSync(modules))) throw new Error('node_modules is outside the selected checkout');
+      return [manifest];
+    } catch (error) { report(error.message); return []; }
+  });
   let packageCount = 0;
   for (const manifestPath of manifests) {
     const dir = path.dirname(manifestPath), label = path.relative(root, dir) || '.';
@@ -153,10 +166,14 @@ export function validatePackageInstalls(repoRoot = DEFAULT_ROOT) {
           const target = path.resolve(dir, expected.resolved);
           if (!inside(root, target) || !inside(root, fs.realpathSync(target))) report(`${key}: link target is outside this repo`);
           else if (fs.realpathSync(installedPath) !== fs.realpathSync(target)) report(`${key}: installed link differs from locked target ${expected.resolved}`);
+          else if (packageRoots !== undefined && !manifests.includes(path.join(target, 'package.json'))) report(`${key}: linked source owner ${path.relative(root, target)} must be explicitly selected for installation checks`);
           continue;
         }
         let actual;
-        try { actual = read(path.join(installedPath, 'package.json')); }
+        try {
+          if (packageRoots !== undefined && !inside(root, fs.realpathSync(installedPath))) throw new Error('dependency is outside the selected checkout');
+          actual = read(path.join(installedPath, 'package.json'));
+        }
         catch (error) {
           // npm may omit optional dependencies on unsupported platforms or installation failure.
           // An existing but unreadable/malformed package is not an optional absence.

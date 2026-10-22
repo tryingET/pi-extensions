@@ -383,6 +383,13 @@ run_simple_stage() {
   fi
 
   case "$stage_name" in
+    test|pre-push|ci)
+      node "$REPO_ROOT/scripts/validate-test-source-dependencies.mjs" \
+        --repo-root "$REPO_ROOT" --package "$workdir"
+      ;;
+  esac
+
+  case "$stage_name" in
     lint)
       run_lint_target "$workdir"
       ;;

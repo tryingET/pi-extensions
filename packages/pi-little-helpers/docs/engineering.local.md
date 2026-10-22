@@ -58,6 +58,31 @@ Repo-local emphasis:
   - `@cucumber/cucumber` only when executable operator/workflow scenarios materially improve shared understanding.
   - `nunjucks` for reusable text/config/prompt/file templates when plain typed render functions are no longer enough.
 
+## Source-test prerequisites in a fresh worktree
+
+Two integration fixtures import sibling source, not installed npm exports. Their owners are
+listed in `policy/test-source-dependencies.json`: ASC supplies the real `/subagents` producer;
+peer-messaging starts the real report-back broker using its own `tsx/cli`. Installing only
+little-helpers does not install those siblings. The test/pre-push/ci gate checks their own
+locked installations before running tests and never repairs them automatically.
+
+After the ordinary little-helpers/local-file dependency installs, explicitly prepare these
+owners **from the isolated worktree root**, not the live canonical checkout:
+
+```sh
+bash scripts/prepare-asc-source-build-owner.sh
+npm ci --prefix packages/pi-peer-messaging
+npm run task-session:build --prefix packages/pi-little-helpers
+npm run check --prefix packages/pi-little-helpers
+```
+
+Neither fixture requires host-linking: both pass with the registry-installed pinned SDK.
+A missing ASC `typebox` or peer-owned `tsx/cli` is an incomplete test installation, not an
+accepted test failure. Do not skip the assertions or borrow canonical `node_modules`.
+The test-only source declarations deliberately do not create npm production or release-graph
+edges; ASC also has tests importing little-helpers, so reciprocal npm edges would add cycles.
+See [gate input admission](../../../docs/project/pre-push-inputs.md#source-test-prerequisites).
+
 ## Repo loop validation
 
 `pi-little-helpers` adopts `repo-loop-validation-v1` for package-local loop prompt dogfooding. The policy declaration is in `policy/engineering-lane.json`.
