@@ -108,6 +108,12 @@ node ./bin/pi-activity-strip.mjs stop
 
 `fix-top` is now a compatibility no-op: layer-shell placement is compositor-owned.
 
+A broker pong alone does not establish overlay readiness. Launcher/startup waiting and CLI
+`status` succeed only with explicit `runtimeStatus.state: ready`. CLI `open` reports unknown
+or starting readiness as non-success without stopping or replacing that live runtime. A ready
+ribbon may correctly be hidden while a non-agent window is focused; visibility is not startup
+readiness. This check does not itself approve the controller/panel artifact pair.
+
 `manifest` is a separate read-only recovery inventory CLI: it includes registry/process observations
 missing from the broker-only `snapshot`, per-link provenance, uncertainty and coverage counts.
 Paths are redacted by default; no transcript body, title or prompt text is emitted. Process-only
