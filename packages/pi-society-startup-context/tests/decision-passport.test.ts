@@ -92,6 +92,29 @@ test("machine-v1 nested passport is readable without interpreting legal readines
   }
 });
 
+test("nested unconsumed advisory fields do not affect health or become instructions", async () => {
+  const f = fixture();
+  try {
+    for (const advisory of [
+      {
+        readiness: { summary: "UNVALIDATED nested summary" },
+        next_step: "UNVALIDATED nested instruction",
+        status: "UNVALIDATED nested status",
+      },
+      { readiness: false, next_step: ["UNVALIDATED nested instruction"], status: null },
+    ]) {
+      const passport = { ...passportBody(f.repo), ...advisory };
+      assert.equal(payloadProblem("decision.passport", { passport }), undefined);
+      const packet = await collect(f, { passport });
+      assert.equal(packet.sourceHealth, "healthy");
+      assert.equal(packet.warningCount, 0);
+      assert.deepEqual(packet.decisionPassports, ["#7 Open decision: passport readable"]);
+    }
+  } finally {
+    f.dispose();
+  }
+});
+
 test("missing, flattened, or malformed nested passports remain rejected", () => {
   const passport = passportBody("/workspace/repo");
   const invalid: Record<string, unknown>[] = [
@@ -114,10 +137,15 @@ test("missing, flattened, or malformed nested passports remain rejected", () => 
   for (const field of ["linked_tasks", "artifacts", "artifact_statuses", "readiness_checks"]) {
     invalid.push({ passport: { ...passport, [field]: undefined } });
     invalid.push({ passport: { ...passport, [field]: null } });
-    invalid.push({ passport: { ...passport, [field]: [null] } });
+    for (const row of [null, [], ["nested"], "text", 0, true])
+      invalid.push({ passport: { ...passport, [field]: [row] } });
   }
   for (const payload of invalid)
-    assert.match(payloadProblem("decision.passport", payload) || "", /malformed payload/);
+    assert.match(
+      payloadProblem("decision.passport", payload) || "",
+      /malformed payload/,
+      `Expected malformed payload rejection: ${JSON.stringify(payload)}`,
+    );
 });
 
 test("nested passport decision identity must match the requested decision despite a valid shadow", async () => {
