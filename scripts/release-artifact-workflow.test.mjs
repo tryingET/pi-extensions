@@ -37,6 +37,18 @@ test("publish never repairs tagged lockfiles or leaves source mutations", () => 
   }
 });
 
+test("publish prepares the frozen ASC source owner for helpers' cross-package producer tests", () => {
+  const workflow = fs.readFileSync(PUBLISH_PATH, "utf8");
+  const prepare = workflowStep(workflow, "Prepare linked ASC source runtime");
+  assert.match(prepare, /if: env\.RELEASE_COMPONENT == 'pi-society-orchestrator' \|\| env\.RELEASE_COMPONENT == 'pi-little-helpers'/u);
+  assert.match(prepare, /bash \.\/scripts\/prepare-asc-source-build-owner\.sh/u);
+  assert.ok(workflow.indexOf(prepare) < workflow.indexOf(workflowStep(workflow, "Run package quality gate")));
+  const helper = fs.readFileSync(path.join(ROOT, "scripts", "prepare-asc-source-build-owner.sh"), "utf8");
+  assert.match(helper, /npm ci\s*\\\n\s*--include=dev/u);
+  assert.match(helper, /--ignore-scripts/u);
+  assert.doesNotMatch(helper, /--package-lock-only|npm install/u);
+});
+
 test("the artifact helper reuses the canonical npm parser and records local closure", () => {
   const helper = fs.readFileSync(ARTIFACT_HELPER_PATH, "utf8");
   assert.match(helper, /import \{ parseNpmPackJson \} from "\.\/npm-pack-json\.mjs";/u);

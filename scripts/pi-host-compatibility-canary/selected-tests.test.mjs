@@ -518,3 +518,224 @@ test('CLI resolves an explicit relative cwd against invocation cwd', () => {
   assert.equal(JSON.parse(result.stdout).selected, 1);
 });
 
+
+
+test('actual controlled Error/cause reaches API and CLI as diagnostic-only failure metadata', async () => {
+  const file = fixture('controlled-error.mjs', prelude + `
+    test('wanted', () => {
+      console.log('RAW_STDOUT_MUST_NOT_REPORT'); console.error('RAW_STDERR_MUST_NOT_REPORT');
+      const cause = new Error('controlled root cause password=ROOT_PASSWORD');
+      cause.code = 'E_CONTROLLED_ROOT';
+      const error = new Error('controlled failure Bearer TOP_TOKEN', { cause });
+      error.code = 'E_CONTROLLED';
+      error.actual = 'ACTUAL_MUST_NOT_REPORT'; error.expected = 'EXPECTED_MUST_NOT_REPORT';
+      error.env = { HOME: 'ENV_MUST_NOT_REPORT' }; error.headers = { custom: 'HEADER_MUST_NOT_REPORT' };
+      throw error;
+    });
+  `);
+  let failure;
+  await assert.rejects(select(file), error => { failure = error; return /skip\/todo\/cancel\/error/.test(error.message); });
+  const metadata = failure.failedChildDiagnostics;
+  assert.ok(metadata.length > 0);
+  assert.equal(metadata[0].file, file);
+  assert.equal(metadata[0].testName, 'wanted');
+  assert.equal(metadata[0].eventType, 'test:complete');
+  assert.equal(metadata[0].error.code, 'ERR_TEST_FAILURE');
+  assert.equal(metadata[0].error.failureType, 'testCodeFailure');
+  assert.equal(metadata[0].error.cause.name, 'Error');
+  assert.equal(metadata[0].error.cause.code, 'E_CONTROLLED');
+  assert.equal(metadata[0].error.cause.message, '[omitted: credential-shaped field]');
+  assert.equal(metadata[0].error.cause.cause.code, 'E_CONTROLLED_ROOT');
+  assert.equal(metadata[0].error.cause.cause.message, '[omitted: credential-shaped field]');
+  const result = cli(['--cwd', scratch, '--case', file, 'wanted']);
+  assert.ifError(result.error);
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /failed-child metadata \(non-authoritative\)/);
+  assert.match(result.stderr, /E_CONTROLLED_ROOT/);
+  assert.ok(Buffer.byteLength(result.stderr) <= 4096);
+  for (const secret of ['TOP_TOKEN', 'ROOT_PASSWORD', 'RAW_STDOUT', 'RAW_STDERR', 'ACTUAL_MUST',
+    'EXPECTED_MUST', 'ENV_MUST', 'HEADER_MUST', '"stack"', '"actual"', '"expected"', '"env"', '"headers"']) {
+    assert.ok(!result.stderr.includes(secret), secret);
+    assert.ok(!JSON.stringify(metadata).includes(secret), secret);
+  }
+});
+
+test('diagnostic sanitization removes controls/bidi and credentials before field truncation', async () => {
+  const { sanitizeDiagnostic } = await adapter();
+  for (const [input, secrets] of [
+    ['Bearer TOKEN_ONE Basic TOKEN_TWO Bearer\tTOKEN_THREE', ['TOKEN_ONE', 'TOKEN_TWO', 'TOKEN_THREE']],
+    ['password="PASS WITH SPACES" token=TOKEN api_key=API client_secret=CLIENT', ['PASS WITH SPACES', 'TOKEN', 'API', 'CLIENT']],
+    ['OPENAI_API_KEY=OPENAI AWS_SECRET_ACCESS_KEY=AWS refresh-token=REFRESH', ['OPENAI', 'AWS', 'REFRESH']],
+    ['{"access_token":"JSON_SECRET", "password":"JSON_PASSWORD"}', ['JSON_SECRET', 'JSON_PASSWORD']],
+    ['https://URL_USER:URL_PASS@example.test/path?token=QUERY_ONE&%74oken=QUERY_TWO', ['URL_USER', 'URL_PASS', 'QUERY_ONE', 'QUERY_TWO']],
+    ['Authorization: Basic HEADER_SECRET', ['HEADER_SECRET']],
+    ['Cookie: custom=COOKIE_SECRET; other=COOKIE_OTHER', ['COOKIE_SECRET', 'COOKIE_OTHER']],
+    ['password="unterminated SECRET WITH SPACES', ['SECRET WITH SPACES']],
+    ['x'.repeat(350) + ' token=' + 'CUT_SECRET'.repeat(100), ['CUT_SECRET']],
+  ]) {
+    const clean = sanitizeDiagnostic(input);
+    assert.equal(clean, '[omitted: credential-shaped field]');
+    for (const secret of secrets) assert.ok(!clean.includes(secret), `${secret}: ${clean}`);
+    assert.ok(Buffer.byteLength(clean) <= 384);
+  }
+  const clean = sanitizeDiagnostic('\x1b[31museful\x1b[0m\x1b]0;OSC_SECRET\x07\u061c\u2028\u2029\u202e\u2066\x00\x7f\x9b');
+  assert.equal(clean, 'useful');
+  assert.equal(sanitizeDiagnostic('x'.repeat(16385)), '[omitted: oversized field]');
+  assert.ok(Buffer.byteLength(sanitizeDiagnostic('🧪'.repeat(400))) <= 384);
+  assert.equal(sanitizeDiagnostic({ toString() { throw new Error('do not coerce'); } }), undefined);
+});
+
+test('error serialization preserves rejection flags; getters/proxies/toJSON are not diagnostics', async () => {
+  const { serializeEvent, reconcileEvents, failedChildDiagnostics } = await adapter();
+  const { file, events } = calibrated;
+  const inventory = { file, names: ['present'] };
+  assert.deepEqual(events.map(serializeEvent), events, 'passing proof unchanged');
+  let accesses = 0;
+  const native = new Error('useful native message', { cause: new Error('useful native cause') });
+  native.toJSON = () => { accesses++; return undefined; };
+  const getter = Object.defineProperty({}, 'message', { get() { accesses++; throw new Error('getter'); } });
+  const proxy = new Proxy({}, { get() { accesses++; throw new Error('proxy'); },
+    getPrototypeOf() { accesses++; throw new Error('proxy prototype'); } });
+  const revoked = Proxy.revocable({}, {}); revoked.revoke();
+  for (const value of [native, undefined, null, [], 7, getter, proxy, revoked.proxy, new Date()]) {
+    const copy = structuredClone(events);
+    copy.find(e => e.type === 'test:complete' && isBody(e.data)).data.details.error = value;
+    const serialized = copy.map(serializeEvent).map(e => JSON.parse(JSON.stringify(e)));
+    assert.ok(Object.hasOwn(serialized.find(e => e.type === 'test:complete' && isBody(e.data)).data.details, 'error'));
+    assert.throws(() => reconcileEvents(serialized, inventory), /skip\/todo\/cancel\/error/);
+    assert.ok(failedChildDiagnostics(serialized).length > 0);
+  }
+  const copy = structuredClone(events);
+  const details = copy.find(e => e.type === 'test:complete' && isBody(e.data)).data.details;
+  Object.defineProperty(details, 'error', { enumerable: true, get() { accesses++; throw new Error('error getter'); } });
+  assert.throws(() => reconcileEvents(copy.map(serializeEvent), inventory), /skip\/todo\/cancel\/error/);
+  assert.equal(accesses, 0);
+  const topLevel = structuredClone(events);
+  topLevel.find(e => e.type === 'test:pass' && isBody(e.data)).data.error = undefined;
+  const topWire = topLevel.map(serializeEvent).map(e => JSON.parse(JSON.stringify(e)));
+  assert.throws(() => reconcileEvents(topWire, inventory), /skip\/todo\/cancel\/error/);
+  assert.deepEqual(failedChildDiagnostics([null, [], proxy, revoked.proxy, { type: 'test:fail', data: proxy }]), []);
+  for (const key of ['skip', 'todo', 'cancelled']) {
+    const copy = structuredClone(events);
+    copy.find(e => e.type === 'test:complete' && isBody(e.data)).data.details[key] = false;
+    assert.throws(() => reconcileEvents(copy.map(serializeEvent), inventory), /skip\/todo\/cancel\/error/);
+  }
+  const malformed = structuredClone(events);
+  malformed.find(e => e.type === 'test:complete' && isBody(e.data)).data.details = [];
+  assert.throws(() => reconcileEvents(malformed.map(serializeEvent), inventory), /malformed/);
+});
+
+test('failure metadata has bounded fields, total size, count and cause depth; output is never metadata', async () => {
+  const { serializeEvent, failedChildDiagnostics } = await adapter();
+  let cause = new Error('DEEP_CAUSE_MUST_NOT_REPORT');
+  for (let i = 0; i < 10; i++) cause = new Error('bounded cause ' + i, { cause });
+  cause.cause = cause; // Cycles terminate independently of the depth cap.
+  const cycle = serializeEvent({ type: 'test:fail', data: { details: { error: cause } } });
+  assert.match(JSON.stringify(cycle), /unavailable error metadata/);
+  cause = new Error('DEEP_CAUSE_MUST_NOT_REPORT');
+  for (let i = 0; i < 10; i++) cause = new Error('bounded cause ' + i, { cause });
+  const depth = serializeEvent({ type: 'test:fail', data: { details: { error: cause } } });
+  assert.match(JSON.stringify(depth), /cause depth limit/);
+  assert.ok(!JSON.stringify(depth).includes('DEEP_CAUSE'));
+  const failures = Array.from({ length: 20 }, () => serializeEvent({ type: 'test:fail', data: {
+    file: '/' + 'f'.repeat(1000), name: 'n'.repeat(1000), details: { error: Object.assign(cause,
+      { name: 'e'.repeat(1000), code: 'c'.repeat(1000), failureType: 't'.repeat(1000), message: 'm'.repeat(1000) }) },
+  } }));
+  const metadata = failedChildDiagnostics(failures);
+  assert.ok(metadata.length > 0 && metadata.length <= 3);
+  assert.ok(Buffer.byteLength(JSON.stringify(metadata)) <= 3072);
+  const checkFields = value => {
+    for (const field of Object.values(value)) {
+      if (typeof field === 'string') assert.ok(Buffer.byteLength(field) <= 384);
+      else if (field && typeof field === 'object') checkFields(field);
+    }
+  };
+  checkFields(metadata);
+  assert.equal(failedChildDiagnostics(Array.from({ length: 20 }, () => depth)).length, 3);
+  assert.deepEqual(failedChildDiagnostics(['test:stdout', 'test:stderr', 'test:diagnostic'].map(type =>
+    ({ type, data: { message: 'Bearer OUTPUT_SECRET', error: new Error('not failure metadata') } }))), []);
+});
+
+
+for (const [label, message, secrets] of [
+  ['nested escaped JSON password', JSON.stringify({ body: JSON.stringify({ password: 'SYNTHETIC_SECRET' }) }),
+    ['SYNTHETIC_SECRET']],
+  ['unicode-escaped credential key', String.raw`pass\u0077ord: UNICODE_KEY_PAYLOAD`,
+    ['UNICODE_KEY_PAYLOAD']],
+  ['percent-encoded credential key', 'pass%77ord ENCODED_KEY_PAYLOAD',
+    ['ENCODED_KEY_PAYLOAD']],
+  ['opaque payload object', JSON.stringify({ body: 'OPAQUE_BODY_PAYLOAD' }),
+    ['OPAQUE_BODY_PAYLOAD']],
+  ['escaped JSON credential key', String.raw`\"password\" : \"ESCAPED_KEY_PAYLOAD\"`,
+    ['ESCAPED_KEY_PAYLOAD']],
+  ['escaped JSON password', JSON.stringify({ password: 'PASSWORD_PREFIX_"ESCAPED_SECRET_SUFFIX' }),
+    ['PASSWORD_PREFIX', 'ESCAPED_SECRET_SUFFIX']],
+  ['multiline private key', 'private_key=-----BEGIN PRIVATE KEY-----\nPEM_SECRET_KEY_BODY\nPEM_SECRET_SECOND_LINE\n-----END PRIVATE KEY-----',
+    ['PEM_SECRET_KEY_BODY', 'PEM_SECRET_SECOND_LINE', '-----BEGIN PRIVATE KEY-----']],
+  ['quoted Bearer token', 'authorization helper Bearer "QUOTED_BEARER_SECRET_TOKEN" trailing context',
+    ['QUOTED_BEARER_SECRET_TOKEN', 'trailing context']],
+]) {
+  test(`${label}: whole-field omission survives serialization, metadata and final CLI reporting`, async () => {
+    const { serializeEvent, failedChildDiagnostics } = await adapter();
+    const cause = Object.assign(new Error(message), { code: 'E_CREDENTIAL_DETAIL' });
+    const error = Object.assign(new Error('Cannot find module controlled-host-module', { cause }),
+      { code: 'ERR_MODULE_NOT_FOUND', failureType: 'testCodeFailure' });
+    const file = fixture('field-omission.mjs', prelude + `
+      test('wanted', () => {
+        const cause = new Error(${JSON.stringify(message)});
+        cause.code = 'E_CREDENTIAL_DETAIL';
+        const error = new Error('Cannot find module controlled-host-module', { cause });
+        error.code = 'ERR_MODULE_NOT_FOUND';
+        throw error;
+      });
+    `);
+    const serialized = JSON.parse(JSON.stringify(serializeEvent({ type: 'test:complete', data: {
+      file, name: 'wanted', details: { error, passed: false },
+    } })));
+    const metadata = failedChildDiagnostics([serialized]);
+    assert.equal(metadata.length, 1);
+    assert.equal(metadata[0].error.cause.message, '[omitted: credential-shaped field]');
+    assert.equal(metadata[0].error.message, 'Cannot find module controlled-host-module');
+    assert.equal(metadata[0].error.code, 'ERR_MODULE_NOT_FOUND');
+    assert.equal(metadata[0].error.failureType, 'testCodeFailure');
+    assert.equal(metadata[0].file, file);
+    assert.equal(metadata[0].testName, 'wanted');
+    const result = cli(['--cwd', scratch, '--case', file, 'wanted']);
+    assert.ifError(result.error);
+    assert.equal(result.status, 1, 'still rejected, never body proof');
+    assert.equal(result.stdout, '');
+    const prefix = '; failed-child metadata (non-authoritative): ';
+    assert.ok(result.stderr.includes(prefix));
+    const reported = JSON.parse(result.stderr.split(prefix)[1].trim());
+    assert.equal(reported[0].file, file);
+    assert.equal(reported[0].testName, 'wanted');
+    assert.equal(reported[0].eventType, 'test:complete');
+    assert.equal(reported[0].error.cause.code, 'ERR_MODULE_NOT_FOUND');
+    assert.equal(reported[0].error.cause.message, 'Cannot find module controlled-host-module');
+    assert.equal(reported[0].error.cause.cause.code, 'E_CREDENTIAL_DETAIL');
+    assert.equal(reported[0].error.cause.cause.message, '[omitted: credential-shaped field]');
+    assert.ok(Buffer.byteLength(result.stderr) <= 4096);
+    for (const secret of secrets) {
+      for (const text of [JSON.stringify(serialized), JSON.stringify(metadata), result.stderr]) {
+        assert.ok(!text.includes(secret), `${label}: leaked ${secret}`);
+      }
+    }
+  });
+}
+
+
+test('credential words require no separators; opaque JSON-like fields are omitted without decoding', async () => {
+  const { sanitizeDiagnostic } = await adapter();
+  for (const input of [
+    'password UNLABELLED_PAYLOAD', '"token" UNLABELLED_PAYLOAD', 'OPENAI_API_KEY UNLABELLED_PAYLOAD',
+    'client_secret UNLABELLED_PAYLOAD', 'private key UNLABELLED_PAYLOAD',
+    String.raw`pass\u0077ord UNLABELLED_PAYLOAD`, 'pass%77ord UNLABELLED_PAYLOAD',
+    '{"body":"UNLABELLED_PAYLOAD"}', '["UNLABELLED_PAYLOAD"]', '"UNLABELLED_PAYLOAD"',
+    '[OPAQUE_PAYLOAD]', '&#112;assword UNLABELLED_PAYLOAD',
+  ]) assert.equal(sanitizeDiagnostic(input), '[omitted: credential-shaped field]');
+  for (const input of ['Cannot find module controlled-host-module', 'ERR_MODULE_NOT_FOUND', 'TypeError',
+    'wanted', '/package/host.test.mjs', 'testCodeFailure', 'E_CREDENTIAL_DETAIL']) {
+    assert.equal(sanitizeDiagnostic(input), input, 'ordinary identity/module fields remain usable');
+  }
+});

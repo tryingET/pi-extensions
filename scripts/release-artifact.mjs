@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { parseNpmPackJson } from "./npm-pack-json.mjs";
+import { candidateAscDependency, reuseCandidateAsc, verifyPackedCandidateIdentity, verifyInstalledCandidateClosure } from "./release-candidate-closure.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
@@ -393,11 +394,16 @@ function packArtifact(options) {
 
   const localDirectory = path.join(artifactDir, "local-dependencies");
   const closure = collectLocalDependencyClosure(packageRoot, packageManifest);
+  const numericalCandidate = candidateAscDependency(ROOT, packageManifest, closure);
+  if (numericalCandidate) closure.push(numericalCandidate);
   const localArtifacts = [];
   if (closure.length > 0) fs.mkdirSync(localDirectory, { mode: 0o700 });
   for (const dependency of closure) {
-    ensurePackageDependencies(dependency.root);
-    const packed = packOne(dependency.root, localDirectory, artifactDir);
+    let packed = reuseCandidateAsc(ROOT, dependency.root, localDirectory, artifactDir);
+    if (!packed) {
+      ensurePackageDependencies(dependency.root);
+      packed = packOne(dependency.root, localDirectory, artifactDir);
+    }
     const record = artifactRecord(packed);
     const checksumPath = `${packed.tarballPath}.sha256`;
     fs.writeFileSync(checksumPath, `${record.sha256}  ${packed.basename}\n`, {
@@ -407,7 +413,9 @@ function packArtifact(options) {
     localArtifacts.push(record);
   }
 
-  const packed = packOne(packageRoot, artifactDir, artifactDir);
+  const packed = reuseCandidateAsc(ROOT, packageRoot, artifactDir, artifactDir)
+    ?? packOne(packageRoot, artifactDir, artifactDir);
+  verifyPackedCandidateIdentity(ROOT, packed);
   const checksumPath = `${packed.tarballPath}.sha256`;
   fs.writeFileSync(checksumPath, `${packed.sha256}  ${packed.basename}\n`, {
     encoding: "utf8",
@@ -568,6 +576,7 @@ function verifyArtifact(options) {
       }
       verifyInstalledTargets(installedRoot, installed);
     }
+    verifyInstalledCandidateClosure(ROOT, [...localRecords, mainRecord], installRoot);
   } finally {
     fs.rmSync(installRoot, { recursive: true, force: true });
   }

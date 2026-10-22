@@ -31,7 +31,7 @@ export interface GovernedRuntimeResolution {
   ownerName: string;
   ownerVersion: string;
   ownerRoot: string;
-  ownership: "local_source" | "registry_external";
+  ownership: "local_source" | "registry_external" | "candidate_artifact";
 }
 
 export interface GovernedRuntimeGraphProof {

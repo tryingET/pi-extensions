@@ -3,6 +3,7 @@ import { readFileSync, realpathSync, statSync, writeSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Socket } from 'node:net';
+import { types } from 'node:util';
 import { exactPattern, reconcileEvents, assertSupportedNode } from './selected-tests-protocol.mjs';
 export { exactPattern, reconcileEvents, assertSupportedNode };
 
@@ -37,6 +38,131 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const check = (condition, message) => { if (!condition) throw new Error(message); };
 const text = value => typeof value === 'string' && value.trim().length > 0 && !/[\x00-\x1f\x7f]/u.test(value);
 const integer = value => Number.isSafeInteger(value) && value >= 0;
+
+// Reporting only: these values are never read by the proof reconciler. Keep the
+// error key even for undefined/hostile values: its PRESENCE is rejection proof.
+const DIAGNOSTIC_LIMIT = 3072;
+const FIELD_LIMIT = 384;
+const safeRecord = value => {
+  try {
+    return object(value) && !types.isProxy(value) && (types.isNativeError(value)
+      // Node 22 rehydrates test-child errors with Error.prototype but no
+      // native Error internal slot. Accept that exact prototype, not arbitrary classes.
+      || [Object.prototype, Error.prototype, null].includes(Object.getPrototypeOf(value)));
+  } catch { return false; }
+};
+function field(value, key) {
+  if (!safeRecord(value)) return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && own(descriptor, 'value') ? descriptor.value : undefined;
+  } catch { return undefined; }
+}
+export function sanitizeDiagnostic(value) {
+  if (typeof value !== 'string') return undefined;
+  // Do not truncate input before redaction (a cut credential could leak). Refuse
+  // oversized input altogether, bounding regex work as well as rendered output.
+  if (value.length > 16384) return '[omitted: oversized field]';
+  let result = value
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\|$)/gu, '')
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/gu, '')
+    .replace(/[\t\r\n]/gu, ' ')
+    .replace(/[\x00-\x1f\x7f-\x9f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/gu, '');
+  // Credential words do not need assignment delimiters. Never decode or parse
+  // opaque/escaped payloads: omit the entire field, retaining separate plain
+  // module/identity/code fields. False-positive omissions are preferable to leaks.
+  // Only our exact, fixed markers are exempt from opaque bracket detection.
+  if (['[omitted: oversized field]', '[omitted: credential-shaped field]',
+    '[unavailable error metadata]', '[cause depth limit]'].includes(result)) return result;
+  if (/[\\%{}\[\]"]/u.test(result)
+    || /&#(?:\d|x)/iu.test(result)
+    || /\b(?:Bearer|Basic)\b/iu.test(result)
+    || /(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/?#]*@/iu.test(result)
+    || /[?&][^\s=&#]+=/u.test(result)
+    || /-----BEGIN [A-Z ]*PRIVATE KEY-----/iu.test(result)
+    || /\b(?:[a-z0-9_-]*[_-])?(?:password|passwd|pwd|(?:access[_-]?|refresh[_-]?|id[_-]?)?token|api[_ -]?key|(?:secret[_-]?)?access[_-]?key(?:[_-]?id)?|secret|client[_-]?secret|credentials?|authorization|(?:set-)?cookie|private[_ -]?key|session[_-]?(?:id|key)|signature|sig)\b/iu.test(result)) {
+    return '[omitted: credential-shaped field]';
+  }
+  if (Buffer.byteLength(result) > FIELD_LIMIT) {
+    while (Buffer.byteLength(result) > FIELD_LIMIT - 3) result = result.slice(0, -1);
+    result += '...';
+  }
+  return result;
+}
+function errorMetadata(value, depth = 0, seen = new Set(), budget = { remaining: 1536 }) {
+  const cleanField = raw => {
+    let clean = sanitizeDiagnostic(raw);
+    if (clean === undefined || budget.remaining <= 0) return undefined;
+    while (Buffer.byteLength(clean) > budget.remaining) clean = clean.slice(0, -1);
+    budget.remaining -= Buffer.byteLength(clean);
+    return clean;
+  };
+  if (typeof value === 'string') return { message: cleanField(value) };
+  if (!safeRecord(value) || seen.has(value)) return { message: '[unavailable error metadata]' };
+  seen.add(value);
+  const result = {};
+  for (const key of ['name', 'code', 'failureType', 'message']) {
+    let raw = field(value, key);
+    // Error.name normally lives on a native prototype; never invoke a getter.
+    if (key === 'name' && raw === undefined && types.isNativeError(value)) {
+      try {
+        let proto = Object.getPrototypeOf(value);
+        for (let i = 0; proto && i < 3 && raw === undefined; i++) {
+          if (types.isProxy(proto)) break;
+          const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+          raw = descriptor && own(descriptor, 'value') ? descriptor.value : undefined;
+          proto = Object.getPrototypeOf(proto);
+        }
+      } catch { /* optional metadata */ }
+    }
+    const clean = cleanField(raw);
+    if (clean !== undefined) result[key] = clean;
+  }
+  const cause = field(value, 'cause');
+  if (cause !== undefined) result.cause = depth < 2
+    ? errorMetadata(cause, depth + 1, seen, budget) : { message: '[cause depth limit]' };
+  return result;
+}
+export function serializeEvent(event) {
+  // Replace Error objects BEFORE JSON.stringify can discard non-enumerable
+  // message/cause or call an error's toJSON. All other proof fields are unchanged.
+  const copy = source => {
+    // Avoid evaluating an enumerable error getter during the copy as well.
+    const result = {};
+    for (const key of Object.keys(source)) if (key !== 'error') result[key] = source[key];
+    return result;
+  };
+  const result = { ...event, data: copy(event.data) };
+  if (object(event.data?.details)) result.data.details = copy(event.data.details);
+  for (const [source, target] of [[event.data, result.data], [event.data?.details, result.data.details]]) {
+    if (object(source) && own(source, 'error')) target.error = errorMetadata(field(source, 'error'));
+  }
+  return result;
+}
+export function failedChildDiagnostics(events) {
+  try {
+    const result = [];
+    for (const event of events) {
+      const data = field(event, 'data');
+      const details = field(data, 'details');
+      const type = field(event, 'type');
+      if (!safeRecord(data) || !['test:complete', 'test:fail'].includes(type)) continue;
+      const hasError = [data, details].some(value => safeRecord(value) && own(value, 'error'));
+      if (type !== 'test:fail' && !hasError) continue;
+      const entry = {};
+      for (const [key, raw] of [['file', field(data, 'file')], ['testName', field(data, 'name')], ['eventType', type]]) {
+        const clean = sanitizeDiagnostic(raw);
+        if (clean !== undefined) entry[key] = clean;
+      }
+      if (hasError) entry.error = errorMetadata(safeRecord(details) && own(details, 'error')
+        ? field(details, 'error') : field(data, 'error'));
+      if (Buffer.byteLength(JSON.stringify([...result, entry])) > DIAGNOSTIC_LIMIT) break;
+      result.push(entry);
+      if (result.length === 3) break;
+    }
+    return result;
+  } catch { return []; } // Metadata failure must never replace the original verdict.
+}
 
 function inside(cwd, input) {
   check(text(input), 'invalid file path');
@@ -161,7 +287,11 @@ export async function runSelectedTests(options) {
     cancelled();
     const events = await collect(config, options.env ?? process.env, signal);
     cancelled();
-    results.push(reconcileEvents(events, config));
+    try { results.push(reconcileEvents(events, config)); }
+    catch (error) {
+      error.failedChildDiagnostics = failedChildDiagnostics(events);
+      throw error; // Same rejection, with optional non-authoritative context only.
+    }
   }
   return { selected: results.reduce((sum, result) => sum + result.selected, 0), files: results };
 }
@@ -222,7 +352,7 @@ async function worker() {
     for await (const event of run({ files: [config.file], concurrency: 1, isolation: 'process',
       execArgv: config.imports.flatMap(specifier => ['--import', specifier]),
       testNamePatterns: [new RegExp(exactPattern(config.names))] })) {
-      send({ kind: 'event', seq: seq++, event });
+      send({ kind: 'event', seq: seq++, event: serializeEvent(event) });
     }
     send({ kind: 'end', count: seq });
   } catch (error) {
@@ -242,7 +372,10 @@ if (process.argv[1] && resolve(process.argv[1]) === SELF) {
     if (process.argv.length === 3 && process.argv[2] === '--selection-worker') await worker();
     else console.log(JSON.stringify(await runCli(process.argv.slice(2))));
   } catch (error) {
-    console.error(`selection proof failed: ${error.message}`);
+    const message = sanitizeDiagnostic(field(error, 'message')) ?? 'unavailable error message';
+    const diagnostics = error.failedChildDiagnostics;
+    console.error(`selection proof failed: ${message}` + (diagnostics?.length
+      ? `; failed-child metadata (non-authoritative): ${JSON.stringify(diagnostics)}` : ''));
     process.exitCode = error.exitCode ?? 1;
   }
 }

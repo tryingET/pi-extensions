@@ -5,6 +5,7 @@
 import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { verifyAscCandidateInstalled } from "./asc-candidate-artifact.ts";
 import {
   GOVERNED_RUNTIME_ASC_REGISTRY_OWNER,
   GOVERNED_RUNTIME_HOST_PEERS,
@@ -107,6 +108,7 @@ export function resolveGovernedRuntimeGraph(sourceRoot: string): GovernedRuntime
       "materialization_registry_owner_lock_mismatch",
     );
     classifyGovernedRuntimeAscRegistryOwnerEvidence(packageManifest, regularLock, hiddenLock);
+    const candidateReceipt = process.env.PI_ASC_CANDIDATE_RECEIPT;
     expectedExternalRoots.add(expectedOwnerRoot);
     const key = `${definition.consumer} -> ${definition.specifier}`;
     resolutions[key] = {
@@ -116,7 +118,7 @@ export function resolveGovernedRuntimeGraph(sourceRoot: string): GovernedRuntime
       ownerName: owner.name,
       ownerVersion: definition.expectedOwnerVersion,
       ownerRoot: owner.root,
-      ownership: "registry_external",
+      ownership: candidateReceipt ? "candidate_artifact" : "registry_external",
     };
   }
 
@@ -134,6 +136,20 @@ export function resolveGovernedRuntimeGraph(sourceRoot: string): GovernedRuntime
     );
   }
 
+  if (process.env.PI_ASC_CANDIDATE_RECEIPT) {
+    try {
+      verifyAscCandidateInstalled(
+        root,
+        process.env.PI_ASC_CANDIDATE_RECEIPT,
+        resolve(root, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.consumer),
+      );
+    } catch (error) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_candidate_artifact_invalid",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
   const expectedRegistryRoot = realpathSync(
     resolve(root, "packages/pi-interaction/pi-runtime-registry"),
   );

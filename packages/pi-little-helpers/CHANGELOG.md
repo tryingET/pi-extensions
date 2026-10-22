@@ -32,6 +32,24 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.12.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.11.2...pi-little-helpers-v0.12.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **little-helpers:** Remove /subagent-observer in favor of /subagents diagnose observer [status] through ASC. New packed task-session identities require fresh artifact closure checks and do not replace worker/profile bindings or retire retained state.
+
+### Features
+
+* **asc:** add compact live subagent cockpit and attempt-bound guidance (AK7039) ([340367f](https://github.com/tryingET/pi-extensions/commit/340367f398ee95f33849e7d37e846b8693bea618))
+* **asc:** attach original subagents in same-window native tabs (AK7039) ([f9f7bae](https://github.com/tryingET/pi-extensions/commit/f9f7bae797c436470e9735dc12ed51c181275252))
+* **little-helpers:** host native child tabs and migrate observer diagnostics ([2f8d5b8](https://github.com/tryingET/pi-extensions/commit/2f8d5b866805b936caa39a642412dffa08efb507))
+
+
+### Bug Fixes
+
+* **pi-little-helpers:** keep the task-session viewer window and add owner retirement (AK5482) ([b927d59](https://github.com/tryingET/pi-extensions/commit/b927d59a31d2efc3d5e527451024beb96eb95825))
+
 ## [0.11.2](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.11.1...pi-little-helpers-v0.11.2) (2026-10-10)
 
 

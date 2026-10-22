@@ -43,15 +43,40 @@ function absent(file) {
   catch (error) { if (error.code === 'ENOENT') return true; throw error; }
 }
 
+/** Detect false npm artifact identity without pretending to verify registry SRI or availability. */
+export function registryLockIdentityIssues(lock) {
+  const issues = [];
+  for (const [key, entry] of Object.entries(lock.packages ?? {})) {
+    if (!key.includes('node_modules/') || entry.link || typeof entry.resolved !== 'string') continue;
+    let url;
+    try { url = new URL(entry.resolved); } catch { continue; }
+    if (url.origin !== 'https://registry.npmjs.org') continue;
+    // The URL owns the name (npm aliases need not match the installation key).
+    const match = /^\/(.+)\/-\/([^/]+)\.tgz$/.exec(decodeURIComponent(url.pathname));
+    if (!match) {
+      issues.push(`${key}: unrecognized npm registry tarball URL`);
+      continue;
+    }
+    const name = match[1].split('/').at(-1);
+    if (match[2] !== `${name}-${entry.version}`) {
+      issues.push(`${key}: locked version ${entry.version} disagrees with npm tarball URL ${entry.resolved}; re-resolve the artifact, never relabel its integrity`);
+    }
+  }
+  return issues;
+}
+
 /**
  * Differences between a package.json and its lock's root copy of it. These are authored-file
  * facts, independent of any install, so CI can check them without node_modules.
  */
 export function authoredLockIssues(manifest, lock) {
   if (lock.lockfileVersion !== 3 || !lock.packages || !lock.packages['']) throw new Error('package-lock.json must be a v3 packages lock');
-  return [...FIELDS, 'peerDependenciesMeta']
-    .filter(field => !isDeepStrictEqual(manifest[field] ?? {}, lock.packages[''][field] ?? {}))
-    .map(field => `package.json ${field} differs from package-lock.json; reconcile the authored lock before npm ci`);
+  return [
+    ...[...FIELDS, 'peerDependenciesMeta']
+      .filter(field => !isDeepStrictEqual(manifest[field] ?? {}, lock.packages[''][field] ?? {}))
+      .map(field => `package.json ${field} differs from package-lock.json; reconcile the authored lock before npm ci`),
+    ...registryLockIdentityIssues(lock),
+  ];
 }
 
 // Match the owned install topology, not generated dist manifests or test fixtures.

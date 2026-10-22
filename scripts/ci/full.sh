@@ -89,6 +89,7 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
   node --test ./scripts/release-components.test.mjs
 fi
 
+node --test ./scripts/asc-candidate-artifact.test.mjs ./scripts/asc-candidate-workflow.test.mjs ./scripts/asc-registry-handoff.test.mjs
 node --test ./scripts/release-artifact.test.mjs
 node --test ./scripts/release-artifact-workflow.test.mjs
 node --test ./scripts/release-sbom.test.mjs
@@ -106,6 +107,9 @@ if [ -n "${PI_GENERATION_TEST_PI:-}" ]; then
 else
   echo "skipping real-Pi immutable-generation concurrency: PI_GENERATION_TEST_PI is not set"
 fi
+
+# Binding-only CI fixtures never resolve packages or touch the canonical installation.
+node --test ./scripts/bind-prepared-asc-ci.test.mjs
 
 # Keep these suites sequential: both intentionally exercise the canonical-checkout lock.
 # Governed CI runs them before runtime materialization publishes package node_modules symlinks.
@@ -129,6 +133,7 @@ if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then
 fi
 
 if [ -f "./scripts/governed-deep-review-canary.mjs" ]; then
+  node --test ./scripts/governed-deep-review-canary.test.mjs
   if [ "${PI_SKIP_GOVERNED_DEEP_REVIEW:-0}" = "1" ]; then
     echo "skipping governed deep-review canary: PI_SKIP_GOVERNED_DEEP_REVIEW=1"
   else
