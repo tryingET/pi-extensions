@@ -167,15 +167,12 @@ export function payloadProblem(surface: string, payload: RecordValue): string | 
         payload.count === (payload.decisions as unknown[])?.length;
       break;
     case "decision.passport": {
-      const item = record(payload.decision);
+      // Machine v1 wraps the body; the flattened -F json output is not this contract.
+      const passport = record(payload.passport);
+      const item = record(passport?.decision);
       valid = !!item && decision(item);
       for (const field of ["linked_tasks", "artifacts", "artifact_statuses", "readiness_checks"])
-        valid &&= rows(payload[field], () => true);
-      if ("readiness" in payload) {
-        const readiness = record(payload.readiness);
-        valid &&= !!readiness && optional(readiness, "summary", text);
-      }
-      for (const field of ["next_step", "status"]) valid &&= optional(payload, field, text);
+        valid &&= rows(passport?.[field], () => true);
       break;
     }
     case "startup.snapshot": {

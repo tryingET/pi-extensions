@@ -45,7 +45,7 @@ const defaults = {
  'direction.export':{nodes:[{key:'sf.1',title:'Direction',state:'active'}]},
  'direction.check':{repo_scope:repo,checked_at:'2026-10-01T00:00:00Z',ok:true,imported_node_count:1,parsed_node_count:1,issues:[]},
  'decision.list':{count:0,decisions:[]},
- 'decision.passport':{decision:row,linked_tasks:[],artifacts:[],artifact_statuses:[],readiness_checks:[]}
+ 'decision.passport':{passport:{decision:row,linked_tasks:[],artifacts:[],artifact_statuses:[],readiness_checks:[]}}
 };
 const override = JSON.parse(process.env.SOCIETY_FIXTURE_RESPONSES || '{}')[surface] || {};
 const entry = {surface,args,pid:process.pid,akDb:process.env.AK_DB ?? null};

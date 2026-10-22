@@ -556,13 +556,8 @@ function summarizeDecisions(
 
 function summarizePassport(read: MachineRead<JsonRecord>, decision: DecisionSummary): string {
   if (!read.ok) return `#${decision.id ?? "?"} passport unavailable (${read.warning})`;
-  const payload = asRecord(read.value.payload);
-  const readiness =
-    asString(getPathValue(payload, ["readiness", "summary"])) ||
-    asString(payload?.next_step) ||
-    asString(payload?.status) ||
-    "passport readable";
-  return `#${decision.id ?? "?"} ${decision.title}: ${readiness}`;
+  // A readable passport is not a readiness judgment or permission to take its next step.
+  return `#${decision.id ?? "?"} ${decision.title}: passport readable`;
 }
 
 function collectExistingPaths(candidates: string[]): string[] {
@@ -922,7 +917,10 @@ async function collectPacket(
         `ak decision passport #${decision.id}`,
         DECISION_PASSPORT_CONTRACT,
       );
-      if (read.ok && getPathValue(read.value, ["payload", "decision", "id"]) !== decision.id)
+      if (
+        read.ok &&
+        getPathValue(read.value, ["payload", "passport", "decision", "id"]) !== decision.id
+      )
         read = {
           ok: false,
           warning: `ak decision passport #${decision.id}: decision identity mismatch`,

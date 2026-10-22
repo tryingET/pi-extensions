@@ -53,19 +53,22 @@ test("registered collector runs every AK stage serially, snapshots caller env, a
     for (const payload of [
       {},
       {
-        decision: { ...decision, id: 99 },
-        linked_tasks: [],
-        artifacts: [],
-        artifact_statuses: [],
-        readiness_checks: [],
+        passport: {
+          decision: { ...decision, id: 99 },
+          linked_tasks: [],
+          artifacts: [],
+          artifact_statuses: [],
+          readiness_checks: [],
+        },
       },
       {
-        decision,
-        linked_tasks: [],
-        artifacts: [],
-        artifact_statuses: [],
-        readiness_checks: [],
-        readiness: { summary: 7 },
+        passport: {
+          decision,
+          linked_tasks: [],
+          artifacts: [],
+          artifact_statuses: [],
+          readiness_checks: [null],
+        },
       },
     ]) {
       const rejected = await collect(f, { ...responses, "decision.passport": { payload } });
