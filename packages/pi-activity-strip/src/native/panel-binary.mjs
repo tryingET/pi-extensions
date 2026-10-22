@@ -16,13 +16,24 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export function resolvePanelBinary(env) {
   const override = env.PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN?.trim();
   const allowUnverified = env.PI_ACTIVITY_STRIP_ALLOW_UNVERIFIED_PANEL === "1";
-  const candidates = [
-    ...(override ? [override] : []),
-    path.join(packageRoot, "native", "bin", "linux-x64-gnu", "pi-activity-strip-panel"),
-    ...(allowUnverified
-      ? [path.join(packageRoot, "native", "panel", "target", "release", "pi-activity-strip-panel")]
-      : []),
-  ].filter(Boolean);
+  // An explicit selection is binding: losing it must not silently choose another build.
+  const candidates = override
+    ? [override]
+    : [
+        path.join(packageRoot, "native", "bin", "linux-x64-gnu", "pi-activity-strip-panel"),
+        ...(allowUnverified
+          ? [
+              path.join(
+                packageRoot,
+                "native",
+                "panel",
+                "target",
+                "release",
+                "pi-activity-strip-panel",
+              ),
+            ]
+          : []),
+      ];
   const binary = candidates.find((candidate) => {
     try {
       fs.accessSync(candidate, fs.constants.X_OK);

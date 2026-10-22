@@ -151,7 +151,7 @@ The shortcut enters explicit exclusive keyboard mode (or upgrades an existing ho
 
 - `PI_ACTIVITY_STRIP_AUTO_START=0` disables extension autostart.
 - `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` installs an empty Wayland input region and disables keyboard entry.
-- `PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN=/absolute/path` selects another receipted panel artifact.
+- `PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN=/absolute/path` selects another receipted panel artifact. A nonempty selection is binding: if missing or nonexecutable, startup fails instead of silently falling back to the packaged panel, including with the development escape hatch.
 - `PI_ACTIVITY_STRIP_SOCKET_DIR` and `PI_ACTIVITY_STRIP_SOCKET_PATH` isolate broker fixtures and nested-compositor tests.
 - `PI_ACTIVITY_STRIP_TAB_INVENTORY=0` disables the read-only AT-SPI tab inventory; hidden tabs are then placed only from titles seen while the strip runs.
 - `PI_ACTIVITY_STRIP_AK_TASKS=0` disables AK task reference joining.
