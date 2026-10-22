@@ -201,7 +201,16 @@ function isLocalGhosttyOriginMainBin(path: string): boolean {
 
 function resolveGhosttyDbusEndpoint(executable: string): GhosttyDbusEndpoint | undefined {
   if (isLocalGhosttySidequestBin(executable)) return LEGACY_SIDEQUEST_DBUS_ENDPOINT;
-  if (resolve(executable) === "/usr/bin/ghostty" || isLocalGhosttyOriginMainBin(executable)) {
+  // Managed workstation releases use a content digest, not the old origin/main install root.
+  // Recognizing the endpoint does NOT prove identity: the resolver below still checks the
+  // controller and receiver executables, unique connection, and nonzero surface separately.
+  const managedRelease =
+    /^\/data\/agnt\/releases\/ghostty-no-iowait\/[0-9a-f]{64}\/bin\/ghostty$/.test(executable);
+  if (
+    resolve(executable) === "/usr/bin/ghostty" ||
+    isLocalGhosttyOriginMainBin(executable) ||
+    managedRelease
+  ) {
     return NORMAL_GHOSTTY_DBUS_ENDPOINT;
   }
   return undefined;

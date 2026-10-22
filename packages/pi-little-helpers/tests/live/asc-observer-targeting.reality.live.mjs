@@ -1,4 +1,4 @@
-// summary: "Reality-anchored assertion: recognized controllers require independently checked originating/stub identity, and the normal broker is the installed origin/main build."
+// summary: "Reality-anchored assertion: current and recognized controllers resolve exact live identities and the managed broker exposes the required action."
 // read_when:
 //   - "Verifying observer / sidequest tab targeting against real coexisting Ghostty brokers."
 //   - "Changing resolveControllerGhosttyDbusTarget or executable-family endpoint selection."
@@ -147,6 +147,8 @@ function readEnvSurfaceId(pid) {
 
 function endpointForExecutable(executable) {
   if (executable === "/usr/bin/ghostty") return NORMAL_ENDPOINT;
+  if (/^\/data\/agnt\/releases\/ghostty-no-iowait\/[0-9a-f]{64}\/bin\/ghostty$/.test(executable))
+    return NORMAL_ENDPOINT;
   const prefix = `${homedir()}/.local/opt/`;
   if (!executable.startsWith(prefix)) return undefined;
   const relative = executable.slice(prefix.length);
@@ -162,6 +164,48 @@ const baseSkip =
     : rows
       ? undefined
       : "busctl --user list unavailable";
+
+// Do not filter the current controller through an installation allowlist: that made
+// installation migrations invisible to the old census. Unknown paths must fail, not skip.
+const currentAncestor = findGhosttyAncestor();
+test(
+  "reality: current Ghostty controller resolves regardless of installation census recognition",
+  {
+    skip:
+      baseSkip ??
+      (!currentAncestor || !process.env.GHOSTTY_SURFACE_ID
+        ? "test is not running under a Ghostty surface"
+        : undefined),
+  },
+  async () => {
+    const target = await resolveControllerGhosttyDbusTarget({
+      execRunner: realExecRunner,
+      controllerGhostty: currentAncestor,
+      surfaceId: process.env.GHOSTTY_SURFACE_ID,
+    });
+    assert.ok(target, `current installation must resolve: ${currentAncestor.exe}`);
+    const expected = expectedReceiver(rows, {
+      ancestor: currentAncestor,
+      surfaceId: process.env.GHOSTTY_SURFACE_ID,
+      endpoint: { wellKnownName: target.wellKnownName },
+    });
+    assert.equal(target.ownerPid, expected.pid);
+    assert.equal(target.busName, expected.busName);
+    assert.equal(target.surfaceId, expected.surfaceId);
+    const action = realExecRunner("busctl", [
+      "--user",
+      "call",
+      target.busName,
+      target.objectPath,
+      "org.gtk.Actions",
+      "Describe",
+      "s",
+      "new-tab",
+    ]);
+    assert.equal(action.code, 0, action.stderr);
+    assert.match(action.stdout, /^\(bgav\)\s+true\s+"\(tas\)"\s+0\s*$/);
+  },
+);
 
 const recognizedLiveControllers = baseSkip
   ? []
@@ -258,7 +302,7 @@ const anyGhosttyBroker = rows
   : undefined;
 
 test(
-  "reality: the normal default broker is the installed origin/main build and exposes the exact action path",
+  "reality: the normal default broker is a managed build and exposes the exact action path",
   {
     skip: baseSkip ?? (!anyGhosttyBroker ? "no live Ghostty single-instance desktop" : undefined),
   },
@@ -269,7 +313,7 @@ test(
     assert.match(
       ownerExecutable,
       new RegExp(
-        `^${homedir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\.local/opt/ghostty-origin-main/[0-9a-f]{40}/bin/ghostty$`,
+        `^(?:${homedir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\.local/opt/ghostty-origin-main/[0-9a-f]{40}|/data/agnt/releases/ghostty-no-iowait/[0-9a-f]{64})/bin/ghostty$`,
       ),
       "the normal broker must not be /usr/bin/ghostty or the legacy sidequest build",
     );
@@ -279,7 +323,7 @@ test(
     );
     assert.ok(
       normalControllers.length >= 1,
-      "at least one live origin/main Pi controller with a real surface ID is required",
+      "at least one live normal-endpoint Pi controller with a real surface ID is required",
     );
     const controller = normalControllers[0];
     const expected = expectedReceiver(rows, controller);
@@ -290,7 +334,7 @@ test(
     });
     assert.ok(
       target,
-      "the live origin/main controller must resolve its originating Ghostty process",
+      "the live normal-endpoint controller must resolve its originating Ghostty process",
     );
     assert.equal(target.busName, expected.busName);
     assert.equal(target.surfaceId, expected.surfaceId);
