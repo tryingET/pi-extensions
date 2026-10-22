@@ -7,6 +7,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { resolvePanelBinary } from "../src/native/panel-binary.mjs";
 import { admitPanelEvent, PANEL_PROTOCOL } from "../src/native/panel-protocol.mjs";
+import { createSocketFixture } from "./support/socket-fixture.mjs";
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "activity-strip-protocol-unit-"));
 after(() => fs.rmSync(scratch, { recursive: true, force: true }));
@@ -50,7 +51,8 @@ test("synthetic v1 receipt is rejected before launch, including override bypass"
   }
 });
 
-test("actual Node controller refuses a synthetic v1 override receipt without launching any GUI", async () => {
+test("actual Node controller refuses a synthetic v1 override receipt without launching any GUI", async (t) => {
+  const fixture = createSocketFixture(t);
   const dir = path.join(scratch, "node");
   fs.mkdirSync(dir, { recursive: true });
   const privateHome = path.join(dir, "home");
@@ -62,9 +64,9 @@ test("actual Node controller refuses a synthetic v1 override receipt without lau
     XDG_RUNTIME_DIR: privateHome,
     PI_ACTIVITY_STRIP_RUNTIME_LOCK_HELD: "1",
     PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN: binary,
-    // Relative socket names avoid Linux's sockaddr_un limit with a long TMPDIR.
-    PI_ACTIVITY_STRIP_SOCKET_DIR: path.relative(process.cwd(), path.join(dir, "broker")),
-    PI_ACTIVITY_STRIP_SOCKET_PATH: path.relative(process.cwd(), path.join(dir, "broker/sock")),
+    // Address length is independent of both managed TMPDIR and checkout location.
+    PI_ACTIVITY_STRIP_SOCKET_DIR: fixture.socketDir,
+    PI_ACTIVITY_STRIP_SOCKET_PATH: fixture.socketPath,
     PI_ACTIVITY_STRIP_AK_TASKS: "0",
     PI_ACTIVITY_STRIP_AGENT_TABS: "0",
     PI_ACTIVITY_STRIP_TAB_INVENTORY: "0",

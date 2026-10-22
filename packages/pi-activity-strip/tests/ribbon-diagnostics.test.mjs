@@ -14,7 +14,6 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { createActivityStripBroker } from "../src/broker/server.mjs";
 import { formatRibbonDiagnostics } from "../src/common/ribbon-status.mjs";
 import {
   formatBrokerRuntimeStatus,
@@ -25,6 +24,7 @@ import {
   inspectPanelBuild,
 } from "../src/native/runtime-diagnostics.mjs";
 import { productionFixture } from "./support/production-panel-fixture.mjs";
+import { createSocketFixture } from "./support/socket-fixture.mjs";
 
 test("Scenario: a hidden ribbon cannot report its old expansion as current", () => {
   // Given a delayed expanded report after the surface has hidden,
@@ -153,16 +153,14 @@ test("Scenario: executable and receipt observations are bounded and do not revea
   assert.deepEqual(await inspectPanelBuild(456, { procRoot: root }), { state: "unavailable" });
 });
 
-test("Scenario: real CLI reads isolated broker diagnostics without input or compositor effects", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ak7417-cli-"));
-  const socketPath = path.join(root, "broker.sock");
+test("Scenario: real CLI reads isolated broker diagnostics without input or compositor effects", async (t) => {
+  const fixture = createSocketFixture(t, { prefix: "ak7417-cli-" });
+  const { socketDir, socketPath } = fixture;
   const f = productionFixture();
   f.claim("hover");
   const before = f.projection.diagnostics();
   const published = f.views.length;
-  const broker = await createActivityStripBroker({
-    socketDir: root,
-    socketPath,
+  await fixture.startBroker({
     store: f.store,
     getRuntimeStatus: createRuntimeStatusReader({
       runtimeStatus: { state: "ready", startedAt: 1, windowVisible: true, panelExpanded: false },
@@ -175,7 +173,7 @@ test("Scenario: real CLI reads isolated broker diagnostics without input or comp
       timeout: 3000,
       env: {
         ...process.env,
-        PI_ACTIVITY_STRIP_SOCKET_DIR: root,
+        PI_ACTIVITY_STRIP_SOCKET_DIR: socketDir,
         PI_ACTIVITY_STRIP_SOCKET_PATH: socketPath,
         PI_ACTIVITY_STRIP_AUTO_START: "0",
       },
@@ -188,8 +186,7 @@ test("Scenario: real CLI reads isolated broker diagnostics without input or comp
     assert.equal(f.views.length, published);
     assert.deepEqual(f.focused, []);
   } finally {
-    await broker.stop();
-    fs.rmSync(root, { recursive: true, force: true });
+    await fixture.cleanup();
   }
 });
 

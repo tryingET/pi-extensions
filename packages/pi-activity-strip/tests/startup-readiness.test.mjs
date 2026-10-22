@@ -7,14 +7,14 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { ActivityStripBroker, createActivityStripBroker } from "../src/broker/server.mjs";
+import { ActivityStripBroker } from "../src/broker/server.mjs";
 import { ensureActivityStripRunning } from "../src/client/launcher.mjs";
 import { waitForStartedRuntime } from "../src/client/runtime-lock.mjs";
+import { createSocketFixture } from "./support/socket-fixture.mjs";
 
 function productionPong(runtimeStatus) {
   const broker = new ActivityStripBroker({ getRuntimeStatus: () => runtimeStatus });
@@ -87,13 +87,11 @@ for (const waiter of [false, true])
 
 for (const state of ["legacy", "starting", "ready"])
   for (const command of ["status", "open"])
-    test(`Scenario: CLI ${command} reports ${state} readiness without replacing the runtime`, async () => {
-      const root = fs.mkdtempSync(path.join(os.tmpdir(), "ak7417-ready-"));
-      const socketPath = path.join(root, "broker.sock");
+    test(`Scenario: CLI ${command} reports ${state} readiness without replacing the runtime`, async (t) => {
+      const fixture = createSocketFixture(t, { prefix: "ak7417-ready-" });
+      const { root, socketDir, socketPath } = fixture;
       let shutdowns = 0;
-      const broker = await createActivityStripBroker({
-        socketDir: root,
-        socketPath,
+      const broker = await fixture.startBroker({
         getRuntimeStatus: () =>
           state === "legacy" ? undefined : { state, startedAt: 1, windowVisible: false },
       });
@@ -108,7 +106,7 @@ for (const state of ["legacy", "starting", "ready"])
             timeout: 3000,
             env: {
               ...process.env,
-              PI_ACTIVITY_STRIP_SOCKET_DIR: root,
+              PI_ACTIVITY_STRIP_SOCKET_DIR: socketDir,
               PI_ACTIVITY_STRIP_SOCKET_PATH: socketPath,
               PI_ACTIVITY_STRIP_AUTO_START: "0",
             },
@@ -137,7 +135,6 @@ for (const state of ["legacy", "starting", "ready"])
           "no replacement was spawned",
         );
       } finally {
-        await broker.stop();
-        fs.rmSync(root, { recursive: true, force: true });
+        await fixture.cleanup();
       }
     });
