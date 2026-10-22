@@ -12,7 +12,7 @@ system4d:
 
 # @tryinget/pi-session-insights
 
-Deterministic, bounded analysis of one explicitly named Pi session JSONL file.
+Deterministic, bounded analysis of one explicitly named session JSONL file. The default Pi adapter remains `pi.session-insights.v2`; explicit Claude physical-history extraction uses a separate schema and does not assert effective context.
 
 The package exists because long-lived sessions can reach tens of megabytes and thousands of messages. Correctness should not depend on an LLM scanning that chronology. The extraction path is:
 
@@ -62,7 +62,20 @@ Exactly one session is processed per invocation. Bash can loop over bounded cand
 
 The current jq implementation uses `--slurp`: emitted output is bounded, and observed 29–31 MB sessions complete without LLM scanning, but jq memory still scales with the selected input file. Select one explicit file at a time.
 
-## Output contract
+## Explicit Claude recovery adapter
+
+```bash
+node ./bin/pi-session-insights.mjs --format claude --view records --page 1 --page-size 50 /private/frozen/claude.jsonl
+node ./bin/pi-session-insights.mjs --format claude --help
+```
+
+The separate `agent.session-recovery.claude.v1` schema emits metadata-only physical-line/UUID pages by default, not Pi headers or an inferred active prompt. Views include `records`, `leaves`, explicit-UUID `chain`, `references`, `compactions` and `errors`. Follow `pagination.next_page` to null for a view; do not call page one exhaustive. Parse errors, unsupported shapes, omitted sidecars and branch uncertainty remain explicit.
+
+Single-descriptor bounded snapshot bytes are hashed and supplied to jq; pre/post identity changes withhold output. Input/output budgets fail closed. No Claude LLM, automatic child traversal, raw tool/thinking/queue/attachment bodies or archive capture is involved. `--include-text` is optional, private and **not redaction**.
+
+Use [agent-session-recovery](skills/agent-session-recovery/SKILL.md) for interrupted-work recovery; retain [pi-session-jsonl](skills/pi-session-jsonl/SKILL.md) for Pi-only structural audits. See the [Claude adapter contract](skills/agent-session-recovery/references/claude-adapter.md) for limits, field semantics and selected 2.1.280 qualification. Unknown formats are not claimed as covered. Neither skill authorizes execution, restore, AK lifecycle or source deletion.
+
+## Pi output contract
 
 `pi.session-insights.v2` includes:
 

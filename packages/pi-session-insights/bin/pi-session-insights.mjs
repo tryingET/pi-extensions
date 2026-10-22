@@ -18,6 +18,7 @@ Deterministically extracts a bounded pi.session-insights.v2 object.
 The wrapper never parses JSONL; jq owns all session-content inspection.
 
 Options:
+  --format pi|claude     Explicit adapter (default pi); Claude has separate --help
   --attribution <file>   Source-qualified pi.session-insights.attribution.v1 JSON
   --max-text-chars <n>   Cap latest user-role/assistant text (default: ${DEFAULT_MAX_TEXT_CHARS})
   --max-chain <n>        Cap emitted active-parent-chain ids (default: ${DEFAULT_MAX_CHAIN})
@@ -111,7 +112,24 @@ function parseArguments(argv) {
   return options;
 }
 
-const options = parseArguments(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const formatIndexes = argv.flatMap((arg, index) => (arg === "--format" ? [index] : []));
+if (formatIndexes.length > 1) fail("--format may appear only once");
+if (formatIndexes.length) {
+  const index = formatIndexes[0];
+  const format = argv[index + 1];
+  if (format !== "pi" && format !== "claude") fail("--format must be pi or claude");
+  argv.splice(index, 2);
+  if (format === "claude") {
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL("./claude-session-insights.mjs", import.meta.url)), ...argv],
+      { stdio: "inherit" },
+    );
+    process.exit(result.status ?? 1);
+  }
+}
+const options = parseArguments(argv);
 requireRegularFile(options.sessionFile, "session JSONL");
 if (options.attribution) requireRegularFile(options.attribution, "attribution JSON");
 

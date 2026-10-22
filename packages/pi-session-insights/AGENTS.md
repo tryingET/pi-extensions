@@ -9,7 +9,7 @@ read_when:
 
 ## Owner boundary
 
-This package owns deterministic, bounded extraction from explicitly named Pi session JSONL files.
+This package owns deterministic, bounded extraction from explicitly named Pi or Claude Code session JSONL files, through distinct adapters.
 
 It does not own:
 
@@ -22,8 +22,9 @@ It does not own:
 
 ## JSONL rule
 
-- `lib/session-insights.jq` is the only session-content parser.
-- The Node CLI may validate arguments, locate its jq program, and spawn jq; it must not parse JSONL.
+- `lib/session-insights.jq` owns Pi parsing; `lib/claude-session-insights.jq` owns explicit Claude parsing. Never apply Pi schema or effective-context semantics to Claude.
+- Node may validate arguments/budgets, read/hash a single-descriptor bounded byte snapshot, spawn jq, serialize bounded extractor output and check explicitly scoped sidecar presence; it must not parse source JSONL.
+- Claude metadata pages omit bodies by default. Optional text is not redaction; keep private text out of model prompts. Preserve physical references, page totals, parse/shape errors and unsupported context semantics.
 - Tests may generate known fixtures and parse extractor output, but production inspection remains jq-only.
 - Keep output bounded. Do not emit full chronology, tool results, provider payloads, hidden thinking, auth material, or unbounded message text.
 
@@ -38,7 +39,8 @@ It does not own:
 
 - Private, `releaseConfigMode=none`, and skill-only for this first slice.
 - No `pi.extensions`, `pi.prompts`, slash command, MCP server, live install/reload, release, or publication.
-- The package-owned `skills/pi-session-jsonl/SKILL.md` is authoring truth; machine-local skill copies are projections.
+- Package-owned `skills/pi-session-jsonl/` (Pi audits) and `skills/agent-session-recovery/` (bounded recovery) are authoring truth; machine-local copies are projections. Preserve existing Pi invocation compatibility.
+- Skill installation, canonical landing and live activation require explicit integration clearance; candidate checks do not establish installed behavior.
 
 ## Validation
 

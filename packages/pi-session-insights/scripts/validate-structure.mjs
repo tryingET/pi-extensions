@@ -42,6 +42,11 @@ const skill = readText("skills/pi-session-jsonl/SKILL.md");
 for (const path of [
   "bin/pi-session-insights.mjs",
   "lib/session-insights.jq",
+  "bin/claude-session-insights.mjs",
+  "lib/claude-session-insights.jq",
+  "skills/agent-session-recovery/SKILL.md",
+  "skills/agent-session-recovery/references/claude-adapter.md",
+  "tests/claude-session-insights.test.mjs",
   "skills/pi-session-jsonl/SKILL.md",
   "tests/session-insights.test.mjs",
   "tests/claim-boundaries.test.mjs",
@@ -77,7 +82,9 @@ if (pkg.engines?.node !== ">=22") fail("engines.node must be >=22");
 
 for (const expected of [
   "bin/pi-session-insights.mjs",
+  "bin/claude-session-insights.mjs",
   "lib/session-insights.jq",
+  "lib/claude-session-insights.jq",
   "skills",
   "examples",
   "policy/security-policy.json",
@@ -118,6 +125,14 @@ if (!skill.startsWith("---\n") || !/^name:\s*pi-session-jsonl\s*$/m.test(skill))
   fail("skill frontmatter must declare name: pi-session-jsonl");
 }
 if (!/^description:\s*\S+/m.test(skill)) fail("skill frontmatter must include a description");
+
+const recoverySkill = readText("skills/agent-session-recovery/SKILL.md");
+if (
+  !/^name:\s*agent-session-recovery\s*$/m.test(recoverySkill) ||
+  !/^description:\s*\S+/m.test(recoverySkill)
+) {
+  fail("recovery skill must retain discoverable agent-session-recovery metadata");
+}
 
 requireAbsent("extensions");
 requireAbsent("prompts");

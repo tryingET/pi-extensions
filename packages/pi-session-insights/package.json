@@ -2,7 +2,7 @@
   "name": "@tryinget/pi-session-insights",
   "version": "0.1.0",
   "private": true,
-  "description": "Deterministic jq-first extraction of bounded insight facts from Pi session JSONL",
+  "description": "Deterministic jq-first Pi insights and explicit Claude physical-history recovery",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -43,7 +43,9 @@
   },
   "files": [
     "bin/pi-session-insights.mjs",
+    "bin/claude-session-insights.mjs",
     "lib/session-insights.jq",
+    "lib/claude-session-insights.jq",
     "skills",
     "examples",
     "policy/security-policy.json",

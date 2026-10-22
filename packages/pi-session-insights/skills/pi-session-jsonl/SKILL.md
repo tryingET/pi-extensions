@@ -8,6 +8,8 @@ compatibility: Requires Node.js 22+ and jq 1.7+.
 
 Use the package extractor before any LLM synthesis. The durable source is this package; a copy under `~/.pi/agent/skills/` is an installed projection, not the authoring owner.
 
+For interrupted-work recovery or explicitly named Claude Code transcripts, use `/skill:agent-session-recovery`. This Pi-only skill and its default CLI invocation remain compatible; the Claude adapter has a distinct schema and does not reconstruct effective context.
+
 ## Hard boundaries
 
 - Inspect JSONL content only through `jq`.
