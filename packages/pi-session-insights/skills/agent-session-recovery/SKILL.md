@@ -26,29 +26,35 @@ Use the extractor before synthesis; never load a raw transcript into an LLM.
 
 Resolve commands relative to this skill directory.
 
-For Pi, preserve the existing schema and invocation, but **do not print its unredacted text-bearing output into an agent tool result**. Use a new file in a separately authorized private output root and withhold raw diagnostics:
+**Both harnesses are private-first. Full metadata is not sanitized:** arbitrary IDs, names, paths, versions and unsupported fields can themselves contain private text. Never print or raw-read a complete extraction artifact into a model, even without `--include-text`. Use newly named files in a separately authorized output directory owned by you with mode0700.
+
+For Pi, preserve the existing schema/invocation and withhold raw diagnostics:
 
 ```bash
 (umask 077; set -o noclobber; node ../../bin/pi-session-insights.mjs --format pi \
   /private/frozen/pi.jsonl > /private/output/pi-facts.json 2>/dev/null)
 ```
 
-Stop on a nonzero exit and record its status without raw diagnostics; do not print private errors. Expose only an explicitly selected body-free projection, for example:
+Stop on a nonzero exit and record its status without raw diagnostics; do not print private errors. Expose only the package-owned fixed numeric/boolean/digest projection:
 
 ```bash
-jq '{schema, session_id, active_leaf, compaction_count}' /private/output/pi-facts.json
+jq -f ../../lib/recovery-model-projection.jq /private/output/pi-facts.json
 ```
 
 Use `/skill:pi-session-jsonl` for Pi attribution and interpretation. Pi has bounded active-branch output, **not Claude's views, physical-line pages or custody object**. Obtain source hashes separately (for example `sha256sum /private/frozen/pi.jsonl`), record its truncation/uncertainty fields, and never call its single bounded object complete physical history. Keep any text-bearing artifact private; release sanitized text to synthesis only after owner-approved privacy checking outside the model.
 
-For Claude Code, use the distinct physical-history adapter:
+For Claude Code, use the distinct physical-history adapter with an exclusive private artifact. Its stdout is a fixed numeric/digest receipt, not full metadata:
 
 ```bash
 node ../../bin/pi-session-insights.mjs --format claude \
-  --view records --page 1 --page-size 50 /private/frozen/claude.jsonl
+  --view records --page 1 --page-size 50 \
+  --private-output /private/output/claude-page-1.json /private/frozen/claude.jsonl
+jq -f ../../lib/recovery-model-projection.jq /private/output/claude-page-1.json
 ```
 
-Claude metadata is body-free by default. Do not assume Pi headers, `parentId`, compaction or active-leaf semantics apply to Claude. Do not auto-detect the harness from a filename.
+Use a new output filename for each page. Verify a successful receipt and artifact hash before consumption; a partial file without a successful receipt is not a successful extraction. Exact sidecar paths are withheld by default; `--include-paths` and `--include-text` require `--private-output` and stay inside that artifact. Even that artifact's metadata remains untrusted and private. The fixed projection omits arbitrary source strings, including UUID values; retain source hash + physical line locators for model-facing structural observations and keep exact IDs/path mappings private.
+
+Do not assume Pi headers, `parentId`, compaction or active-leaf semantics apply to Claude. Do not auto-detect the harness from a filename.
 
 Read [the adapter contract](references/claude-adapter.md) before interpreting Claude graph, paging, sidecar or error fields.
 
@@ -60,7 +66,7 @@ Read [the adapter contract](references/claude-adapter.md) before interpreting Cl
 - Keep append-tail and `last-prompt.leafUuid` distinct. An explicit UUID chain is structural history, not established effective context. Disclose missing parents, duplicate UUIDs, cycles and exhausted chain budgets.
 - Preserve peer/queue/child/task/tool-result references as observations. Missing or unread sidecars remain omissions; no automatic traversal occurs. Request separately scoped frozen sidecars when they are necessary.
 - Keep parse errors, unknown shapes and unsupported versions visible. A successful extractor exit means extraction ran, not that work or research succeeded.
-- Text selection is optional and privacy-sensitive. Claude `--include-text` emits only bounded user/assistant text, never tool bodies or thinking, but it is **not redaction**. Do not use it on private pupil/credential/session text or send such text to a model. Arrange owner-approved sanitization outside this skill when needed.
+- Text selection is optional and privacy-sensitive. Claude `--include-text` stores bounded user/assistant text only in the explicit private artifact, never tool bodies or thinking, but it is **not redaction**. Do not use it on private pupil/credential/session text or send such text to a model. Arrange owner-approved sanitization outside this skill when needed.
 
 ## Verification and delivery
 

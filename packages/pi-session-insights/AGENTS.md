@@ -23,8 +23,8 @@ It does not own:
 ## JSONL rule
 
 - `lib/session-insights.jq` owns Pi parsing; `lib/claude-session-insights.jq` owns explicit Claude parsing. Never apply Pi schema or effective-context semantics to Claude.
-- Node may validate arguments/budgets, read/hash a single-descriptor bounded byte snapshot, spawn jq, serialize bounded extractor output and check explicitly scoped sidecar presence; it must not parse source JSONL.
-- Claude metadata pages omit bodies by default. Optional text is not redaction; keep private text out of model prompts. Preserve physical references, page totals, parse/shape errors and unsupported context semantics.
+- Node may validate arguments/budgets, read/hash a single-descriptor bounded byte snapshot, spawn jq, serialize bounded extractor output, write explicitly requested exclusive private artifacts and check scoped sidecar presence; it must not parse source JSONL.
+- Full extraction metadata is unredacted/private, not model-safe. Use the fixed `lib/recovery-model-projection.jq` allowlist or private-output receipt for model exposure. Default Claude sidecar paths are withheld; exact path/text opt-ins require exclusive private artifacts. Optional text is not redaction; keep private text out of model prompts. Preserve physical references, page totals, parse/shape errors and unsupported context semantics.
 - Tests may generate known fixtures and parse extractor output, but production inspection remains jq-only.
 - Keep output bounded. Do not emit full chronology, tool results, provider payloads, hidden thinking, auth material, or unbounded message text.
 

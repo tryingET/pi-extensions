@@ -12,6 +12,7 @@ import {
   readSync,
   realpathSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +63,30 @@ function snapshot(file, maximum) {
     closeSync(fd);
   }
 }
+function privateOutput(file, contents) {
+  const parent = statSync(dirname(file));
+  if (
+    !parent.isDirectory() ||
+    (parent.mode & 0o077) !== 0 ||
+    (process.getuid && parent.uid !== process.getuid())
+  ) {
+    fail(
+      "PRIVATE_OUTPUT_REQUIRED",
+      "output parent must be a private directory owned by this user",
+      3,
+    );
+  }
+  const fd = openSync(
+    file,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    writeFileSync(fd, contents);
+  } finally {
+    closeSync(fd);
+  }
+}
 function sidecarPresence(candidate, root, sessionFile) {
   if (!root) return "not_inspected";
   // No implicit home expansion, symlink escape, child recursion, or body reads.
@@ -88,6 +113,7 @@ const options = {
   view: "records",
   leaf: "",
   includeText: false,
+  includePaths: false,
   pretty: false,
   jq: process.env.PI_SESSION_INSIGHTS_JQ || "jq",
 };
@@ -103,13 +129,16 @@ for (let i = 0; i < argv.length; i++) {
     case "--help":
     case "-h":
       console.log(`Usage: pi-session-insights --format claude [options] <session.jsonl>
-Explicit physical-history adapter; effective context is unsupported. Metadata only by default.
+Explicit physical-history adapter; effective context is unsupported. Metadata is NOT sanitized.
+Use --private-output for a fixed numeric/digest receipt; full artifacts must stay private.
 --view records|leaves|chain|references|compactions|errors (default records)
 --leaf <uuid>           Required for chain; never inferred from last appended record
 --page <n>              1-based page (default 1), repeat until next_page is null
 --page-size <n>         1..100 (default 50)
 --max-chain <n>         1..4096 (default 512); incomplete chain is explicit
---include-text         Opt in to bounded user/assistant text after privacy review
+--private-output <f>   Exclusive 0600 artifact in owned 0700 directory; safe receipt on stdout
+--include-paths        Exact sidecar paths only inside --private-output artifact
+--include-text         Bounded user/assistant text only inside --private-output artifact
 --max-text-chars <n>    1..2000 (default 2000), excludes tools/thinking
 --max-input-bytes <n>   1..67108864 (default 64 MiB); no silent partial scan
 --sidecar-root <dir>    Explicit allowed root for existence checks only (no reads)
@@ -144,6 +173,12 @@ Explicit physical-history adapter; effective context is unsupported. Metadata on
     case "--sidecar-root":
       options.sidecarRoot = take();
       break;
+    case "--private-output":
+      options.privateOutput = resolve(take());
+      break;
+    case "--include-paths":
+      options.includePaths = true;
+      break;
     case "--include-text":
       options.includeText = true;
       break;
@@ -162,6 +197,12 @@ if (!["records", "leaves", "chain", "references", "compactions", "errors"].inclu
 }
 if (options.view === "chain" && (!options.leaf || options.leaf.length > 256)) {
   fail("INVALID_ARGUMENT", "chain requires an exact leaf UUID of at most 256 characters");
+}
+if ((options.includePaths || options.includeText) && !options.privateOutput) {
+  fail(
+    "PRIVATE_OUTPUT_REQUIRED",
+    "text or exact paths require an explicit private output artifact",
+  );
 }
 try {
   if (options.sidecarRoot) options.sidecarRoot = realpathSync(options.sidecarRoot);
@@ -209,15 +250,44 @@ try {
     limitation: "pre/post equality is not a source freeze or backup; use an owner-frozen copy",
   };
   for (const record of output.records) {
-    for (const sidecar of record.sidecars ?? []) {
+    for (const [ordinal, sidecar] of (record.sidecars ?? []).entries()) {
       sidecar.status = sidecarPresence(sidecar.path, options.sidecarRoot, options.file);
+      sidecar.path_sha256 = createHash("sha256").update(sidecar.path).digest("hex");
+      sidecar.source_ref = { line: record.source.line, ordinal };
+      sidecar.path_omitted = !options.includePaths;
+      if (!options.includePaths) sidecar.path = null;
     }
   }
   output.limits.max_input_bytes = options.maxBytes;
   output.limits.max_output_bytes = 2_097_152;
+  output.limits.paths_included = options.includePaths;
+  output.privacy = {
+    classification: "unredacted_metadata_not_model_safe",
+    model_exposure: "private_receipt_or_allowlisted_projection_only",
+    paths_withheld: !options.includePaths,
+  };
   const encoded = JSON.stringify(output, null, options.pretty ? 2 : undefined);
   if (Buffer.byteLength(encoded) > 2_097_152) fail("OUTPUT_BUDGET_EXCEEDED", "reduce page size", 3);
-  process.stdout.write(`${encoded}\n`);
+  if (options.privateOutput) {
+    const contents = `${encoded}\n`;
+    privateOutput(options.privateOutput, contents);
+    process.stdout.write(
+      `${JSON.stringify({
+        schema: "agent.session-recovery.private-receipt.v1",
+        ok: true,
+        private_output_written: true,
+        artifact_sha256: createHash("sha256").update(contents).digest("hex"),
+        source_sha256: sha,
+        physical_lines: output.coverage.physical_lines,
+        parsed_objects: output.coverage.parsed_objects,
+        parse_errors: output.coverage.parse_errors,
+        page: output.pagination.page,
+        returned: output.pagination.returned,
+        total: output.pagination.total,
+        next_page: output.pagination.next_page,
+      })}\n`,
+    );
+  } else process.stdout.write(`${encoded}\n`);
 } catch {
   fail("INPUT_OR_EXTRACTION_UNAVAILABLE", "file, sidecar root or extractor output unavailable", 3);
 }

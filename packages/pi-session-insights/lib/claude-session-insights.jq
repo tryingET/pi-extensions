@@ -17,8 +17,10 @@ def known_type:
   IN("user", "assistant", "system", "last-prompt", "queue-operation", "attachment",
      "file-history-snapshot", "file-history-delta", "summary", "progress", "ai-title",
      "mode", "permission-mode", "atis-latch", "custom-title", "tag", "agent-name");
+def valid_path_ref:
+  type == "string" and length > 0 and length <= 4096 and (test("[\\x00-\\x1f\\x7f]")|not);
 def path_ref:
-  select(type == "string" and length > 0 and length <= 4096)
+  select(valid_path_ref)
   | {path:., status:"not_inspected", trust:"untrusted_source_reference"};
 def sidecars:
   [ (.toolUseResult | obj | (.outputFile, .output_file, .filePath)),
@@ -36,11 +38,16 @@ def tool_refs:
         {block:$i, kind:"result", id:(.tool_use_id|exact_id),
          reported_error:(if (.is_error|type)=="boolean" then .is_error else null end)}
       else empty end);
+def strict_scalar_tokens:
+  # One lexical scan, with complete strings and delimited standard scalar tokens.
+  # Structural syntax/escape checks remain jq's decoder; no rewrite of source values.
+  test("^(?:[\\[\\]{}:, \\t\\r]|\"(?:[^\"\\\\]|\\\\.)*\"|(?:true|false|null|-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)(?=[\\[\\]{}:, \\t\\r]|$))*$");
 def issues:
   [if (.uuid? != null and (.uuid|exact_id)==null) then "invalid_uuid" else empty end,
    if (.parentUuid? != null and (.parentUuid|exact_id)==null) then "invalid_parent_uuid" else empty end,
    if (.type|type)!="string" then "missing_or_invalid_record_type" else empty end,
    if (.type|known_type|not) then "unsupported_record_type" else empty end,
+   if any((.toolUseResult|obj|.outputFile,.output_file,.filePath); .!=null and (valid_path_ref|not)) then "invalid_sidecar_path" else empty end,
    if any([.message,.origin,.attachment,.toolUseResult,.compactMetadata][]; .!=null and type!="object") then "unsupported_nested_shape" else empty end,
    if (.message|obj|.content) as $c | $c!=null and ($c|type)!="string" and ($c|type)!="array" then "unsupported_content_shape" else empty end,
    if any((blocks)[]; type!="object" or (.type|type)!="string") then "unsupported_block_shape" else empty end,
@@ -104,8 +111,9 @@ if $page_size<1 or $page_size>100 or $page<1 or $page>1000000
    or $max_line_chars<1 or $max_line_chars>8388608 then error("invalid_limits") else . end
 | [limit(200001; inputs) | input_line_number as $line
   | if length > $max_line_chars then {line:$line,error:"line_budget_exceeded"}
-    else (try {line:$line,record:fromjson} catch {line:$line,error:"malformed_json"})
-      | if has("record") and (.record|type)!="object" then {line:$line,error:"record_not_object"} else . end
+    else . as $raw | (try {line:$line,record:fromjson} catch {line:$line,error:"malformed_json"})
+      | if has("record") and ($raw|strict_scalar_tokens|not) then {line:$line,error:"nonstandard_json_token"}
+        elif has("record") and (.record|type)!="object" then {line:$line,error:"record_not_object"} else . end
     end] as $rows
 | if ($rows|length)>200000 then error("record_budget_exceeded") else . end
 | [$rows[]|select(has("record"))] as $valid
@@ -137,10 +145,12 @@ if $page_size<1 or $page_size>100 or $page<1 or $page>1000000
      parse_errors:($errors|length), uuid_nodes:($nodes|length), duplicate_uuid_values:$duplicate_ids,
      leaf_count:($leaves|length), missing_parent_count:($orphans|length),
      record_types:($valid|group_by(.record.type)|map({type:(.[0].record.type|s(80)),count:length})|.[0:64]),
+     record_type_distinct_total:($valid|map(.record.type)|unique|length),
      record_types_truncated:(($valid|map(.record.type)|unique|length)>64),
      unsupported_record_count:([$valid[]|select(.record.type|known_type|not)]|length),
      records_with_shape_or_type_issues:([$valid[]|select((.record|issues|length)>0)]|length),
      versions:([$valid[].record.version|strings]|unique|.[0:16]|map(s(80))),
+     version_distinct_total:([$valid[].record.version|strings]|unique|length),
      versions_truncated:(([$valid[].record.version|strings]|unique|length)>16),
      compaction_records:([$valid[]|select(.record.subtype=="compact_boundary" or .record.isCompactSummary==true or .record.type=="summary")]|length),
      tool_calls:([$valid[].record|tool_refs[]|select(.kind=="call")]|length),

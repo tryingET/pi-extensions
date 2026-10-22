@@ -46,6 +46,7 @@
     "bin/claude-session-insights.mjs",
     "lib/session-insights.jq",
     "lib/claude-session-insights.jq",
+    "lib/recovery-model-projection.jq",
     "skills",
     "examples",
     "policy/security-policy.json",

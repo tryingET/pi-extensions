@@ -65,13 +65,13 @@ The current jq implementation uses `--slurp`: emitted output is bounded, and obs
 ## Explicit Claude recovery adapter
 
 ```bash
-node ./bin/pi-session-insights.mjs --format claude --view records --page 1 --page-size 50 /private/frozen/claude.jsonl
+node ./bin/pi-session-insights.mjs --format claude --view records --page 1 --page-size 50 --private-output /private/output/page-1.json /private/frozen/claude.jsonl
 node ./bin/pi-session-insights.mjs --format claude --help
 ```
 
-The separate `agent.session-recovery.claude.v1` schema emits metadata-only physical-line/UUID pages by default, not Pi headers or an inferred active prompt. Views include `records`, `leaves`, explicit-UUID `chain`, `references`, `compactions` and `errors`. Follow `pagination.next_page` to null for a view; do not call page one exhaustive. Parse errors, unsupported shapes, omitted sidecars and branch uncertainty remain explicit.
+The separate `agent.session-recovery.claude.v1` schema produces private physical-line/UUID metadata pages, not Pi headers or an inferred active prompt. Views include `records`, `leaves`, explicit-UUID `chain`, `references`, `compactions` and `errors`. Follow `pagination.next_page` to null for a view; do not call page one exhaustive. Parse errors, unsupported shapes, omitted sidecars and branch uncertainty remain explicit.
 
-Single-descriptor bounded snapshot bytes are hashed and supplied to jq; pre/post identity changes withhold output. Input/output budgets fail closed. No Claude LLM, automatic child traversal, raw tool/thinking/queue/attachment bodies or archive capture is involved. `--include-text` is optional, private and **not redaction**.
+Single-descriptor bounded snapshot bytes are hashed and supplied to jq; pre/post identity changes withhold output. Input/output budgets fail closed. No Claude LLM, automatic child traversal, raw tool/thinking/queue/attachment bodies or archive capture is involved. Full metadata is **not sanitized**: arbitrary IDs/names/version strings can contain private text. Default sidecar paths are withheld; `--include-paths` and `--include-text` require an exclusive private artifact. `--private-output` writes mode0600 inside an owned mode0700 directory and emits only a numeric/digest receipt. Model exposure must use that receipt or the fixed `lib/recovery-model-projection.jq` allowlist, never complete metadata. Text opt-in is **not redaction**.
 
 Use [agent-session-recovery](skills/agent-session-recovery/SKILL.md) for interrupted-work recovery; retain [pi-session-jsonl](skills/pi-session-jsonl/SKILL.md) for Pi-only structural audits. See the [Claude adapter contract](skills/agent-session-recovery/references/claude-adapter.md) for limits, field semantics and selected 2.1.280 qualification. Unknown formats are not claimed as covered. Neither skill authorizes execution, restore, AK lifecycle or source deletion.
 

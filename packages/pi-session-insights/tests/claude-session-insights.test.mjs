@@ -138,7 +138,16 @@ test("optional text preserves multiline only for user/assistant and never emits 
       { type: "attachment", attachment: { type: "instructions", content: "ATTACHMENT_SENTINEL" } },
       { type: "queue-operation", operation: "enqueue", content: "QUEUE_SENTINEL" },
     ]);
-    const out = good(file, ["--include-text", "--max-text-chars", "8"]);
+    const artifact = join(dir, "private-text.json");
+    const receipt = good(file, [
+      "--include-text",
+      "--max-text-chars",
+      "8",
+      "--private-output",
+      artifact,
+    ]);
+    assert.equal(receipt.private_output_written, true);
+    const out = JSON.parse(readFileSync(artifact, "utf8"));
     assert.equal(out.records[0].message.text, "syntheti");
     assert.equal(out.records[0].message.text_truncated, true);
     assert.equal(out.records[1].message.text, "public\ne");
@@ -426,7 +435,7 @@ test("documented Pi private-first workflow emits only a selected body-free proje
       "bash",
       [
         "-c",
-        `(umask 077; set -o noclobber; node '${cli}' --format pi '${file}' > '${output}' 2>/dev/null) && jq '{schema,session_id,active_leaf,compaction_count}' '${output}'`,
+        `(umask 077; set -o noclobber; node '${cli}' --format pi '${file}' > '${output}' 2>/dev/null) && jq -f '${join(root, "lib/recovery-model-projection.jq")}' '${output}'`,
       ],
       { encoding: "utf8" },
     );
