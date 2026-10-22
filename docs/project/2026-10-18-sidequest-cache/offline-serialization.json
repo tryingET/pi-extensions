@@ -1,0 +1,5862 @@
+{
+  "kind": "offline-current-adapter-reconstruction-not-historical-wire",
+  "assumptions": [
+    "Current installed dist adapter/catalog; alias provider name retained; no historical remote catalog overlay or onPayload/context hooks reconstructed",
+    "SSE full-body capture before transport; historical websocket delta/headers/response IDs unknown",
+    "No tokenizer/backend inference; JSON byte LCP is NOT token-prefix proof"
+  ],
+  "networkAttempts": 0,
+  "childBoundaryChecks": {
+    "uniqueEntryIds": true,
+    "noBirthEqualEntries": true,
+    "newAssistantIdsAbsentFromParent": true,
+    "newAssistantCount": 28
+  },
+  "sameSessionCounterexample": {
+    "warm": {
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 65943,
+        "redactedEquality": "content-equality-001"
+      },
+      "tools": {
+        "bytes": 41539,
+        "redactedEquality": "content-equality-002"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-003"
+      },
+      "inputItems": 25,
+      "input": {
+        "bytes": 80360,
+        "redactedEquality": "content-equality-004"
+      },
+      "body": {
+        "bytes": 188876,
+        "redactedEquality": "content-equality-005"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 625,
+          "redactedEquality": "content-equality-006"
+        },
+        {
+          "i": 1,
+          "type": "message",
+          "role": "user",
+          "bytes": 6163,
+          "redactedEquality": "content-equality-007"
+        },
+        {
+          "i": 2,
+          "type": "function_call",
+          "role": null,
+          "bytes": 274,
+          "redactedEquality": "content-equality-008"
+        },
+        {
+          "i": 3,
+          "type": "function_call",
+          "role": null,
+          "bytes": 236,
+          "redactedEquality": "content-equality-009"
+        },
+        {
+          "i": 4,
+          "type": "function_call",
+          "role": null,
+          "bytes": 239,
+          "redactedEquality": "content-equality-010"
+        },
+        {
+          "i": 5,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 20260,
+          "redactedEquality": "content-equality-011"
+        },
+        {
+          "i": 6,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 2876,
+          "redactedEquality": "content-equality-012"
+        },
+        {
+          "i": 7,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 120,
+          "redactedEquality": "content-equality-013"
+        },
+        {
+          "i": 8,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2253,
+          "redactedEquality": "content-equality-014"
+        },
+        {
+          "i": 9,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 359,
+          "redactedEquality": "content-equality-015"
+        },
+        {
+          "i": 10,
+          "type": "function_call",
+          "role": null,
+          "bytes": 400,
+          "redactedEquality": "content-equality-016"
+        },
+        {
+          "i": 11,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 14035,
+          "redactedEquality": "content-equality-017"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-018"
+        },
+        {
+          "i": 13,
+          "type": "function_call",
+          "role": null,
+          "bytes": 274,
+          "redactedEquality": "content-equality-019"
+        },
+        {
+          "i": 14,
+          "type": "function_call",
+          "role": null,
+          "bytes": 279,
+          "redactedEquality": "content-equality-020"
+        },
+        {
+          "i": 15,
+          "type": "function_call",
+          "role": null,
+          "bytes": 624,
+          "redactedEquality": "content-equality-021"
+        },
+        {
+          "i": 16,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 17339,
+          "redactedEquality": "content-equality-022"
+        },
+        {
+          "i": 17,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 6760,
+          "redactedEquality": "content-equality-023"
+        },
+        {
+          "i": 18,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 740,
+          "redactedEquality": "content-equality-024"
+        },
+        {
+          "i": 19,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2088,
+          "redactedEquality": "content-equality-025"
+        },
+        {
+          "i": 20,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 413,
+          "redactedEquality": "content-equality-026"
+        },
+        {
+          "i": 21,
+          "type": "function_call",
+          "role": null,
+          "bytes": 329,
+          "redactedEquality": "content-equality-027"
+        },
+        {
+          "i": 22,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 757,
+          "redactedEquality": "content-equality-028"
+        },
+        {
+          "i": 23,
+          "type": "function_call",
+          "role": null,
+          "bytes": 210,
+          "redactedEquality": "content-equality-029"
+        },
+        {
+          "i": 24,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 684,
+          "redactedEquality": "content-equality-030"
+        }
+      ]
+    },
+    "miss": {
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 65943,
+        "redactedEquality": "content-equality-001"
+      },
+      "tools": {
+        "bytes": 44663,
+        "redactedEquality": "content-equality-031"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox",
+        "codemode"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-003"
+      },
+      "inputItems": 29,
+      "input": {
+        "bytes": 98293,
+        "redactedEquality": "content-equality-032"
+      },
+      "body": {
+        "bytes": 209933,
+        "redactedEquality": "content-equality-033"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 625,
+          "redactedEquality": "content-equality-006"
+        },
+        {
+          "i": 1,
+          "type": "message",
+          "role": "user",
+          "bytes": 6163,
+          "redactedEquality": "content-equality-007"
+        },
+        {
+          "i": 2,
+          "type": "function_call",
+          "role": null,
+          "bytes": 274,
+          "redactedEquality": "content-equality-008"
+        },
+        {
+          "i": 3,
+          "type": "function_call",
+          "role": null,
+          "bytes": 236,
+          "redactedEquality": "content-equality-009"
+        },
+        {
+          "i": 4,
+          "type": "function_call",
+          "role": null,
+          "bytes": 239,
+          "redactedEquality": "content-equality-010"
+        },
+        {
+          "i": 5,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 20260,
+          "redactedEquality": "content-equality-011"
+        },
+        {
+          "i": 6,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 2876,
+          "redactedEquality": "content-equality-012"
+        },
+        {
+          "i": 7,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 120,
+          "redactedEquality": "content-equality-013"
+        },
+        {
+          "i": 8,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2253,
+          "redactedEquality": "content-equality-014"
+        },
+        {
+          "i": 9,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 359,
+          "redactedEquality": "content-equality-015"
+        },
+        {
+          "i": 10,
+          "type": "function_call",
+          "role": null,
+          "bytes": 400,
+          "redactedEquality": "content-equality-016"
+        },
+        {
+          "i": 11,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 14035,
+          "redactedEquality": "content-equality-017"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-018"
+        },
+        {
+          "i": 13,
+          "type": "function_call",
+          "role": null,
+          "bytes": 274,
+          "redactedEquality": "content-equality-019"
+        },
+        {
+          "i": 14,
+          "type": "function_call",
+          "role": null,
+          "bytes": 279,
+          "redactedEquality": "content-equality-020"
+        },
+        {
+          "i": 15,
+          "type": "function_call",
+          "role": null,
+          "bytes": 624,
+          "redactedEquality": "content-equality-021"
+        },
+        {
+          "i": 16,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 17339,
+          "redactedEquality": "content-equality-022"
+        },
+        {
+          "i": 17,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 6760,
+          "redactedEquality": "content-equality-023"
+        },
+        {
+          "i": 18,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 740,
+          "redactedEquality": "content-equality-024"
+        },
+        {
+          "i": 19,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2088,
+          "redactedEquality": "content-equality-025"
+        },
+        {
+          "i": 20,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 413,
+          "redactedEquality": "content-equality-026"
+        },
+        {
+          "i": 21,
+          "type": "function_call",
+          "role": null,
+          "bytes": 329,
+          "redactedEquality": "content-equality-027"
+        },
+        {
+          "i": 22,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 757,
+          "redactedEquality": "content-equality-028"
+        },
+        {
+          "i": 23,
+          "type": "function_call",
+          "role": null,
+          "bytes": 210,
+          "redactedEquality": "content-equality-029"
+        },
+        {
+          "i": 24,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 684,
+          "redactedEquality": "content-equality-030"
+        },
+        {
+          "i": 25,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 413,
+          "redactedEquality": "content-equality-034"
+        },
+        {
+          "i": 26,
+          "type": "message",
+          "role": "developer",
+          "bytes": 10967,
+          "redactedEquality": "content-equality-035"
+        },
+        {
+          "i": 27,
+          "type": "message",
+          "role": "user",
+          "bytes": 382,
+          "redactedEquality": "content-equality-036"
+        },
+        {
+          "i": 28,
+          "type": "message",
+          "role": "user",
+          "bytes": 6167,
+          "redactedEquality": "content-equality-037"
+        }
+      ]
+    },
+    "next": {
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 65943,
+        "redactedEquality": "content-equality-001"
+      },
+      "tools": {
+        "bytes": 44663,
+        "redactedEquality": "content-equality-031"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox",
+        "codemode"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-003"
+      },
+      "inputItems": 31,
+      "input": {
+        "bytes": 113632,
+        "redactedEquality": "content-equality-038"
+      },
+      "body": {
+        "bytes": 225272,
+        "redactedEquality": "content-equality-039"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 625,
+          "redactedEquality": "content-equality-006"
+        },
+        {
+          "i": 1,
+          "type": "message",
+          "role": "user",
+          "bytes": 6163,
+          "redactedEquality": "content-equality-007"
+        },
+        {
+          "i": 2,
+          "type": "function_call",
+          "role": null,
+          "bytes": 274,
+          "redactedEquality": "content-equality-008"
+        },
+        {
+          "i": 3,
+          "type": "function_call",
+          "role": null,
+          "bytes": 236,
+          "redactedEquality": "content-equality-009"
+        },
+        {
+          "i": 4,
+          "type": "function_call",
+          "role": null,
+          "bytes": 239,
+          "redactedEquality": "content-equality-010"
+        },
+        {
+          "i": 5,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 20260,
+          "redactedEquality": "content-equality-011"
+        },
+        {
+          "i": 6,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 2876,
+          "redactedEquality": "content-equality-012"
+        },
+        {
+          "i": 7,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 120,
+          "redactedEquality": "content-equality-013"
+        },
+        {
+          "i": 8,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2253,
+          "redactedEquality": "content-equality-014"
+        },
+        {
+          "i": 9,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 359,
+          "redactedEquality": "content-equality-015"
+        },
+        {
+          "i": 10,
+          "type": "function_call",
+          "role": null,
+          "bytes": 400,
+          "redactedEquality": "content-equality-016"
+        },
+        {
+          "i": 11,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 14035,
+          "redactedEquality": "content-equality-017"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-018"
+        },
+        {
+          "i": 13,
+          "type": "function_call",
+          "role": null,
+          "bytes": 274,
+          "redactedEquality": "content-equality-019"
+        },
+        {
+          "i": 14,
+          "type": "function_call",
+          "role": null,
+          "bytes": 279,
+          "redactedEquality": "content-equality-020"
+        },
+        {
+          "i": 15,
+          "type": "function_call",
+          "role": null,
+          "bytes": 624,
+          "redactedEquality": "content-equality-021"
+        },
+        {
+          "i": 16,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 17339,
+          "redactedEquality": "content-equality-022"
+        },
+        {
+          "i": 17,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 6760,
+          "redactedEquality": "content-equality-023"
+        },
+        {
+          "i": 18,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 740,
+          "redactedEquality": "content-equality-024"
+        },
+        {
+          "i": 19,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2088,
+          "redactedEquality": "content-equality-025"
+        },
+        {
+          "i": 20,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 413,
+          "redactedEquality": "content-equality-026"
+        },
+        {
+          "i": 21,
+          "type": "function_call",
+          "role": null,
+          "bytes": 329,
+          "redactedEquality": "content-equality-027"
+        },
+        {
+          "i": 22,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 757,
+          "redactedEquality": "content-equality-028"
+        },
+        {
+          "i": 23,
+          "type": "function_call",
+          "role": null,
+          "bytes": 210,
+          "redactedEquality": "content-equality-029"
+        },
+        {
+          "i": 24,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 684,
+          "redactedEquality": "content-equality-030"
+        },
+        {
+          "i": 25,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 413,
+          "redactedEquality": "content-equality-034"
+        },
+        {
+          "i": 26,
+          "type": "message",
+          "role": "developer",
+          "bytes": 10967,
+          "redactedEquality": "content-equality-035"
+        },
+        {
+          "i": 27,
+          "type": "message",
+          "role": "user",
+          "bytes": 382,
+          "redactedEquality": "content-equality-036"
+        },
+        {
+          "i": 28,
+          "type": "message",
+          "role": "user",
+          "bytes": 6167,
+          "redactedEquality": "content-equality-037"
+        },
+        {
+          "i": 29,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 312,
+          "redactedEquality": "content-equality-040"
+        },
+        {
+          "i": 30,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 15025,
+          "redactedEquality": "content-equality-041"
+        }
+      ]
+    },
+    "warmVsMiss": {
+      "instructionsEqual": true,
+      "toolsEqual": false,
+      "keyEqual": true,
+      "commonInputItems": 25,
+      "inputJsonCommonBytes": 80359,
+      "firstDifferentItem": {
+        "a": null,
+        "b": {
+          "type": "message",
+          "role": "assistant",
+          "bytes": 413,
+          "redactedEquality": "content-equality-034"
+        }
+      },
+      "equalOtherFields": false
+    },
+    "missVsNext": {
+      "instructionsEqual": true,
+      "toolsEqual": true,
+      "keyEqual": true,
+      "commonInputItems": 29,
+      "inputJsonCommonBytes": 98292,
+      "firstDifferentItem": {
+        "a": null,
+        "b": {
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 312,
+          "redactedEquality": "content-equality-040"
+        }
+      },
+      "equalOtherFields": true
+    }
+  },
+  "syntheticMissingToolResult": {
+    "verified": true,
+    "inputIndex": 144,
+    "output": "No result provided",
+    "sameCallAsParentResult": true
+  },
+  "inheritedEntries": 253,
+  "inheritedByteEquivalentObjects": 253,
+  "model": {
+    "id": "gpt-6-astra",
+    "provider": "openai-codex-2",
+    "api": "openai-codex-responses",
+    "compat": {
+      "supportsOpenAIGrammarTools": true,
+      "supportsAdditionalTools": true,
+      "supportsToolSearch": true,
+      "supportsMidConvoSystemMessages": true
+    }
+  },
+  "cases": {
+    "parentBefore": {
+      "response": {
+        "id": "entry-parent-before",
+        "relativeTime": "T+6834.688s",
+        "usage": {
+          "input": 2829,
+          "output": 591,
+          "cacheRead": 140032,
+          "cacheWrite": 0,
+          "reasoning": 323,
+          "totalTokens": 143452,
+          "cost": {
+            "input": 0.028290000000000003,
+            "output": 0.02955,
+            "cacheRead": 0.140032,
+            "cacheWrite": 0,
+            "total": 0.197872
+          }
+        }
+      },
+      "projection": {
+        "messages": 68,
+        "roles": [
+          "system",
+          "user",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult"
+        ],
+        "thinkingLevel": "high",
+        "systemSections": [
+          {
+            "preamble": {
+              "bytes": 169,
+              "redactedEquality": "content-equality-042"
+            },
+            "tools": {
+              "bytes": 4258,
+              "redactedEquality": "content-equality-043"
+            },
+            "rules": {
+              "bytes": 6251,
+              "redactedEquality": "content-equality-044"
+            },
+            "docs": {
+              "bytes": 1391,
+              "redactedEquality": "content-equality-045"
+            },
+            "addendum": {
+              "bytes": 226,
+              "redactedEquality": "content-equality-046"
+            },
+            "project_context": {
+              "bytes": 19962,
+              "redactedEquality": "content-equality-047"
+            },
+            "skills": {
+              "bytes": 33076,
+              "redactedEquality": "content-equality-048"
+            },
+            "cwd": {
+              "bytes": 55,
+              "redactedEquality": "content-equality-049"
+            },
+            "ontology_workflow": {
+              "bytes": 726,
+              "redactedEquality": "content-equality-050"
+            },
+            "mcp_servers": {
+              "bytes": 198,
+              "redactedEquality": "content-equality-051"
+            }
+          }
+        ]
+      },
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 66330,
+        "redactedEquality": "content-equality-052"
+      },
+      "tools": {
+        "bytes": 44663,
+        "redactedEquality": "content-equality-031"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox",
+        "codemode"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-003"
+      },
+      "inputItems": 142,
+      "input": {
+        "bytes": 775868,
+        "redactedEquality": "content-equality-053"
+      },
+      "body": {
+        "bytes": 887902,
+        "redactedEquality": "content-equality-054"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 17825,
+          "redactedEquality": "content-equality-055"
+        },
+        {
+          "i": 1,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-056"
+        },
+        {
+          "i": 2,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-057"
+        },
+        {
+          "i": 3,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7223,
+          "redactedEquality": "content-equality-058"
+        },
+        {
+          "i": 4,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7720,
+          "redactedEquality": "content-equality-059"
+        },
+        {
+          "i": 5,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2360,
+          "redactedEquality": "content-equality-060"
+        },
+        {
+          "i": 6,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 22341,
+          "redactedEquality": "content-equality-061"
+        },
+        {
+          "i": 7,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1956,
+          "redactedEquality": "content-equality-062"
+        },
+        {
+          "i": 8,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 335,
+          "redactedEquality": "content-equality-063"
+        },
+        {
+          "i": 9,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10835,
+          "redactedEquality": "content-equality-064"
+        },
+        {
+          "i": 10,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 326,
+          "redactedEquality": "content-equality-065"
+        },
+        {
+          "i": 11,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6210,
+          "redactedEquality": "content-equality-066"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2059,
+          "redactedEquality": "content-equality-067"
+        },
+        {
+          "i": 13,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 357,
+          "redactedEquality": "content-equality-068"
+        },
+        {
+          "i": 14,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2760,
+          "redactedEquality": "content-equality-069"
+        },
+        {
+          "i": 15,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3581,
+          "redactedEquality": "content-equality-070"
+        },
+        {
+          "i": 16,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 489,
+          "redactedEquality": "content-equality-071"
+        },
+        {
+          "i": 17,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1485,
+          "redactedEquality": "content-equality-072"
+        },
+        {
+          "i": 18,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7265,
+          "redactedEquality": "content-equality-073"
+        },
+        {
+          "i": 19,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 423,
+          "redactedEquality": "content-equality-074"
+        },
+        {
+          "i": 20,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7356,
+          "redactedEquality": "content-equality-075"
+        },
+        {
+          "i": 21,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2124,
+          "redactedEquality": "content-equality-076"
+        },
+        {
+          "i": 22,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 432,
+          "redactedEquality": "content-equality-077"
+        },
+        {
+          "i": 23,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 46169,
+          "redactedEquality": "content-equality-078"
+        },
+        {
+          "i": 24,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4071,
+          "redactedEquality": "content-equality-079"
+        },
+        {
+          "i": 25,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 948,
+          "redactedEquality": "content-equality-080"
+        },
+        {
+          "i": 26,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 35935,
+          "redactedEquality": "content-equality-081"
+        },
+        {
+          "i": 27,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7590,
+          "redactedEquality": "content-equality-082"
+        },
+        {
+          "i": 28,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7099,
+          "redactedEquality": "content-equality-083"
+        },
+        {
+          "i": 29,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7051,
+          "redactedEquality": "content-equality-084"
+        },
+        {
+          "i": 30,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6525,
+          "redactedEquality": "content-equality-085"
+        },
+        {
+          "i": 31,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 477,
+          "redactedEquality": "content-equality-086"
+        },
+        {
+          "i": 32,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1032,
+          "redactedEquality": "content-equality-087"
+        },
+        {
+          "i": 33,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2336,
+          "redactedEquality": "content-equality-088"
+        },
+        {
+          "i": 34,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 416,
+          "redactedEquality": "content-equality-089"
+        },
+        {
+          "i": 35,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10180,
+          "redactedEquality": "content-equality-090"
+        },
+        {
+          "i": 36,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3296,
+          "redactedEquality": "content-equality-091"
+        },
+        {
+          "i": 37,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 533,
+          "redactedEquality": "content-equality-092"
+        },
+        {
+          "i": 38,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 6510,
+          "redactedEquality": "content-equality-093"
+        },
+        {
+          "i": 39,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 14943,
+          "redactedEquality": "content-equality-094"
+        },
+        {
+          "i": 40,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8009,
+          "redactedEquality": "content-equality-095"
+        },
+        {
+          "i": 41,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7937,
+          "redactedEquality": "content-equality-096"
+        },
+        {
+          "i": 42,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 754,
+          "redactedEquality": "content-equality-097"
+        },
+        {
+          "i": 43,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1291,
+          "redactedEquality": "content-equality-098"
+        },
+        {
+          "i": 44,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3227,
+          "redactedEquality": "content-equality-099"
+        },
+        {
+          "i": 45,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1815,
+          "redactedEquality": "content-equality-100"
+        },
+        {
+          "i": 46,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6648,
+          "redactedEquality": "content-equality-101"
+        },
+        {
+          "i": 47,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4554,
+          "redactedEquality": "content-equality-102"
+        },
+        {
+          "i": 48,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 810,
+          "redactedEquality": "content-equality-103"
+        },
+        {
+          "i": 49,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 555,
+          "redactedEquality": "content-equality-104"
+        },
+        {
+          "i": 50,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2794,
+          "redactedEquality": "content-equality-105"
+        },
+        {
+          "i": 51,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 886,
+          "redactedEquality": "content-equality-106"
+        },
+        {
+          "i": 52,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2277,
+          "redactedEquality": "content-equality-107"
+        },
+        {
+          "i": 53,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7740,
+          "redactedEquality": "content-equality-108"
+        },
+        {
+          "i": 54,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3873,
+          "redactedEquality": "content-equality-109"
+        },
+        {
+          "i": 55,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4796,
+          "redactedEquality": "content-equality-110"
+        },
+        {
+          "i": 56,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-111"
+        },
+        {
+          "i": 57,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7976,
+          "redactedEquality": "content-equality-112"
+        },
+        {
+          "i": 58,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 927,
+          "redactedEquality": "content-equality-113"
+        },
+        {
+          "i": 59,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1309,
+          "redactedEquality": "content-equality-114"
+        },
+        {
+          "i": 60,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2597,
+          "redactedEquality": "content-equality-115"
+        },
+        {
+          "i": 61,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 407,
+          "redactedEquality": "content-equality-116"
+        },
+        {
+          "i": 62,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 299,
+          "redactedEquality": "content-equality-117"
+        },
+        {
+          "i": 63,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-118"
+        },
+        {
+          "i": 64,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-119"
+        },
+        {
+          "i": 65,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7244,
+          "redactedEquality": "content-equality-120"
+        },
+        {
+          "i": 66,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 836,
+          "redactedEquality": "content-equality-121"
+        },
+        {
+          "i": 67,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2409,
+          "redactedEquality": "content-equality-122"
+        },
+        {
+          "i": 68,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7420,
+          "redactedEquality": "content-equality-123"
+        },
+        {
+          "i": 69,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-124"
+        },
+        {
+          "i": 70,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 933,
+          "redactedEquality": "content-equality-125"
+        },
+        {
+          "i": 71,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 4107,
+          "redactedEquality": "content-equality-126"
+        },
+        {
+          "i": 72,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2722,
+          "redactedEquality": "content-equality-127"
+        },
+        {
+          "i": 73,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 632,
+          "redactedEquality": "content-equality-128"
+        },
+        {
+          "i": 74,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1123,
+          "redactedEquality": "content-equality-129"
+        },
+        {
+          "i": 75,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4899,
+          "redactedEquality": "content-equality-130"
+        },
+        {
+          "i": 76,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 584,
+          "redactedEquality": "content-equality-131"
+        },
+        {
+          "i": 77,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1339,
+          "redactedEquality": "content-equality-132"
+        },
+        {
+          "i": 78,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2400,
+          "redactedEquality": "content-equality-133"
+        },
+        {
+          "i": 79,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4943,
+          "redactedEquality": "content-equality-134"
+        },
+        {
+          "i": 80,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 2981,
+          "redactedEquality": "content-equality-135"
+        },
+        {
+          "i": 81,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6770,
+          "redactedEquality": "content-equality-136"
+        },
+        {
+          "i": 82,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7747,
+          "redactedEquality": "content-equality-137"
+        },
+        {
+          "i": 83,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-138"
+        },
+        {
+          "i": 84,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 3529,
+          "redactedEquality": "content-equality-139"
+        },
+        {
+          "i": 85,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2234,
+          "redactedEquality": "content-equality-140"
+        },
+        {
+          "i": 86,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-141"
+        },
+        {
+          "i": 87,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-142"
+        },
+        {
+          "i": 88,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5331,
+          "redactedEquality": "content-equality-143"
+        },
+        {
+          "i": 89,
+          "type": "function_call",
+          "role": null,
+          "bytes": 2542,
+          "redactedEquality": "content-equality-144"
+        },
+        {
+          "i": 90,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 185,
+          "redactedEquality": "content-equality-145"
+        },
+        {
+          "i": 91,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1841,
+          "redactedEquality": "content-equality-146"
+        },
+        {
+          "i": 92,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-147"
+        },
+        {
+          "i": 93,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-148"
+        },
+        {
+          "i": 94,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7738,
+          "redactedEquality": "content-equality-149"
+        },
+        {
+          "i": 95,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7351,
+          "redactedEquality": "content-equality-150"
+        },
+        {
+          "i": 96,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6138,
+          "redactedEquality": "content-equality-151"
+        },
+        {
+          "i": 97,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-152"
+        },
+        {
+          "i": 98,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 940,
+          "redactedEquality": "content-equality-153"
+        },
+        {
+          "i": 99,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1958,
+          "redactedEquality": "content-equality-154"
+        },
+        {
+          "i": 100,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 512,
+          "redactedEquality": "content-equality-155"
+        },
+        {
+          "i": 101,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 45602,
+          "redactedEquality": "content-equality-156"
+        },
+        {
+          "i": 102,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7734,
+          "redactedEquality": "content-equality-157"
+        },
+        {
+          "i": 103,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-158"
+        },
+        {
+          "i": 104,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7500,
+          "redactedEquality": "content-equality-159"
+        },
+        {
+          "i": 105,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7688,
+          "redactedEquality": "content-equality-160"
+        },
+        {
+          "i": 106,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7331,
+          "redactedEquality": "content-equality-161"
+        },
+        {
+          "i": 107,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7454,
+          "redactedEquality": "content-equality-162"
+        },
+        {
+          "i": 108,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7149,
+          "redactedEquality": "content-equality-163"
+        },
+        {
+          "i": 109,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7741,
+          "redactedEquality": "content-equality-164"
+        },
+        {
+          "i": 110,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8296,
+          "redactedEquality": "content-equality-165"
+        },
+        {
+          "i": 111,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 560,
+          "redactedEquality": "content-equality-166"
+        },
+        {
+          "i": 112,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4254,
+          "redactedEquality": "content-equality-167"
+        },
+        {
+          "i": 113,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1723,
+          "redactedEquality": "content-equality-168"
+        },
+        {
+          "i": 114,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7696,
+          "redactedEquality": "content-equality-169"
+        },
+        {
+          "i": 115,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 982,
+          "redactedEquality": "content-equality-170"
+        },
+        {
+          "i": 116,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 9707,
+          "redactedEquality": "content-equality-171"
+        },
+        {
+          "i": 117,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-172"
+        },
+        {
+          "i": 118,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7692,
+          "redactedEquality": "content-equality-173"
+        },
+        {
+          "i": 119,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7305,
+          "redactedEquality": "content-equality-174"
+        },
+        {
+          "i": 120,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7526,
+          "redactedEquality": "content-equality-175"
+        },
+        {
+          "i": 121,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7552,
+          "redactedEquality": "content-equality-176"
+        },
+        {
+          "i": 122,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7725,
+          "redactedEquality": "content-equality-177"
+        },
+        {
+          "i": 123,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7632,
+          "redactedEquality": "content-equality-178"
+        },
+        {
+          "i": 124,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7288,
+          "redactedEquality": "content-equality-179"
+        },
+        {
+          "i": 125,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7547,
+          "redactedEquality": "content-equality-180"
+        },
+        {
+          "i": 126,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7355,
+          "redactedEquality": "content-equality-181"
+        },
+        {
+          "i": 127,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-182"
+        },
+        {
+          "i": 128,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7298,
+          "redactedEquality": "content-equality-183"
+        },
+        {
+          "i": 129,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7613,
+          "redactedEquality": "content-equality-184"
+        },
+        {
+          "i": 130,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7625,
+          "redactedEquality": "content-equality-185"
+        },
+        {
+          "i": 131,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7714,
+          "redactedEquality": "content-equality-186"
+        },
+        {
+          "i": 132,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7929,
+          "redactedEquality": "content-equality-187"
+        },
+        {
+          "i": 133,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7585,
+          "redactedEquality": "content-equality-188"
+        },
+        {
+          "i": 134,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2487,
+          "redactedEquality": "content-equality-189"
+        },
+        {
+          "i": 135,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 554,
+          "redactedEquality": "content-equality-190"
+        },
+        {
+          "i": 136,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 5115,
+          "redactedEquality": "content-equality-191"
+        },
+        {
+          "i": 137,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-192"
+        },
+        {
+          "i": 138,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-193"
+        },
+        {
+          "i": 139,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2715,
+          "redactedEquality": "content-equality-194"
+        },
+        {
+          "i": 140,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4463,
+          "redactedEquality": "content-equality-195"
+        },
+        {
+          "i": 141,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-196"
+        }
+      ]
+    },
+    "parentAfter": {
+      "response": {
+        "id": "entry-parent-after",
+        "relativeTime": "T+6990.504s",
+        "usage": {
+          "input": 914,
+          "output": 260,
+          "cacheRead": 142720,
+          "cacheWrite": 0,
+          "reasoning": 52,
+          "totalTokens": 143894,
+          "cost": {
+            "input": 0.00914,
+            "output": 0.013000000000000001,
+            "cacheRead": 0.14271999999999999,
+            "cacheWrite": 0,
+            "total": 0.16485999999999998
+          }
+        }
+      },
+      "projection": {
+        "messages": 70,
+        "roles": [
+          "system",
+          "user",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult"
+        ],
+        "thinkingLevel": "high",
+        "systemSections": [
+          {
+            "preamble": {
+              "bytes": 169,
+              "redactedEquality": "content-equality-042"
+            },
+            "tools": {
+              "bytes": 4258,
+              "redactedEquality": "content-equality-043"
+            },
+            "rules": {
+              "bytes": 6251,
+              "redactedEquality": "content-equality-044"
+            },
+            "docs": {
+              "bytes": 1391,
+              "redactedEquality": "content-equality-045"
+            },
+            "addendum": {
+              "bytes": 226,
+              "redactedEquality": "content-equality-046"
+            },
+            "project_context": {
+              "bytes": 19962,
+              "redactedEquality": "content-equality-047"
+            },
+            "skills": {
+              "bytes": 33076,
+              "redactedEquality": "content-equality-048"
+            },
+            "cwd": {
+              "bytes": 55,
+              "redactedEquality": "content-equality-049"
+            },
+            "ontology_workflow": {
+              "bytes": 726,
+              "redactedEquality": "content-equality-050"
+            },
+            "mcp_servers": {
+              "bytes": 198,
+              "redactedEquality": "content-equality-051"
+            }
+          }
+        ]
+      },
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 66330,
+        "redactedEquality": "content-equality-052"
+      },
+      "tools": {
+        "bytes": 44663,
+        "redactedEquality": "content-equality-031"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox",
+        "codemode"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-003"
+      },
+      "inputItems": 145,
+      "input": {
+        "bytes": 783177,
+        "redactedEquality": "content-equality-197"
+      },
+      "body": {
+        "bytes": 895211,
+        "redactedEquality": "content-equality-198"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 17825,
+          "redactedEquality": "content-equality-055"
+        },
+        {
+          "i": 1,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-056"
+        },
+        {
+          "i": 2,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-057"
+        },
+        {
+          "i": 3,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7223,
+          "redactedEquality": "content-equality-058"
+        },
+        {
+          "i": 4,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7720,
+          "redactedEquality": "content-equality-059"
+        },
+        {
+          "i": 5,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2360,
+          "redactedEquality": "content-equality-060"
+        },
+        {
+          "i": 6,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 22341,
+          "redactedEquality": "content-equality-061"
+        },
+        {
+          "i": 7,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1956,
+          "redactedEquality": "content-equality-062"
+        },
+        {
+          "i": 8,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 335,
+          "redactedEquality": "content-equality-063"
+        },
+        {
+          "i": 9,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10835,
+          "redactedEquality": "content-equality-064"
+        },
+        {
+          "i": 10,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 326,
+          "redactedEquality": "content-equality-065"
+        },
+        {
+          "i": 11,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6210,
+          "redactedEquality": "content-equality-066"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2059,
+          "redactedEquality": "content-equality-067"
+        },
+        {
+          "i": 13,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 357,
+          "redactedEquality": "content-equality-068"
+        },
+        {
+          "i": 14,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2760,
+          "redactedEquality": "content-equality-069"
+        },
+        {
+          "i": 15,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3581,
+          "redactedEquality": "content-equality-070"
+        },
+        {
+          "i": 16,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 489,
+          "redactedEquality": "content-equality-071"
+        },
+        {
+          "i": 17,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1485,
+          "redactedEquality": "content-equality-072"
+        },
+        {
+          "i": 18,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7265,
+          "redactedEquality": "content-equality-073"
+        },
+        {
+          "i": 19,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 423,
+          "redactedEquality": "content-equality-074"
+        },
+        {
+          "i": 20,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7356,
+          "redactedEquality": "content-equality-075"
+        },
+        {
+          "i": 21,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2124,
+          "redactedEquality": "content-equality-076"
+        },
+        {
+          "i": 22,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 432,
+          "redactedEquality": "content-equality-077"
+        },
+        {
+          "i": 23,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 46169,
+          "redactedEquality": "content-equality-078"
+        },
+        {
+          "i": 24,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4071,
+          "redactedEquality": "content-equality-079"
+        },
+        {
+          "i": 25,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 948,
+          "redactedEquality": "content-equality-080"
+        },
+        {
+          "i": 26,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 35935,
+          "redactedEquality": "content-equality-081"
+        },
+        {
+          "i": 27,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7590,
+          "redactedEquality": "content-equality-082"
+        },
+        {
+          "i": 28,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7099,
+          "redactedEquality": "content-equality-083"
+        },
+        {
+          "i": 29,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7051,
+          "redactedEquality": "content-equality-084"
+        },
+        {
+          "i": 30,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6525,
+          "redactedEquality": "content-equality-085"
+        },
+        {
+          "i": 31,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 477,
+          "redactedEquality": "content-equality-086"
+        },
+        {
+          "i": 32,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1032,
+          "redactedEquality": "content-equality-087"
+        },
+        {
+          "i": 33,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2336,
+          "redactedEquality": "content-equality-088"
+        },
+        {
+          "i": 34,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 416,
+          "redactedEquality": "content-equality-089"
+        },
+        {
+          "i": 35,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10180,
+          "redactedEquality": "content-equality-090"
+        },
+        {
+          "i": 36,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3296,
+          "redactedEquality": "content-equality-091"
+        },
+        {
+          "i": 37,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 533,
+          "redactedEquality": "content-equality-092"
+        },
+        {
+          "i": 38,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 6510,
+          "redactedEquality": "content-equality-093"
+        },
+        {
+          "i": 39,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 14943,
+          "redactedEquality": "content-equality-094"
+        },
+        {
+          "i": 40,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8009,
+          "redactedEquality": "content-equality-095"
+        },
+        {
+          "i": 41,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7937,
+          "redactedEquality": "content-equality-096"
+        },
+        {
+          "i": 42,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 754,
+          "redactedEquality": "content-equality-097"
+        },
+        {
+          "i": 43,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1291,
+          "redactedEquality": "content-equality-098"
+        },
+        {
+          "i": 44,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3227,
+          "redactedEquality": "content-equality-099"
+        },
+        {
+          "i": 45,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1815,
+          "redactedEquality": "content-equality-100"
+        },
+        {
+          "i": 46,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6648,
+          "redactedEquality": "content-equality-101"
+        },
+        {
+          "i": 47,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4554,
+          "redactedEquality": "content-equality-102"
+        },
+        {
+          "i": 48,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 810,
+          "redactedEquality": "content-equality-103"
+        },
+        {
+          "i": 49,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 555,
+          "redactedEquality": "content-equality-104"
+        },
+        {
+          "i": 50,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2794,
+          "redactedEquality": "content-equality-105"
+        },
+        {
+          "i": 51,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 886,
+          "redactedEquality": "content-equality-106"
+        },
+        {
+          "i": 52,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2277,
+          "redactedEquality": "content-equality-107"
+        },
+        {
+          "i": 53,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7740,
+          "redactedEquality": "content-equality-108"
+        },
+        {
+          "i": 54,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3873,
+          "redactedEquality": "content-equality-109"
+        },
+        {
+          "i": 55,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4796,
+          "redactedEquality": "content-equality-110"
+        },
+        {
+          "i": 56,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-111"
+        },
+        {
+          "i": 57,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7976,
+          "redactedEquality": "content-equality-112"
+        },
+        {
+          "i": 58,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 927,
+          "redactedEquality": "content-equality-113"
+        },
+        {
+          "i": 59,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1309,
+          "redactedEquality": "content-equality-114"
+        },
+        {
+          "i": 60,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2597,
+          "redactedEquality": "content-equality-115"
+        },
+        {
+          "i": 61,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 407,
+          "redactedEquality": "content-equality-116"
+        },
+        {
+          "i": 62,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 299,
+          "redactedEquality": "content-equality-117"
+        },
+        {
+          "i": 63,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-118"
+        },
+        {
+          "i": 64,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-119"
+        },
+        {
+          "i": 65,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7244,
+          "redactedEquality": "content-equality-120"
+        },
+        {
+          "i": 66,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 836,
+          "redactedEquality": "content-equality-121"
+        },
+        {
+          "i": 67,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2409,
+          "redactedEquality": "content-equality-122"
+        },
+        {
+          "i": 68,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7420,
+          "redactedEquality": "content-equality-123"
+        },
+        {
+          "i": 69,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-124"
+        },
+        {
+          "i": 70,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 933,
+          "redactedEquality": "content-equality-125"
+        },
+        {
+          "i": 71,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 4107,
+          "redactedEquality": "content-equality-126"
+        },
+        {
+          "i": 72,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2722,
+          "redactedEquality": "content-equality-127"
+        },
+        {
+          "i": 73,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 632,
+          "redactedEquality": "content-equality-128"
+        },
+        {
+          "i": 74,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1123,
+          "redactedEquality": "content-equality-129"
+        },
+        {
+          "i": 75,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4899,
+          "redactedEquality": "content-equality-130"
+        },
+        {
+          "i": 76,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 584,
+          "redactedEquality": "content-equality-131"
+        },
+        {
+          "i": 77,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1339,
+          "redactedEquality": "content-equality-132"
+        },
+        {
+          "i": 78,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2400,
+          "redactedEquality": "content-equality-133"
+        },
+        {
+          "i": 79,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4943,
+          "redactedEquality": "content-equality-134"
+        },
+        {
+          "i": 80,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 2981,
+          "redactedEquality": "content-equality-135"
+        },
+        {
+          "i": 81,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6770,
+          "redactedEquality": "content-equality-136"
+        },
+        {
+          "i": 82,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7747,
+          "redactedEquality": "content-equality-137"
+        },
+        {
+          "i": 83,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-138"
+        },
+        {
+          "i": 84,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 3529,
+          "redactedEquality": "content-equality-139"
+        },
+        {
+          "i": 85,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2234,
+          "redactedEquality": "content-equality-140"
+        },
+        {
+          "i": 86,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-141"
+        },
+        {
+          "i": 87,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-142"
+        },
+        {
+          "i": 88,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5331,
+          "redactedEquality": "content-equality-143"
+        },
+        {
+          "i": 89,
+          "type": "function_call",
+          "role": null,
+          "bytes": 2542,
+          "redactedEquality": "content-equality-144"
+        },
+        {
+          "i": 90,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 185,
+          "redactedEquality": "content-equality-145"
+        },
+        {
+          "i": 91,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1841,
+          "redactedEquality": "content-equality-146"
+        },
+        {
+          "i": 92,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-147"
+        },
+        {
+          "i": 93,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-148"
+        },
+        {
+          "i": 94,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7738,
+          "redactedEquality": "content-equality-149"
+        },
+        {
+          "i": 95,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7351,
+          "redactedEquality": "content-equality-150"
+        },
+        {
+          "i": 96,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6138,
+          "redactedEquality": "content-equality-151"
+        },
+        {
+          "i": 97,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-152"
+        },
+        {
+          "i": 98,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 940,
+          "redactedEquality": "content-equality-153"
+        },
+        {
+          "i": 99,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1958,
+          "redactedEquality": "content-equality-154"
+        },
+        {
+          "i": 100,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 512,
+          "redactedEquality": "content-equality-155"
+        },
+        {
+          "i": 101,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 45602,
+          "redactedEquality": "content-equality-156"
+        },
+        {
+          "i": 102,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7734,
+          "redactedEquality": "content-equality-157"
+        },
+        {
+          "i": 103,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-158"
+        },
+        {
+          "i": 104,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7500,
+          "redactedEquality": "content-equality-159"
+        },
+        {
+          "i": 105,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7688,
+          "redactedEquality": "content-equality-160"
+        },
+        {
+          "i": 106,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7331,
+          "redactedEquality": "content-equality-161"
+        },
+        {
+          "i": 107,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7454,
+          "redactedEquality": "content-equality-162"
+        },
+        {
+          "i": 108,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7149,
+          "redactedEquality": "content-equality-163"
+        },
+        {
+          "i": 109,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7741,
+          "redactedEquality": "content-equality-164"
+        },
+        {
+          "i": 110,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8296,
+          "redactedEquality": "content-equality-165"
+        },
+        {
+          "i": 111,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 560,
+          "redactedEquality": "content-equality-166"
+        },
+        {
+          "i": 112,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4254,
+          "redactedEquality": "content-equality-167"
+        },
+        {
+          "i": 113,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1723,
+          "redactedEquality": "content-equality-168"
+        },
+        {
+          "i": 114,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7696,
+          "redactedEquality": "content-equality-169"
+        },
+        {
+          "i": 115,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 982,
+          "redactedEquality": "content-equality-170"
+        },
+        {
+          "i": 116,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 9707,
+          "redactedEquality": "content-equality-171"
+        },
+        {
+          "i": 117,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-172"
+        },
+        {
+          "i": 118,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7692,
+          "redactedEquality": "content-equality-173"
+        },
+        {
+          "i": 119,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7305,
+          "redactedEquality": "content-equality-174"
+        },
+        {
+          "i": 120,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7526,
+          "redactedEquality": "content-equality-175"
+        },
+        {
+          "i": 121,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7552,
+          "redactedEquality": "content-equality-176"
+        },
+        {
+          "i": 122,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7725,
+          "redactedEquality": "content-equality-177"
+        },
+        {
+          "i": 123,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7632,
+          "redactedEquality": "content-equality-178"
+        },
+        {
+          "i": 124,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7288,
+          "redactedEquality": "content-equality-179"
+        },
+        {
+          "i": 125,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7547,
+          "redactedEquality": "content-equality-180"
+        },
+        {
+          "i": 126,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7355,
+          "redactedEquality": "content-equality-181"
+        },
+        {
+          "i": 127,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-182"
+        },
+        {
+          "i": 128,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7298,
+          "redactedEquality": "content-equality-183"
+        },
+        {
+          "i": 129,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7613,
+          "redactedEquality": "content-equality-184"
+        },
+        {
+          "i": 130,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7625,
+          "redactedEquality": "content-equality-185"
+        },
+        {
+          "i": 131,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7714,
+          "redactedEquality": "content-equality-186"
+        },
+        {
+          "i": 132,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7929,
+          "redactedEquality": "content-equality-187"
+        },
+        {
+          "i": 133,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7585,
+          "redactedEquality": "content-equality-188"
+        },
+        {
+          "i": 134,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2487,
+          "redactedEquality": "content-equality-189"
+        },
+        {
+          "i": 135,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 554,
+          "redactedEquality": "content-equality-190"
+        },
+        {
+          "i": 136,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 5115,
+          "redactedEquality": "content-equality-191"
+        },
+        {
+          "i": 137,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-192"
+        },
+        {
+          "i": 138,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-193"
+        },
+        {
+          "i": 139,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2715,
+          "redactedEquality": "content-equality-194"
+        },
+        {
+          "i": 140,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4463,
+          "redactedEquality": "content-equality-195"
+        },
+        {
+          "i": 141,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-196"
+        },
+        {
+          "i": 142,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5539,
+          "redactedEquality": "content-equality-199"
+        },
+        {
+          "i": 143,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1025,
+          "redactedEquality": "content-equality-200"
+        },
+        {
+          "i": 144,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 742,
+          "redactedEquality": "content-equality-201"
+        }
+      ]
+    },
+    "childFirst": {
+      "response": {
+        "id": "entry-child-first",
+        "relativeTime": "T+6977.393s",
+        "usage": {
+          "input": 144389,
+          "output": 368,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "reasoning": 71,
+          "totalTokens": 144757,
+          "cost": {
+            "input": 1.4438900000000001,
+            "output": 0.0184,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 1.46229
+          }
+        }
+      },
+      "projection": {
+        "messages": 71,
+        "roles": [
+          "system",
+          "user",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "user",
+          "user"
+        ],
+        "thinkingLevel": "high",
+        "systemSections": [
+          {
+            "preamble": {
+              "bytes": 169,
+              "redactedEquality": "content-equality-042"
+            },
+            "tools": {
+              "bytes": 4258,
+              "redactedEquality": "content-equality-043"
+            },
+            "rules": {
+              "bytes": 6251,
+              "redactedEquality": "content-equality-044"
+            },
+            "docs": {
+              "bytes": 1391,
+              "redactedEquality": "content-equality-045"
+            },
+            "addendum": {
+              "bytes": 226,
+              "redactedEquality": "content-equality-046"
+            },
+            "project_context": {
+              "bytes": 19962,
+              "redactedEquality": "content-equality-047"
+            },
+            "skills": {
+              "bytes": 33076,
+              "redactedEquality": "content-equality-048"
+            },
+            "cwd": {
+              "bytes": 55,
+              "redactedEquality": "content-equality-049"
+            },
+            "ontology_workflow": {
+              "bytes": 726,
+              "redactedEquality": "content-equality-050"
+            },
+            "mcp_servers": {
+              "bytes": 198,
+              "redactedEquality": "content-equality-051"
+            }
+          }
+        ]
+      },
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 66330,
+        "redactedEquality": "content-equality-052"
+      },
+      "tools": {
+        "bytes": 44663,
+        "redactedEquality": "content-equality-031"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox",
+        "codemode"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-202"
+      },
+      "inputItems": 147,
+      "input": {
+        "bytes": 786698,
+        "redactedEquality": "content-equality-203"
+      },
+      "body": {
+        "bytes": 898732,
+        "redactedEquality": "content-equality-204"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 17825,
+          "redactedEquality": "content-equality-055"
+        },
+        {
+          "i": 1,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-056"
+        },
+        {
+          "i": 2,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-057"
+        },
+        {
+          "i": 3,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7223,
+          "redactedEquality": "content-equality-058"
+        },
+        {
+          "i": 4,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7720,
+          "redactedEquality": "content-equality-059"
+        },
+        {
+          "i": 5,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2360,
+          "redactedEquality": "content-equality-060"
+        },
+        {
+          "i": 6,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 22341,
+          "redactedEquality": "content-equality-061"
+        },
+        {
+          "i": 7,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1956,
+          "redactedEquality": "content-equality-062"
+        },
+        {
+          "i": 8,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 335,
+          "redactedEquality": "content-equality-063"
+        },
+        {
+          "i": 9,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10835,
+          "redactedEquality": "content-equality-064"
+        },
+        {
+          "i": 10,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 326,
+          "redactedEquality": "content-equality-065"
+        },
+        {
+          "i": 11,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6210,
+          "redactedEquality": "content-equality-066"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2059,
+          "redactedEquality": "content-equality-067"
+        },
+        {
+          "i": 13,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 357,
+          "redactedEquality": "content-equality-068"
+        },
+        {
+          "i": 14,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2760,
+          "redactedEquality": "content-equality-069"
+        },
+        {
+          "i": 15,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3581,
+          "redactedEquality": "content-equality-070"
+        },
+        {
+          "i": 16,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 489,
+          "redactedEquality": "content-equality-071"
+        },
+        {
+          "i": 17,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1485,
+          "redactedEquality": "content-equality-072"
+        },
+        {
+          "i": 18,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7265,
+          "redactedEquality": "content-equality-073"
+        },
+        {
+          "i": 19,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 423,
+          "redactedEquality": "content-equality-074"
+        },
+        {
+          "i": 20,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7356,
+          "redactedEquality": "content-equality-075"
+        },
+        {
+          "i": 21,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2124,
+          "redactedEquality": "content-equality-076"
+        },
+        {
+          "i": 22,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 432,
+          "redactedEquality": "content-equality-077"
+        },
+        {
+          "i": 23,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 46169,
+          "redactedEquality": "content-equality-078"
+        },
+        {
+          "i": 24,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4071,
+          "redactedEquality": "content-equality-079"
+        },
+        {
+          "i": 25,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 948,
+          "redactedEquality": "content-equality-080"
+        },
+        {
+          "i": 26,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 35935,
+          "redactedEquality": "content-equality-081"
+        },
+        {
+          "i": 27,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7590,
+          "redactedEquality": "content-equality-082"
+        },
+        {
+          "i": 28,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7099,
+          "redactedEquality": "content-equality-083"
+        },
+        {
+          "i": 29,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7051,
+          "redactedEquality": "content-equality-084"
+        },
+        {
+          "i": 30,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6525,
+          "redactedEquality": "content-equality-085"
+        },
+        {
+          "i": 31,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 477,
+          "redactedEquality": "content-equality-086"
+        },
+        {
+          "i": 32,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1032,
+          "redactedEquality": "content-equality-087"
+        },
+        {
+          "i": 33,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2336,
+          "redactedEquality": "content-equality-088"
+        },
+        {
+          "i": 34,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 416,
+          "redactedEquality": "content-equality-089"
+        },
+        {
+          "i": 35,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10180,
+          "redactedEquality": "content-equality-090"
+        },
+        {
+          "i": 36,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3296,
+          "redactedEquality": "content-equality-091"
+        },
+        {
+          "i": 37,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 533,
+          "redactedEquality": "content-equality-092"
+        },
+        {
+          "i": 38,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 6510,
+          "redactedEquality": "content-equality-093"
+        },
+        {
+          "i": 39,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 14943,
+          "redactedEquality": "content-equality-094"
+        },
+        {
+          "i": 40,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8009,
+          "redactedEquality": "content-equality-095"
+        },
+        {
+          "i": 41,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7937,
+          "redactedEquality": "content-equality-096"
+        },
+        {
+          "i": 42,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 754,
+          "redactedEquality": "content-equality-097"
+        },
+        {
+          "i": 43,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1291,
+          "redactedEquality": "content-equality-098"
+        },
+        {
+          "i": 44,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3227,
+          "redactedEquality": "content-equality-099"
+        },
+        {
+          "i": 45,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1815,
+          "redactedEquality": "content-equality-100"
+        },
+        {
+          "i": 46,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6648,
+          "redactedEquality": "content-equality-101"
+        },
+        {
+          "i": 47,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4554,
+          "redactedEquality": "content-equality-102"
+        },
+        {
+          "i": 48,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 810,
+          "redactedEquality": "content-equality-103"
+        },
+        {
+          "i": 49,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 555,
+          "redactedEquality": "content-equality-104"
+        },
+        {
+          "i": 50,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2794,
+          "redactedEquality": "content-equality-105"
+        },
+        {
+          "i": 51,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 886,
+          "redactedEquality": "content-equality-106"
+        },
+        {
+          "i": 52,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2277,
+          "redactedEquality": "content-equality-107"
+        },
+        {
+          "i": 53,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7740,
+          "redactedEquality": "content-equality-108"
+        },
+        {
+          "i": 54,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3873,
+          "redactedEquality": "content-equality-109"
+        },
+        {
+          "i": 55,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4796,
+          "redactedEquality": "content-equality-110"
+        },
+        {
+          "i": 56,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-111"
+        },
+        {
+          "i": 57,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7976,
+          "redactedEquality": "content-equality-112"
+        },
+        {
+          "i": 58,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 927,
+          "redactedEquality": "content-equality-113"
+        },
+        {
+          "i": 59,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1309,
+          "redactedEquality": "content-equality-114"
+        },
+        {
+          "i": 60,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2597,
+          "redactedEquality": "content-equality-115"
+        },
+        {
+          "i": 61,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 407,
+          "redactedEquality": "content-equality-116"
+        },
+        {
+          "i": 62,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 299,
+          "redactedEquality": "content-equality-117"
+        },
+        {
+          "i": 63,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-118"
+        },
+        {
+          "i": 64,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-119"
+        },
+        {
+          "i": 65,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7244,
+          "redactedEquality": "content-equality-120"
+        },
+        {
+          "i": 66,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 836,
+          "redactedEquality": "content-equality-121"
+        },
+        {
+          "i": 67,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2409,
+          "redactedEquality": "content-equality-122"
+        },
+        {
+          "i": 68,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7420,
+          "redactedEquality": "content-equality-123"
+        },
+        {
+          "i": 69,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-124"
+        },
+        {
+          "i": 70,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 933,
+          "redactedEquality": "content-equality-125"
+        },
+        {
+          "i": 71,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 4107,
+          "redactedEquality": "content-equality-126"
+        },
+        {
+          "i": 72,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2722,
+          "redactedEquality": "content-equality-127"
+        },
+        {
+          "i": 73,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 632,
+          "redactedEquality": "content-equality-128"
+        },
+        {
+          "i": 74,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1123,
+          "redactedEquality": "content-equality-129"
+        },
+        {
+          "i": 75,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4899,
+          "redactedEquality": "content-equality-130"
+        },
+        {
+          "i": 76,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 584,
+          "redactedEquality": "content-equality-131"
+        },
+        {
+          "i": 77,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1339,
+          "redactedEquality": "content-equality-132"
+        },
+        {
+          "i": 78,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2400,
+          "redactedEquality": "content-equality-133"
+        },
+        {
+          "i": 79,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4943,
+          "redactedEquality": "content-equality-134"
+        },
+        {
+          "i": 80,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 2981,
+          "redactedEquality": "content-equality-135"
+        },
+        {
+          "i": 81,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6770,
+          "redactedEquality": "content-equality-136"
+        },
+        {
+          "i": 82,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7747,
+          "redactedEquality": "content-equality-137"
+        },
+        {
+          "i": 83,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-138"
+        },
+        {
+          "i": 84,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 3529,
+          "redactedEquality": "content-equality-139"
+        },
+        {
+          "i": 85,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2234,
+          "redactedEquality": "content-equality-140"
+        },
+        {
+          "i": 86,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-141"
+        },
+        {
+          "i": 87,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-142"
+        },
+        {
+          "i": 88,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5331,
+          "redactedEquality": "content-equality-143"
+        },
+        {
+          "i": 89,
+          "type": "function_call",
+          "role": null,
+          "bytes": 2542,
+          "redactedEquality": "content-equality-144"
+        },
+        {
+          "i": 90,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 185,
+          "redactedEquality": "content-equality-145"
+        },
+        {
+          "i": 91,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1841,
+          "redactedEquality": "content-equality-146"
+        },
+        {
+          "i": 92,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-147"
+        },
+        {
+          "i": 93,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-148"
+        },
+        {
+          "i": 94,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7738,
+          "redactedEquality": "content-equality-149"
+        },
+        {
+          "i": 95,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7351,
+          "redactedEquality": "content-equality-150"
+        },
+        {
+          "i": 96,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6138,
+          "redactedEquality": "content-equality-151"
+        },
+        {
+          "i": 97,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-152"
+        },
+        {
+          "i": 98,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 940,
+          "redactedEquality": "content-equality-153"
+        },
+        {
+          "i": 99,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1958,
+          "redactedEquality": "content-equality-154"
+        },
+        {
+          "i": 100,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 512,
+          "redactedEquality": "content-equality-155"
+        },
+        {
+          "i": 101,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 45602,
+          "redactedEquality": "content-equality-156"
+        },
+        {
+          "i": 102,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7734,
+          "redactedEquality": "content-equality-157"
+        },
+        {
+          "i": 103,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-158"
+        },
+        {
+          "i": 104,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7500,
+          "redactedEquality": "content-equality-159"
+        },
+        {
+          "i": 105,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7688,
+          "redactedEquality": "content-equality-160"
+        },
+        {
+          "i": 106,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7331,
+          "redactedEquality": "content-equality-161"
+        },
+        {
+          "i": 107,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7454,
+          "redactedEquality": "content-equality-162"
+        },
+        {
+          "i": 108,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7149,
+          "redactedEquality": "content-equality-163"
+        },
+        {
+          "i": 109,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7741,
+          "redactedEquality": "content-equality-164"
+        },
+        {
+          "i": 110,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8296,
+          "redactedEquality": "content-equality-165"
+        },
+        {
+          "i": 111,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 560,
+          "redactedEquality": "content-equality-166"
+        },
+        {
+          "i": 112,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4254,
+          "redactedEquality": "content-equality-167"
+        },
+        {
+          "i": 113,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1723,
+          "redactedEquality": "content-equality-168"
+        },
+        {
+          "i": 114,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7696,
+          "redactedEquality": "content-equality-169"
+        },
+        {
+          "i": 115,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 982,
+          "redactedEquality": "content-equality-170"
+        },
+        {
+          "i": 116,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 9707,
+          "redactedEquality": "content-equality-171"
+        },
+        {
+          "i": 117,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-172"
+        },
+        {
+          "i": 118,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7692,
+          "redactedEquality": "content-equality-173"
+        },
+        {
+          "i": 119,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7305,
+          "redactedEquality": "content-equality-174"
+        },
+        {
+          "i": 120,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7526,
+          "redactedEquality": "content-equality-175"
+        },
+        {
+          "i": 121,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7552,
+          "redactedEquality": "content-equality-176"
+        },
+        {
+          "i": 122,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7725,
+          "redactedEquality": "content-equality-177"
+        },
+        {
+          "i": 123,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7632,
+          "redactedEquality": "content-equality-178"
+        },
+        {
+          "i": 124,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7288,
+          "redactedEquality": "content-equality-179"
+        },
+        {
+          "i": 125,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7547,
+          "redactedEquality": "content-equality-180"
+        },
+        {
+          "i": 126,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7355,
+          "redactedEquality": "content-equality-181"
+        },
+        {
+          "i": 127,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-182"
+        },
+        {
+          "i": 128,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7298,
+          "redactedEquality": "content-equality-183"
+        },
+        {
+          "i": 129,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7613,
+          "redactedEquality": "content-equality-184"
+        },
+        {
+          "i": 130,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7625,
+          "redactedEquality": "content-equality-185"
+        },
+        {
+          "i": 131,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7714,
+          "redactedEquality": "content-equality-186"
+        },
+        {
+          "i": 132,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7929,
+          "redactedEquality": "content-equality-187"
+        },
+        {
+          "i": 133,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7585,
+          "redactedEquality": "content-equality-188"
+        },
+        {
+          "i": 134,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2487,
+          "redactedEquality": "content-equality-189"
+        },
+        {
+          "i": 135,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 554,
+          "redactedEquality": "content-equality-190"
+        },
+        {
+          "i": 136,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 5115,
+          "redactedEquality": "content-equality-191"
+        },
+        {
+          "i": 137,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-192"
+        },
+        {
+          "i": 138,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-193"
+        },
+        {
+          "i": 139,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2715,
+          "redactedEquality": "content-equality-194"
+        },
+        {
+          "i": 140,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4463,
+          "redactedEquality": "content-equality-195"
+        },
+        {
+          "i": 141,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-196"
+        },
+        {
+          "i": 142,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5539,
+          "redactedEquality": "content-equality-199"
+        },
+        {
+          "i": 143,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1025,
+          "redactedEquality": "content-equality-200"
+        },
+        {
+          "i": 144,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 114,
+          "redactedEquality": "content-equality-205"
+        },
+        {
+          "i": 145,
+          "type": "message",
+          "role": "user",
+          "bytes": 235,
+          "redactedEquality": "content-equality-206"
+        },
+        {
+          "i": 146,
+          "type": "message",
+          "role": "user",
+          "bytes": 3912,
+          "redactedEquality": "content-equality-207"
+        }
+      ]
+    },
+    "childSecond": {
+      "response": {
+        "id": "entry-child-second",
+        "relativeTime": "T+6982.021s",
+        "usage": {
+          "input": 4712,
+          "output": 216,
+          "cacheRead": 144256,
+          "cacheWrite": 0,
+          "reasoning": 46,
+          "totalTokens": 149184,
+          "cost": {
+            "input": 0.04712,
+            "output": 0.0108,
+            "cacheRead": 0.144256,
+            "cacheWrite": 0,
+            "total": 0.202176
+          }
+        }
+      },
+      "projection": {
+        "messages": 73,
+        "roles": [
+          "system",
+          "user",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "toolResult",
+          "assistant",
+          "user",
+          "user",
+          "assistant",
+          "toolResult"
+        ],
+        "thinkingLevel": "high",
+        "systemSections": [
+          {
+            "preamble": {
+              "bytes": 169,
+              "redactedEquality": "content-equality-042"
+            },
+            "tools": {
+              "bytes": 4258,
+              "redactedEquality": "content-equality-043"
+            },
+            "rules": {
+              "bytes": 6251,
+              "redactedEquality": "content-equality-044"
+            },
+            "docs": {
+              "bytes": 1391,
+              "redactedEquality": "content-equality-045"
+            },
+            "addendum": {
+              "bytes": 226,
+              "redactedEquality": "content-equality-046"
+            },
+            "project_context": {
+              "bytes": 19962,
+              "redactedEquality": "content-equality-047"
+            },
+            "skills": {
+              "bytes": 33076,
+              "redactedEquality": "content-equality-048"
+            },
+            "cwd": {
+              "bytes": 55,
+              "redactedEquality": "content-equality-049"
+            },
+            "ontology_workflow": {
+              "bytes": 726,
+              "redactedEquality": "content-equality-050"
+            },
+            "mcp_servers": {
+              "bytes": 198,
+              "redactedEquality": "content-equality-051"
+            }
+          }
+        ]
+      },
+      "keys": [
+        "model",
+        "store",
+        "stream",
+        "instructions",
+        "input",
+        "text",
+        "include",
+        "prompt_cache_key",
+        "tool_choice",
+        "parallel_tool_calls",
+        "tools",
+        "reasoning"
+      ],
+      "instructions": {
+        "bytes": 66330,
+        "redactedEquality": "content-equality-052"
+      },
+      "tools": {
+        "bytes": 44663,
+        "redactedEquality": "content-equality-031"
+      },
+      "toolOrder": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "self",
+        "interview",
+        "dispatch_subagent",
+        "session_closeout",
+        "intercom",
+        "vault_query",
+        "vault_retrieve",
+        "vault_vocabulary",
+        "vault_dispatch_check",
+        "fork_peer_spawn",
+        "scout_peer_spawn",
+        "candidate_peer_spawn",
+        "fresh_handoff_spawn",
+        "visible_loop_child_complete",
+        "context_plan",
+        "loop_execute",
+        "explore_symbol_impact",
+        "locate_confirm_definition",
+        "toolbox",
+        "codemode"
+      ],
+      "cacheKey": {
+        "bytes": 36,
+        "redactedEquality": "content-equality-202"
+      },
+      "inputItems": 151,
+      "input": {
+        "bytes": 809151,
+        "redactedEquality": "content-equality-208"
+      },
+      "body": {
+        "bytes": 921185,
+        "redactedEquality": "content-equality-209"
+      },
+      "itemStructure": [
+        {
+          "i": 0,
+          "type": "message",
+          "role": "user",
+          "bytes": 17825,
+          "redactedEquality": "content-equality-055"
+        },
+        {
+          "i": 1,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-056"
+        },
+        {
+          "i": 2,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-057"
+        },
+        {
+          "i": 3,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7223,
+          "redactedEquality": "content-equality-058"
+        },
+        {
+          "i": 4,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7720,
+          "redactedEquality": "content-equality-059"
+        },
+        {
+          "i": 5,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2360,
+          "redactedEquality": "content-equality-060"
+        },
+        {
+          "i": 6,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 22341,
+          "redactedEquality": "content-equality-061"
+        },
+        {
+          "i": 7,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1956,
+          "redactedEquality": "content-equality-062"
+        },
+        {
+          "i": 8,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 335,
+          "redactedEquality": "content-equality-063"
+        },
+        {
+          "i": 9,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10835,
+          "redactedEquality": "content-equality-064"
+        },
+        {
+          "i": 10,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 326,
+          "redactedEquality": "content-equality-065"
+        },
+        {
+          "i": 11,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6210,
+          "redactedEquality": "content-equality-066"
+        },
+        {
+          "i": 12,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2059,
+          "redactedEquality": "content-equality-067"
+        },
+        {
+          "i": 13,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 357,
+          "redactedEquality": "content-equality-068"
+        },
+        {
+          "i": 14,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2760,
+          "redactedEquality": "content-equality-069"
+        },
+        {
+          "i": 15,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3581,
+          "redactedEquality": "content-equality-070"
+        },
+        {
+          "i": 16,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 489,
+          "redactedEquality": "content-equality-071"
+        },
+        {
+          "i": 17,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1485,
+          "redactedEquality": "content-equality-072"
+        },
+        {
+          "i": 18,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7265,
+          "redactedEquality": "content-equality-073"
+        },
+        {
+          "i": 19,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 423,
+          "redactedEquality": "content-equality-074"
+        },
+        {
+          "i": 20,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 7356,
+          "redactedEquality": "content-equality-075"
+        },
+        {
+          "i": 21,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2124,
+          "redactedEquality": "content-equality-076"
+        },
+        {
+          "i": 22,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 432,
+          "redactedEquality": "content-equality-077"
+        },
+        {
+          "i": 23,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 46169,
+          "redactedEquality": "content-equality-078"
+        },
+        {
+          "i": 24,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4071,
+          "redactedEquality": "content-equality-079"
+        },
+        {
+          "i": 25,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 948,
+          "redactedEquality": "content-equality-080"
+        },
+        {
+          "i": 26,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 35935,
+          "redactedEquality": "content-equality-081"
+        },
+        {
+          "i": 27,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7590,
+          "redactedEquality": "content-equality-082"
+        },
+        {
+          "i": 28,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7099,
+          "redactedEquality": "content-equality-083"
+        },
+        {
+          "i": 29,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7051,
+          "redactedEquality": "content-equality-084"
+        },
+        {
+          "i": 30,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6525,
+          "redactedEquality": "content-equality-085"
+        },
+        {
+          "i": 31,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 477,
+          "redactedEquality": "content-equality-086"
+        },
+        {
+          "i": 32,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1032,
+          "redactedEquality": "content-equality-087"
+        },
+        {
+          "i": 33,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2336,
+          "redactedEquality": "content-equality-088"
+        },
+        {
+          "i": 34,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 416,
+          "redactedEquality": "content-equality-089"
+        },
+        {
+          "i": 35,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 10180,
+          "redactedEquality": "content-equality-090"
+        },
+        {
+          "i": 36,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3296,
+          "redactedEquality": "content-equality-091"
+        },
+        {
+          "i": 37,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 533,
+          "redactedEquality": "content-equality-092"
+        },
+        {
+          "i": 38,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 6510,
+          "redactedEquality": "content-equality-093"
+        },
+        {
+          "i": 39,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 14943,
+          "redactedEquality": "content-equality-094"
+        },
+        {
+          "i": 40,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8009,
+          "redactedEquality": "content-equality-095"
+        },
+        {
+          "i": 41,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7937,
+          "redactedEquality": "content-equality-096"
+        },
+        {
+          "i": 42,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 754,
+          "redactedEquality": "content-equality-097"
+        },
+        {
+          "i": 43,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1291,
+          "redactedEquality": "content-equality-098"
+        },
+        {
+          "i": 44,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3227,
+          "redactedEquality": "content-equality-099"
+        },
+        {
+          "i": 45,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1815,
+          "redactedEquality": "content-equality-100"
+        },
+        {
+          "i": 46,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6648,
+          "redactedEquality": "content-equality-101"
+        },
+        {
+          "i": 47,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4554,
+          "redactedEquality": "content-equality-102"
+        },
+        {
+          "i": 48,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 810,
+          "redactedEquality": "content-equality-103"
+        },
+        {
+          "i": 49,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 555,
+          "redactedEquality": "content-equality-104"
+        },
+        {
+          "i": 50,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2794,
+          "redactedEquality": "content-equality-105"
+        },
+        {
+          "i": 51,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 886,
+          "redactedEquality": "content-equality-106"
+        },
+        {
+          "i": 52,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2277,
+          "redactedEquality": "content-equality-107"
+        },
+        {
+          "i": 53,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7740,
+          "redactedEquality": "content-equality-108"
+        },
+        {
+          "i": 54,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 3873,
+          "redactedEquality": "content-equality-109"
+        },
+        {
+          "i": 55,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4796,
+          "redactedEquality": "content-equality-110"
+        },
+        {
+          "i": 56,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-111"
+        },
+        {
+          "i": 57,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7976,
+          "redactedEquality": "content-equality-112"
+        },
+        {
+          "i": 58,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 927,
+          "redactedEquality": "content-equality-113"
+        },
+        {
+          "i": 59,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1309,
+          "redactedEquality": "content-equality-114"
+        },
+        {
+          "i": 60,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2597,
+          "redactedEquality": "content-equality-115"
+        },
+        {
+          "i": 61,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 407,
+          "redactedEquality": "content-equality-116"
+        },
+        {
+          "i": 62,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 299,
+          "redactedEquality": "content-equality-117"
+        },
+        {
+          "i": 63,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-118"
+        },
+        {
+          "i": 64,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7951,
+          "redactedEquality": "content-equality-119"
+        },
+        {
+          "i": 65,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7244,
+          "redactedEquality": "content-equality-120"
+        },
+        {
+          "i": 66,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 836,
+          "redactedEquality": "content-equality-121"
+        },
+        {
+          "i": 67,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2409,
+          "redactedEquality": "content-equality-122"
+        },
+        {
+          "i": 68,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7420,
+          "redactedEquality": "content-equality-123"
+        },
+        {
+          "i": 69,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8018,
+          "redactedEquality": "content-equality-124"
+        },
+        {
+          "i": 70,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 933,
+          "redactedEquality": "content-equality-125"
+        },
+        {
+          "i": 71,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 4107,
+          "redactedEquality": "content-equality-126"
+        },
+        {
+          "i": 72,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2722,
+          "redactedEquality": "content-equality-127"
+        },
+        {
+          "i": 73,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 632,
+          "redactedEquality": "content-equality-128"
+        },
+        {
+          "i": 74,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1123,
+          "redactedEquality": "content-equality-129"
+        },
+        {
+          "i": 75,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4899,
+          "redactedEquality": "content-equality-130"
+        },
+        {
+          "i": 76,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 584,
+          "redactedEquality": "content-equality-131"
+        },
+        {
+          "i": 77,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1339,
+          "redactedEquality": "content-equality-132"
+        },
+        {
+          "i": 78,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 2400,
+          "redactedEquality": "content-equality-133"
+        },
+        {
+          "i": 79,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 4943,
+          "redactedEquality": "content-equality-134"
+        },
+        {
+          "i": 80,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 2981,
+          "redactedEquality": "content-equality-135"
+        },
+        {
+          "i": 81,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 6770,
+          "redactedEquality": "content-equality-136"
+        },
+        {
+          "i": 82,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7747,
+          "redactedEquality": "content-equality-137"
+        },
+        {
+          "i": 83,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1997,
+          "redactedEquality": "content-equality-138"
+        },
+        {
+          "i": 84,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 3529,
+          "redactedEquality": "content-equality-139"
+        },
+        {
+          "i": 85,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2234,
+          "redactedEquality": "content-equality-140"
+        },
+        {
+          "i": 86,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-141"
+        },
+        {
+          "i": 87,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-142"
+        },
+        {
+          "i": 88,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5331,
+          "redactedEquality": "content-equality-143"
+        },
+        {
+          "i": 89,
+          "type": "function_call",
+          "role": null,
+          "bytes": 2542,
+          "redactedEquality": "content-equality-144"
+        },
+        {
+          "i": 90,
+          "type": "function_call_output",
+          "role": null,
+          "bytes": 185,
+          "redactedEquality": "content-equality-145"
+        },
+        {
+          "i": 91,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1841,
+          "redactedEquality": "content-equality-146"
+        },
+        {
+          "i": 92,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-147"
+        },
+        {
+          "i": 93,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 968,
+          "redactedEquality": "content-equality-148"
+        },
+        {
+          "i": 94,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7738,
+          "redactedEquality": "content-equality-149"
+        },
+        {
+          "i": 95,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7351,
+          "redactedEquality": "content-equality-150"
+        },
+        {
+          "i": 96,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 6138,
+          "redactedEquality": "content-equality-151"
+        },
+        {
+          "i": 97,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 619,
+          "redactedEquality": "content-equality-152"
+        },
+        {
+          "i": 98,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 940,
+          "redactedEquality": "content-equality-153"
+        },
+        {
+          "i": 99,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 1958,
+          "redactedEquality": "content-equality-154"
+        },
+        {
+          "i": 100,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 512,
+          "redactedEquality": "content-equality-155"
+        },
+        {
+          "i": 101,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 45602,
+          "redactedEquality": "content-equality-156"
+        },
+        {
+          "i": 102,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7734,
+          "redactedEquality": "content-equality-157"
+        },
+        {
+          "i": 103,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-158"
+        },
+        {
+          "i": 104,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7500,
+          "redactedEquality": "content-equality-159"
+        },
+        {
+          "i": 105,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7688,
+          "redactedEquality": "content-equality-160"
+        },
+        {
+          "i": 106,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7331,
+          "redactedEquality": "content-equality-161"
+        },
+        {
+          "i": 107,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7454,
+          "redactedEquality": "content-equality-162"
+        },
+        {
+          "i": 108,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7149,
+          "redactedEquality": "content-equality-163"
+        },
+        {
+          "i": 109,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7741,
+          "redactedEquality": "content-equality-164"
+        },
+        {
+          "i": 110,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 8296,
+          "redactedEquality": "content-equality-165"
+        },
+        {
+          "i": 111,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 560,
+          "redactedEquality": "content-equality-166"
+        },
+        {
+          "i": 112,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4254,
+          "redactedEquality": "content-equality-167"
+        },
+        {
+          "i": 113,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1723,
+          "redactedEquality": "content-equality-168"
+        },
+        {
+          "i": 114,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7696,
+          "redactedEquality": "content-equality-169"
+        },
+        {
+          "i": 115,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 982,
+          "redactedEquality": "content-equality-170"
+        },
+        {
+          "i": 116,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 9707,
+          "redactedEquality": "content-equality-171"
+        },
+        {
+          "i": 117,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7435,
+          "redactedEquality": "content-equality-172"
+        },
+        {
+          "i": 118,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7692,
+          "redactedEquality": "content-equality-173"
+        },
+        {
+          "i": 119,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7305,
+          "redactedEquality": "content-equality-174"
+        },
+        {
+          "i": 120,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7526,
+          "redactedEquality": "content-equality-175"
+        },
+        {
+          "i": 121,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7552,
+          "redactedEquality": "content-equality-176"
+        },
+        {
+          "i": 122,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7725,
+          "redactedEquality": "content-equality-177"
+        },
+        {
+          "i": 123,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7632,
+          "redactedEquality": "content-equality-178"
+        },
+        {
+          "i": 124,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7288,
+          "redactedEquality": "content-equality-179"
+        },
+        {
+          "i": 125,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7547,
+          "redactedEquality": "content-equality-180"
+        },
+        {
+          "i": 126,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7355,
+          "redactedEquality": "content-equality-181"
+        },
+        {
+          "i": 127,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-182"
+        },
+        {
+          "i": 128,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7298,
+          "redactedEquality": "content-equality-183"
+        },
+        {
+          "i": 129,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7613,
+          "redactedEquality": "content-equality-184"
+        },
+        {
+          "i": 130,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7625,
+          "redactedEquality": "content-equality-185"
+        },
+        {
+          "i": 131,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7714,
+          "redactedEquality": "content-equality-186"
+        },
+        {
+          "i": 132,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7929,
+          "redactedEquality": "content-equality-187"
+        },
+        {
+          "i": 133,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7585,
+          "redactedEquality": "content-equality-188"
+        },
+        {
+          "i": 134,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2487,
+          "redactedEquality": "content-equality-189"
+        },
+        {
+          "i": 135,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 554,
+          "redactedEquality": "content-equality-190"
+        },
+        {
+          "i": 136,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 5115,
+          "redactedEquality": "content-equality-191"
+        },
+        {
+          "i": 137,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7395,
+          "redactedEquality": "content-equality-192"
+        },
+        {
+          "i": 138,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 7336,
+          "redactedEquality": "content-equality-193"
+        },
+        {
+          "i": 139,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2715,
+          "redactedEquality": "content-equality-194"
+        },
+        {
+          "i": 140,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 4463,
+          "redactedEquality": "content-equality-195"
+        },
+        {
+          "i": 141,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 1043,
+          "redactedEquality": "content-equality-196"
+        },
+        {
+          "i": 142,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5539,
+          "redactedEquality": "content-equality-199"
+        },
+        {
+          "i": 143,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1025,
+          "redactedEquality": "content-equality-200"
+        },
+        {
+          "i": 144,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 114,
+          "redactedEquality": "content-equality-205"
+        },
+        {
+          "i": 145,
+          "type": "message",
+          "role": "user",
+          "bytes": 235,
+          "redactedEquality": "content-equality-206"
+        },
+        {
+          "i": 146,
+          "type": "message",
+          "role": "user",
+          "bytes": 3912,
+          "redactedEquality": "content-equality-207"
+        },
+        {
+          "i": 147,
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2739,
+          "redactedEquality": "content-equality-210"
+        },
+        {
+          "i": 148,
+          "type": "message",
+          "role": "assistant",
+          "bytes": 457,
+          "redactedEquality": "content-equality-211"
+        },
+        {
+          "i": 149,
+          "type": "custom_tool_call",
+          "role": null,
+          "bytes": 1005,
+          "redactedEquality": "content-equality-212"
+        },
+        {
+          "i": 150,
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 18248,
+          "redactedEquality": "content-equality-213"
+        }
+      ]
+    }
+  },
+  "comparisons": {
+    "parentBeforeVsChildFirst": {
+      "instructionsEqual": true,
+      "toolsEqual": true,
+      "keyEqual": false,
+      "commonInputItems": 142,
+      "inputJsonCommonBytes": 775867,
+      "firstDifferentItem": {
+        "a": null,
+        "b": {
+          "type": "reasoning",
+          "role": null,
+          "bytes": 5539,
+          "redactedEquality": "content-equality-199"
+        }
+      },
+      "equalOtherFields": true
+    },
+    "parentAfterVsChildFirst": {
+      "instructionsEqual": true,
+      "toolsEqual": true,
+      "keyEqual": false,
+      "commonInputItems": 144,
+      "inputJsonCommonBytes": 782528,
+      "firstDifferentItem": {
+        "a": {
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 742,
+          "redactedEquality": "content-equality-201"
+        },
+        "b": {
+          "type": "custom_tool_call_output",
+          "role": null,
+          "bytes": 114,
+          "redactedEquality": "content-equality-205"
+        }
+      },
+      "equalOtherFields": true
+    },
+    "childFirstVsSecond": {
+      "instructionsEqual": true,
+      "toolsEqual": true,
+      "keyEqual": true,
+      "commonInputItems": 147,
+      "inputJsonCommonBytes": 786697,
+      "firstDifferentItem": {
+        "a": null,
+        "b": {
+          "type": "reasoning",
+          "role": null,
+          "bytes": 2739,
+          "redactedEquality": "content-equality-210"
+        }
+      },
+      "equalOtherFields": true
+    }
+  },
+  "oneFactorSameKey": {
+    "onlyCacheKeyChanged": true,
+    "body": {
+      "bytes": 898732,
+      "redactedEquality": "content-equality-214"
+    }
+  },
+  "sourceDigests": {
+    "dist/core/session-manager.js": {
+      "bytes": 60378,
+      "sha256": "046b6a1109ac3f0ed893bb85bf0648709362fa926a5da75761216cf2fcf9d926"
+    },
+    "dist/core/messages.js": {
+      "bytes": 4138,
+      "sha256": "8688b3f6eb28865f779cac998bd4754d1a4f08703200dfe0dd5a799aa0d42ef6"
+    },
+    "node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js": {
+      "bytes": 55581,
+      "sha256": "b185956e11a5c5cb522e5cad77daf21ce31c3c304e86a8333ffcb49ff78466ea"
+    },
+    "node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js": {
+      "bytes": 32201,
+      "sha256": "8744ad2ce9ce2512993360600760f5bcdbeb520d0a641c655b2a0b7cbe9db10a"
+    },
+    "node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json": {
+      "bytes": 6476,
+      "sha256": "3cc35a7e122e5c77ee8ec30a9a3bd8bd59629997e85ba2cb3f9e0ed62e9a09c0"
+    }
+  },
+  "_redaction": "REDACTED historical derivative under AK7403; not byte-identical original evidence, not a new execution or live proof, and no current implementation/adoption. See README.md. Relative times are seconds from the historical parent header; equality labels replace private content hashes and are not digests. Numbers and booleans describe the original observations."
+}

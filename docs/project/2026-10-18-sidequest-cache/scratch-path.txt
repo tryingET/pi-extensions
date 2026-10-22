@@ -1,0 +1,3 @@
+REDACTED historical derivative (AK7403): PRIVATE_FIXTURES pointer withheld.
+This is not a filesystem path. No current implementation/adoption or live proof.
+Private originals remain with the owner; see README.md. Do not use this file as a script argument.

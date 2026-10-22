@@ -1,0 +1,19 @@
+{
+  "cwd": "WORKSPACE/softwareco/owned/pi-extensions",
+  "repoRoot": "WORKSPACE/softwareco/owned/pi-extensions",
+  "requireTracked": false,
+  "scannedFiles": [
+    "docs/project/2026-10-18-sidequest-cache/design/README.md",
+    "docs/project/2026-10-18-sidequest-cache/design/conditional-affinity.md",
+    "docs/project/2026-10-18-sidequest-cache/design/fork-correctness.md",
+    "docs/project/2026-10-18-sidequest-cache/design/inspection.md",
+    "docs/project/2026-10-18-sidequest-cache/design/request-attribution.md",
+    "docs/project/2026-10-18-sidequest-cache/design/verification-rollout.md"
+  ],
+  "missingInputs": [],
+  "referenceCount": 7,
+  "scanWarnings": [],
+  "issues": [],
+  "ok": true,
+  "_redaction": "REDACTED historical derivative under AK7403; not byte-identical original evidence, not a new execution or live proof, and no current implementation/adoption. See ../README.md. Historical reference-check result retained; not a check of the derivative. Relative times are seconds from the historical parent header; equality labels replace private content hashes and are not digests. Numbers and booleans describe the original observations."
+}
