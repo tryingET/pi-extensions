@@ -40,6 +40,42 @@ export function resolveSurfaceVisibility(window, session, placement, options = {
   return "unknown";
 }
 
+/** @typedef {"agent" | "non-agent" | "unknown" | "none"} FocusKind */
+/**
+ * Classify exact admitted Niri ownership, never app-id/title heuristics.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Record<string, unknown>} workspace
+ * @param {Array<Record<string, unknown>>} cards
+ * @returns {FocusKind}
+ */
+export function classifyWorkspaceFocus(windows, workspace, cards) {
+  if (
+    windows.some(
+      (window) => !Number.isInteger(window?.id) || typeof window?.is_focused !== "boolean",
+    )
+  )
+    return "unknown";
+  const focused = windows.filter((window) => window.is_focused === true);
+  // Niri retains an active window while an exclusive layer surface owns the keyboard. NULL
+  // alone is not ownership: only the controller's pending explicit request can admit it.
+  if (focused.length === 0) return windows.length > 0 ? "none" : "unknown";
+  if (focused.length !== 1) return "unknown";
+  const window = focused[0];
+  if (!Number.isInteger(window.id) || window.workspace_id !== workspace.id) return "unknown";
+  return classifyAdmittedWindowFocus(Number(window.id), cards);
+}
+
+/** Exact Niri focus events may update eligibility before a slower full projection finishes.
+ * @param {number} windowId @param {Array<Record<string, unknown>>} cards @returns {FocusKind}
+ */
+export function classifyAdmittedWindowFocus(windowId, cards) {
+  if (!Number.isInteger(windowId)) return "unknown";
+  const owned = cards.filter((card) => card.windowId === windowId);
+  if (owned.length === 0 || owned.every((card) => card.surfaceVisible === false))
+    return "non-agent";
+  return owned.filter((card) => card.surfaceVisible !== false).length === 1 ? "agent" : "unknown";
+}
+
 /**
  * Project the global broker snapshot onto one exact Niri workspace. Membership requires an exact
  * window placement: a visible title, or a hidden tab attributed through its Ghostty host process.
@@ -131,6 +167,7 @@ export function resolveWorkspaceView(windows, workspace, sessions, options = {})
   const focusedCard = focusedCandidates.length === 1 ? focusedCandidates[0] : null;
   return {
     workspace,
+    focusKind: classifyWorkspaceFocus(windows, workspace, projectedSessions),
     sessions: projectedSessions,
     focusedSessionId: focusedCard ? String(focusedCard.sessionId ?? "") || null : null,
     focusedCardId: focusedCard ? String(focusedCard.cardId ?? "") || null : null,

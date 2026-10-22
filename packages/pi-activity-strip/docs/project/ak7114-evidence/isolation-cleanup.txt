@@ -1,0 +1,6 @@
+nested wayland-2 /run/user/1000/niri.wayland-2.719256.sock pid 719256
+outer focus: {"id":152}
+nested niri down
+bus_0 inode=18947
+  13697 node-MainThread
+  13712 pi-activity-str

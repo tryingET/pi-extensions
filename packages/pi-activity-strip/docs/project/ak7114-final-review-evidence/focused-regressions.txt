@@ -1,0 +1,1354 @@
+TAP version 13
+# Subtest: agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus
+ok 1 - agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 2.66118
+  type: 'test'
+  ...
+# Subtest: agent -> obsidian -> agent keeps cards but hides on exact non-agent focus
+ok 2 - agent -> obsidian -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.612668
+  type: 'test'
+  ...
+# Subtest: agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus
+ok 3 - agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.375268
+  type: 'test'
+  ...
+# Subtest: agent -> another-app -> agent keeps cards but hides on exact non-agent focus
+ok 4 - agent -> another-app -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.249518
+  type: 'test'
+  ...
+# Subtest: classification requires exact admitted window ownership, not app-id or a matching-looking title
+ok 5 - classification requires exact admitted window ownership, not app-id or a matching-looking title
+  ---
+  duration_ms: 0.129646
+  type: 'test'
+  ...
+# Subtest: explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes
+ok 6 - explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes
+  ---
+  duration_ms: 0.136377
+  type: 'test'
+  ...
+# Subtest: keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden
+ok 7 - keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden
+  ---
+  duration_ms: 0.127282
+  type: 'test'
+  ...
+# Subtest: empty-workspace fixture cannot accidentally select the unfocused target agent
+ok 8 - empty-workspace fixture cannot accidentally select the unfocused target agent
+  ---
+  duration_ms: 0.520188
+  type: 'test'
+  ...
+# Subtest: no actual empty workspace means no fixture selection, never a guessed fallback
+ok 9 - no actual empty workspace means no fixture selection, never a guessed fallback
+  ---
+  duration_ms: 0.09262
+  type: 'test'
+  ...
+# Subtest: production handshake preclaims BEFORE grant; NULL before ack and ordinary telemetry preserve epoch/claim
+ok 10 - production handshake preclaims BEFORE grant; NULL before ack and ordinary telemetry preserve epoch/claim
+  ---
+  duration_ms: 1.946738
+  type: 'test'
+  ...
+# Subtest: same data revision, leave/reenter, old cancels and old acks cannot release the newer hover
+ok 11 - same data revision, leave/reenter, old cancels and old acks cannot release the newer hover
+  ---
+  duration_ms: 0.242908
+  type: 'test'
+  ...
+# Subtest: explicit upgrade cannot be overridden/released by stale hover cancellation or acknowledgement
+ok 12 - explicit upgrade cannot be overridden/released by stale hover cancellation or acknowledgement
+  ---
+  duration_ms: 0.195286
+  type: 'test'
+  ...
+# Subtest: identity/workspace/non-agent revocation dominates late hover ack: (f) => f.publish("non-agent")
+ok 13 - identity/workspace/non-agent revocation dominates late hover ack: (f) => f.publish("non-agent")
+  ---
+  duration_ms: 0.263259
+  type: 'test'
+  ...
+# Subtest: identity/workspace/non-agent revocation dominates late hover ack: (f) => f.publish("unknown")
+ok 14 - identity/workspace/non-agent revocation dominates late hover ack: (f) => f.publish("unknown")
+  ---
+  duration_ms: 0.143377
+  type: 'test'
+  ...
+# Subtest: identity/workspace/non-agent revocation dominates late hover ack: (f) => f.publish("none", 44, 8)
+ok 15 - identity/workspace/non-agent revocation dominates late hover ack: (f) => f.publish("none", 44, 8)
+  ---
+  duration_ms: 0.167995
+  type: 'test'
+  ...
+# Subtest: identity/workspace/non-agent revocation dominates late hover ack: (f) => f.projection.invalidateWindowFocus(44)
+ok 16 - identity/workspace/non-agent revocation dominates late hover ack: (f) => f.projection.invalidateWindowFocus(44)
+  ---
+  duration_ms: 0.162496
+  type: 'test'
+  ...
+# Subtest: identity/workspace/non-agent revocation dominates late hover ack: (f) => f.projection.updateSnapshot({ generatedAt: 2, sessions: [] })
+ok 17 - identity/workspace/non-agent revocation dominates late hover ack: (f) => f.projection.updateSnapshot({ generatedAt: 2, sessions: [] })
+  ---
+  duration_ms: 0.115535
+  type: 'test'
+  ...
+# Subtest: hidden/click-through/stale epoch deny; failed write revokes immediately with no queued capture
+ok 18 - hidden/click-through/stale epoch deny; failed write revokes immediately with no queued capture
+  ---
+  duration_ms: 0.360896
+  type: 'test'
+  ...
+# Subtest: entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed
+ok 19 - entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed
+  ---
+  duration_ms: 1.69711
+  type: 'test'
+  ...
+# Subtest: known non-agent event dominates stale visible status and a late active panel acknowledgement
+ok 20 - known non-agent event dominates stale visible status and a late active panel acknowledgement
+  ---
+  duration_ms: 0.497854
+  type: 'test'
+  ...
+# Subtest: failed writes revoke provisional keyboard ownership
+ok 21 - failed writes revoke provisional keyboard ownership
+  ---
+  duration_ms: 0.234215
+  type: 'test'
+  ...
+# Subtest: closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus
+ok 22 - closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus
+  ---
+  duration_ms: 0.19142
+  type: 'test'
+  ...
+# Subtest: empty workspaces reject entry even before the old visibility receipt arrives
+ok 23 - empty workspaces reject entry even before the old visibility receipt arrives
+  ---
+  duration_ms: 0.142926
+  type: 'test'
+  ...
+# Subtest: loss of the admitted owner hides even when another window's cards remain, including keyboard NULL
+ok 24 - loss of the admitted owner hides even when another window's cards remain, including keyboard NULL
+  ---
+  duration_ms: 0.305873
+  type: 'test'
+  ...
+# Subtest: a focused-card hint without exact Niri window identity cannot authorize entry
+ok 25 - a focused-card hint without exact Niri window identity cannot authorize entry
+  ---
+  duration_ms: 0.163869
+  type: 'test'
+  ...
+# Subtest: native projection publishes only the focused workspace card with monotonic revisions
+ok 26 - native projection publishes only the focused workspace card with monotonic revisions
+  ---
+  duration_ms: 1.375613
+  type: 'test'
+  ...
+# Subtest: native projection fails closed without compositor ownership facts
+ok 27 - native projection fails closed without compositor ownership facts
+  ---
+  duration_ms: 0.133823
+  type: 'test'
+  ...
+# Subtest: native projection carries workspace placement onto display cards
+ok 28 - native projection carries workspace placement onto display cards
+  ---
+  duration_ms: 0.749825
+  type: 'test'
+  ...
+# Subtest: native projection drops a workspace number that is not an integer
+ok 29 - native projection drops a workspace number that is not an integer
+  ---
+  duration_ms: 0.213604
+  type: 'test'
+  ...
+# Subtest: native projection joins AK task chips onto cards and clears them fail-closed
+ok 30 - native projection joins AK task chips onto cards and clears them fail-closed
+  ---
+  duration_ms: 0.52802
+  type: 'test'
+  ...
+# Subtest: production broker publisher reorder retains hover, NULL=false
+ok 31 - production broker publisher reorder retains hover, NULL=false
+  ---
+  duration_ms: 9.960286
+  type: 'test'
+  ...
+# Subtest: production broker publisher reorder retains hover, NULL=true
+ok 32 - production broker publisher reorder retains hover, NULL=true
+  ---
+  duration_ms: 1.331396
+  type: 'test'
+  ...
+# Subtest: production broker publisher reorder retains explicit, NULL=false
+ok 33 - production broker publisher reorder retains explicit, NULL=false
+  ---
+  duration_ms: 1.032544
+  type: 'test'
+  ...
+# Subtest: production broker publisher reorder retains explicit, NULL=true
+ok 34 - production broker publisher reorder retains explicit, NULL=true
+  ---
+  duration_ms: 1.063691
+  type: 'test'
+  ...
+# Subtest: production jump intent hover release-first target=55
+ok 35 - production jump intent hover release-first target=55
+  ---
+  duration_ms: 1.219417
+  type: 'test'
+  ...
+# Subtest: production jump intent hover release-first target=99
+ok 36 - production jump intent hover release-first target=99
+  ---
+  duration_ms: 0.60718
+  type: 'test'
+  ...
+# Subtest: production jump intent hover focus-first target=55
+ok 37 - production jump intent hover focus-first target=55
+  ---
+  duration_ms: 0.741002
+  type: 'test'
+  ...
+# Subtest: production jump intent hover focus-first target=99
+ok 38 - production jump intent hover focus-first target=99
+  ---
+  duration_ms: 0.774453
+  type: 'test'
+  ...
+# Subtest: production jump intent explicit release-first target=55
+ok 39 - production jump intent explicit release-first target=55
+  ---
+  duration_ms: 0.609544
+  type: 'test'
+  ...
+# Subtest: production jump intent explicit release-first target=99
+ok 40 - production jump intent explicit release-first target=99
+  ---
+  duration_ms: 0.573919
+  type: 'test'
+  ...
+# Subtest: production jump intent explicit focus-first target=55
+ok 41 - production jump intent explicit focus-first target=55
+  ---
+  duration_ms: 0.498785
+  type: 'test'
+  ...
+# Subtest: production jump intent explicit focus-first target=99
+ok 42 - production jump intent explicit focus-first target=99
+  ---
+  duration_ms: 0.383831
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by non-agent
+ok 43 - in-flight hover jump revoked by non-agent
+  ---
+  duration_ms: 0.404353
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by workspace
+ok 44 - in-flight hover jump revoked by workspace
+  ---
+  duration_ms: 0.578697
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by close
+ok 45 - in-flight hover jump revoked by close
+  ---
+  duration_ms: 0.322048
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by replacement
+ok 46 - in-flight hover jump revoked by replacement
+  ---
+  duration_ms: 0.468039
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by ambiguity
+ok 47 - in-flight hover jump revoked by ambiguity
+  ---
+  duration_ms: 0.298963
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by membership
+ok 48 - in-flight hover jump revoked by membership
+  ---
+  duration_ms: 0.258061
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by cancel
+ok 49 - in-flight hover jump revoked by cancel
+  ---
+  duration_ms: 0.287856
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by new-claim
+ok 50 - in-flight hover jump revoked by new-claim
+  ---
+  duration_ms: 0.246143
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-source
+ok 51 - in-flight hover jump revoked by fresh-source
+  ---
+  duration_ms: 0.295497
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-source-pid
+ok 52 - in-flight hover jump revoked by fresh-source-pid
+  ---
+  duration_ms: 0.236208
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-target
+ok 53 - in-flight hover jump revoked by fresh-target
+  ---
+  duration_ms: 0.314607
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-non-agent
+ok 54 - in-flight hover jump revoked by fresh-non-agent
+  ---
+  duration_ms: 0.569172
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-ambiguous-focus
+ok 55 - in-flight hover jump revoked by fresh-ambiguous-focus
+  ---
+  duration_ms: 0.23769
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-other-agent
+ok 56 - in-flight hover jump revoked by fresh-other-agent
+  ---
+  duration_ms: 0.253584
+  type: 'test'
+  ...
+# Subtest: in-flight hover jump revoked by fresh-invalid-inventory
+ok 57 - in-flight hover jump revoked by fresh-invalid-inventory
+  ---
+  duration_ms: 0.222727
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by non-agent
+ok 58 - in-flight explicit jump revoked by non-agent
+  ---
+  duration_ms: 0.222277
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by workspace
+ok 59 - in-flight explicit jump revoked by workspace
+  ---
+  duration_ms: 0.194185
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by close
+ok 60 - in-flight explicit jump revoked by close
+  ---
+  duration_ms: 0.203849
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by replacement
+ok 61 - in-flight explicit jump revoked by replacement
+  ---
+  duration_ms: 0.272302
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by ambiguity
+ok 62 - in-flight explicit jump revoked by ambiguity
+  ---
+  duration_ms: 0.265683
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by membership
+ok 63 - in-flight explicit jump revoked by membership
+  ---
+  duration_ms: 0.852181
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by cancel
+ok 64 - in-flight explicit jump revoked by cancel
+  ---
+  duration_ms: 0.212121
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by new-claim
+ok 65 - in-flight explicit jump revoked by new-claim
+  ---
+  duration_ms: 0.283589
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-source
+ok 66 - in-flight explicit jump revoked by fresh-source
+  ---
+  duration_ms: 0.218821
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-source-pid
+ok 67 - in-flight explicit jump revoked by fresh-source-pid
+  ---
+  duration_ms: 0.190349
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-target
+ok 68 - in-flight explicit jump revoked by fresh-target
+  ---
+  duration_ms: 0.254085
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-non-agent
+ok 69 - in-flight explicit jump revoked by fresh-non-agent
+  ---
+  duration_ms: 0.205171
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-ambiguous-focus
+ok 70 - in-flight explicit jump revoked by fresh-ambiguous-focus
+  ---
+  duration_ms: 0.201275
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-other-agent
+ok 71 - in-flight explicit jump revoked by fresh-other-agent
+  ---
+  duration_ms: 0.205551
+  type: 'test'
+  ...
+# Subtest: in-flight explicit jump revoked by fresh-invalid-inventory
+ok 72 - in-flight explicit jump revoked by fresh-invalid-inventory
+  ---
+  duration_ms: 0.193023
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: delayed-empty-workspace
+ok 73 - fresh workspace facts revoke hover after own NULL release: delayed-empty-workspace
+  ---
+  duration_ms: 0.498936
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: missing
+ok 74 - fresh workspace facts revoke hover after own NULL release: missing
+  ---
+  duration_ms: 0.378624
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: read-error
+ok 75 - fresh workspace facts revoke hover after own NULL release: read-error
+  ---
+  duration_ms: 0.393155
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: malformed-list
+ok 76 - fresh workspace facts revoke hover after own NULL release: malformed-list
+  ---
+  duration_ms: 0.366225
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: malformed-row
+ok 77 - fresh workspace facts revoke hover after own NULL release: malformed-row
+  ---
+  duration_ms: 0.364633
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: missing-focus-flag
+ok 78 - fresh workspace facts revoke hover after own NULL release: missing-focus-flag
+  ---
+  duration_ms: 0.399515
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: malformed-focused-id
+ok 79 - fresh workspace facts revoke hover after own NULL release: malformed-focused-id
+  ---
+  duration_ms: 0.403862
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: missing-index-name
+ok 80 - fresh workspace facts revoke hover after own NULL release: missing-index-name
+  ---
+  duration_ms: 0.36967
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: ambiguous
+ok 81 - fresh workspace facts revoke hover after own NULL release: ambiguous
+  ---
+  duration_ms: 0.74612
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: duplicate-id
+ok 82 - fresh workspace facts revoke hover after own NULL release: duplicate-id
+  ---
+  duration_ms: 0.331793
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke hover after own NULL release: no-focused-workspace
+ok 83 - fresh workspace facts revoke hover after own NULL release: no-focused-workspace
+  ---
+  duration_ms: 0.274656
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: delayed-empty-workspace
+ok 84 - fresh workspace facts revoke explicit after own NULL release: delayed-empty-workspace
+  ---
+  duration_ms: 0.29059
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: missing
+ok 85 - fresh workspace facts revoke explicit after own NULL release: missing
+  ---
+  duration_ms: 0.240514
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: read-error
+ok 86 - fresh workspace facts revoke explicit after own NULL release: read-error
+  ---
+  duration_ms: 0.266113
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: malformed-list
+ok 87 - fresh workspace facts revoke explicit after own NULL release: malformed-list
+  ---
+  duration_ms: 0.252452
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: malformed-row
+ok 88 - fresh workspace facts revoke explicit after own NULL release: malformed-row
+  ---
+  duration_ms: 0.386605
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: missing-focus-flag
+ok 89 - fresh workspace facts revoke explicit after own NULL release: missing-focus-flag
+  ---
+  duration_ms: 0.340126
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: malformed-focused-id
+ok 90 - fresh workspace facts revoke explicit after own NULL release: malformed-focused-id
+  ---
+  duration_ms: 0.348388
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: missing-index-name
+ok 91 - fresh workspace facts revoke explicit after own NULL release: missing-index-name
+  ---
+  duration_ms: 0.341427
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: ambiguous
+ok 92 - fresh workspace facts revoke explicit after own NULL release: ambiguous
+  ---
+  duration_ms: 0.338934
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: duplicate-id
+ok 93 - fresh workspace facts revoke explicit after own NULL release: duplicate-id
+  ---
+  duration_ms: 0.352404
+  type: 'test'
+  ...
+# Subtest: fresh workspace facts revoke explicit after own NULL release: no-focused-workspace
+ok 94 - fresh workspace facts revoke explicit after own NULL release: no-focused-workspace
+  ---
+  duration_ms: 0.342539
+  type: 'test'
+  ...
+# Subtest: fresh display-prefix update preserves accepted hover jump
+ok 95 - fresh display-prefix update preserves accepted hover jump
+  ---
+  duration_ms: 0.425314
+  type: 'test'
+  ...
+# Subtest: fresh display-prefix update preserves accepted explicit jump
+ok 96 - fresh display-prefix update preserves accepted explicit jump
+  ---
+  duration_ms: 0.729975
+  type: 'test'
+  ...
+# Subtest: private protocol 2 is independent of the unchanged public broker protocol
+ok 97 - private protocol 2 is independent of the unchanged public broker protocol
+  ---
+  duration_ms: 1.8753
+  type: 'test'
+  ...
+# Subtest: synthetic v1 receipt is rejected before launch, including override bypass
+ok 98 - synthetic v1 receipt is rejected before launch, including override bypass
+  ---
+  duration_ms: 0.571476
+  type: 'test'
+  ...
+# Subtest: actual Node controller refuses a synthetic v1 override receipt without launching any GUI
+ok 99 - actual Node controller refuses a synthetic v1 override receipt without launching any GUI
+  ---
+  duration_ms: 120.957205
+  type: 'test'
+  ...
+# Subtest: incompatible ready is fatal, cannot become ready via a later packet, and revokes once
+ok 100 - incompatible ready is fatal, cannot become ready via a later packet, and revokes once
+  ---
+  duration_ms: 0.254666
+  type: 'test'
+  ...
+# Subtest: hover numeric jump rechecks actual production admission after read; missing/replaced/ambiguous ids cannot jump
+ok 101 - hover numeric jump rechecks actual production admission after read; missing/replaced/ambiguous ids cannot jump
+  ---
+  duration_ms: 6.580096
+  type: 'test'
+  ...
+# Subtest: hover cannot jump unlisted; only explicit permission admits an existing unlisted number
+ok 102 - hover cannot jump unlisted; only explicit permission admits an existing unlisted number
+  ---
+  duration_ms: 0.248386
+  type: 'test'
+  ...
+# Subtest: directory revocation while window read is pending rejects rather than queuing a stale hover focus
+ok 103 - directory revocation while window read is pending rejects rather than queuing a stale hover focus
+  ---
+  duration_ms: 0.18478
+  type: 'test'
+  ...
+# Subtest: actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+ok 104 - actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+  ---
+  duration_ms: 2.29045
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+ok 105 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+  ---
+  duration_ms: 0.391904
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+ok 106 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+  ---
+  duration_ms: 0.220645
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+ok 107 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+  ---
+  duration_ms: 0.223969
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+ok 108 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+  ---
+  duration_ms: 0.259423
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+ok 109 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+  ---
+  duration_ms: 0.200433
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+ok 110 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+  ---
+  duration_ms: 0.245632
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+ok 111 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+  ---
+  duration_ms: 0.184009
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+ok 112 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+  ---
+  duration_ms: 0.435029
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+ok 113 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+  ---
+  duration_ms: 0.373036
+  type: 'test'
+  ...
+# Subtest: owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+ok 114 - owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+  ---
+  duration_ms: 0.372675
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=false
+ok 115 - production placement revokes lost identity before polling: 019fa4d0, NULL=false
+  ---
+  duration_ms: 1.212807
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=true
+ok 116 - production placement revokes lost identity before polling: 019fa4d0, NULL=true
+  ---
+  duration_ms: 0.445114
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 117 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.654642
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 118 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.198371
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 119 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.319724
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 120 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.24406
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeef, NULL=false
+ok 121 - Claude hex suffix collision revokes before polling: deadbeef, NULL=false
+  ---
+  duration_ms: 0.401278
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeef, NULL=true
+ok 122 - Claude hex suffix collision revokes before polling: deadbeef, NULL=true
+  ---
+  duration_ms: 0.241466
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=false
+ok 123 - Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=false
+  ---
+  duration_ms: 0.171299
+  type: 'test'
+  ...
+# Subtest: Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=true
+ok 124 - Claude hex suffix collision revokes before polling: deadbeefdeadbeefdeadbeefdeadbeef, NULL=true
+  ---
+  duration_ms: 0.198751
+  type: 'test'
+  ...
+# Subtest: Pi prefix revealing a non-Pi title predicate invalidates: NULL=false
+ok 125 - Pi prefix revealing a non-Pi title predicate invalidates: NULL=false
+  ---
+  duration_ms: 0.269888
+  type: 'test'
+  ...
+# Subtest: Pi prefix revealing a non-Pi title predicate invalidates: NULL=true
+ok 126 - Pi prefix revealing a non-Pi title predicate invalidates: NULL=true
+  ---
+  duration_ms: 0.244631
+  type: 'test'
+  ...
+# Subtest: unknown or retired Pi source facts retain full title: retired=false
+ok 127 - unknown or retired Pi source facts retain full title: retired=false
+  ---
+  duration_ms: 0.186051
+  type: 'test'
+  ...
+# Subtest: unknown or retired Pi source facts retain full title: retired=true
+ok 128 - unknown or retired Pi source facts retain full title: retired=true
+  ---
+  duration_ms: 0.134774
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, changed
+ok 129 - cross-window conflict revokes established Pi legacy8: NULL=false, changed
+  ---
+  duration_ms: 0.570714
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, opened
+ok 130 - cross-window conflict revokes established Pi legacy8: NULL=false, opened
+  ---
+  duration_ms: 0.268567
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=false, inventory-other-workspace
+ok 131 - cross-window conflict revokes established Pi legacy8: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.258371
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, changed
+ok 132 - cross-window conflict revokes established Pi legacy8: NULL=true, changed
+  ---
+  duration_ms: 0.271331
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, opened
+ok 133 - cross-window conflict revokes established Pi legacy8: NULL=true, opened
+  ---
+  duration_ms: 0.258552
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi legacy8: NULL=true, inventory-other-workspace
+ok 134 - cross-window conflict revokes established Pi legacy8: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.238081
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, changed
+ok 135 - cross-window conflict revokes established Pi token32: NULL=false, changed
+  ---
+  duration_ms: 0.185841
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, opened
+ok 136 - cross-window conflict revokes established Pi token32: NULL=false, opened
+  ---
+  duration_ms: 0.153984
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=false, inventory-other-workspace
+ok 137 - cross-window conflict revokes established Pi token32: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.278402
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, changed
+ok 138 - cross-window conflict revokes established Pi token32: NULL=true, changed
+  ---
+  duration_ms: 0.276619
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, opened
+ok 139 - cross-window conflict revokes established Pi token32: NULL=true, opened
+  ---
+  duration_ms: 0.206723
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi token32: NULL=true, inventory-other-workspace
+ok 140 - cross-window conflict revokes established Pi token32: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.572157
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, changed
+ok 141 - cross-window conflict revokes established Pi surface: NULL=false, changed
+  ---
+  duration_ms: 0.326264
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, opened
+ok 142 - cross-window conflict revokes established Pi surface: NULL=false, opened
+  ---
+  duration_ms: 0.234635
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=false, inventory-other-workspace
+ok 143 - cross-window conflict revokes established Pi surface: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.203678
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, changed
+ok 144 - cross-window conflict revokes established Pi surface: NULL=true, changed
+  ---
+  duration_ms: 0.232342
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, opened
+ok 145 - cross-window conflict revokes established Pi surface: NULL=true, opened
+  ---
+  duration_ms: 0.209427
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Pi surface: NULL=true, inventory-other-workspace
+ok 146 - cross-window conflict revokes established Pi surface: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.242717
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, changed
+ok 147 - cross-window conflict revokes established Claude suffix8: NULL=false, changed
+  ---
+  duration_ms: 0.216578
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, opened
+ok 148 - cross-window conflict revokes established Claude suffix8: NULL=false, opened
+  ---
+  duration_ms: 0.154985
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=false, inventory-other-workspace
+ok 149 - cross-window conflict revokes established Claude suffix8: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.737718
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, changed
+ok 150 - cross-window conflict revokes established Claude suffix8: NULL=true, changed
+  ---
+  duration_ms: 0.229448
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, opened
+ok 151 - cross-window conflict revokes established Claude suffix8: NULL=true, opened
+  ---
+  duration_ms: 0.182887
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix8: NULL=true, inventory-other-workspace
+ok 152 - cross-window conflict revokes established Claude suffix8: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.220975
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, changed
+ok 153 - cross-window conflict revokes established Claude suffix32: NULL=false, changed
+  ---
+  duration_ms: 0.175105
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, opened
+ok 154 - cross-window conflict revokes established Claude suffix32: NULL=false, opened
+  ---
+  duration_ms: 0.13871
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=false, inventory-other-workspace
+ok 155 - cross-window conflict revokes established Claude suffix32: NULL=false, inventory-other-workspace
+  ---
+  duration_ms: 0.16481
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, changed
+ok 156 - cross-window conflict revokes established Claude suffix32: NULL=true, changed
+  ---
+  duration_ms: 0.198781
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, opened
+ok 157 - cross-window conflict revokes established Claude suffix32: NULL=true, opened
+  ---
+  duration_ms: 0.183007
+  type: 'test'
+  ...
+# Subtest: cross-window conflict revokes established Claude suffix32: NULL=true, inventory-other-workspace
+ok 158 - cross-window conflict revokes established Claude suffix32: NULL=true, inventory-other-workspace
+  ---
+  duration_ms: 0.207725
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi legacy8: NULL=false
+ok 159 - cached move/close/reopen facts revoke Pi legacy8: NULL=false
+  ---
+  duration_ms: 0.45553
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi legacy8: NULL=true
+ok 160 - cached move/close/reopen facts revoke Pi legacy8: NULL=true
+  ---
+  duration_ms: 0.388168
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi token32: NULL=false
+ok 161 - cached move/close/reopen facts revoke Pi token32: NULL=false
+  ---
+  duration_ms: 0.294275
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi token32: NULL=true
+ok 162 - cached move/close/reopen facts revoke Pi token32: NULL=true
+  ---
+  duration_ms: 0.346094
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi surface: NULL=false
+ok 163 - cached move/close/reopen facts revoke Pi surface: NULL=false
+  ---
+  duration_ms: 0.341066
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Pi surface: NULL=true
+ok 164 - cached move/close/reopen facts revoke Pi surface: NULL=true
+  ---
+  duration_ms: 0.403361
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix8: NULL=false
+ok 165 - cached move/close/reopen facts revoke Claude suffix8: NULL=false
+  ---
+  duration_ms: 0.29094
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix8: NULL=true
+ok 166 - cached move/close/reopen facts revoke Claude suffix8: NULL=true
+  ---
+  duration_ms: 0.424563
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix32: NULL=false
+ok 167 - cached move/close/reopen facts revoke Claude suffix32: NULL=false
+  ---
+  duration_ms: 0.330871
+  type: 'test'
+  ...
+# Subtest: cached move/close/reopen facts revoke Claude suffix32: NULL=true
+ok 168 - cached move/close/reopen facts revoke Claude suffix32: NULL=true
+  ---
+  duration_ms: 0.314637
+  type: 'test'
+  ...
+# Subtest: focus transfer revalidates a stale non-owner card before publishing any eligible frame
+ok 169 - focus transfer revalidates a stale non-owner card before publishing any eligible frame
+  ---
+  duration_ms: 0.25121
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+ok 170 - production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+  ---
+  duration_ms: 0.141034
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"pid":4001}
+ok 171 - production placement invalidates changed admission fact: {"pid":4001}
+  ---
+  duration_ms: 0.098549
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"workspace_id":8}
+ok 172 - production placement invalidates changed admission fact: {"workspace_id":8}
+  ---
+  duration_ms: 0.119271
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+ok 173 - production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+  ---
+  duration_ms: 0.098829
+  type: 'test'
+  ...
+# Subtest: initial full window inventory forwards exact focus, and a broken stream revokes ownership
+ok 174 - initial full window inventory forwards exact focus, and a broken stream revokes ownership
+  ---
+  duration_ms: 0.150708
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: browser, NULL=false
+ok 175 - hover production binding revokes Pi legacy8: browser, NULL=false
+  ---
+  duration_ms: 0.244029
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: workspace, NULL=false
+ok 176 - hover production binding revokes Pi legacy8: workspace, NULL=false
+  ---
+  duration_ms: 0.105931
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: close, NULL=false
+ok 177 - hover production binding revokes Pi legacy8: close, NULL=false
+  ---
+  duration_ms: 0.092871
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: replacement, NULL=false
+ok 178 - hover production binding revokes Pi legacy8: replacement, NULL=false
+  ---
+  duration_ms: 0.108895
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: conflict, NULL=false
+ok 179 - hover production binding revokes Pi legacy8: conflict, NULL=false
+  ---
+  duration_ms: 0.12515
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: browser, NULL=true
+ok 180 - hover production binding revokes Pi legacy8: browser, NULL=true
+  ---
+  duration_ms: 0.110237
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: workspace, NULL=true
+ok 181 - hover production binding revokes Pi legacy8: workspace, NULL=true
+  ---
+  duration_ms: 0.113352
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: close, NULL=true
+ok 182 - hover production binding revokes Pi legacy8: close, NULL=true
+  ---
+  duration_ms: 0.133152
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: replacement, NULL=true
+ok 183 - hover production binding revokes Pi legacy8: replacement, NULL=true
+  ---
+  duration_ms: 0.162346
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi legacy8: conflict, NULL=true
+ok 184 - hover production binding revokes Pi legacy8: conflict, NULL=true
+  ---
+  duration_ms: 0.138219
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: browser, NULL=false
+ok 185 - hover production binding revokes Pi token32: browser, NULL=false
+  ---
+  duration_ms: 0.097497
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: workspace, NULL=false
+ok 186 - hover production binding revokes Pi token32: workspace, NULL=false
+  ---
+  duration_ms: 0.10537
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: close, NULL=false
+ok 187 - hover production binding revokes Pi token32: close, NULL=false
+  ---
+  duration_ms: 0.105169
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: replacement, NULL=false
+ok 188 - hover production binding revokes Pi token32: replacement, NULL=false
+  ---
+  duration_ms: 0.14504
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: conflict, NULL=false
+ok 189 - hover production binding revokes Pi token32: conflict, NULL=false
+  ---
+  duration_ms: 0.143878
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: browser, NULL=true
+ok 190 - hover production binding revokes Pi token32: browser, NULL=true
+  ---
+  duration_ms: 0.117838
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: workspace, NULL=true
+ok 191 - hover production binding revokes Pi token32: workspace, NULL=true
+  ---
+  duration_ms: 0.124569
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: close, NULL=true
+ok 192 - hover production binding revokes Pi token32: close, NULL=true
+  ---
+  duration_ms: 0.125671
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: replacement, NULL=true
+ok 193 - hover production binding revokes Pi token32: replacement, NULL=true
+  ---
+  duration_ms: 0.141164
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi token32: conflict, NULL=true
+ok 194 - hover production binding revokes Pi token32: conflict, NULL=true
+  ---
+  duration_ms: 0.155416
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: browser, NULL=false
+ok 195 - hover production binding revokes Pi surface: browser, NULL=false
+  ---
+  duration_ms: 0.120372
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: workspace, NULL=false
+ok 196 - hover production binding revokes Pi surface: workspace, NULL=false
+  ---
+  duration_ms: 0.112942
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: close, NULL=false
+ok 197 - hover production binding revokes Pi surface: close, NULL=false
+  ---
+  duration_ms: 0.114283
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: replacement, NULL=false
+ok 198 - hover production binding revokes Pi surface: replacement, NULL=false
+  ---
+  duration_ms: 0.1386
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: conflict, NULL=false
+ok 199 - hover production binding revokes Pi surface: conflict, NULL=false
+  ---
+  duration_ms: 0.141785
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: browser, NULL=true
+ok 200 - hover production binding revokes Pi surface: browser, NULL=true
+  ---
+  duration_ms: 0.164479
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: workspace, NULL=true
+ok 201 - hover production binding revokes Pi surface: workspace, NULL=true
+  ---
+  duration_ms: 0.142606
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: close, NULL=true
+ok 202 - hover production binding revokes Pi surface: close, NULL=true
+  ---
+  duration_ms: 0.139832
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: replacement, NULL=true
+ok 203 - hover production binding revokes Pi surface: replacement, NULL=true
+  ---
+  duration_ms: 0.163398
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Pi surface: conflict, NULL=true
+ok 204 - hover production binding revokes Pi surface: conflict, NULL=true
+  ---
+  duration_ms: 0.168545
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: browser, NULL=false
+ok 205 - hover production binding revokes Claude suffix8: browser, NULL=false
+  ---
+  duration_ms: 0.102455
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: workspace, NULL=false
+ok 206 - hover production binding revokes Claude suffix8: workspace, NULL=false
+  ---
+  duration_ms: 0.101704
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: close, NULL=false
+ok 207 - hover production binding revokes Claude suffix8: close, NULL=false
+  ---
+  duration_ms: 0.108314
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: replacement, NULL=false
+ok 208 - hover production binding revokes Claude suffix8: replacement, NULL=false
+  ---
+  duration_ms: 0.121534
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: conflict, NULL=false
+ok 209 - hover production binding revokes Claude suffix8: conflict, NULL=false
+  ---
+  duration_ms: 0.13847
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: browser, NULL=true
+ok 210 - hover production binding revokes Claude suffix8: browser, NULL=true
+  ---
+  duration_ms: 0.613409
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: workspace, NULL=true
+ok 211 - hover production binding revokes Claude suffix8: workspace, NULL=true
+  ---
+  duration_ms: 0.129776
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: close, NULL=true
+ok 212 - hover production binding revokes Claude suffix8: close, NULL=true
+  ---
+  duration_ms: 0.110808
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: replacement, NULL=true
+ok 213 - hover production binding revokes Claude suffix8: replacement, NULL=true
+  ---
+  duration_ms: 0.124298
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix8: conflict, NULL=true
+ok 214 - hover production binding revokes Claude suffix8: conflict, NULL=true
+  ---
+  duration_ms: 0.133713
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: browser, NULL=false
+ok 215 - hover production binding revokes Claude suffix32: browser, NULL=false
+  ---
+  duration_ms: 0.088854
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: workspace, NULL=false
+ok 216 - hover production binding revokes Claude suffix32: workspace, NULL=false
+  ---
+  duration_ms: 0.080822
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: close, NULL=false
+ok 217 - hover production binding revokes Claude suffix32: close, NULL=false
+  ---
+  duration_ms: 0.077298
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: replacement, NULL=false
+ok 218 - hover production binding revokes Claude suffix32: replacement, NULL=false
+  ---
+  duration_ms: 0.088544
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: conflict, NULL=false
+ok 219 - hover production binding revokes Claude suffix32: conflict, NULL=false
+  ---
+  duration_ms: 0.089746
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: browser, NULL=true
+ok 220 - hover production binding revokes Claude suffix32: browser, NULL=true
+  ---
+  duration_ms: 0.09892
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: workspace, NULL=true
+ok 221 - hover production binding revokes Claude suffix32: workspace, NULL=true
+  ---
+  duration_ms: 0.090116
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: close, NULL=true
+ok 222 - hover production binding revokes Claude suffix32: close, NULL=true
+  ---
+  duration_ms: 0.095585
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: replacement, NULL=true
+ok 223 - hover production binding revokes Claude suffix32: replacement, NULL=true
+  ---
+  duration_ms: 0.11888
+  type: 'test'
+  ...
+# Subtest: hover production binding revokes Claude suffix32: conflict, NULL=true
+ok 224 - hover production binding revokes Claude suffix32: conflict, NULL=true
+  ---
+  duration_ms: 0.111158
+  type: 'test'
+  ...
+1..224
+# tests 224
+# suites 0
+# pass 224
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 177.135474

@@ -1,0 +1,18 @@
+Staged candidate artifact (not a /proc executable observation):
+aada4b72d4b1f5534e14c0a835d8c0faf7df7a9b062abcc5aa48de09984b1f66  native/bin/linux-x64-gnu/pi-activity-strip-panel
+{
+  "panelProtocol": 2,
+  "sha256": "aada4b72d4b1f5534e14c0a835d8c0faf7df7a9b062abcc5aa48de09984b1f66",
+  "sourceSha256": "9e7c91e117893922cf3844f461da89ca4ca1d5e86ff34b51cbb2f292aee84cee",
+  "cargoLockSha256": "f8ebc11bc721c569af982169e448a5ea4fed15bc06001017d97acda22b1c890b",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+}
+
+Recomputed complete Rust/CSS/Cargo source:
+9e7c91e117893922cf3844f461da89ca4ca1d5e86ff34b51cbb2f292aee84cee  -
+
+Configured GUI binary (receipt integrity bypass disabled in harness):
+/home/tryinget/.local/state/pi-quests/tmp/ak7114-hover-restore.e8cbK2/worktree/packages/pi-activity-strip/native/bin/linux-x64-gnu/pi-activity-strip-panel
+
+Actual normal-controller ready event:
+{"at":1792184158325,"direction":"from-panel","message":{"namespace":"pi-activity-strip","pid":2152623,"protocol":2,"type":"ready"}}

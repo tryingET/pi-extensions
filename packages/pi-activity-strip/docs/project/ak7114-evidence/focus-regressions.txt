@@ -1,0 +1,39 @@
+✔ agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus (1.652059ms)
+✔ agent -> obsidian -> agent keeps cards but hides on exact non-agent focus (0.722808ms)
+✔ agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus (0.180485ms)
+✔ agent -> another-app -> agent keeps cards but hides on exact non-agent focus (0.154544ms)
+✔ classification requires exact admitted window ownership, not app-id or a matching-looking title (0.127434ms)
+✔ explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes (0.153674ms)
+✔ keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden (0.097939ms)
+✔ entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed (1.986747ms)
+✔ known non-agent event dominates stale visible status and a late active panel acknowledgement (0.835399ms)
+✔ failed writes revoke provisional keyboard ownership (1.184208ms)
+✔ closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus (0.283281ms)
+✔ empty workspaces reject entry even before the old visibility receipt arrives (0.215948ms)
+✔ loss of the admitted owner hides even when another window's cards remain, including keyboard NULL (0.444946ms)
+✔ a focused-card hint without exact Niri window identity cannot authorize entry (0.210049ms)
+✔ native projection publishes only the focused workspace card with monotonic revisions (1.326214ms)
+✔ native projection fails closed without compositor ownership facts (0.160584ms)
+✔ native projection carries workspace placement onto display cards (0.312184ms)
+✔ native projection drops a workspace number that is not an integer (0.852134ms)
+✔ native projection joins AK task chips onto cards and clears them fail-closed (0.586911ms)
+✔ actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read (3.413994ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}} (0.372416ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}} (0.225262ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}} (0.219183ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}} (0.228968ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}} (0.211061ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}} (0.198101ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}} (0.183419ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}} (0.220525ms)
+✔ unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}} (0.332055ms)
+✔ owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity (0.337843ms)
+✔ initial full window inventory forwards exact focus, and a broken stream revokes ownership (0.192242ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 73.221936

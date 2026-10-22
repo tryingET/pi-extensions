@@ -134,6 +134,9 @@ pub struct ViewMessage {
     #[serde(rename = "type")]
     pub message_type: String,
     pub revision: u64,
+    /// Changes only when exact controller admission/visibility context changes, not on telemetry.
+    #[serde(default)]
+    pub interaction_epoch: u64,
     #[serde(default)]
     pub visible: bool,
     #[serde(default)]
@@ -168,11 +171,17 @@ pub struct WindowEntry {
 }
 
 fn protocol_version() -> u8 {
-    1
+    2
 }
 
 static OUTPUT: OnceLock<Mutex<io::Stdout>> = OnceLock::new();
 static READY: AtomicBool = AtomicBool::new(false);
+/// Do not rely on closing a never-mapped GTK window to end its application hold.
+/// A fatal private-protocol mismatch drops the Wayland connection (and any grab) immediately.
+pub fn reject_protocol(message: impl Into<String>) -> ! {
+    emit_error(message);
+    std::process::exit(1);
+}
 
 pub fn emit(event: Value) {
     let stdout = OUTPUT.get_or_init(|| Mutex::new(io::stdout()));
@@ -192,7 +201,7 @@ pub fn was_ready() -> bool {
 pub fn emit_ready() {
     READY.store(true, Ordering::SeqCst);
     emit(json!({
-        "protocol": 1,
+        "protocol": 2,
         "type": "ready",
         "pid": std::process::id(),
         "namespace": "pi-activity-strip"
@@ -200,7 +209,7 @@ pub fn emit_ready() {
 }
 
 pub fn emit_error(message: impl Into<String>) {
-    emit(json!({ "protocol": 1, "type": "error", "message": message.into() }));
+    emit(json!({ "protocol": 2, "type": "error", "message": message.into() }));
 }
 
 pub fn demo_view() -> ViewMessage {
@@ -209,9 +218,10 @@ pub fn demo_view() -> ViewMessage {
         .unwrap_or_default()
         .as_millis() as i64;
     ViewMessage {
-        protocol: 1,
+        protocol: 2,
         message_type: "view".into(),
         revision: 1,
+        interaction_epoch: 1,
         visible: true,
         focused_card_id: Some("demo-tool".into()),
         sessions: vec![
@@ -342,7 +352,7 @@ mod tests {
     #[test]
     fn view_messages_accept_current_node_projection_shape() {
         let view: ViewMessage = serde_json::from_str(
-            r#"{"protocol":1,"type":"view","revision":7,"visible":true,"focusedCardId":"card-a","sessions":[{"cardId":"card-a","sessionId":"session-a","state":"tool","agentActive":true,"agentStartedAt":null,"processId":4242}]}"#,
+            r#"{"protocol":2,"type":"view","revision":7,"visible":true,"focusedCardId":"card-a","sessions":[{"cardId":"card-a","sessionId":"session-a","state":"tool","agentActive":true,"agentStartedAt":null,"processId":4242}]}"#,
         )
         .expect("view should parse");
         assert_eq!(view.revision, 7);
@@ -376,7 +386,7 @@ mod tests {
     #[test]
     fn window_and_workspace_numbers_are_optional_card_fields() {
         let view: ViewMessage = serde_json::from_str(
-            r#"{"protocol":1,"type":"view","revision":9,"sessions":[{"cardId":"card-a","windowId":43,"workspaceIdx":2},{"cardId":"card-b","windowId":null,"workspaceIdx":null},{"cardId":"card-c"}]}"#,
+            r#"{"protocol":2,"type":"view","revision":9,"sessions":[{"cardId":"card-a","windowId":43,"workspaceIdx":2},{"cardId":"card-b","windowId":null,"workspaceIdx":null},{"cardId":"card-c"}]}"#,
         )
         .expect("view should parse");
         assert_eq!(view.sessions[0].window_id, Some(43));
@@ -393,7 +403,7 @@ mod tests {
     #[test]
     fn a_malformed_window_or_workspace_number_drops_only_that_field() {
         let view: ViewMessage = serde_json::from_str(
-            r#"{"protocol":1,"type":"view","revision":10,"sessions":[{"cardId":"card-a","windowId":"43","workspaceIdx":2.5},{"cardId":"card-b","windowId":44,"workspaceIdx":3}]}"#,
+            r#"{"protocol":2,"type":"view","revision":10,"sessions":[{"cardId":"card-a","windowId":"43","workspaceIdx":2.5},{"cardId":"card-b","windowId":44,"workspaceIdx":3}]}"#,
         )
         .expect("a bad optional field must not reject the whole view");
         assert_eq!(view.sessions.len(), 2);
@@ -406,7 +416,7 @@ mod tests {
     #[test]
     fn ak_task_chips_parse_with_states() {
         let view: ViewMessage = serde_json::from_str(
-            r#"{"protocol":1,"type":"view","revision":8,"sessions":[{"cardId":"card-a","akTasks":[{"id":5701,"title":"Show clickable AK-task references","state":"active"},{"id":5432,"title":"Preserve safe NEXUS recovery reasons","state":"orphaned"},{"id":4220,"title":"Control Decision 77 epoch admissions","state":"deferred"}],"akTaskOverflow":3}]}"#,
+            r#"{"protocol":2,"type":"view","revision":8,"sessions":[{"cardId":"card-a","akTasks":[{"id":5701,"title":"Show clickable AK-task references","state":"active"},{"id":5432,"title":"Preserve safe NEXUS recovery reasons","state":"orphaned"},{"id":4220,"title":"Control Decision 77 epoch admissions","state":"deferred"}],"akTaskOverflow":3}]}"#,
         )
         .expect("view should parse");
         let card = &view.sessions[0];

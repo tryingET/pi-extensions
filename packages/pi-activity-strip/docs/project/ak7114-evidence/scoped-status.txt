@@ -1,0 +1,32 @@
+ M packages/pi-activity-strip/README.md
+ M packages/pi-activity-strip/native/bin/linux-x64-gnu/artifact.json
+ M packages/pi-activity-strip/native/bin/linux-x64-gnu/pi-activity-strip-panel
+ M packages/pi-activity-strip/native/panel/src/app.rs
+ M packages/pi-activity-strip/native/panel/src/card_view.rs
+ M packages/pi-activity-strip/native/panel/src/main.rs
+ M packages/pi-activity-strip/native/panel/src/runtime.rs
+ M packages/pi-activity-strip/package.json
+ M packages/pi-activity-strip/scripts/build-native-panel.sh
+ M packages/pi-activity-strip/src/common/workspace-view.mjs
+ M packages/pi-activity-strip/src/native/main.mjs
+ M packages/pi-activity-strip/src/native/panel-projection.mjs
+ M packages/pi-activity-strip/src/native/workspace-events.mjs
+ M packages/pi-activity-strip/tests/native-panel-projection.test.mjs
+?? packages/pi-activity-strip/docs/project/2026-10-15-ak7114-focus-hover.md
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/artifact-match.txt
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/focus-regressions.txt
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/isolated-gui.txt
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/isolation-cleanup.txt
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/native-final.txt
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/package-check.txt
+?? packages/pi-activity-strip/docs/project/ak7114-evidence/scoped-status.txt
+?? packages/pi-activity-strip/native/panel/src/app_gui_tests.rs
+?? packages/pi-activity-strip/native/panel/src/interaction.rs
+?? packages/pi-activity-strip/src/native/focus-visibility.mjs
+?? packages/pi-activity-strip/src/native/keyboard-entry.mjs
+?? packages/pi-activity-strip/tests/focus-visibility.test.mjs
+?? packages/pi-activity-strip/tests/keyboard-entry.test.mjs
+?? packages/pi-activity-strip/tests/support/isolated-gtk-window.py
+?? packages/pi-activity-strip/tests/support/isolated-niri-check.mjs
+?? packages/pi-activity-strip/tests/support/virtual-pointer.c
+?? packages/pi-activity-strip/tests/workspace-focus-projection.test.mjs

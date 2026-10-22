@@ -31,6 +31,7 @@ import {
   ACTIVITY_STRIP_START_TIMEOUT_MS,
   ACTIVITY_STRIP_STOP_TIMEOUT_MS,
 } from "../src/common/constants.mjs";
+import { isOverlayReady } from "../src/common/overlay-readiness.mjs";
 import { makeMessage } from "../src/common/protocol.mjs";
 import { formatBrokerRuntimeStatus } from "../src/common/status-report.mjs";
 
@@ -53,9 +54,13 @@ function usage() {
 async function openStrip({ detached = true } = {}) {
   if (await isBrokerAlive()) {
     const status = await getBrokerStatus({ expectReply: true }).catch(() => null);
-    if (status?.runtimeStatus?.state !== "error") {
+    if (isOverlayReady(status)) {
       console.log("Activity strip is already running.");
       return 0;
+    }
+    if (status?.runtimeStatus?.state !== "error") {
+      console.error(formatBrokerRuntimeStatus(status));
+      return 1; // Unknown/starting is not success and does not authorize replacement.
     }
     await requestBrokerShutdown().catch(() => null);
     // Its broker closes before it exits; starting before the lock is released would lose it.
@@ -218,8 +223,7 @@ async function main() {
         } else {
           console.log(formatBrokerRuntimeStatus(result));
         }
-        process.exitCode =
-          result?.ok && (!result.runtimeStatus || result.runtimeStatus.state === "ready") ? 0 : 1;
+        process.exitCode = isOverlayReady(result) ? 0 : 1;
       } catch {
         console.log(
           jsonOutput ? JSON.stringify({ ok: false, state: "stopped" }, null, 2) : "stopped",

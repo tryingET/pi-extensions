@@ -8,12 +8,8 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { assessActivityStripCompatibility } from "../common/compatibility.mjs";
 import { ACTIVITY_STRIP_START_TIMEOUT_MS } from "../common/constants.mjs";
+import { isOverlayReady } from "../common/overlay-readiness.mjs";
 import { getBrokerStatus } from "./broker-client.mjs";
-
-/** @param {import("../common/contracts.ts").BrokerResponse | null | undefined} result */
-function isBrokerReady(result) {
-  return Boolean(result?.ok && (!result.runtimeStatus || result.runtimeStatus.state === "ready"));
-}
 
 /** @param {import("../common/contracts.ts").BrokerResponse | null | undefined} result */
 function describeBrokerWait(result) {
@@ -64,7 +60,7 @@ export async function ensureActivityStripRunning(binPath, options = {}) {
     latestStatus = null;
   }
 
-  if (isBrokerReady(latestStatus)) {
+  if (isOverlayReady(latestStatus)) {
     return { ok: true, started: false };
   }
 
@@ -101,7 +97,7 @@ export async function ensureActivityStripRunning(binPath, options = {}) {
     } catch {
       latestStatus = null;
     }
-    if (isBrokerReady(latestStatus)) {
+    if (isOverlayReady(latestStatus)) {
       return { ok: true, started };
     }
     if (latestStatus?.runtimeStatus?.state === "error") {

@@ -1,0 +1,12 @@
+actual_panel_pid=188408
+actual_panel_exe=/home/tryinget/.local/state/pi-quests/tmp/ak7114-hover-restore.e8cbK2/worktree/packages/pi-activity-strip/native/bin/linux-x64-gnu/pi-activity-strip-panel
+2f9fad94b5a6078136d191c92c8478c0045c35ade636cdbbb9844aec27097bb1  /proc/188408/exe
+2f9fad94b5a6078136d191c92c8478c0045c35ade636cdbbb9844aec27097bb1  native/bin/linux-x64-gnu/pi-activity-strip-panel
+{
+  "sha256": "2f9fad94b5a6078136d191c92c8478c0045c35ade636cdbbb9844aec27097bb1",
+  "sourceSha256": "56195e5c12dfc7b075b429a7371787e42df81058b349fc5487fd8d15dcbc4007",
+  "cargoLockSha256": "f8ebc11bc721c569af982169e448a5ea4fed15bc06001017d97acda22b1c890b",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+}
+recomputed_source=56195e5c12dfc7b075b429a7371787e42df81058b349fc5487fd8d15dcbc4007  -
+recomputed_lock=f8ebc11bc721c569af982169e448a5ea4fed15bc06001017d97acda22b1c890b  native/panel/Cargo.lock

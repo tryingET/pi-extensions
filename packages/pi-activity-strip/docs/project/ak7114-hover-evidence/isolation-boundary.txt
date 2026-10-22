@@ -1,0 +1,14 @@
+Final helper cleanup (operator title omitted):
+nested wayland-3 /run/user/1000/niri.wayland-3.123801.sock pid 123801
+remaining nested layers: []
+nested niri down
+
+Operator processes (read-only check):
+    PID                  STARTED COMMAND
+3290373 Thu Oct 15 18:32:08 2026 node-MainThread
+3290412 Thu Oct 15 18:32:08 2026 pi-activity-str
+
+Host AT-SPI socket inode (before was 18947):
+18947 /run/user/1000/at-spi/bus_0
+
+Git index changes (must be empty):

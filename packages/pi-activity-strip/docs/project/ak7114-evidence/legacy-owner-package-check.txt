@@ -1,0 +1,2146 @@
+v22.23.3
+12.0.2
+npm notice run @tryinget/pi-activity-strip@0.9.0 check
+npm notice run npm run quality:ci
+npm notice run @tryinget/pi-activity-strip@0.9.0 quality:ci
+npm notice run bash ./scripts/quality-gate.sh ci
+==> package quality gate: packages/pi-activity-strip [ci]
+ok: pi host contract pins (9 declaration(s)/lock entries at 1.1.0)
+local-package-links: ok (1 package(s), 0 link(s))
+structure: skipped (packages/pi-activity-strip, no monorepo structure contract detected)
+file-budget: ok
+Checked 95 files in 21ms. No fixes applied.
+tests: per-file timeout 120000ms (packages/pi-activity-strip)
+tests: tests/card-display.test.mjs
+TAP version 13
+# Subtest: wedged streams are stalled when no real event arrived within the threshold
+ok 1 - wedged streams are stalled when no real event arrived within the threshold
+  ---
+  duration_ms: 0.62627
+  type: 'test'
+  ...
+# Subtest: long silent tools are only stalled after generous thresholds
+ok 2 - long silent tools are only stalled after generous thresholds
+  ---
+  duration_ms: 0.139191
+  type: 'test'
+  ...
+# Subtest: duplicate repo labels gain a short process suffix
+ok 3 - duplicate repo labels gain a short process suffix
+  ---
+  duration_ms: 0.260155
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13.794257
+tests: tests/activity-order.test.mjs
+TAP version 13
+# Subtest: calm ordering puts green monitoring sessions next to the Activity tile
+ok 1 - calm ordering puts green monitoring sessions next to the Activity tile
+  ---
+  duration_ms: 1.162195
+  type: 'test'
+  ...
+# Subtest: new sessions append immediately and manual arrow moves are bounded
+ok 2 - new sessions append immediately and manual arrow moves are bounded
+  ---
+  duration_ms: 0.235578
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13.074804
+tests: tests/alignment-controller.test.mjs
+TAP version 13
+# Subtest: latest-only alignment invalidates stale asynchronous geometry work
+ok 1 - latest-only alignment invalidates stale asynchronous geometry work
+  ---
+  duration_ms: 1.344321
+  type: 'test'
+  ...
+# Subtest: latest-only runner cannot drop a request during worker finalization
+ok 2 - latest-only runner cannot drop a request during worker finalization
+  ---
+  duration_ms: 2.518024
+  type: 'test'
+  ...
+# Subtest: alignment runner recovers after a best-effort attempt fails
+ok 3 - alignment runner recovers after a best-effort attempt fails
+  ---
+  duration_ms: 0.293086
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17.562419
+tests: tests/ak-runtime.test.mjs
+TAP version 13
+# Subtest: refresh reads only the read-only ak CLI surface
+ok 1 - refresh reads only the read-only ak CLI surface
+  ---
+  duration_ms: 1.971343
+  type: 'test'
+  ...
+# Subtest: missing ak binary fails closed and clears chips
+ok 2 - missing ak binary fails closed and clears chips
+  ---
+  duration_ms: 0.417083
+  type: 'test'
+  ...
+# Subtest: malformed output fails closed
+ok 3 - malformed output fails closed
+  ---
+  duration_ms: 0.370562
+  type: 'test'
+  ...
+# Subtest: the runtime stays inert when disabled by environment
+ok 4 - the runtime stays inert when disabled by environment
+  ---
+  duration_ms: 0.240445
+  type: 'test'
+  ...
+# Subtest: an alternate ak binary is honored
+ok 5 - an alternate ak binary is honored
+  ---
+  duration_ms: 0.564537
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19.797783
+tests: tests/ak-tasks.test.mjs
+TAP version 13
+# Subtest: claim list parses only session-bound live-shape claims
+ok 1 - claim list parses only session-bound live-shape claims
+  ---
+  duration_ms: 1.961788
+  type: 'test'
+  ...
+# Subtest: claim list fails closed on malformed envelopes
+ok 2 - claim list fails closed on malformed envelopes
+  ---
+  duration_ms: 0.189989
+  type: 'test'
+  ...
+# Subtest: deferred list keeps only active deferrals with valid repos
+ok 3 - deferred list keeps only active deferrals with valid repos
+  ---
+  duration_ms: 0.341589
+  type: 'test'
+  ...
+# Subtest: timestamps parse RFC3339 with offsets and reject garbage
+ok 4 - timestamps parse RFC3339 with offsets and reject garbage
+  ---
+  duration_ms: 0.161535
+  type: 'test'
+  ...
+# Subtest: repo containment requires the card cwd to sit inside the task repo
+ok 5 - repo containment requires the card cwd to sit inside the task repo
+  ---
+  duration_ms: 0.267216
+  type: 'test'
+  ...
+# Subtest: a live claim by the card session renders one clickable chip
+ok 6 - a live claim by the card session renders one clickable chip
+  ---
+  duration_ms: 0.655926
+  type: 'test'
+  ...
+# Subtest: expired leases are vacant custody and render nothing
+ok 7 - expired leases are vacant custody and render nothing
+  ---
+  duration_ms: 0.255058
+  type: 'test'
+  ...
+# Subtest: a claim resumed into two terminals is ambiguous and binds nothing
+ok 8 - a claim resumed into two terminals is ambiguous and binds nothing
+  ---
+  duration_ms: 0.234326
+  type: 'test'
+  ...
+# Subtest: claims by dead sessions badge cards inside the task repo, never as buttons
+ok 9 - claims by dead sessions badge cards inside the task repo, never as buttons
+  ---
+  duration_ms: 0.687984
+  type: 'test'
+  ...
+# Subtest: deferred tasks of the card repo render as badges
+ok 10 - deferred tasks of the card repo render as badges
+  ---
+  duration_ms: 1.446106
+  type: 'test'
+  ...
+# Subtest: a deferred claim never becomes a button even for its own claiming session
+ok 11 - a deferred claim never becomes a button even for its own claiming session
+  ---
+  duration_ms: 0.294647
+  type: 'test'
+  ...
+# Subtest: chips are bounded per card with an overflow count
+ok 12 - chips are bounded per card with an overflow count
+  ---
+  duration_ms: 0.312996
+  type: 'test'
+  ...
+# Subtest: agent-kind session ids can never join a session-bound claim
+ok 13 - agent-kind session ids can never join a session-bound claim
+  ---
+  duration_ms: 0.149387
+  type: 'test'
+  ...
+# Subtest: summarizeAkTasks counts live, orphaned, and deferred state
+ok 14 - summarizeAkTasks counts live, orphaned, and deferred state
+  ---
+  duration_ms: 0.203719
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24.922565
+tests: tests/ghostty-present.test.mjs
+TAP version 13
+# Subtest: object paths follow the admitted Ghostty family
+ok 1 - object paths follow the admitted Ghostty family
+  ---
+  duration_ms: 0.587191
+  type: 'test'
+  ...
+# Subtest: present-surface targets the unique bus name of the proven host process
+ok 2 - present-surface targets the unique bus name of the proven host process
+  ---
+  duration_ms: 0.734746
+  type: 'test'
+  ...
+# Subtest: present-surface fails closed on incomplete targets, missing or ambiguous bus owners, and rejection
+ok 3 - present-surface fails closed on incomplete targets, missing or ambiguous bus owners, and rejection
+  ---
+  duration_ms: 0.392206
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15.518094
+tests: tests/claude-telemetry.test.mjs
+TAP version 13
+# Subtest: transcript state comes from the newest timestamped record
+ok 1 - transcript state comes from the newest timestamped record
+  ---
+  duration_ms: 1.144308
+  type: 'test'
+  ...
+# Subtest: transcript parsing survives fragments, attachments, and empty input
+ok 2 - transcript parsing survives fragments, attachments, and empty input
+  ---
+  duration_ms: 0.183529
+  type: 'test'
+  ...
+# Subtest: hook payloads map to ribbon state and refuse records without an identity
+ok 3 - hook payloads map to ribbon state and refuse records without an identity
+  ---
+  duration_ms: 0.371184
+  type: 'test'
+  ...
+# Subtest: event file paths admit only exact session ids
+ok 4 - event file paths admit only exact session ids
+  ---
+  duration_ms: 0.231902
+  type: 'test'
+  ...
+# Subtest: a newer hook event overrides the transcript, and a stale or older one never does
+ok 5 - a newer hook event overrides the transcript, and a stale or older one never does
+  ---
+  duration_ms: 0.483023
+  type: 'test'
+  ...
+# Subtest: the hook settings fragment covers only low-frequency events and merges without duplicating
+ok 6 - the hook settings fragment covers only low-frequency events and merges without duplicating
+  ---
+  duration_ms: 2.619617
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19.383254
+tests: tests/agent-tabs.test.mjs
+TAP version 13
+# Subtest: agent recognition admits known CLIs and refuses runtimes, Pi, and disabled kinds
+ok 1 - agent recognition admits known CLIs and refuses runtimes, Pi, and disabled kinds
+  ---
+  duration_ms: 0.992748
+  type: 'test'
+  ...
+# Subtest: an agent record carries a terminal card identity and whole-millisecond timestamps
+ok 2 - an agent record carries a terminal card identity and whole-millisecond timestamps
+  ---
+  duration_ms: 0.476794
+  type: 'test'
+  ...
+# Subtest: the Claude adapter reads the session from an open scratchpad and the last recorded title
+ok 3 - the Claude adapter reads the session from an open scratchpad and the last recorded title
+  ---
+  duration_ms: 1.179411
+  type: 'test'
+  ...
+# Subtest: discovery admits only agent processes bound to a live Ghostty surface
+ok 4 - discovery admits only agent processes bound to a live Ghostty surface
+  ---
+  duration_ms: 1.742546
+  type: 'test'
+  ...
+# Subtest: an agent tab is placed by its own title, and ambiguity places nothing
+ok 5 - an agent tab is placed by its own title, and ambiguity places nothing
+  ---
+  duration_ms: 0.522424
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 26.59302
+tests: tests/broker-client.test.mjs
+TAP version 13
+# Subtest: broker accepts upsert and answers ping
+ok 1 - broker accepts upsert and answers ping
+  ---
+  duration_ms: 8.219251
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 27.85025
+tests: tests/codex-telemetry.test.mjs
+(node:1412548) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+TAP version 13
+# Subtest: a Codex tool call reads as running until its output arrives
+ok 1 - a Codex tool call reads as running until its output arrives
+  ---
+  duration_ms: 1.31723
+  type: 'test'
+  ...
+# Subtest: Codex turn boundaries, previews and other tool shapes are reported
+ok 2 - Codex turn boundaries, previews and other tool shapes are reported
+  ---
+  duration_ms: 0.281117
+  type: 'test'
+  ...
+# Subtest: Codex tool targets survive unparseable arguments and empty rollouts
+ok 3 - Codex tool targets survive unparseable arguments and empty rollouts
+  ---
+  duration_ms: 0.281598
+  type: 'test'
+  ...
+# Subtest: the newest state database wins and a Codex-free home yields nothing
+ok 4 - the newest state database wins and a Codex-free home yields nothing
+  ---
+  duration_ms: 1.965715
+  type: 'test'
+  ...
+# Subtest: a Codex process binds to its thread only on exact or unambiguous evidence
+ok 5 - a Codex process binds to its thread only on exact or unambiguous evidence
+  ---
+  duration_ms: 0.622796
+  type: 'test'
+  ...
+# Subtest: orphaned hook records are retired once no live session claims them
+ok 6 - orphaned hook records are retired once no live session claims them
+  ---
+  duration_ms: 0.441951
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23.218046
+tests: tests/interaction-runtime.test.mjs
+TAP version 13
+# Subtest: CLI launches only the native controller and routes keyboard entry through the broker
+ok 1 - CLI launches only the native controller and routes keyboard entry through the broker
+  ---
+  duration_ms: 0.886455
+  type: 'test'
+  ...
+# Subtest: every stop path waits for the runtime to exit, so a following open cannot race it
+ok 2 - every stop path waits for the runtime to exit, so a following open cannot race it
+  ---
+  duration_ms: 0.198421
+  type: 'test'
+  ...
+# Subtest: native controller supervises a receipt-verified panel and coalesces backpressure
+ok 3 - native controller supervises a receipt-verified panel and coalesces backpressure
+  ---
+  duration_ms: 0.183899
+  type: 'test'
+  ...
+# Subtest: GTK panel owns layer-shell reservation, click-through, keyboard, and parent death
+ok 4 - GTK panel owns layer-shell reservation, click-through, keyboard, and parent death
+  ---
+  duration_ms: 0.116206
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15.485585
+tests: tests/focus-visibility.test.mjs
+TAP version 13
+# Subtest: agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus
+ok 1 - agent -> brave-browser -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 2.3184
+  type: 'test'
+  ...
+# Subtest: agent -> obsidian -> agent keeps cards but hides on exact non-agent focus
+ok 2 - agent -> obsidian -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.485658
+  type: 'test'
+  ...
+# Subtest: agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus
+ok 3 - agent -> plain-terminal -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.356641
+  type: 'test'
+  ...
+# Subtest: agent -> another-app -> agent keeps cards but hides on exact non-agent focus
+ok 4 - agent -> another-app -> agent keeps cards but hides on exact non-agent focus
+  ---
+  duration_ms: 0.282049
+  type: 'test'
+  ...
+# Subtest: classification requires exact admitted window ownership, not app-id or a matching-looking title
+ok 5 - classification requires exact admitted window ownership, not app-id or a matching-looking title
+  ---
+  duration_ms: 1.026149
+  type: 'test'
+  ...
+# Subtest: explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes
+ok 6 - explicit pending keyboard entry survives NULL before ack, but never non-agent/unknown/workspace changes
+  ---
+  duration_ms: 0.218021
+  type: 'test'
+  ...
+# Subtest: keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden
+ok 7 - keyboard exit/failure/restart revoke ownership; ordinary NULL is hidden
+  ---
+  duration_ms: 0.215538
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 27.279013
+tests: tests/ghostty-theme.test.mjs
+TAP version 13
+# Subtest: colours are normalized and anything else is refused
+ok 1 - colours are normalized and anything else is refused
+  ---
+  duration_ms: 0.962301
+  type: 'test'
+  ...
+# Subtest: config parsing keeps repeated keys and ignores comments
+ok 2 - config parsing keeps repeated keys and ignores comments
+  ---
+  duration_ms: 0.646482
+  type: 'test'
+  ...
+# Subtest: a theme setting may name one theme or one per colour scheme
+ok 3 - a theme setting may name one theme or one per colour scheme
+  ---
+  duration_ms: 0.414789
+  type: 'test'
+  ...
+# Subtest: terminal colours map onto ribbon roles, and an unreadable theme falls back
+ok 4 - terminal colours map onto ribbon roles, and an unreadable theme falls back
+  ---
+  duration_ms: 0.554663
+  type: 'test'
+  ...
+# Subtest: definitions name every role the stylesheet derives from
+ok 5 - definitions name every role the stylesheet derives from
+  ---
+  duration_ms: 0.552049
+  type: 'test'
+  ...
+# Subtest: the configured theme is resolved per colour scheme from Ghostty's own files
+ok 6 - the configured theme is resolved per colour scheme from Ghostty's own files
+  ---
+  duration_ms: 1.734533
+  type: 'test'
+  ...
+# Subtest: the colour scheme comes from the desktop portal, and may be pinned
+ok 7 - the colour scheme comes from the desktop portal, and may be pinned
+  ---
+  duration_ms: 0.35521
+  type: 'test'
+  ...
+# Subtest: the panel is only sent colours when they change, and always after it restarts
+ok 8 - the panel is only sent colours when they change, and always after it restarts
+  ---
+  duration_ms: 0.383973
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23.675732
+tests: tests/height-repair.test.mjs
+TAP version 13
+# Subtest: a window is stale only when it still sits at a height other windows just left
+ok 1 - a window is stale only when it still sits at a height other windows just left
+  ---
+  duration_ms: 1.520139
+  type: 'test'
+  ...
+# Subtest: no observed movement means no evidence and no repair
+ok 2 - no observed movement means no evidence and no repair
+  ---
+  duration_ms: 0.286435
+  type: 'test'
+  ...
+# Subtest: floating, unknown, and newly appeared windows are excluded from the evidence
+ok 3 - floating, unknown, and newly appeared windows are excluded from the evidence
+  ---
+  duration_ms: 0.178581
+  type: 'test'
+  ...
+# Subtest: a repair pass resets exactly the stranded windows and never repeats one
+ok 4 - a repair pass resets exactly the stranded windows and never repeats one
+  ---
+  duration_ms: 0.766965
+  type: 'test'
+  ...
+# Subtest: repair is bounded, skippable, and survives a rejected action
+ok 5 - repair is bounded, skippable, and survives a rejected action
+  ---
+  duration_ms: 1.906935
+  type: 'test'
+  ...
+# Subtest: repair never runs concurrently and needs an observation first
+ok 6 - repair never runs concurrently and needs an observation first
+  ---
+  duration_ms: 0.262629
+  type: 'test'
+  ...
+# Subtest: a window that moves again may be repaired again
+ok 7 - a window that moves again may be repaired again
+  ---
+  duration_ms: 0.297782
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 22.729274
+tests: tests/native-panel-artifact.test.mjs
+TAP version 13
+# Subtest: staged native panel is executable and bound to its Cargo lock
+ok 1 - staged native panel is executable and bound to its Cargo lock
+  ---
+  duration_ms: 3.417369
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19.995773
+tests: tests/surface-bindings.test.mjs
+TAP version 13
+# Subtest: title binding parsing accepts only the canonical surface segment before a full token
+ok 1 - title binding parsing accepts only the canonical surface segment before a full token
+  ---
+  duration_ms: 1.14539
+  type: 'test'
+  ...
+# Subtest: bindings learn from visible titles, follow surfaces across windows, and prune dead windows
+ok 2 - bindings learn from visible titles, follow surfaces across windows, and prune dead windows
+  ---
+  duration_ms: 0.581463
+  type: 'test'
+  ...
+# Subtest: bindings persist atomically and reload only for the same Niri instance
+ok 3 - bindings persist atomically and reload only for the same Niri instance
+  ---
+  duration_ms: 0.422141
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16.046245
+tests: tests/niri-workspace-events.test.mjs
+TAP version 13
+# Subtest: focused workspace events reconcile immediately while other events are ignored
+ok 1 - focused workspace events reconcile immediately while other events are ignored
+  ---
+  duration_ms: 1.592999
+  type: 'test'
+  ...
+# Subtest: event-stream spawn failure leaves the polling fallback operational
+ok 2 - event-stream spawn failure leaves the polling fallback operational
+  ---
+  duration_ms: 0.172401
+  type: 'test'
+  ...
+# Subtest: window open, change, close, and focus events are forwarded alongside workspace focus
+ok 3 - window open, change, close, and focus events are forwarded alongside workspace focus
+  ---
+  duration_ms: 0.350232
+  type: 'test'
+  ...
+# Subtest: workspace list changes are forwarded, since reordering renumbers the focused workspace
+ok 4 - workspace list changes are forwarded, since reordering renumbers the focused workspace
+  ---
+  duration_ms: 0.255137
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19.214818
+tests: tests/session-cards.test.mjs
+TAP version 13
+# Subtest: publishers on one terminal aggregate into one card and active real work wins
+ok 1 - publishers on one terminal aggregate into one card and active real work wins
+  ---
+  duration_ms: 0.799624
+  type: 'test'
+  ...
+# Subtest: the same logical session on two terminal surfaces produces two cards
+ok 2 - the same logical session on two terminal surfaces produces two cards
+  ---
+  duration_ms: 0.467129
+  type: 'test'
+  ...
+# Subtest: unbound duplicate publishers remain one containment card
+ok 3 - unbound duplicate publishers remain one containment card
+  ---
+  duration_ms: 5.116519
+  type: 'test'
+  ...
+# Subtest: record and card membership comparisons are reflexive with duplicate logical ids
+ok 4 - record and card membership comparisons are reflexive with duplicate logical ids
+  ---
+  duration_ms: 0.314988
+  type: 'test'
+  ...
+# Subtest: cards carry the distinct session ids of every aggregated publisher
+ok 5 - cards carry the distinct session ids of every aggregated publisher
+  ---
+  duration_ms: 0.206073
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21.394216
+tests: tests/native-panel-projection.test.mjs
+TAP version 13
+# Subtest: native projection publishes only the focused workspace card with monotonic revisions
+ok 1 - native projection publishes only the focused workspace card with monotonic revisions
+  ---
+  duration_ms: 1.481429
+  type: 'test'
+  ...
+# Subtest: native projection fails closed without compositor ownership facts
+ok 2 - native projection fails closed without compositor ownership facts
+  ---
+  duration_ms: 0.142106
+  type: 'test'
+  ...
+# Subtest: native projection carries workspace placement onto display cards
+ok 3 - native projection carries workspace placement onto display cards
+  ---
+  duration_ms: 0.328449
+  type: 'test'
+  ...
+# Subtest: native projection drops a workspace number that is not an integer
+ok 4 - native projection drops a workspace number that is not an integer
+  ---
+  duration_ms: 0.208307
+  type: 'test'
+  ...
+# Subtest: native projection joins AK task chips onto cards and clears them fail-closed
+ok 5 - native projection joins AK task chips onto cards and clears them fail-closed
+  ---
+  duration_ms: 0.539579
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24.187518
+tests: tests/status-report.test.mjs
+TAP version 13
+# Subtest: formatBrokerRuntimeStatus renders runtime warnings and readiness metadata
+ok 1 - formatBrokerRuntimeStatus renders runtime warnings and readiness metadata
+  ---
+  duration_ms: 0.698721
+  type: 'test'
+  ...
+# Subtest: summarizeBrokerRuntimeStatus returns operator headlines
+ok 2 - summarizeBrokerRuntimeStatus returns operator headlines
+  ---
+  duration_ms: 0.456554
+  type: 'test'
+  ...
+# Subtest: formatBrokerRuntimeStatus reports hidden-tab placement counters
+ok 3 - formatBrokerRuntimeStatus reports hidden-tab placement counters
+  ---
+  duration_ms: 0.19781
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13.637909
+tests: tests/keyboard-entry.test.mjs
+TAP version 13
+# Subtest: entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed
+ok 1 - entry is synchronous, reserves before panel NULL/ack, and hidden/click-through fail closed
+  ---
+  duration_ms: 1.676495
+  type: 'test'
+  ...
+# Subtest: known non-agent event dominates stale visible status and a late active panel acknowledgement
+ok 2 - known non-agent event dominates stale visible status and a late active panel acknowledgement
+  ---
+  duration_ms: 0.660803
+  type: 'test'
+  ...
+# Subtest: failed writes revoke provisional keyboard ownership
+ok 3 - failed writes revoke provisional keyboard ownership
+  ---
+  duration_ms: 0.3295
+  type: 'test'
+  ...
+# Subtest: closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus
+ok 4 - closing or invalidating the exact owner revokes keyboard eligibility even during panel NULL focus
+  ---
+  duration_ms: 0.220064
+  type: 'test'
+  ...
+# Subtest: empty workspaces reject entry even before the old visibility receipt arrives
+ok 5 - empty workspaces reject entry even before the old visibility receipt arrives
+  ---
+  duration_ms: 0.219814
+  type: 'test'
+  ...
+# Subtest: loss of the admitted owner hides even when another window's cards remain, including keyboard NULL
+ok 6 - loss of the admitted owner hides even when another window's cards remain, including keyboard NULL
+  ---
+  duration_ms: 0.414129
+  type: 'test'
+  ...
+# Subtest: a focused-card hint without exact Niri window identity cannot authorize entry
+ok 7 - a focused-card hint without exact Niri window identity cannot authorize entry
+  ---
+  duration_ms: 0.188987
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 26.82293
+tests: tests/placement.test.mjs
+TAP version 13
+# Subtest: window observation learns memory, reports meaningful changes, and forgets closed windows
+ok 1 - window observation learns memory, reports meaningful changes, and forgets closed windows
+  ---
+  duration_ms: 1.27769
+  type: 'test'
+  ...
+# Subtest: unplaced counting only counts bound surfaces that resolve to no window
+ok 2 - unplaced counting only counts bound surfaces that resolve to no window
+  ---
+  duration_ms: 0.679602
+  type: 'test'
+  ...
+# Subtest: tab inventory runs bounded, never concurrently, and backs off per failure kind
+ok 3 - tab inventory runs bounded, never concurrently, and backs off per failure kind
+  ---
+  duration_ms: 1.399485
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20.567341
+tests: tests/session-store.test.mjs
+TAP version 13
+# Subtest: session store sorts active sessions ahead of idle ones
+ok 1 - session store sorts active sessions ahead of idle ones
+  ---
+  duration_ms: 1.312133
+  type: 'test'
+  ...
+# Subtest: session store purges stale sessions
+ok 2 - session store purges stale sessions
+  ---
+  duration_ms: 0.17119
+  type: 'test'
+  ...
+# Subtest: two live processes sharing one session id keep separate cards
+ok 3 - two live processes sharing one session id keep separate cards
+  ---
+  duration_ms: 0.791071
+  type: 'test'
+  ...
+# Subtest: publisher sequence rejects late state regression
+ok 4 - publisher sequence rejects late state regression
+  ---
+  duration_ms: 0.216118
+  type: 'test'
+  ...
+# Subtest: publisher tombstone prevents late resurrection and expires boundedly
+ok 5 - publisher tombstone prevents late resurrection and expires boundedly
+  ---
+  duration_ms: 0.178561
+  type: 'test'
+  ...
+# Subtest: unknown removes cannot evict a live publisher tombstone
+ok 6 - unknown removes cannot evict a live publisher tombstone
+  ---
+  duration_ms: 0.121445
+  type: 'test'
+  ...
+# Subtest: broker receipt time governs expiry instead of publisher clock
+ok 7 - broker receipt time governs expiry instead of publisher clock
+  ---
+  duration_ms: 0.106061
+  type: 'test'
+  ...
+# Subtest: session cardinality is bounded
+ok 8 - session cardinality is bounded
+  ---
+  duration_ms: 0.154074
+  type: 'test'
+  ...
+# Subtest: legacy publishers without publisherId keep bare session keys
+ok 9 - legacy publishers without publisherId keep bare session keys
+  ---
+  duration_ms: 0.312865
+  type: 'test'
+  ...
+# Subtest: normalization defaults lastEventAt to updatedAt for legacy publishers
+ok 10 - normalization defaults lastEventAt to updatedAt for legacy publishers
+  ---
+  duration_ms: 0.321548
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21.649234
+tests: tests/terminal-identity.test.mjs
+TAP version 13
+# Subtest: Ghostty surface ids normalize to bounded unsigned decimal
+ok 1 - Ghostty surface ids normalize to bounded unsigned decimal
+  ---
+  duration_ms: 0.675566
+  type: 'test'
+  ...
+# Subtest: terminal key, family, and surface must form one coherent identity
+ok 2 - terminal key, family, and surface must form one coherent identity
+  ---
+  duration_ms: 0.169267
+  type: 'test'
+  ...
+# Subtest: interactive Ghostty TUI receives a namespaced terminal identity
+ok 3 - interactive Ghostty TUI receives a namespaced terminal identity
+  ---
+  duration_ms: 0.650608
+  type: 'test'
+  ...
+# Subtest: headless descendants cannot claim an inherited Ghostty surface
+ok 4 - headless descendants cannot claim an inherited Ghostty surface
+  ---
+  duration_ms: 0.15126
+  type: 'test'
+  ...
+# Subtest: Ghostty ancestor discovery walks procfs and host resolution requires a matching family
+ok 5 - Ghostty ancestor discovery walks procfs and host resolution requires a matching family
+  ---
+  duration_ms: 0.675025
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15.886504
+tests: tests/window-placement.test.mjs
+TAP version 13
+# Subtest: a single host window is an exact placement without any memory
+ok 1 - a single host window is an exact placement without any memory
+  ---
+  duration_ms: 0.669417
+  type: 'test'
+  ...
+# Subtest: several host windows need the remembered window, which must still belong to the host
+ok 2 - several host windows need the remembered window, which must still belong to the host
+  ---
+  duration_ms: 0.327227
+  type: 'test'
+  ...
+# Subtest: placement fails closed without a host, a canonical surface, or a matching family
+ok 3 - placement fails closed without a host, a canonical surface, or a matching family
+  ---
+  duration_ms: 0.205512
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16.365972
+tests: tests/niri-focus.test.mjs
+TAP version 13
+# Subtest: bounded Niri list reads preserve query options and fail closed
+ok 1 - bounded Niri list reads preserve query options and fail closed
+  ---
+  duration_ms: 1.232822
+  type: 'test'
+  ...
+# Subtest: session focus resolves only one exact Ghostty title suffix
+ok 2 - session focus resolves only one exact Ghostty title suffix
+  ---
+  duration_ms: 0.468292
+  type: 'test'
+  ...
+# Subtest: terminal surface title segment disambiguates two windows sharing one logical session
+ok 3 - terminal surface title segment disambiguates two windows sharing one logical session
+  ---
+  duration_ms: 0.189127
+  type: 'test'
+  ...
+# Subtest: Niri projection prefers one bound terminal card over an unbound mixed-version publisher
+ok 4 - Niri projection prefers one bound terminal card over an unbound mixed-version publisher
+  ---
+  duration_ms: 0.553771
+  type: 'test'
+  ...
+# Subtest: session focus rejects colliding legacy prefixes and resolves full identity titles
+ok 5 - session focus rejects colliding legacy prefixes and resolves full identity titles
+  ---
+  duration_ms: 0.202167
+  type: 'test'
+  ...
+# Subtest: legacy telemetry resolves through a process-bound session-presence sidecar
+ok 6 - legacy telemetry resolves through a process-bound session-presence sidecar
+  ---
+  duration_ms: 0.238272
+  type: 'test'
+  ...
+# Subtest: focusNiriSession invokes focus only after an unambiguous lookup
+ok 7 - focusNiriSession invokes focus only after an unambiguous lookup
+  ---
+  duration_ms: 0.570035
+  type: 'test'
+  ...
+# Subtest: snapshot focus selection rejects missing and duplicate session ids
+ok 8 - snapshot focus selection rejects missing and duplicate session ids
+  ---
+  duration_ms: 0.143358
+  type: 'test'
+  ...
+# Subtest: focused session resolution highlights only the exact focused Ghostty session
+ok 9 - focused session resolution highlights only the exact focused Ghostty session
+  ---
+  duration_ms: 0.396442
+  type: 'test'
+  ...
+# Subtest: focused workspace view includes every exact tracked terminal on only that workspace
+ok 10 - focused workspace view includes every exact tracked terminal on only that workspace
+  ---
+  duration_ms: 5.278484
+  type: 'test'
+  ...
+# Subtest: the window list names every agent window on every workspace, alphabetically
+ok 11 - the window list names every agent window on every workspace, alphabetically
+  ---
+  duration_ms: 0.528693
+  type: 'test'
+  ...
+# Subtest: workspace membership includes every activity state
+ok 12 - workspace membership includes every activity state
+  ---
+  duration_ms: 0.248658
+  type: 'test'
+  ...
+# Subtest: focused-workspace resolution is exact and supports empty focused workspaces
+ok 13 - focused-workspace resolution is exact and supports empty focused workspaces
+  ---
+  duration_ms: 0.077107
+  type: 'test'
+  ...
+# Subtest: focused workspace view places hidden Ghostty tabs through their host process and memory
+ok 14 - focused workspace view places hidden Ghostty tabs through their host process and memory
+  ---
+  duration_ms: 1.21172
+  type: 'test'
+  ...
+# Subtest: focusNiriSession presents a hidden tab and confirms it through the window title
+ok 15 - focusNiriSession presents a hidden tab and confirms it through the window title
+  ---
+  duration_ms: 0.613642
+  type: 'test'
+  ...
+# Subtest: an agent tab whose visibility cannot be read is presented without a false failure
+ok 16 - an agent tab whose visibility cannot be read is presented without a false failure
+  ---
+  duration_ms: 0.242288
+  type: 'test'
+  ...
+# Subtest: visibility is only claimed hidden on evidence
+ok 17 - visibility is only claimed hidden on evidence
+  ---
+  duration_ms: 0.313276
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 36.844488
+tests: tests/workspace-focus-projection.test.mjs
+TAP version 13
+# Subtest: actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+ok 1 - actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read
+  ---
+  duration_ms: 2.011875
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+ok 2 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{}}
+  ---
+  duration_ms: 0.40154
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+ok 3 - unknown/ambiguous focus or workspace transition fails closed: {"WindowFocusChanged":{"id":"44"}}
+  ---
+  duration_ms: 0.82341
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+ok 4 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[]}}
+  ---
+  duration_ms: 0.271662
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+ok 5 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[null]}}
+  ---
+  duration_ms: 0.295198
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+ok 6 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44}]}}
+  ---
+  duration_ms: 0.279734
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+ok 7 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[null]}}
+  ---
+  duration_ms: 0.230661
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+ok 8 - unknown/ambiguous focus or workspace transition fails closed: {"WindowsChanged":{"windows":[{"id":44,"is_focused":true},{"id":99,"is_focused":true}]}}
+  ---
+  duration_ms: 0.159993
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+ok 9 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspaceActivated":{"id":8,"focused":true}}
+  ---
+  duration_ms: 0.502243
+  type: 'test'
+  ...
+# Subtest: unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+ok 10 - unknown/ambiguous focus or workspace transition fails closed: {"WorkspacesChanged":{"workspaces":[{"id":8,"is_focused":true}]}}
+  ---
+  duration_ms: 0.359025
+  type: 'test'
+  ...
+# Subtest: owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+ok 11 - owner close/title changes revoke NULL ownership; unrelated changes do not, and stale focus cannot re-admit invalidated identity
+  ---
+  duration_ms: 0.293606
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=false
+ok 12 - production placement revokes lost identity before polling: 019fa4d0, NULL=false
+  ---
+  duration_ms: 0.891784
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d0, NULL=true
+ok 13 - production placement revokes lost identity before polling: 019fa4d0, NULL=true
+  ---
+  duration_ms: 0.246655
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 14 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.239855
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 15 - production placement revokes lost identity before polling: 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.175817
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+ok 16 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=false
+  ---
+  duration_ms: 0.34286
+  type: 'test'
+  ...
+# Subtest: production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+ok 17 - production placement revokes lost identity before polling: gs:main:16 · 019fa4d071427fb48d30f98e951f0513, NULL=true
+  ---
+  duration_ms: 0.272543
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+ok 18 - production placement invalidates changed admission fact: {"app_id":"ordinary.app"}
+  ---
+  duration_ms: 0.160674
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"pid":4001}
+ok 19 - production placement invalidates changed admission fact: {"pid":4001}
+  ---
+  duration_ms: 0.121815
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"workspace_id":8}
+ok 20 - production placement invalidates changed admission fact: {"workspace_id":8}
+  ---
+  duration_ms: 0.115405
+  type: 'test'
+  ...
+# Subtest: production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+ok 21 - production placement invalidates changed admission fact: {"title":"π - topic · 019fa4d171427fb48d30f98e951f0513"}
+  ---
+  duration_ms: 0.113572
+  type: 'test'
+  ...
+# Subtest: initial full window inventory forwards exact focus, and a broken stream revokes ownership
+ok 22 - initial full window inventory forwards exact focus, and a broken stream revokes ownership
+  ---
+  duration_ms: 0.174305
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 32.886458
+tests: tests/tab-inventory.test.mjs
+TAP version 13
+# Subtest: tab inventory maps frames to unique same-process windows and binds only surface labels
+ok 1 - tab inventory maps frames to unique same-process windows and binds only surface labels
+  ---
+  duration_ms: 1.361237
+  type: 'test'
+  ...
+# Subtest: tab inventory probe distinguishes unavailable bindings from transient helper failures
+ok 2 - tab inventory probe distinguishes unavailable bindings from transient helper failures
+  ---
+  duration_ms: 1.386745
+  type: 'test'
+  ...
+# Subtest: the AT-SPI helper reports only frames of requested pids and their page tabs
+ok 3 - the AT-SPI helper reports only frames of requested pids and their page tabs
+  ---
+  duration_ms: 40.703828
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 55.688602
+tests: tests/native-runtime-lock.test.mjs
+TAP version 13
+# Subtest: flock singleton cannot unlink or replace a live concurrent owner
+ok 1 - flock singleton cannot unlink or replace a live concurrent owner
+  ---
+  duration_ms: 174.79141
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 189.595891
+tests: tests/compatibility.test.mjs
+TAP version 13
+# Subtest: detectDisplayServer distinguishes wayland, x11, and headless sessions
+ok 1 - detectDisplayServer distinguishes wayland, x11, and headless sessions
+  ---
+  duration_ms: 0.808998
+  type: 'test'
+  ...
+# Subtest: detectWindowManager prefers niri and falls back to desktop hints
+ok 2 - detectWindowManager prefers niri and falls back to desktop hints
+  ---
+  duration_ms: 0.157589
+  type: 'test'
+  ...
+# Subtest: detectDisplayCount parses niri output listings when available
+ok 3 - detectDisplayCount parses niri output listings when available
+  ---
+  duration_ms: 0.241507
+  type: 'test'
+  ...
+# Subtest: assessActivityStripCompatibility fails closed for headless sessions
+ok 4 - assessActivityStripCompatibility fails closed for headless sessions
+  ---
+  duration_ms: 72.4789
+  type: 'test'
+  ...
+# Subtest: assessActivityStripCompatibility fails closed when niri has no connected outputs
+ok 5 - assessActivityStripCompatibility fails closed when niri has no connected outputs
+  ---
+  duration_ms: 0.403633
+  type: 'test'
+  ...
+# Subtest: assessActivityStripCompatibility reports multi-display warnings and niri alignment
+ok 6 - assessActivityStripCompatibility reports multi-display warnings and niri alignment
+  ---
+  duration_ms: 64.097411
+  type: 'test'
+  ...
+# Subtest: native compatibility reports the layer-shell backend on Niri
+ok 7 - native compatibility reports the layer-shell backend on Niri
+  ---
+  duration_ms: 0.377082
+  type: 'test'
+  ...
+# Subtest: native compatibility rejects unsupported packaged architectures
+ok 8 - native compatibility rejects unsupported packaged architectures
+  ---
+  duration_ms: 65.834659
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 220.891594
+tests: tests/launcher.test.mjs
+TAP version 13
+# Subtest: ensureActivityStripRunning reuses an already ready broker
+ok 1 - ensureActivityStripRunning reuses an already ready broker
+  ---
+  duration_ms: 1.165419
+  type: 'test'
+  ...
+# Subtest: ensureActivityStripRunning waits for overlay readiness after spawning
+ok 2 - ensureActivityStripRunning waits for overlay readiness after spawning
+  ---
+  duration_ms: 125.509606
+  type: 'test'
+  ...
+# Subtest: ensureActivityStripRunning fails closed on compatibility blockers
+ok 3 - ensureActivityStripRunning fails closed on compatibility blockers
+  ---
+  duration_ms: 0.585008
+  type: 'test'
+  ...
+# Subtest: ensureActivityStripRunning surfaces starting-state timeout context
+ok 4 - ensureActivityStripRunning surfaces starting-state timeout context
+  ---
+  duration_ms: 125.115628
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 268.8711
+tests: tests/broker-server.test.mjs
+TAP version 13
+# Subtest: broker treats client pipe resets during reply as a normal disconnect
+ok 1 - broker treats client pipe resets during reply as a normal disconnect
+  ---
+  duration_ms: 1.399615
+  type: 'test'
+  ...
+# Subtest: broker treats synchronous writes to a destroyed client as a normal disconnect
+ok 2 - broker treats synchronous writes to a destroyed client as a normal disconnect
+  ---
+  duration_ms: 0.355299
+  type: 'test'
+  ...
+# Subtest: broker reports unexpected socket failures without using the fatal error channel
+ok 3 - broker reports unexpected socket failures without using the fatal error channel
+  ---
+  duration_ms: 0.167013
+  type: 'test'
+  ...
+# Subtest: broker destroys clients whose unterminated message exceeds the byte limit
+ok 4 - broker destroys clients whose unterminated message exceeds the byte limit
+  ---
+  duration_ms: 0.355029
+  type: 'test'
+  ...
+# Subtest: malformed upsert fails closed and leaves the broker responsive
+ok 5 - malformed upsert fails closed and leaves the broker responsive
+  ---
+  duration_ms: 0.212042
+  type: 'test'
+  ...
+# Subtest: broker delegates exact card focus and returns the bounded result
+ok 6 - broker delegates exact card focus and returns the bounded result
+  ---
+  duration_ms: 4.118214
+  type: 'test'
+  ...
+# Subtest: broker delegates keyboard entry to the native strip controller
+ok 7 - broker delegates keyboard entry to the native strip controller
+  ---
+  duration_ms: 0.460209
+  type: 'test'
+  ...
+# Subtest: broker restricts its control socket to the current user
+ok 8 - broker restricts its control socket to the current user
+  ---
+  duration_ms: 2.194021
+  type: 'test'
+  ...
+# Subtest: remove messages scope to one publisher when publisherId is present
+ok 9 - remove messages scope to one publisher when publisherId is present
+  ---
+  duration_ms: 305.003367
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 332.810823
+tests: tests/runtime-lock.test.mjs
+TAP version 13
+# Subtest: stop's wait returns at once for a free lock and says it did not wait
+ok 1 - stop's wait returns at once for a free lock and says it did not wait
+  ---
+  duration_ms: 6.955502
+  type: 'test'
+  ...
+# Subtest: stop's wait returns once a real owner that is still exiting releases the lock
+ok 2 - stop's wait returns once a real owner that is still exiting releases the lock
+  ---
+  duration_ms: 422.972393
+  type: 'test'
+  ...
+# Subtest: stop's wait reports a lock still held at its deadline without calling it an error
+ok 3 - stop's wait reports a lock still held at its deadline without calling it an error
+  ---
+  duration_ms: 306.683238
+  type: 'test'
+  ...
+# Subtest: a lock that cannot be checked is an error, not a held lock
+ok 4 - a lock that cannot be checked is an error, not a held lock
+  ---
+  duration_ms: 2.192439
+  type: 'test'
+  ...
+# Subtest: a controller that takes the lock is waited on until it is ready
+ok 5 - a controller that takes the lock is waited on until it is ready
+  ---
+  duration_ms: 0.383332
+  type: 'test'
+  ...
+# Subtest: a controller another open is starting counts as running, not as a failure
+ok 6 - a controller another open is starting counts as running, not as a failure
+  ---
+  duration_ms: 0.187084
+  type: 'test'
+  ...
+# Subtest: a lock held past the deadline by a runtime that never answers is named as held
+ok 7 - a lock held past the deadline by a runtime that never answers is named as held
+  ---
+  duration_ms: 0.387609
+  type: 'test'
+  ...
+# Subtest: a controller that exits during startup fails the start with its exit code
+ok 8 - a controller that exits during startup fails the start with its exit code
+  ---
+  duration_ms: 0.11848
+  type: 'test'
+  ...
+# Subtest: a controller that reports an error fails the start with that status
+ok 9 - a controller that reports an error fails the start with that status
+  ---
+  duration_ms: 0.196047
+  type: 'test'
+  ...
+# Subtest: a controller that never becomes ready times out as itself, not as a held lock
+ok 10 - a controller that never becomes ready times out as itself, not as a held lock
+  ---
+  duration_ms: 0.402762
+  type: 'test'
+  ...
+# Subtest: stopping a running runtime waits for its lock and reports it stopped
+ok 11 - stopping a running runtime waits for its lock and reports it stopped
+  ---
+  duration_ms: 0.250991
+  type: 'test'
+  ...
+# Subtest: a runtime whose broker already closed is still waited out before stop returns
+ok 12 - a runtime whose broker already closed is still waited out before stop returns
+  ---
+  duration_ms: 0.137559
+  type: 'test'
+  ...
+# Subtest: nothing to stop is reported as not running
+ok 13 - nothing to stop is reported as not running
+  ---
+  duration_ms: 0.088855
+  type: 'test'
+  ...
+# Subtest: a runtime still holding its lock at the deadline is reported as still stopping
+ok 14 - a runtime still holding its lock at the deadline is reported as still stopping
+  ---
+  duration_ms: 0.084459
+  type: 'test'
+  ...
+# Subtest: a lock that cannot be checked is reported as an error
+ok 15 - a lock that cannot be checked is reported as an error
+  ---
+  duration_ms: 0.082535
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 760.823088
+tests: tests/telemetry.test.mjs
+TAP version 13
+# Subtest: createInitialSnapshot seeds an idle session
+ok 1 - createInitialSnapshot seeds an idle session
+  ---
+  duration_ms: 1.762536
+  type: 'test'
+  ...
+# Subtest: session start adopts Pi's exact session identity for fail-closed window matching
+ok 2 - session start adopts Pi's exact session identity for fail-closed window matching
+  ---
+  duration_ms: 10.229263
+  type: 'test'
+  ...
+# Subtest: describeToolCall highlights bash and read details
+ok 3 - describeToolCall highlights bash and read details
+  ---
+  duration_ms: 0.381099
+  type: 'test'
+  ...
+# Subtest: summarizeToolResult surfaces structured content and error details
+ok 4 - summarizeToolResult surfaces structured content and error details
+  ---
+  duration_ms: 0.446418
+  type: 'test'
+  ...
+# Subtest: activity telemetry reaches terminal state only when the agent settles
+ok 5 - activity telemetry reaches terminal state only when the agent settles
+  ---
+  duration_ms: 1.376531
+  type: 'test'
+  ...
+# Subtest: activity-strip wires terminal completion to agent_settled, not agent_end
+ok 6 - activity-strip wires terminal completion to agent_settled, not agent_end
+  ---
+  duration_ms: 0.317692
+  type: 'test'
+  ...
+# Subtest: heartbeat republish keeps liveness without advancing lastEventAt
+ok 7 - heartbeat republish keeps liveness without advancing lastEventAt
+  ---
+  duration_ms: 51.067125
+  type: 'test'
+  ...
+# Subtest: publisher delivery is serialized and shutdown removal follows in-flight publication
+ok 8 - publisher delivery is serialized and shutdown removal follows in-flight publication
+  ---
+  duration_ms: 151.281981
+  type: 'test'
+  ...
+# Subtest: session start binds only an admitted interactive terminal surface
+ok 9 - session start binds only an admitted interactive terminal surface
+  ---
+  duration_ms: 0.569675
+  type: 'test'
+  ...
+# Subtest: provider error on turn end surfaces as error, not silent done
+ok 10 - provider error on turn end surfaces as error, not silent done
+  ---
+  duration_ms: 0.470825
+  type: 'test'
+  ...
+# Subtest: aborted runs settle as stopped rather than done
+ok 11 - aborted runs settle as stopped rather than done
+  ---
+  duration_ms: 0.247706
+  type: 'test'
+  ...
+# Subtest: lost state transitions are retried with a bounded backoff
+ok 12 - lost state transitions are retried with a bounded backoff
+  ---
+  duration_ms: 1200.708262
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1441.863436
+tests: 34 file(s) passed
+packaging: running scripts.release:check:quick (packages/pi-activity-strip)
+== release-check: @tryinget/pi-activity-strip@0.9.0
+== npm pack --dry-run --json
+{
+  "@tryinget/pi-activity-strip": {
+    "id": "@tryinget/pi-activity-strip@0.9.0",
+    "name": "@tryinget/pi-activity-strip",
+    "version": "0.9.0",
+    "size": 548921,
+    "unpackedSize": 1370059,
+    "shasum": "5b379f9fde140ef09fd32936e43ab0e822b2d887",
+    "integrity": "sha512-tDEIh54CVSsXcm09yuoF+7g6Vg5fDqaH8I/z3GkfkSC5Ber3LwX6xOUc2q1A8BJv1PvD2Ob25cKXufxoCm5kLQ==",
+    "filename": "tryinget-pi-activity-strip-0.9.0.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 4376,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 20616,
+        "mode": 420
+      },
+      {
+        "path": "bin/pi-activity-strip-claude-hook.mjs",
+        "size": 1854,
+        "mode": 493
+      },
+      {
+        "path": "bin/pi-activity-strip.mjs",
+        "size": 10053,
+        "mode": 493
+      },
+      {
+        "path": "examples/simulate-sessions.mjs",
+        "size": 2109,
+        "mode": 420
+      },
+      {
+        "path": "extensions/activity-strip.js",
+        "size": 7545,
+        "mode": 420
+      },
+      {
+        "path": "extensions/activity-strip.ts",
+        "size": 245,
+        "mode": 420
+      },
+      {
+        "path": "native/bin/linux-x64-gnu/artifact.json",
+        "size": 714,
+        "mode": 420
+      },
+      {
+        "path": "native/bin/linux-x64-gnu/pi-activity-strip-panel",
+        "size": 873576,
+        "mode": 493
+      },
+      {
+        "path": "native/panel/Cargo.lock",
+        "size": 25515,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/Cargo.toml",
+        "size": 517,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/app_gui_tests.rs",
+        "size": 12554,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/app.rs",
+        "size": 52663,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/card_view.rs",
+        "size": 26000,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/directory_view.rs",
+        "size": 14327,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/interaction.rs",
+        "size": 2235,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/main.rs",
+        "size": 3550,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/protocol.rs",
+        "size": 16024,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/runtime.rs",
+        "size": 6615,
+        "mode": 420
+      },
+      {
+        "path": "native/panel/src/style.css",
+        "size": 8404,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 3560,
+        "mode": 420
+      },
+      {
+        "path": "policy/security-policy.json",
+        "size": 190,
+        "mode": 420
+      },
+      {
+        "path": "prompts/pi-activity-strip-implementation-planning.md",
+        "size": 805,
+        "mode": 420
+      },
+      {
+        "path": "prompts/pi-activity-strip-security-review.md",
+        "size": 826,
+        "mode": 420
+      },
+      {
+        "path": "src/broker/server.mjs",
+        "size": 7038,
+        "mode": 420
+      },
+      {
+        "path": "src/broker/session-store.mjs",
+        "size": 3679,
+        "mode": 420
+      },
+      {
+        "path": "src/client/broker-client.mjs",
+        "size": 4604,
+        "mode": 420
+      },
+      {
+        "path": "src/client/launcher.mjs",
+        "size": 3709,
+        "mode": 420
+      },
+      {
+        "path": "src/client/runtime-lock.mjs",
+        "size": 5782,
+        "mode": 420
+      },
+      {
+        "path": "src/client/session-telemetry.mjs",
+        "size": 10655,
+        "mode": 420
+      },
+      {
+        "path": "src/common/activity-order.mjs",
+        "size": 3208,
+        "mode": 420
+      },
+      {
+        "path": "src/common/agent-identity.mjs",
+        "size": 6764,
+        "mode": 420
+      },
+      {
+        "path": "src/common/ak-tasks.mjs",
+        "size": 13046,
+        "mode": 420
+      },
+      {
+        "path": "src/common/alignment-controller.mjs",
+        "size": 1586,
+        "mode": 420
+      },
+      {
+        "path": "src/common/card-display.mjs",
+        "size": 2080,
+        "mode": 420
+      },
+      {
+        "path": "src/common/claude-events.mjs",
+        "size": 6985,
+        "mode": 420
+      },
+      {
+        "path": "src/common/claude-hook-config.mjs",
+        "size": 2190,
+        "mode": 420
+      },
+      {
+        "path": "src/common/claude-transcript.mjs",
+        "size": 5361,
+        "mode": 420
+      },
+      {
+        "path": "src/common/codex-transcript.mjs",
+        "size": 5267,
+        "mode": 420
+      },
+      {
+        "path": "src/common/compatibility.mjs",
+        "size": 5627,
+        "mode": 420
+      },
+      {
+        "path": "src/common/constants.mjs",
+        "size": 1509,
+        "mode": 420
+      },
+      {
+        "path": "src/common/contracts.d.ts",
+        "size": 6149,
+        "mode": 420
+      },
+      {
+        "path": "src/common/contracts.ts",
+        "size": 7140,
+        "mode": 420
+      },
+      {
+        "path": "src/common/format.mjs",
+        "size": 2533,
+        "mode": 420
+      },
+      {
+        "path": "src/common/ghostty-present.mjs",
+        "size": 3254,
+        "mode": 420
+      },
+      {
+        "path": "src/common/ghostty-theme.mjs",
+        "size": 5441,
+        "mode": 420
+      },
+      {
+        "path": "src/common/niri-focus.mjs",
+        "size": 16382,
+        "mode": 420
+      },
+      {
+        "path": "src/common/protocol.mjs",
+        "size": 4456,
+        "mode": 420
+      },
+      {
+        "path": "src/common/session-cards.mjs",
+        "size": 4305,
+        "mode": 420
+      },
+      {
+        "path": "src/common/status-report.mjs",
+        "size": 4397,
+        "mode": 420
+      },
+      {
+        "path": "src/common/surface-bindings.mjs",
+        "size": 7971,
+        "mode": 420
+      },
+      {
+        "path": "src/common/telemetry.mjs",
+        "size": 5980,
+        "mode": 420
+      },
+      {
+        "path": "src/common/terminal-identity.mjs",
+        "size": 7782,
+        "mode": 420
+      },
+      {
+        "path": "src/common/window-placement.mjs",
+        "size": 2689,
+        "mode": 420
+      },
+      {
+        "path": "src/common/workspace-view.mjs",
+        "size": 11363,
+        "mode": 420
+      },
+      {
+        "path": "src/native/agent-discovery.mjs",
+        "size": 11090,
+        "mode": 420
+      },
+      {
+        "path": "src/native/ak-runtime.mjs",
+        "size": 5444,
+        "mode": 420
+      },
+      {
+        "path": "src/native/codex-discovery.mjs",
+        "size": 4873,
+        "mode": 420
+      },
+      {
+        "path": "src/native/focus-visibility.mjs",
+        "size": 1719,
+        "mode": 420
+      },
+      {
+        "path": "src/native/ghostty-tab-inventory.py",
+        "size": 3297,
+        "mode": 493
+      },
+      {
+        "path": "src/native/height-repair.mjs",
+        "size": 5629,
+        "mode": 420
+      },
+      {
+        "path": "src/native/keyboard-entry.mjs",
+        "size": 1259,
+        "mode": 420
+      },
+      {
+        "path": "src/native/main.mjs",
+        "size": 18498,
+        "mode": 420
+      },
+      {
+        "path": "src/native/panel-binary.mjs",
+        "size": 2099,
+        "mode": 420
+      },
+      {
+        "path": "src/native/panel-projection.mjs",
+        "size": 10327,
+        "mode": 420
+      },
+      {
+        "path": "src/native/placement.mjs",
+        "size": 8621,
+        "mode": 420
+      },
+      {
+        "path": "src/native/tab-inventory.mjs",
+        "size": 7039,
+        "mode": 420
+      },
+      {
+        "path": "src/native/theme-runtime.mjs",
+        "size": 2587,
+        "mode": 420
+      },
+      {
+        "path": "src/native/theme-source.mjs",
+        "size": 6778,
+        "mode": 420
+      },
+      {
+        "path": "src/native/workspace-events.mjs",
+        "size": 6994,
+        "mode": 420
+      }
+    ],
+    "entryCount": 70,
+    "bundled": []
+  }
+}
+File whitelist OK (70 files).
+== npm publish --dry-run
+npm notice
+npm notice package: @tryinget/pi-activity-strip@0.9.0
+npm notice Tarball Contents
+npm notice 4.4kB LICENSE
+npm notice 20.6kB README.md
+npm notice 1.9kB bin/pi-activity-strip-claude-hook.mjs
+npm notice 10.1kB bin/pi-activity-strip.mjs
+npm notice 2.1kB examples/simulate-sessions.mjs
+npm notice 7.5kB extensions/activity-strip.js
+npm notice 245B extensions/activity-strip.ts
+npm notice 714B native/bin/linux-x64-gnu/artifact.json
+npm notice 873.6kB native/bin/linux-x64-gnu/pi-activity-strip-panel
+npm notice 25.5kB native/panel/Cargo.lock
+npm notice 517B native/panel/Cargo.toml
+npm notice 12.6kB native/panel/src/app_gui_tests.rs
+npm notice 52.7kB native/panel/src/app.rs
+npm notice 26.0kB native/panel/src/card_view.rs
+npm notice 14.3kB native/panel/src/directory_view.rs
+npm notice 2.2kB native/panel/src/interaction.rs
+npm notice 3.5kB native/panel/src/main.rs
+npm notice 16.0kB native/panel/src/protocol.rs
+npm notice 6.6kB native/panel/src/runtime.rs
+npm notice 8.4kB native/panel/src/style.css
+npm notice 3.6kB package.json
+npm notice 190B policy/security-policy.json
+npm notice 805B prompts/pi-activity-strip-implementation-planning.md
+npm notice 826B prompts/pi-activity-strip-security-review.md
+npm notice 7.0kB src/broker/server.mjs
+npm notice 3.7kB src/broker/session-store.mjs
+npm notice 4.6kB src/client/broker-client.mjs
+npm notice 3.7kB src/client/launcher.mjs
+npm notice 5.8kB src/client/runtime-lock.mjs
+npm notice 10.7kB src/client/session-telemetry.mjs
+npm notice 3.2kB src/common/activity-order.mjs
+npm notice 6.8kB src/common/agent-identity.mjs
+npm notice 13.0kB src/common/ak-tasks.mjs
+npm notice 1.6kB src/common/alignment-controller.mjs
+npm notice 2.1kB src/common/card-display.mjs
+npm notice 7.0kB src/common/claude-events.mjs
+npm notice 2.2kB src/common/claude-hook-config.mjs
+npm notice 5.4kB src/common/claude-transcript.mjs
+npm notice 5.3kB src/common/codex-transcript.mjs
+npm notice 5.6kB src/common/compatibility.mjs
+npm notice 1.5kB src/common/constants.mjs
+npm notice 6.1kB src/common/contracts.d.ts
+npm notice 7.1kB src/common/contracts.ts
+npm notice 2.5kB src/common/format.mjs
+npm notice 3.3kB src/common/ghostty-present.mjs
+npm notice 5.4kB src/common/ghostty-theme.mjs
+npm notice 16.4kB src/common/niri-focus.mjs
+npm notice 4.5kB src/common/protocol.mjs
+npm notice 4.3kB src/common/session-cards.mjs
+npm notice 4.4kB src/common/status-report.mjs
+npm notice 8.0kB src/common/surface-bindings.mjs
+npm notice 6.0kB src/common/telemetry.mjs
+npm notice 7.8kB src/common/terminal-identity.mjs
+npm notice 2.7kB src/common/window-placement.mjs
+npm notice 11.4kB src/common/workspace-view.mjs
+npm notice 11.1kB src/native/agent-discovery.mjs
+npm notice 5.4kB src/native/ak-runtime.mjs
+npm notice 4.9kB src/native/codex-discovery.mjs
+npm notice 1.7kB src/native/focus-visibility.mjs
+npm notice 3.3kB src/native/ghostty-tab-inventory.py
+npm notice 5.6kB src/native/height-repair.mjs
+npm notice 1.3kB src/native/keyboard-entry.mjs
+npm notice 18.5kB src/native/main.mjs
+npm notice 2.1kB src/native/panel-binary.mjs
+npm notice 10.3kB src/native/panel-projection.mjs
+npm notice 8.6kB src/native/placement.mjs
+npm notice 7.0kB src/native/tab-inventory.mjs
+npm notice 2.6kB src/native/theme-runtime.mjs
+npm notice 6.8kB src/native/theme-source.mjs
+npm notice 7.0kB src/native/workspace-events.mjs
+npm notice Tarball Details
+npm notice name: @tryinget/pi-activity-strip
+npm notice version: 0.9.0
+npm notice filename: tryinget-pi-activity-strip-0.9.0.tgz
+npm notice package size: 548.9 kB
+npm notice unpacked size: 1.4 MB
+npm notice shasum: 5b379f9fde140ef09fd32936e43ab0e822b2d887
+npm notice integrity: sha512-tDEIh54CVSsXc[...]cKXufxoCm5kLQ==
+npm notice total files: 70
+npm notice
+npm warn publish This command requires you to be logged in to https://registry.npmjs.org/ (dry-run)
+npm error You cannot publish over the previously published versions: 0.9.0.
+npm notice
+npm notice New minor version of npm available! 12.0.2 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+npm error A complete log of this run can be found in: /home/tryinget/.local/state/pi-quests/tmp/pi-release-command-home.7aXCNz/.npm-cache/_logs/2026-10-15T15_51_56_201Z-debug-0.log
+npm publish --dry-run hit registry version guard (0.9.0); continuing.
+== npm pack
+Tarball: /home/tryinget/.local/state/pi-quests/tmp/ak7114-ribbon.eGbAEO/worktree/packages/pi-activity-strip/tryinget-pi-activity-strip-0.9.0.tgz
+Skipping pi smoke tests (SKIP_PI_SMOKE=1).
+== npm view @tryinget/pi-activity-strip version (pre-publish may be 404)
+[
+  "0.9.0"
+]
+npm view exit: 0
+release-check done

@@ -46,7 +46,7 @@
     "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
-    "native:check": "cd native/panel && RUSTUP_TOOLCHAIN=stable cargo fmt --check && RUSTUP_TOOLCHAIN=stable cargo test",
+    "native:check": "cd native/panel && RUSTUP_TOOLCHAIN=1.98.0 cargo fmt --check && RUSTUP_TOOLCHAIN=1.98.0 cargo test --locked",
     "native:build": "bash ./scripts/build-native-panel.sh",
     "strip:open": "node ./bin/pi-activity-strip.mjs open",
     "strip:status": "node ./bin/pi-activity-strip.mjs status",

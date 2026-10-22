@@ -13,6 +13,7 @@ import {
   ACTIVITY_STRIP_START_TIMEOUT_MS,
   ACTIVITY_STRIP_STOP_TIMEOUT_MS,
 } from "../common/constants.mjs";
+import { isOverlayReady } from "../common/overlay-readiness.mjs";
 import { requestBrokerShutdown } from "./broker-client.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -123,7 +124,7 @@ export async function waitForStartedRuntime({
   const deadline = now() + timeoutMs;
   while (true) {
     const status = await getStatus();
-    if (status?.ok && (!status.runtimeStatus || status.runtimeStatus.state === "ready")) {
+    if (isOverlayReady(status)) {
       return { ok: true, started: controller.exitCode === undefined };
     }
     if (status?.runtimeStatus?.state === "error") return { ok: false, reason: "error", status };

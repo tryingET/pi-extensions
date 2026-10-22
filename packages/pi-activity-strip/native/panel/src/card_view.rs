@@ -16,6 +16,7 @@ const AK_CHIP_SLOTS: usize = 1;
 
 pub struct CardView {
     pub root: gtk::Button,
+    pub motion: gtk::EventControllerMotion,
     phase: gtk::Label,
     repo: gtk::Label,
     state: gtk::Label,
@@ -154,7 +155,7 @@ impl CardView {
         motion.connect_leave(move |_| {
             let _ = tx.send(AppMsg::Hover(card_id.clone(), false));
         });
-        root.add_controller(motion);
+        root.add_controller(motion.clone());
 
         let focus = gtk::EventControllerFocus::new();
         let card_id = id.to_owned();
@@ -193,6 +194,7 @@ impl CardView {
 
         Self {
             root,
+            motion,
             phase,
             repo,
             state,
