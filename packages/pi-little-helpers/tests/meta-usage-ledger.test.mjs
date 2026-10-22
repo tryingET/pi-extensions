@@ -6,6 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createLimitsExtension } from "../extensions/limits.ts";
+import metaUsageLedgerExtension, {
+  createMetaUsageLedgerExtension,
+} from "../extensions/meta-usage-ledger.ts";
 import {
   metaUsageFacts,
   readMetaUsageSummary,
@@ -141,39 +144,85 @@ test("subscription exhaustion stamps run-out cycles without storing raw error te
   assert.doesNotMatch(readFileSync(path, "utf8"), /SECRET|429|quota/);
 });
 
-test("limits extension records finalized meta messages and never lets the ledger break a turn", () => {
+test("ledger extension records finalized messages with only a message_end hook", () => {
   const seen = [];
-  let command;
   const handlers = new Map();
-  createLimitsExtension({
-    recordMeta: (value) => seen.push(value),
-    metaFacts: () => [],
-  })({
+  createMetaUsageLedgerExtension((value) => seen.push(value))({
     on: (name, handler) => handlers.set(name, handler),
-    registerCommand: (_name, value) => {
-      command = value;
-    },
   });
-  assert.ok(command);
-  const onMessageEnd = handlers.get("message_end");
-  assert.equal(typeof onMessageEnd, "function");
+  assert.deepEqual([...handlers.keys()], ["message_end"]);
   const finalized = message();
-  onMessageEnd({ type: "message_end", message: finalized });
+  assert.equal(handlers.get("message_end")({ type: "message_end", message: finalized }), undefined);
   assert.deepEqual(seen, [finalized]);
 
-  const throwing = new Map();
-  createLimitsExtension({
-    recordMeta: () => {
-      throw new Error("disk full");
-    },
-    metaFacts: () => [],
-  })({
-    on: (name, handler) => throwing.set(name, handler),
-    registerCommand() {},
-  });
+  const defaults = new Map();
+  metaUsageLedgerExtension({ on: (name, handler) => defaults.set(name, handler) });
+  assert.deepEqual([...defaults.keys()], ["message_end"]);
+});
+
+test("ledger write failures never escape the message_end hook", (t) => {
+  const root = dir();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const blocked = join(root, "not-a-directory");
+  writeFileSync(blocked, "blocked");
+  const handlers = new Map();
+  createMetaUsageLedgerExtension((value) =>
+    recordMetaAssistantMessage(value, join(blocked, "ledger.jsonl")),
+  )({ on: (name, handler) => handlers.set(name, handler) });
   assert.doesNotThrow(() =>
-    throwing.get("message_end")({ type: "message_end", message: finalized }),
+    handlers.get("message_end")({ type: "message_end", message: message() }),
   );
+});
+
+test("limits has no recording hook; loading both extensions writes exactly once", (t) => {
+  const root = dir();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const path = join(root, "ledger.jsonl");
+  const handlers = [];
+  let command;
+  const pi = {
+    on: (name, handler) => handlers.push({ name, handler }),
+    registerCommand: (name, value) => {
+      assert.equal(name, "limits");
+      command = value;
+    },
+  };
+  createLimitsExtension()(pi);
+  assert.ok(command);
+  assert.equal(
+    handlers.some(({ name }) => name === "message_end"),
+    false,
+  );
+  createMetaUsageLedgerExtension((value) => recordMetaAssistantMessage(value, path))(pi);
+  const messageHandlers = handlers.filter(({ name }) => name === "message_end");
+  assert.equal(messageHandlers.length, 1);
+  for (const { handler } of messageHandlers) {
+    handler({ type: "message_end", message: message() });
+    handler({ type: "message_end", message: message({ provider: "anthropic" }) });
+    handler({ type: "message_end", message: message({ role: "user" }) });
+    handler({ type: "message_end", message: message({ usage: { totalTokens: 0 } }) });
+    handler({
+      type: "message_end",
+      message: message({ stopReason: "error", errorMessage: "quota exceeded", usage: null }),
+    });
+  }
+  const entries = readFileSync(path, "utf8").trim().split("\n").map(JSON.parse);
+  assert.deepEqual(
+    entries.map(({ v, kind }) => ({ v, kind })),
+    [
+      { v: 1, kind: "usage" },
+      { v: 1, kind: "run-out" },
+    ],
+  );
+  assert.equal(readMetaUsageSummary(path).totals.requests, 1);
+});
+
+test("ledger extension is manifest-registered and included in the package", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const entry = "./extensions/meta-usage-ledger.ts";
+  assert.equal(manifest.pi.extensions.filter((path) => path === entry).length, 1);
+  assert.ok(manifest.files.includes(entry.slice(2)));
+  assert.equal(manifest.exports[entry], entry);
 });
 
 test("headless /limits merges local ledger facts into the Meta detail only", async () => {
