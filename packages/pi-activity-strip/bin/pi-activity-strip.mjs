@@ -45,7 +45,7 @@ const STOP_MESSAGES = {
 
 function usage() {
   console.log(
-    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|claude-hooks|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Focus the visible strip already resident on the focused Niri workspace\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  claude-hooks      Print the Claude Code settings fragment for live agent telemetry\n  fix-top           Confirm compositor-owned layer-shell placement\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the native runtime in the foreground\n`,
+    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|manifest|claude-hooks|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Focus the visible strip already resident on the focused Niri workspace\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  manifest          Read-only recovery inventory JSON (no autostart; paths redacted by default)\n                    [--include-paths] [--pi-session-root PATH] [--no-ak]\n  claude-hooks      Print the Claude Code settings fragment for live agent telemetry\n  fix-top           Confirm compositor-owned layer-shell placement\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the native runtime in the foreground\n`,
   );
 }
 
@@ -141,6 +141,30 @@ async function main() {
   }
 
   switch (command) {
+    case "manifest": {
+      let includePaths = false;
+      let noAk = false;
+      let piSessionRoot;
+      const args = process.argv.slice(3);
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === "--include-paths") includePaths = true;
+        else if (args[i] === "--no-ak") noAk = true;
+        else if (args[i] === "--json") {
+          /* JSON is always emitted. */
+        } else if (args[i] === "--pi-session-root" && args[i + 1]?.startsWith("/"))
+          piSessionRoot = args[++i];
+        else throw new Error("manifest: unsupported option or missing absolute --pi-session-root");
+      }
+      const { collectRecoveryManifest } = await import("../src/native/recovery-inventory.mjs");
+      console.log(
+        JSON.stringify(
+          await collectRecoveryManifest({ includePaths, noAk, piSessionRoot }),
+          null,
+          2,
+        ),
+      );
+      return;
+    }
     case "open":
       process.exitCode = await openStrip({ detached: true });
       return;

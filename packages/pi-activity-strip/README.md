@@ -99,6 +99,7 @@ node ./bin/pi-activity-strip.mjs focus-session <full-pi-session-id>
 node ./bin/pi-activity-strip.mjs status
 node ./bin/pi-activity-strip.mjs doctor
 node ./bin/pi-activity-strip.mjs snapshot
+node ./bin/pi-activity-strip.mjs manifest
 node ./bin/pi-activity-strip.mjs claude-hooks
 node ./bin/pi-activity-strip.mjs stop
 ```
@@ -106,6 +107,13 @@ node ./bin/pi-activity-strip.mjs stop
 `stop` returns once the runtime has exited and released its lock, waiting up to 15 seconds and exiting non-zero if it has not, so `npm run strip:stop && npm run strip:open` restarts cleanly. Pi's `/activity-strip stop` and `/activity-strip-stop` wait the same way. An `open` that finds the lock still held by a runtime that never answers says so instead of timing out silently.
 
 `fix-top` is now a compatibility no-op: layer-shell placement is compositor-owned.
+
+`manifest` is a separate read-only recovery inventory CLI: it includes registry/process observations
+missing from the broker-only `snapshot`, per-link provenance, uncertainty and coverage counts.
+Paths are redacted by default; no transcript body, title or prompt text is emitted. Process-only
+rows are not counted as established session identities. It never starts the ribbon or reopens a
+session. See the [schema, invocation and evidence limits](docs/project/recovery-manifest.md).
+The panel's existing discovery and AK-chip behavior is unchanged.
 
 ## Keyboard-only entry
 
