@@ -9,6 +9,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { ValidationFinding } from "../core/contracts.ts";
+import { withInspectionOutput } from "./inspection-output.ts";
+import { runInspectionProcess } from "./inspection-process.ts";
 
 export type { RocsRunnerDescriptor } from "../semantic/runner.ts";
 export {
@@ -39,15 +41,20 @@ interface Runner {
 }
 
 export function createRocsCliPort(): RocsPort {
+  return createPort();
+}
+
+function createPort(outputRoot?: string): RocsPort {
   return {
+    withInspectionOutput(repoPath, operation) {
+      return withInspectionOutput(repoPath, (root) => operation(createPort(root)));
+    },
     async summary(repoPath: string, context: RocsCommandContext): Promise<RocsSummaryResult> {
-      const payload = await runJsonCommand([
-        "summary",
-        "--repo",
-        repoPath,
-        ...buildSharedArgs(context),
-        "--json",
-      ]);
+      const payload = await runJsonCommand(
+        ["summary", "--repo", repoPath, ...buildSharedArgs(context), "--json"],
+        context,
+        outputRoot,
+      );
       const counts = asRecord(payload.counts);
       return {
         layers: Array.isArray(payload.layers)
@@ -67,13 +74,11 @@ export function createRocsCliPort(): RocsPort {
     },
 
     async validate(repoPath: string, context: RocsCommandContext): Promise<RocsValidateResult> {
-      const payload = await runJsonCommand([
-        "validate",
-        "--repo",
-        repoPath,
-        ...buildSharedArgs(context),
-        "--json",
-      ]);
+      const payload = await runJsonCommand(
+        ["validate", "--repo", repoPath, ...buildSharedArgs(context), "--json"],
+        context,
+        outputRoot,
+      );
       return {
         ok: Boolean(payload.ok),
         findings: normalizeFindings(payload.findings),
@@ -81,13 +86,11 @@ export function createRocsCliPort(): RocsPort {
     },
 
     async build(repoPath: string, context: RocsCommandContext): Promise<RocsBuildResult> {
-      const payload = await runJsonCommand([
-        "build",
-        "--repo",
-        repoPath,
-        ...buildSharedArgs(context),
-        "--json",
-      ]);
+      const payload = await runJsonCommand(
+        ["build", "--repo", repoPath, ...buildSharedArgs(context), "--json"],
+        context,
+        outputRoot,
+      );
       if (payload.ok === false) {
         throw new Error(formatRocsFailure(payload));
       }
@@ -96,6 +99,7 @@ export function createRocsCliPort(): RocsPort {
       const files = asRecord(dist?.files);
       return {
         ok: true,
+        transientRoot: outputRoot,
         dist: {
           dir: String(dist?.dir ?? ""),
           files: {
@@ -118,7 +122,7 @@ export function createRocsCliPort(): RocsPort {
       const args = ["pack", ontId, "--repo", repoPath, ...buildSharedArgs(context)];
       if (typeof options?.depth === "number") args.push("--depth", String(options.depth));
       if (typeof options?.maxDocs === "number") args.push("--max-docs", String(options.maxDocs));
-      const stdout = await runTextCommand(args);
+      const stdout = await runTextCommand(args, context, outputRoot);
       return { text: stdout.trim() };
     },
   };
@@ -138,8 +142,12 @@ function buildSharedArgs(context: RocsCommandContext): string[] {
   return args;
 }
 
-async function runJsonCommand(args: string[]): Promise<JsonObject> {
-  const stdout = await runTextCommand(args);
+async function runJsonCommand(
+  args: string[],
+  context: RocsCommandContext,
+  outputRoot?: string,
+): Promise<JsonObject> {
+  const stdout = await runTextCommand(args, context, outputRoot);
   try {
     const parsed = JSON.parse(stdout);
     if (!isRecord(parsed)) {
@@ -153,9 +161,39 @@ async function runJsonCommand(args: string[]): Promise<JsonObject> {
   }
 }
 
-async function runTextCommand(args: string[]): Promise<string> {
+async function runTextCommand(
+  args: string[],
+  context: RocsCommandContext,
+  outputRoot?: string,
+): Promise<string> {
   const runner = resolveRunner();
   try {
+    if (outputRoot) {
+      const timeout =
+        context.deadline === undefined
+          ? 120_000
+          : Math.min(120_000, Math.ceil(context.deadline - performance.now()));
+      if (timeout <= 0) throw new Error("ROCS inspection deadline exceeded");
+      return await runInspectionProcess(
+        runner.command,
+        [...runner.baseArgs, "--no-index-cache", ...args],
+        {
+          cwd: PACKAGE_ROOT,
+          timeout,
+          signal: context.signal,
+          // Never mutate process.env: inspections and mutation workflows may coexist.
+          env: {
+            ...process.env,
+            // ROCS requires an empty/marked managed root; snapshot caches must be siblings.
+            ROCS_OUTPUT_ROOT: path.join(outputRoot, "artifacts"),
+            ROCS_CACHE_DIR: path.join(outputRoot, "cache"),
+            GIT_OPTIONAL_LOCKS: "0",
+            PYTHONDONTWRITEBYTECODE: "1",
+          },
+        },
+      );
+    }
+    // Preserve the mutation workflow runner and its ambient output binding.
     const { stdout } = await execFileAsync(runner.command, [...runner.baseArgs, ...args], {
       cwd: PACKAGE_ROOT,
       timeout: 120_000,

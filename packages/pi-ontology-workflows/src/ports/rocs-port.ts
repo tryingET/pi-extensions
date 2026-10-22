@@ -37,6 +37,8 @@ export interface RocsValidateResult {
 
 export interface RocsBuildResult {
   ok: boolean;
+  /** Output/snapshot paths below this root expire when the inspection callback settles. */
+  transientRoot?: string;
   dist: {
     dir: string;
     files: {
@@ -79,7 +81,14 @@ export interface RocsDevelopmentPort {
   ): Promise<RocsProtocolCall<BoundPackResult>>;
 }
 
+/** Cleanup failure is fatal even for best-effort proposal searches. */
+export class RocsInspectionCleanupError extends AggregateError {}
+
 export interface RocsPort {
+  /** Required for legacy inspection; absent capability fails closed, never falls back to writers.
+   * Artifact paths from the scoped port are valid only until the callback settles.
+   */
+  withInspectionOutput?<T>(repoPath: string, operation: (rocs: RocsPort) => Promise<T>): Promise<T>;
   summary(repoPath: string, context: RocsCommandContext): Promise<RocsSummaryResult>;
   validate(repoPath: string, context: RocsCommandContext): Promise<RocsValidateResult>;
   build(repoPath: string, context: RocsCommandContext): Promise<RocsBuildResult>;

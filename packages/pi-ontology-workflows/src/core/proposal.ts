@@ -4,7 +4,7 @@
 
 import path from "node:path";
 import type { FilesPort } from "../ports/files-port.ts";
-import type { RocsPort } from "../ports/rocs-port.ts";
+import { RocsInspectionCleanupError, type RocsPort } from "../ports/rocs-port.ts";
 import type { WorkspacePort } from "../ports/workspace-port.ts";
 import type { OntologyScope, OntologySearchHit, WorkspaceContext } from "./contracts.ts";
 import { inspectOntology } from "./inspect.ts";
@@ -241,6 +241,7 @@ async function collectNearestExisting(
         }
       }
     } catch (error) {
+      if (error instanceof RocsInspectionCleanupError) throw error;
       failedScopes.push({
         scope,
         message: error instanceof Error ? error.message : String(error),

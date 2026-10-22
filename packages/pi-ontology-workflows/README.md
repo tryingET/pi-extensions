@@ -47,6 +47,18 @@ That means:
   - supports `concept`, `relation`, `system4d`, `bridge`, `manifest`, and `bootstrap`
   - routes repo/company/core targets and performs post-apply validate/build
 
+### Inspection output isolation
+
+Inspection, proposal search, and picker search keep target ontology source, existing projections,
+and authority receipts unchanged. Legacy ROCS inspection uses a fresh private directory inside
+`--repo` with separate `ROCS_OUTPUT_ROOT` artifacts and `ROCS_CACHE_DIR` snapshots, disables
+the index cache, and removes the private directory after consumption, including failure/cancellation.
+Snapshot-backed search hits omit their transient filesystem path. `npm run test:inspection-output`
+is the explicit real-ROCS proof lane, separate from the ordinary `npm run check` gate. This is **not zero filesystem writes**:
+the repository directory mtime changes, and cleanup failures are reported with the private path.
+Apply-time validation/build still publishes normally; strict/loose resolution is unchanged.
+See [the isolation contract and proof recipe](docs/project/read-only-inspection.md).
+
 ### Commands
 
 - `/ontology-status`

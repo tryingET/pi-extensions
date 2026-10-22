@@ -403,7 +403,7 @@ export function createSemanticPreflightRuntime(deps: SemanticPreflightRuntimeDep
     const grant = observed.grant;
     const prompt = state.promptRun;
     const legacy = () => ({
-      runtime: { cwd: ctx.cwd } as InspectRuntime,
+      runtime: { cwd: ctx.cwd, signal: toolSignal } as InspectRuntime,
       rocs: deps.legacyRocs,
       bound: false,
       isCurrent: () => !toolSignal?.aborted,

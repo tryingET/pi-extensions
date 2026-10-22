@@ -32,6 +32,7 @@ export interface DevelopmentInspectGate {
 
 export interface InspectRuntime {
   cwd: string;
+  signal?: AbortSignal;
   developmentGate?: DevelopmentInspectGate;
   semanticBoundary?: { deadline: number; signal: AbortSignal };
 }
@@ -84,34 +85,36 @@ export async function inspectOntology(
     workspaceRefMode: target.workspaceRefMode,
     resolveRefs: true,
     deadline: runtime.semanticBoundary?.deadline,
-    signal: runtime.semanticBoundary?.signal,
+    signal: runtime.semanticBoundary?.signal ?? runtime.signal,
   } as const;
 
   if (request.kind === "status") {
-    const summary = await deps.rocs.summary(target.repoPath, rocsContext);
-    const includeValidation = request.includeValidation !== false;
-    const validation = includeValidation
-      ? await deps.rocs.validate(target.repoPath, rocsContext)
-      : undefined;
-    return {
-      target,
-      status: {
-        layers: summary.layers.map((layer) => ({
-          name: layer.name,
-          origin: layer.origin,
-          kind: layer.kind,
-          source: layer.source,
-        })),
-        counts: summary.counts,
-        validation: validation
-          ? {
-              ok: validation.ok,
-              findings: validation.findings,
-            }
-          : undefined,
-      },
-      warnings: validation && !validation.ok ? ["ontology validation failed"] : [],
-    };
+    return withReadOutput(deps.rocs, target.repoPath, async (rocs) => {
+      const summary = await rocs.summary(target.repoPath, rocsContext);
+      const includeValidation = request.includeValidation !== false;
+      const validation = includeValidation
+        ? await rocs.validate(target.repoPath, rocsContext)
+        : undefined;
+      return {
+        target,
+        status: {
+          layers: summary.layers.map((layer) => ({
+            name: layer.name,
+            origin: layer.origin,
+            kind: layer.kind,
+            source: layer.source,
+          })),
+          counts: summary.counts,
+          validation: validation
+            ? {
+                ok: validation.ok,
+                findings: validation.findings,
+              }
+            : undefined,
+        },
+        warnings: validation && !validation.ok ? ["ontology validation failed"] : [],
+      };
+    });
   }
 
   if (request.kind === "pack") {
@@ -139,10 +142,12 @@ export async function inspectOntology(
         warnings: [],
       };
     }
-    const pack = await deps.rocs.pack(target.repoPath, ontId, rocsContext, {
-      depth: request.depth,
-      maxDocs: request.maxDocs,
-    });
+    const pack = await withReadOutput(deps.rocs, target.repoPath, (rocs) =>
+      rocs.pack(target.repoPath, ontId, rocsContext, {
+        depth: request.depth,
+        maxDocs: request.maxDocs,
+      }),
+    );
     return { target, pack: { ontId, text: pack.text }, warnings: [] };
   }
 
@@ -173,23 +178,42 @@ export async function inspectOntology(
     };
   }
 
-  const build = await deps.rocs.build(target.repoPath, rocsContext);
-  const resolvePath = build.dist.files.resolve;
-  const idIndexPath = build.dist.files.id_index;
-  if (!resolvePath || !idIndexPath) {
-    throw new Error("rocs build did not return resolve/id_index artifacts");
-  }
+  return withReadOutput(deps.rocs, target.repoPath, async (rocs) => {
+    const build = await rocs.build(target.repoPath, rocsContext);
+    const resolvePath = build.dist.files.resolve;
+    const idIndexPath = build.dist.files.id_index;
+    if (!resolvePath || !idIndexPath) {
+      throw new Error("rocs build did not return resolve/id_index artifacts");
+    }
 
-  const docs = await loadSearchCatalog(resolvePath, idIndexPath, deps.files);
-  const hits = query ? rankSearchDocs(docs, query) : defaultSearchDocs(docs);
-  return {
-    target,
-    search: {
-      query,
-      hits,
-    },
-    warnings: hits.length === 0 ? ["no ontology search hits"] : [],
-  };
+    const docs = await loadSearchCatalog(resolvePath, idIndexPath, deps.files);
+    // Snapshot bytes are consumed inside the lifetime; never advertise a deleted
+    // snapshot path or substitute a dirty working-tree path for pinned bytes.
+    for (const doc of docs) {
+      if (build.transientRoot && doc.path.startsWith(`${build.transientRoot}${path.sep}`)) {
+        doc.path = "";
+      }
+    }
+    const hits = query ? rankSearchDocs(docs, query) : defaultSearchDocs(docs);
+    return {
+      target,
+      search: {
+        query,
+        hits,
+      },
+      warnings: hits.length === 0 ? ["no ontology search hits"] : [],
+    };
+  });
+}
+
+function withReadOutput<T>(
+  rocs: RocsPort,
+  repoPath: string,
+  operation: (scoped: RocsPort) => Promise<T>,
+): Promise<T> {
+  if (!rocs.withInspectionOutput)
+    throw new Error("ROCS read-only inspection output capability required");
+  return rocs.withInspectionOutput(repoPath, operation);
 }
 
 function verifiedGate(

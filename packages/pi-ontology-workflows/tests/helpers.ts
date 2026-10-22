@@ -12,6 +12,7 @@ import {
   isRecord,
   parseFrontmatterDocument,
 } from "../src/adapters/frontmatter.ts";
+import { withInspectionOutput } from "../src/adapters/inspection-output.ts";
 import type { ValidationFinding } from "../src/core/contracts.ts";
 import type { RocsPort } from "../src/ports/rocs-port.ts";
 import {
@@ -139,8 +140,11 @@ interface FixtureOntologyDocument {
   text: string;
 }
 
-export function createFixtureRocsPort(): RocsPort {
+export function createFixtureRocsPort(outputRoot?: string): RocsPort {
   return {
+    withInspectionOutput(repoPath, operation) {
+      return withInspectionOutput(repoPath, (root) => operation(createFixtureRocsPort(root)));
+    },
     async summary(repoPath, context) {
       assertFixtureContext(context);
       const fixture = await inspectFixtureOntology(repoPath);
@@ -174,7 +178,7 @@ export function createFixtureRocsPort(): RocsPort {
         );
       }
       const fixture = await inspectFixtureOntology(repoPath);
-      const distDir = path.join(fixture.ontologyRoot, "dist");
+      const distDir = outputRoot ?? path.join(fixture.ontologyRoot, "dist");
       await mkdir(distDir, { recursive: true });
       const resolvePath = path.join(distDir, "resolve.json");
       const summaryPath = path.join(distDir, "summary.json");
