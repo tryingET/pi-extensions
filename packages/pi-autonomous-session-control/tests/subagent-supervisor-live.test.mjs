@@ -12,13 +12,29 @@ import {
   withFakePiOnPath,
 } from "./subagent-transport-harness.mjs";
 
-for (const stopSignal of ["SIGTERM", "SIGKILL"]) {
+// Whole-test watchdog, not a teardown latency target: admission (5s), process
+// and group checks (1s + 4s), and fixture cleanup (4s) retain their own bounds.
+const TEST_TIMEOUT_MS = 15_000;
+
+for (const { stopSignal, delayedObservation } of [
+  { stopSignal: "SIGTERM", delayedObservation: false },
+  { stopSignal: "SIGKILL", delayedObservation: false },
+  { stopSignal: "SIGTERM", delayedObservation: true },
+]) {
   const cause = stopSignal === "SIGTERM" ? "parent startup timeout" : "helper SIGKILL";
-  test(`raw supervisor kills the complete managed group after ${cause}`, async () => {
+  const observation = delayedObservation ? " with delayed parent close observation" : "";
+  const name = `raw supervisor kills the complete managed group after ${cause}${observation}`;
+  test(name, { timeout: TEST_TIMEOUT_MS }, async (t) => {
     await withFakePiOnPath(resistantRawPi, async (tempRoot) => {
       const rawPidPath = join(tempRoot, "raw-pi.pid");
       const helper = spawnSupervisedFixture(tempRoot);
       helper.stderr?.resume();
+      // A watchdog failure must also release a stuck exit wait so the fixture
+      // can prove closure/group quiescence before deleting its scratch.
+      const onAbort = () => {
+        if (helper.exitCode === null && helper.signalCode === null) helper.kill("SIGKILL");
+      };
+      t.signal.addEventListener("abort", onAbort, { once: true });
       try {
         const [rawPid, descendantPid] = await waitForRawChildFixture(helper);
         assert.deepEqual((await readFile(rawPidPath, "utf8")).trim().split(/\s+/).map(Number), [
@@ -41,6 +57,16 @@ for (const stopSignal of ["SIGTERM", "SIGKILL"]) {
         assert.ok(Number.isSafeInteger(processGroupId) && processGroupId > 0);
         const helperExit = once(helper, "exit");
         const stopStartedAt = Date.now();
+        let observationDelayed = false;
+        if (delayedObservation) {
+          helper.prependOnceListener("close", () => {
+            // Real OS exit has occurred. Stall this observer's event loop before
+            // the parent's close handler, as under scheduling contention. Do not
+            // fake exit, intercept signals, or change any production deadline.
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800);
+            observationDelayed = true;
+          });
+        }
         if (stopSignal === "SIGTERM") {
           // Attach the parent only after the real raw-child barrier. The fixture
           // has consumed readiness; no further events arrive, so the unchanged
@@ -64,22 +90,24 @@ for (const stopSignal of ["SIGTERM", "SIGKILL"]) {
           assert.equal(result.timedOut, true);
           assert.equal(result.timeoutPhase, "startup");
           assert.equal(result.output, "Subagent timed out during startup after 250ms");
-          assert.ok(
-            result.elapsed < 750,
-            `expected timeout teardown under 750ms, got ${result.elapsed}`,
-          );
+          if (delayedObservation) {
+            assert.equal(observationDelayed, true);
+            // A counterexample to both former <750ms proxies, not a new SLA.
+            assert.ok(result.elapsed >= 750, "result must include delayed observation");
+            assert.ok(Date.now() - stopStartedAt >= 750);
+          }
         } else {
           helper.kill(stopSignal);
         }
         const [code, signal] = await helperExit;
         if (stopSignal === "SIGTERM") {
           // Prove the resistant raw child is gone when the helper exits on its
-          // own, independently of how quickly the helper initially boots.
+          // own. Exit status plus the complete parent signal history prove
+          // graceful exit without force-kill; observer latency cannot prove it.
           assert.equal(code, 143);
           assert.equal(signal, null, "helper must exit before parent force-kill");
           assert.deepEqual(helper.fixtureSignals, ["SIGTERM"], "parent must not send SIGKILL");
           assert.equal(processIsAlive(rawPid), false);
-          assert.ok(Date.now() - stopStartedAt < 750, "timeout teardown exceeded 750ms");
         } else {
           assert.equal(signal, "SIGKILL");
         }
@@ -104,6 +132,7 @@ for (const stopSignal of ["SIGTERM", "SIGKILL"]) {
         }
         assert.equal(groupQuiescent, true, "managed process-group identity remained live");
       } finally {
+        t.signal.removeEventListener("abort", onAbort);
         if (helper.exitCode === null && helper.signalCode === null) helper.kill("SIGKILL");
       }
     });
