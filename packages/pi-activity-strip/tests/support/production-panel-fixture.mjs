@@ -100,7 +100,8 @@ export function productionFixture() {
     { id: 8, idx: 2, is_focused: false, is_active: true },
     { id: 9, idx: 3, is_focused: false, is_active: false },
   ];
-  let finish, finishWorkspaces, rejectWorkspaces;
+  const windowReads = [];
+  const workspaceReads = [];
   const jump = createPanelWindowJump({
     projection,
     placementOptions: placement.options,
@@ -108,15 +109,14 @@ export function productionFixture() {
     isNiriSession: () => true,
     readWindows: () =>
       new Promise((resolve) => {
-        finish = resolve;
+        windowReads.push(resolve);
       }),
     readWorkspaces: () =>
       readNiriWorkspaces(
         async (_command, args) => {
           assert.deepEqual(args, ["msg", "-j", "workspaces"]);
           return new Promise((resolve, reject) => {
-            finishWorkspaces = (facts) => resolve({ stdout: JSON.stringify(facts) });
-            rejectWorkspaces = reject;
+            workspaceReads.push({ resolve, reject });
           });
         },
         { NIRI_SOCKET: "/fixture/not-a-real-socket" },
@@ -149,9 +149,11 @@ export function productionFixture() {
     update: (records) => projection.updateSnapshot({ generatedAt: 2000, sessions: records }),
     workspaces: () => workspaces.map((w) => ({ ...w })),
     finish: (next = windows, facts = workspaces) => {
-      finish(next);
-      if (facts instanceof Error) rejectWorkspaces(facts);
-      else finishWorkspaces(facts);
+      for (const resolve of windowReads.splice(0)) resolve(next);
+      for (const { resolve, reject } of workspaceReads.splice(0)) {
+        if (facts instanceof Error) reject(facts);
+        else resolve({ stdout: JSON.stringify(facts) });
+      }
     },
   };
 }
