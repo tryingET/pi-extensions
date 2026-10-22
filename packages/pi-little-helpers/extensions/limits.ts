@@ -48,6 +48,39 @@ const defaults: LimitsDependencies = {
 const USAGE =
   "Usage: /limits [all|current]\n/limits opens the subscription cockpit: quota, wallet and reset timelines. /limits current prints the active subscription. Non-TUI mode prints all allowed subscriptions.";
 
+type SnapshotEnricher = (
+  snapshot: Promise<LimitsSnapshot>,
+  signal: AbortSignal,
+) => Promise<LimitsSnapshot>;
+
+function providerSnapshotEnrichers(
+  dependencies: LimitsDependencies,
+  events: ExtensionAPI["events"],
+): ReadonlyMap<string, SnapshotEnricher> {
+  const withResetInventory =
+    (provider: string): SnapshotEnricher =>
+    async (pending, signal) => {
+      // Start inventory alongside usage, not after the usage request settles.
+      const [snapshot, resetInventory] = await Promise.all([
+        pending,
+        dependencies.fetchResets(events, provider, signal),
+      ]);
+      return { ...snapshot, ...(resetInventory ? { resetInventory } : {}) };
+    };
+  return new Map<string, SnapshotEnricher>([
+    ["xai", withResetInventory("xai")],
+    ["zai", withResetInventory("zai")],
+    [
+      "meta",
+      async (pending) => {
+        const snapshot = await pending;
+        // Meta publishes no usage endpoint; the local ledger is the only accounting.
+        return { ...snapshot, facts: [...(snapshot.facts ?? []), ...dependencies.metaFacts()] };
+      },
+    ],
+  ]);
+}
+
 export async function switchLimitsAccount(
   pi: Pick<ExtensionAPI, "setModel">,
   ctx: ExtensionCommandContext,
@@ -100,6 +133,7 @@ export function createLimitsExtension(
     let running = false;
     let disposed = false;
     let operationAbort: AbortController | undefined;
+    const enrichers = providerSnapshotEnrichers(dependencies, pi.events);
     const snapshotFor = async (
       account: LimitsAccount,
       ctx: ExtensionContext,
@@ -113,20 +147,9 @@ export function createLimitsExtension(
       if (!model || !allowed?.authenticated || allowed.unsupportedReason)
         throw new Error("Account is no longer available");
       if (!isCodexProvider(account.provider)) {
-        const [snapshot, resetInventory] = await Promise.all([
-          dependencies.fetchProvider(pi.events, account.provider, signal),
-          account.provider === "xai" || account.provider === "zai"
-            ? dependencies.fetchResets(pi.events, account.provider, signal)
-            : undefined,
-        ]);
-        const merged: LimitsSnapshot = {
-          ...snapshot,
-          ...(resetInventory ? { resetInventory } : {}),
-        };
-        // Meta publishes no usage endpoint; the local ledger is the only accounting.
-        if (account.provider === "meta")
-          merged.facts = [...(merged.facts ?? []), ...dependencies.metaFacts()];
-        return merged;
+        const pending = dependencies.fetchProvider(pi.events, account.provider, signal);
+        const enrich = enrichers.get(account.provider);
+        return enrich ? enrich(pending, signal) : { ...(await pending) };
       }
       return dependencies.fetchSnapshot({
         model,
