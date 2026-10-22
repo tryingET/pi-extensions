@@ -199,6 +199,14 @@ export function createNativePanelProjection({ isNiriSession, publish }) {
 
   return {
     getDisplaySessions,
+    // Observe existing fields only: no publish, epoch advancement, admission or query access.
+    diagnostics: () => ({
+      focus: focusKind,
+      contextValid: focusContextValid,
+      eligible: visibility.isEligible(),
+      interactionEpoch,
+      keyboardAuthorization: visibility.keyboardMode(),
+    }),
     /** Reserve ownership before sending; cancel on a failed write or panel exit. */
     requestKeyboard: (clickThrough = false) => {
       const request = ++nextKeyboardRequest;

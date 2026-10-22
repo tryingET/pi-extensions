@@ -6,6 +6,8 @@
 
 /** @typedef {import("./contracts.ts").BrokerResponse} BrokerResponse */
 
+import { formatRibbonDiagnostics } from "./ribbon-status.mjs";
+
 /** @param {BrokerResponse | null | undefined} result */
 export function formatBrokerRuntimeStatus(result) {
   if (!result?.ok) return "stopped";
@@ -26,6 +28,14 @@ export function formatBrokerRuntimeStatus(result) {
   if (typeof runtime.windowVisible === "boolean") {
     lines.push(`surface visible: ${runtime.windowVisible ? "yes" : "no"}`);
   }
+  if (typeof runtime.panelExpanded === "boolean") {
+    lines.push(
+      runtime.panelExpanded && runtime.windowVisible === false
+        ? "expansion: stale (hidden surface)"
+        : `expansion: ${runtime.panelExpanded ? "expanded" : "compact"} (reported; cause not observed)`,
+    );
+  }
+  lines.push(...formatRibbonDiagnostics(runtime.ribbonDiagnostics));
   if (typeof runtime.rendererCardCount === "number") {
     const hidden =
       typeof runtime.rendererHiddenTabCardCount === "number"
@@ -101,7 +111,10 @@ export function summarizeBrokerRuntimeStatus(result) {
 
   const runtime = result.runtimeStatus;
   if (!runtime) {
-    return { headline: "Activity strip is running", level: "info" };
+    return {
+      headline: "Activity strip broker is running; overlay readiness is unknown",
+      level: "warning",
+    };
   }
 
   if (runtime.state === "ready") {

@@ -120,6 +120,26 @@ export interface ActivityStripRuntimeStatus {
   controllerPid?: number;
   panelPid?: number | null;
   panelExpanded?: boolean;
+  /** Optional observational extension; absent on older controllers, never input/AK authority. */
+  ribbonDiagnostics?: {
+    controllerStartupSourceSha256: string | null;
+    expectedPrivateProtocol: number;
+    panelBuild: {
+      state: string;
+      binarySha256?: string;
+      processStartTicks?: string;
+      privateProtocol?: number | null;
+      receiptedSourceSha256?: string | null;
+    };
+    visibilityReason: string;
+    panelBuildObservedAt?: number | null;
+    focus: string;
+    contextValid: boolean;
+    eligible: boolean;
+    interactionEpoch: number;
+    keyboardAuthorization: "none" | "hover" | "explicit";
+    captureExpiry: string;
+  };
   clickThrough?: boolean;
   panelMoveCount?: number;
   panelActivationCount?: number;

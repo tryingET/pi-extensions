@@ -24,6 +24,7 @@ import { createNativePanelProjection } from "./panel-projection.mjs";
 import { admitPanelEvent, PANEL_PROTOCOL } from "./panel-protocol.mjs";
 import { createPanelWindowJump } from "./panel-window-jump.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
+import { createRuntimeStatusReader } from "./runtime-diagnostics.mjs";
 import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
 import {
   createNiriWorkspaceEventWatcher,
@@ -207,7 +208,7 @@ function consumePanelEvents(child, chunk) {
           panelReady = true;
           runtimeStatus.state = "ready";
           runtimeStatus.readyAt = Date.now();
-          runtimeStatus.panelPid = Number(event.pid) || child.pid || null;
+          runtimeStatus.panelPid = child.pid ?? null; // Supervised child, never a reported PID.
           runtimeStatus.error = null;
           clearTimeout(child._stableTimer);
           child._stableTimer = setTimeout(() => {
@@ -443,10 +444,7 @@ async function main() {
   broker = await createActivityStripBroker({
     focusSession,
     focusStrip,
-    getRuntimeStatus: () => ({
-      ...runtimeStatus,
-      warnings: [...(runtimeStatus.warnings ?? [])],
-    }),
+    getRuntimeStatus: createRuntimeStatusReader({ runtimeStatus, projection }),
   });
   broker.on("snapshot", (snapshot) => {
     // Compare like with like: the raw set also holds discovered agent tabs, which the broker

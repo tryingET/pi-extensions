@@ -115,6 +115,23 @@ rows are not counted as established session identities. It never starts the ribb
 session. See the [schema, invocation and evidence limits](docs/project/recovery-manifest.md).
 The panel's existing discovery and AK-chip behavior is unchanged.
 
+### Read-only ribbon diagnostics
+
+`status` also explains controller focus eligibility and reserved keyboard authorization
+(`none`, `hover`, `explicit`), flags expansion reports as stale on hidden surfaces, and
+shows sampled panel-PID executable/receipt/protocol hashes. Samples run asynchronously;
+`pending`, unavailable, incompatible and changed-during-observation states are explicit.
+The controller startup-source fingerprint is a source-tree observation, not proof of every
+loaded byte; a matched receipt is integrity metadata, not approval or original-child custody.
+Older controllers report missing diagnostics rather than guessed facts.
+
+This optional broker observation is separate from the recovery `manifest`: it creates no AK
+claim or custody. It emits no typed query, prompt, credential or executable path. A reserved
+grant is not proof of actual capture. Exact expiry remains **not observed** because private
+protocol2 does not report GTK's monotonic deadline; expansion cause is likewise not inferred
+from an expanded bit alone. Nothing in diagnostics authorizes restart, repair or activation.
+
+
 ## Keyboard-only entry
 
 Bind a Niri key to the fail-closed CLI entrypoint:
