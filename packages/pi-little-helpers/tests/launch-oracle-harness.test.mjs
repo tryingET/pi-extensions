@@ -16,19 +16,22 @@ test("liveness oracle rejects a valid handshake inspected only after child exit"
   const scratchRoot = mkdtempSync(join(tmpdir(), "ghostty-window-late-oracle-"));
   const owned = ownLaunchProcesses();
   try {
-    const result = await launchDetachedGhosttyWindow({
-      command: process.execPath,
-      cwd: process.cwd(),
-      scratchRoot,
-      startupTimeoutMs: 500,
-      buildArgs: ({ path, token }) => [
-        "-e",
-        'require("node:fs").writeFileSync(process.argv[1], process.argv[2] + "\\n")',
-        path,
-        token,
-      ],
-      spawnProcess: owned.spawnProcess,
-    });
+    const result = await withDeadman(
+      launchDetachedGhosttyWindow({
+        command: process.execPath,
+        cwd: process.cwd(),
+        scratchRoot,
+        startupTimeoutMs: 500,
+        buildArgs: ({ path, token }) => [
+          "-e",
+          'require("node:fs").writeFileSync(process.argv[1], process.argv[2] + "\\n")',
+          path,
+          token,
+        ],
+        spawnProcess: owned.spawnProcess,
+      }),
+      "short-lived launch settlement",
+    );
     assert.equal(result.ok, true, "command admission alone can outlive the child");
     await withDeadman(owned.children[0].closed, "short-lived child close");
     await assert.rejects(
@@ -64,6 +67,32 @@ test("observer oracle remains pending until the lifecycle callback", async () =>
   }
   assert.equal(completed, true);
   assert.equal(notifications.length, 1);
+});
+
+test("nonsettling launch rejects locally and reaches owned child teardown", async () => {
+  const owned = ownLaunchProcesses();
+  await assert.rejects(async () => {
+    try {
+      // Given an owned detached child running indefinitely, with no self-expiry.
+      const ready = Promise.withResolvers();
+      const child = owned.spawnProcess(
+        process.execPath,
+        ["-e", 'setInterval(() => {}, 1000); process.send("ready")'],
+        { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"] },
+      );
+      child.once("message", ready.resolve);
+      child.once("error", ready.reject);
+      assert.equal(await withDeadman(ready.promise, "negative-control child ready"), "ready");
+      // When launch never settles, a short rejection-only control reaches finally.
+      await withDeadman(new Promise(() => {}), "nonsettling launch", 1);
+    } finally {
+      await owned.dispose();
+    }
+  }, /test deadman: nonsettling launch/);
+  // Then disposal has awaited close, not merely requested a kill.
+  const { child } = owned.children[0];
+  assert.equal(child.signalCode, "SIGKILL");
+  assert.throws(() => process.kill(child.pid, 0), { code: "ESRCH" });
 });
 
 test("owned process cleanup closes a live child even on an assertion failure", async () => {

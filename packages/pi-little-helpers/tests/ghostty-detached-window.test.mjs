@@ -57,7 +57,7 @@ test("detached window launch settles only after the exact private command handsh
     // wrong-token-only control below proves rejection without ever admitting a valid token.
     const child = owned.children[0].child;
     child.send("admit");
-    const result = await launch;
+    const result = await withDeadman(launch, "private handshake launch settlement");
     // The child has no self-expiry: it stays alive until our finally block releases it.
     // A post-settlement IPC challenge proves liveness, regardless of scheduling latency.
     await assertLaunchWhileAlive(result, child);
@@ -72,17 +72,20 @@ test("wrong-token-only handshake is rejected by the production launcher", async 
   const scratchRoot = mkdtempSync(join(tmpdir(), "ghostty-window-wrong-token-"));
   const owned = ownLaunchProcesses();
   try {
-    const result = await launchDetachedGhosttyWindow({
-      ...nodeLaunchRequest(scratchRoot, "setInterval(() => {}, 1000)"),
-      buildArgs({ path, token }) {
-        assert.notEqual(token, "wrong-token");
-        // Publish before spawn/polling, and never replace it with a valid token.
-        // Production's deadline check must inspect this file before rejecting.
-        writeFileSync(path, "wrong-token\n");
-        return ["-e", "setInterval(() => {}, 1000)"];
-      },
-      spawnProcess: owned.spawnProcess,
-    });
+    const result = await withDeadman(
+      launchDetachedGhosttyWindow({
+        ...nodeLaunchRequest(scratchRoot, "setInterval(() => {}, 1000)"),
+        buildArgs({ path, token }) {
+          assert.notEqual(token, "wrong-token");
+          // Publish before spawn/polling, and never replace it with a valid token.
+          // Production's deadline check must inspect this file before rejecting.
+          writeFileSync(path, "wrong-token\n");
+          return ["-e", "setInterval(() => {}, 1000)"];
+        },
+        spawnProcess: owned.spawnProcess,
+      }),
+      "wrong-token launch settlement",
+    );
     assert.equal(result.ok, false);
     assert.equal(result.effectDisposition, "effect_indeterminate");
     assert.match(result.stderr, /command admission was not observed within 500ms/);
@@ -99,21 +102,31 @@ test("only pre-spawn rejection confirms no effects; post-spawn nonzero exit is i
   const scratchRoot = mkdtempSync(join(tmpdir(), "ghostty-window-rejected-"));
   const owned = ownLaunchProcesses();
   try {
-    const missing = await launchDetachedGhosttyWindow({
-      spawnProcess: owned.spawnProcess,
-      command: join(scratchRoot, "missing-ghostty"),
-      cwd: process.cwd(),
-      scratchRoot,
-      startupTimeoutMs: 100,
-      buildArgs: () => [],
-    });
+    const missing = await withDeadman(
+      launchDetachedGhosttyWindow({
+        spawnProcess: owned.spawnProcess,
+        command: join(scratchRoot, "missing-ghostty"),
+        cwd: process.cwd(),
+        scratchRoot,
+        startupTimeoutMs: 100,
+        buildArgs: () => [],
+      }),
+      "pre-spawn rejection settlement",
+    );
     assert.equal(missing.ok, false);
     assert.equal(missing.effectDisposition, "confirmed_no_effects");
 
-    const exited = await launchDetachedGhosttyWindow({
-      ...nodeLaunchRequest(scratchRoot, 'console.error("display rejected"); process.exit(7)', 200),
-      spawnProcess: owned.spawnProcess,
-    });
+    const exited = await withDeadman(
+      launchDetachedGhosttyWindow({
+        ...nodeLaunchRequest(
+          scratchRoot,
+          'console.error("display rejected"); process.exit(7)',
+          200,
+        ),
+        spawnProcess: owned.spawnProcess,
+      }),
+      "nonzero exit launch settlement",
+    );
     assert.equal(exited.ok, false);
     assert.equal(exited.code, 7);
     assert.equal(exited.effectDisposition, "effect_indeterminate");
@@ -134,10 +147,13 @@ test("timeout, signal, and zero handoff without a handshake remain effect-indete
       'process.kill(process.pid, "SIGTERM")',
       "process.exit(0)",
     ]) {
-      const result = await launchDetachedGhosttyWindow({
-        ...nodeLaunchRequest(scratchRoot, script, 40),
-        spawnProcess: owned.spawnProcess,
-      });
+      const result = await withDeadman(
+        launchDetachedGhosttyWindow({
+          ...nodeLaunchRequest(scratchRoot, script, 40),
+          spawnProcess: owned.spawnProcess,
+        }),
+        `indeterminate launch settlement: ${script}`,
+      );
       assert.equal(result.ok, false);
       assert.equal(result.effectDisposition, "effect_indeterminate");
     }
