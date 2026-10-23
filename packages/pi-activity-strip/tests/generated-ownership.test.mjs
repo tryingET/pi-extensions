@@ -6,6 +6,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { minimizedFailure, ReplayMismatch } from "./support/ownership-oracle-checks.mjs";
 import { productionFixture } from "./support/production-panel-fixture.mjs";
 
 // Oracle is a specification over the external event vocabulary, not a second implementation
@@ -35,13 +36,6 @@ function traceFor(seed, kind) {
   if (kind === "revoked")
     events.splice(next(events.length + 1), 0, [...invalidating][next(invalidating.size)]);
   return { seed, kind, events };
-}
-
-class ReplayMismatch extends Error {
-  constructor(kind, cause) {
-    super(`ownership oracle mismatch: ${kind}`, { cause });
-    this.kind = kind;
-  }
 }
 
 function checkOutcome(kind, check) {
@@ -113,23 +107,6 @@ async function replay({ mode, events }) {
   return f.focused;
 }
 
-async function minimizedFailure(trace, failureKind) {
-  let events = [...trace.events];
-  for (let index = 0; index < events.length; ) {
-    const candidate = events.filter((_, i) => i !== index);
-    try {
-      await replay({ ...trace, events: candidate });
-      index += 1;
-    } catch (error) {
-      // Never shrink to a fixture error or a different behavioral failure.
-      if (!(error instanceof ReplayMismatch) || error.kind !== failureKind) throw error;
-      events = candidate;
-      index = 0;
-    }
-  }
-  return { ...trace, events };
-}
-
 const seeds = process.env.PI_ACTIVITY_STRIP_REPLAY_SEED
   ? [Number(process.env.PI_ACTIVITY_STRIP_REPLAY_SEED)]
   : Array.from({ length: 64 }, (_, i) => i + 1);
@@ -144,7 +121,9 @@ for (const seed of seeds) {
           await replay(trace);
         } catch (error) {
           if (error instanceof ReplayMismatch)
-            t.diagnostic(`minimized=${JSON.stringify(await minimizedFailure(trace, error.kind))}`);
+            t.diagnostic(
+              `minimized=${JSON.stringify(await minimizedFailure(trace, error.kind, replay))}`,
+            );
           throw error;
         }
       });
