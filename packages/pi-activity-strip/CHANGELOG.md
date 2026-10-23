@@ -57,6 +57,23 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.10.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.9.0...pi-activity-strip-v0.10.0) (2026-10-23)
+
+
+### Features
+
+* **activity-strip:** explain sampled runtime state without input or custody effects (AK7417) ([66a4a33](https://github.com/tryingET/pi-extensions/commit/66a4a3328c79a0103c4d6b039368b2b902e2ba1b))
+* **pi-activity-strip:** add conservative read-only recovery manifest (AK7378) ([1250d98](https://github.com/tryingET/pi-extensions/commit/1250d98f201c50d689603b1e494c3f9a1de1ea27))
+
+
+### Bug Fixes
+
+* **activity-strip:** bind explicit panel selection without silent fallback (AK7417) ([78d13b2](https://github.com/tryingET/pi-extensions/commit/78d13b23e9250b59d27b29e7ce7db86c78face40))
+* **activity-strip:** bind visibility and expansion to actual focus and pointer ownership (AK7114) ([784a75c](https://github.com/tryingET/pi-extensions/commit/784a75c653576ec00be6e578b81644e97b82274f))
+* **activity-strip:** make broker startup and oracle cleanup transactional ([858f398](https://github.com/tryingET/pi-extensions/commit/858f398b03b61b41ece097ad0b74ff7936f60baa))
+* **activity-strip:** require overlay readiness without replacing unknown runtimes (AK7417) ([e7b830f](https://github.com/tryingET/pi-extensions/commit/e7b830f319de879ae9194c5a6fb8a891225aeed0))
+* **activity-strip:** restore bounded hover-to-type navigation with guarded keyboard ownership (AK7114) ([e8f18a6](https://github.com/tryingET/pi-extensions/commit/e8f18a649efb38765d999cc736abddada8db3366))
+
 ## [0.9.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.8.0...pi-activity-strip-v0.9.0) (2026-09-28)
 
 

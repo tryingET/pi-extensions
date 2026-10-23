@@ -23,6 +23,14 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.5.4](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.3...pi-ontology-workflows-v0.5.4) (2026-10-23)
+
+
+### Bug Fixes
+
+* **ontology:** consume structured packs before snapshot cleanup (AK7419) ([11289b5](https://github.com/tryingET/pi-extensions/commit/11289b510f5f2a553bb2bf01a9ee675aeb284ffd))
+* **ontology:** isolate read-only inspection outputs and caches (AK7419) ([80ae376](https://github.com/tryingET/pi-extensions/commit/80ae376598786dca8d93f09ed3c5fd1cd088a7c3))
+
 ## [0.5.3](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.2...pi-ontology-workflows-v0.5.3) (2026-10-10)
 
 

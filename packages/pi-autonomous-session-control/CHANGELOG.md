@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.8.1](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.8.0...pi-autonomous-session-control-v0.8.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **self:** reject every action family before stateful fallback (AK7460) ([ba8ae47](https://github.com/tryingET/pi-extensions/commit/ba8ae4754cd550603cd48c7244658c762000d569))
+* **self:** require explicit action directives (AK7460, AK7466) ([f2338b0](https://github.com/tryingET/pi-extensions/commit/f2338b059355cd9bc7a5fdbcf92df7717ef10f13))
+
 ## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.7.0...pi-autonomous-session-control-v0.8.0) (2026-10-14)
 
 
