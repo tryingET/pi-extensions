@@ -4,11 +4,11 @@
 export const GOVERNED_RUNTIME_ASC_REGISTRY_OWNER = {
   consumer: "packages/pi-society-orchestrator",
   name: "@tryinget/pi-autonomous-session-control",
-  version: "0.8.0",
-  selector: "^0.8.0",
-  url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.8.0.tgz",
+  version: "0.8.1",
+  selector: "^0.8.1",
+  url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.8.1.tgz",
   integrity:
-    "sha512-Jvjt46MQRiCuwaD5O58b7gX9sNixoBA3CP35W85grFmajiKBiLLaM7vJ/a5qR7ZQXyZMkHR2zljdnEwA0WDdtQ==",
+    "sha512-2ZcBVXF7fJkC9toRnpAtITRLXnI5kuZqrIqoelvXzrumMW4VUKfN9yCZWq+OeYYR0XGKDJJm2Nd7R2fSNmhRLg==",
   specifiers: [
     "@tryinget/pi-autonomous-session-control/execution",
     "@tryinget/pi-autonomous-session-control",
