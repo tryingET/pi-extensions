@@ -58,28 +58,45 @@ export class ActivityStripBroker extends EventEmitter {
   }
 
   async start() {
+    // Linux sun_path has 108 bytes including the trailing NUL. Node can silently
+    // bind a truncated path, so reject before chmod/unlink can change the filesystem.
+    if (Buffer.byteLength(this.socketPath, "utf8") > 107) {
+      throw new RangeError("Activity strip socket path must not exceed 107 UTF-8 bytes.");
+    }
+
     fs.mkdirSync(this.socketDir, { recursive: true, mode: 0o700 });
     fs.chmodSync(this.socketDir, 0o700);
     safeUnlink(this.socketPath);
 
-    await new Promise((resolve, reject) => {
-      this.server.once("error", reject);
-      this.server.listen(this.socketPath, () => {
-        this.server.off("error", reject);
-        try {
-          fs.chmodSync(this.socketPath, 0o600);
+    let bound = false;
+    try {
+      await new Promise((resolve, reject) => {
+        this.server.once("error", reject);
+        this.server.listen(this.socketPath, () => {
+          this.server.off("error", reject);
+          bound = true;
           resolve(undefined);
-        } catch (error) {
-          reject(error);
-        }
+        });
       });
-    });
+      fs.chmodSync(this.socketPath, 0o600);
 
-    this.tick = setInterval(() => {
+      this.tick = setInterval(() => {
+        this.emitSnapshot();
+      }, ACTIVITY_STRIP_BROADCAST_TICK_MS);
+      this.tick.unref?.();
       this.emitSnapshot();
-    }, ACTIVITY_STRIP_BROADCAST_TICK_MS);
-    this.tick.unref?.();
-    this.emitSnapshot();
+    } catch (error) {
+      // Only a successful bind gives us a socket to clean up. On a failed bind,
+      // stop() could unlink the address of the listener that beat us to it.
+      if (bound) {
+        try {
+          await this.stop();
+        } catch {
+          // Preserve the startup failure even if cleanup also fails.
+        }
+      }
+      throw error;
+    }
   }
 
   emitSnapshot() {

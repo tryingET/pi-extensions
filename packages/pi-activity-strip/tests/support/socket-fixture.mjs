@@ -26,17 +26,43 @@ export function createSocketFixture(t, { prefix = "activity-socket-", tmpdir = o
   }
   const socketDir = `/proc/${process.pid}/fd/${fd}`;
   const socketPath = `${socketDir}/broker.sock`;
-  const brokers = [];
+  // One address admits one broker for the fixture's lifetime. A second start could
+  // unlink the first listener's address before bind, so reserve before construction.
+  let admitted = false;
+  let broker;
+  let brokerStopped = false;
+  let starting;
+  let closing;
+  let closingRequested = false;
   let closed = false;
-  const cleanup = async () => {
-    if (closed) return;
-    closed = true;
-    try {
-      for (const broker of brokers.reverse()) await broker.stop();
-    } finally {
-      fs.closeSync(fd);
+  const cleanup = () => {
+    if (closing) return closing;
+    if (closed) return Promise.resolve();
+    closingRequested = true;
+    closing = (async () => {
+      // Wait for the raw start operation, not startBroker's rollback wrapper.
+      // Otherwise cleanup can either race a later bind or deadlock with rollback.
+      await starting?.catch(() => {});
+      if (broker && !brokerStopped) {
+        await broker.stop();
+        // Never repeat endpoint operations once the directory FD may be reused,
+        // even when subsequent descriptor/storage cleanup fails and is retried.
+        brokerStopped = true;
+      }
+      // A rejected stop leaves custody intact and permits a later cleanup retry.
+      if (fd !== undefined) {
+        // Linux releases a valid descriptor even when close reports an error.
+        // Never retry that numeric handle: it may already belong to another fixture.
+        const closingFd = fd;
+        fd = undefined;
+        fs.closeSync(closingFd);
+      }
       fs.rmSync(root, { recursive: true, force: true });
-    }
+      closed = true;
+    })().finally(() => {
+      closing = undefined;
+    });
+    return closing;
   };
   // Register before any await/start: rejection after listen must not leak an open server.
   t.after(cleanup);
@@ -47,14 +73,24 @@ export function createSocketFixture(t, { prefix = "activity-socket-", tmpdir = o
     cleanup,
     /** @param {import("../../src/common/contracts.ts").ActivityStripBrokerOptions} [options] */
     async startBroker(options = {}) {
-      if (closed) throw new Error("Socket fixture is already closed.");
-      const broker = new ActivityStripBroker({ ...options, socketDir, socketPath });
-      brokers.push(broker);
+      if (closingRequested) throw new Error("Socket fixture is closing or already closed.");
+      if (admitted) throw new Error("Socket fixture already admitted a broker.");
+      admitted = true;
       try {
-        await broker.start();
+        broker = new ActivityStripBroker({ ...options, socketDir, socketPath });
+        starting = broker.start();
+        await starting;
         return broker;
       } catch (error) {
-        await cleanup();
+        try {
+          await cleanup();
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Socket fixture startup and cleanup failed.",
+            { cause: error },
+          );
+        }
         throw error;
       }
     },
