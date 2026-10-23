@@ -18,6 +18,7 @@ import {
 } from "./state.js";
 
 export { classifyTaskSessionRequest } from "./classify.js";
+export { taskSessionDoctor } from "./doctor.js";
 export { taskSessionProfiles } from "./profiles.js";
 export interface TaskSessionRequest {
   schema: "pi.task-session.request.v1";
