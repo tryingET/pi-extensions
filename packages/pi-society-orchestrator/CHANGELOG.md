@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.4](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.3...pi-society-orchestrator-v0.13.4) (2026-10-23)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from ^0.8.0 to ^0.8.1
+
 ## [0.13.3](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.2...pi-society-orchestrator-v0.13.3) (2026-10-14)
 
 

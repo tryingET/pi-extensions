@@ -32,6 +32,24 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.13.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.12.0...pi-little-helpers-v0.13.0) (2026-10-23)
+
+
+### Features
+
+* **pi-little-helpers:** add Meta Muse to /limits ([078870e](https://github.com/tryingET/pi-extensions/commit/078870ee051a5e50596253e04413f0811f1863b8))
+* **pi-little-helpers:** add non-authoritative task-session doctor (AK7390) ([4717a79](https://github.com/tryingET/pi-extensions/commit/4717a7991e41316ebf9b9b522cda202061c5d9fb))
+* **pi-little-helpers:** local Muse usage ledger for /limits ([9900766](https://github.com/tryingET/pi-extensions/commit/99007668c1b29e3ff74b0dac8dab16de59255489))
+
+
+### Bug Fixes
+
+* **pi-little-helpers:** enrich legacy quota markers without rewriting history (AK7426) ([f77a67b](https://github.com/tryingET/pi-extensions/commit/f77a67bd36711bbba53d7b6cc5dcc059ddbf28c5))
+* **pi-little-helpers:** keep small Muse spend readable in /limits facts ([d1fbba1](https://github.com/tryingET/pi-extensions/commit/d1fbba1e1e90f3ee052811cf60fed4fcd3271826))
+* **pi-little-helpers:** pin Muse quota exhaustion and group retry windows (AK7405) ([b9475f1](https://github.com/tryingET/pi-extensions/commit/b9475f12a7825d0401a33d5dac2477f955e7f1c7))
+* **pi-little-helpers:** recognize managed Ghostty releases (AK7392) ([71cea58](https://github.com/tryingET/pi-extensions/commit/71cea588dc5083da796c83793eec0be248dd985c))
+* **test-gate:** admit source-test owner installs explicitly (AK7406) ([564ebc4](https://github.com/tryingET/pi-extensions/commit/564ebc472d092c948ed0cae0066806a4bed98866))
+
 ## [0.12.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.11.2...pi-little-helpers-v0.12.0) (2026-10-14)
 
 

@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.4](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.3...pi-society-startup-context-v0.3.4) (2026-10-23)
+
+
+### Bug Fixes
+
+* **pi-society-startup-context:** activate nested passport decoding (AK7095) ([9ea360f](https://github.com/tryingET/pi-extensions/commit/9ea360f222365e5bd99616636313cef42a5d93ec))
+
 ## [0.3.3](https://github.com/tryingET/pi-extensions/compare/pi-society-startup-context-v0.3.2...pi-society-startup-context-v0.3.3) (2026-10-10)
 
 
