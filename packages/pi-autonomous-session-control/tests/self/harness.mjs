@@ -161,6 +161,7 @@ export async function loadExtensionWithMocks() {
     "crystallization.ts",
     "protection.ts",
     "action.ts",
+    "action-intent.ts",
     "evolution-feedback.ts",
     "memory-lifecycle-status.ts",
     "runtime-health.ts",

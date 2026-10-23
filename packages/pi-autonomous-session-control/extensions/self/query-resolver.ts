@@ -11,12 +11,8 @@
  */
 
 import { hasEditorPrefillDirective } from "./editor-prefill.ts";
-import {
-  ACTION_KEYWORDS,
-  isSelfEvolutionContinuationPrefillQuery,
-  mapActionIntent,
-  resolveActionQuery,
-} from "./resolvers/action.ts";
+import { mapActionIntent, resolveActionQuery } from "./resolvers/action.ts";
+import { isUnsupportedActionRequest } from "./resolvers/action-intent.ts";
 import { isAutonomyStatusQuery, resolveAutonomyStatusQuery } from "./resolvers/autonomy-status.ts";
 import { isCacheRoutingQuery, resolveCacheRoutingQuery } from "./resolvers/cache-routing.ts";
 import { resolveCapabilityQuery } from "./resolvers/capabilities.ts";
@@ -151,48 +147,6 @@ function isExplicitCrystallizationDirectiveQuery(lower: string): boolean {
 
 function isExplicitProtectionDirectiveQuery(lower: string): boolean {
   return /^\s*mark\s+as\s+trap\s*:/u.test(lower);
-}
-
-function isExplicitUserMessageActionQuery(lower: string): boolean {
-  return (
-    /^\s*(?:notify operator|notify user|message operator|send operator message)(?:\s*:|\s*$)/u.test(
-      lower,
-    ) ||
-    /^\s*send\s+user\s*message\s*:/u.test(lower) ||
-    /^\s*sendusermessage(?:\s*:|\s*$)/u.test(lower)
-  );
-}
-
-function isExplicitDiagnosticActionQuery(lower: string): boolean {
-  const normalized = lower
-    .trim()
-    .replace(/\s+/gu, " ")
-    .replace(/[.!?]+$/u, "");
-  const exactCommands = [
-    "record continuation candidate",
-    "queue continuation candidate",
-    "remember next autonomous step",
-    "continue diagnostic review",
-    "continue self diagnostic",
-    "send diagnostic review",
-    "send diagnostic followup",
-    "send diagnostic follow-up",
-    "prefill diagnostic record",
-    "prefill agent_vent record",
-    "prefill vent record",
-  ];
-  const routeCommandPattern =
-    /^(?:prefill|launch|run|start) (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop)|autoresearch campaign|measured campaign)(?: for self-evolution)?$/u;
-  return (
-    isExplicitUserMessageActionQuery(lower) ||
-    exactCommands.includes(normalized) ||
-    /^(?:record continuation candidate|queue continuation candidate|remember next autonomous step)\s*:/u.test(
-      normalized,
-    ) ||
-    isSelfEvolutionContinuationPrefillQuery(lower) ||
-    routeCommandPattern.test(normalized) ||
-    normalized.startsWith("record this friction")
-  );
 }
 
 function mapSemanticPressureIntent(lower: string): CrystallizationIntent {
@@ -339,8 +293,9 @@ export function classifyIntent(query: string): QueryIntent {
   // Check diagnostic review before broad action keywords so incidental action words in
   // self-evolution questions (for example "dogfood self: ... checkpoint ...") do not mutate
   // action state. Explicit diagnostic action follow-ups are still handled as actions.
-  if (isExplicitDiagnosticActionQuery(lower)) {
-    return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
+  const actionIntent = mapActionIntent(query);
+  if (actionIntent !== "unknown") {
+    return { domain: "action", intent: actionIntent as ActionIntent };
   }
 
   // Explicit storage/protection directives own their payload, so diagnostic/self-evolution
@@ -354,48 +309,18 @@ export function classifyIntent(query: string): QueryIntent {
     return { domain: "protection", intent: "mark_trap" };
   }
 
+  // Reject before every keyword fallback, including feedback and diagnostic
+  // resolvers: their state must not be changed by a rejected action's payload.
+  if (isUnsupportedActionRequest(query)) {
+    return { domain: "unknown", intent: "unsupported_action_request" };
+  }
+
   if (isEvolutionFeedbackQuery(lower)) {
     return { domain: "meta", intent: mapEvolutionFeedbackIntent(lower) };
   }
 
   if (isDiagnosticReviewQuery(lower)) {
     return { domain: "meta", intent: "diagnostic_review" };
-  }
-
-  // Check explicit action/crystallization/protection requests before capability discovery.
-  for (const keyword of ACTION_KEYWORDS) {
-    if (lower.includes(keyword)) {
-      const userMessageKeywords = [
-        "notify operator",
-        "notify user",
-        "message operator",
-        "send operator message",
-        "send usermessage",
-        "sendusermessage",
-      ];
-      if (userMessageKeywords.includes(keyword) && !isExplicitUserMessageActionQuery(lower)) {
-        continue;
-      }
-      const mappedIntent = mapActionIntent(lower) as ActionIntent;
-      // Plain mentions/refusals remain non-actions; anchored prefill directives
-      // retain ownership independently of whether editor writing is permitted.
-      if (mappedIntent === "prefill_editor" && !hasEditorPrefillDirective(query)) {
-        continue;
-      }
-      const explicitOnlyIntents = new Set<ActionIntent>([
-        "send_user_message",
-        "prefill_visible_loop_self_evolution",
-        "launch_visible_loop_self_evolution",
-        "prefill_autoresearch_campaign",
-        "launch_autoresearch_campaign",
-        "continue_diagnostic_review",
-        "prefill_diagnostic_record",
-      ]);
-      if (explicitOnlyIntents.has(mappedIntent) && !isExplicitDiagnosticActionQuery(lower)) {
-        continue;
-      }
-      return { domain: "action", intent: mappedIntent };
-    }
   }
 
   if (isSemanticPressureQuery(lower)) {

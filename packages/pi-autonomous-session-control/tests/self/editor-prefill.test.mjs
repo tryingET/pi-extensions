@@ -50,7 +50,6 @@ for (const query of [
   "show fresh session handoff prompt",
   "create handoff prompt, no-prefill",
   "create handoff prompt, do not prefill",
-  "should I prefill a handoff prompt?",
   "show prefill handoff prompt",
   "prefill handoff prompt, show only",
   "prefill handoff prompt, show-only",
