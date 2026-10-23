@@ -283,7 +283,7 @@ test("self query: continue with self-evolution only suggests visible-loop text",
     "continue with self-evolution",
     "continue self-evolution",
     "continue visible self-evolution!",
-    "  CONTINUE   SELF-EVOLUTION ? ",
+    "  CONTINUE   SELF-EVOLUTION ! ",
   ].entries()) {
     editorText = "";
     const result = await tool.execute(

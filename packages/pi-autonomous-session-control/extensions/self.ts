@@ -143,13 +143,15 @@ Examples:
 - self({ query: "cache-aware delegation: tree or fork?" })
 - self({ query: "notify operator: I finished the verified slice and need a reload" })
 
+Action directives use bounded, anchored command forms (for example "create checkpoint", "queue followup:", or exact "continue safely"), not incidental mentions, questions, or refusals. Context fields cannot grant missing command intent.
+
 Handoff generation returns text only. Editor writes require an explicit "prefill" query and an empty, unchanged, readable TUI draft; blocked sends never prefill automatically.
 
 This is a mirror, not a manager. You ask, you receive, you decide.`,
     promptSnippet:
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
-      "Use self when you need to verify what work has actually happened before planning the next step.",
+      "Use read-only self checks at decision boundaries: after repeated failures, when progress is uncertain, before delegation strategy decisions, and before handoff or completion reporting. Cross-check the mirror against actual tool results and git; file activity is not proof of task progress. Do not call self merely to meet a frequency target.",
       "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, cache-aware tree/fork/dispatch routing, self-contained handoff prompt generation, explicit remember/mark-trap directives, diagnostic-review queries, explicit low-risk operator notifications via notify operator/send user message, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
     ],
     parameters: Type.Object({
