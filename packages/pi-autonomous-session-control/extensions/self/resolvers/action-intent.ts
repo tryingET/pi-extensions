@@ -49,12 +49,32 @@ function previewCommand(command: string): string | undefined {
 
 /** Prevent rejected action-like requests from falling into stateful observation routes. */
 export function isUnsupportedActionRequest(query: string): boolean {
-  const command = normalizeCommand(query).replace(/^["'`]/u, "");
+  // Normalize refusal typography only for rejection, never for authorization.
+  const command = normalizeCommand(query)
+    .replace(/[‘’ʼ]/gu, "'")
+    .replace(/^["'`“]/u, "")
+    .replace(/^please /u, "")
+    .replace(
+      /^(?:do[- ]not|don't|never|no|avoid|explain|describe|(?:should|can|could|would) i|what (?:is|does)|how (?:do|does)) /u,
+      "",
+    );
+  // Keep every supported action family here, including route/diagnostic heads.
+  // This is a rejection envelope, not a second permissive command parser.
   return (
-    /\bhandoff prompt\b/u.test(command) ||
-    /^(?:please )?(?:(?:do[- ]not|don't|never|no|avoid|explain|describe|(?:should|can|could|would) i|what (?:is|does)|how (?:do|does)) )?(?:prefill\b|(?:create|mark) checkpoint\b|save point\b|queue follow[- ]?up\b|remind me\b|continue (?:safely|suggested next move)\b|(?:send|advance) suggested next move\b|next (?:autonomous|safe) step\b|(?:record|queue) continuation candidate\b|remember next autonomous step\b|notify (?:operator|user)\b|message operator\b|send (?:operator message|user ?message)\b|sendusermessage\b)/u.test(
+    /^(?:(?:create|show(?: prefill)?|prefill) (?:the )?)?(?:(?:compaction|fresh[- ]session|self-contained) )?handoff prompt\b/u.test(
       command,
-    )
+    ) ||
+    /^(?:prefill\b|(?:create|mark) checkpoint\b|save point\b|queue follow[- ]?up\b|remind me\b|continue (?:safely|suggested next move)\b|(?:send|advance) suggested next move\b|next (?:autonomous|safe) step\b|(?:record|queue) continuation candidate\b|remember next autonomous step\b|notify (?:operator|user)\b|message operator\b|send (?:operator message|user ?message)\b|sendusermessage\b)/u.test(
+      command,
+    ) ||
+    /^continue (?:(?:with |visible )?self-evolution|diagnostic review|self diagnostic)\b/u.test(
+      command,
+    ) ||
+    /^send diagnostic (?:review|follow-?up)\b/u.test(command) ||
+    /^(?:launch|run|start) (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop)|autoresearch campaign|measured campaign)\b/u.test(
+      command,
+    ) ||
+    /^record this friction\b/u.test(command)
   );
 }
 

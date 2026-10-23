@@ -309,18 +309,18 @@ export function classifyIntent(query: string): QueryIntent {
     return { domain: "protection", intent: "mark_trap" };
   }
 
+  // Reject before every keyword fallback, including feedback and diagnostic
+  // resolvers: their state must not be changed by a rejected action's payload.
+  if (isUnsupportedActionRequest(query)) {
+    return { domain: "unknown", intent: "unsupported_action_request" };
+  }
+
   if (isEvolutionFeedbackQuery(lower)) {
     return { domain: "meta", intent: mapEvolutionFeedbackIntent(lower) };
   }
 
   if (isDiagnosticReviewQuery(lower)) {
     return { domain: "meta", intent: "diagnostic_review" };
-  }
-
-  // A rejected action request must not fall through to a different resolver
-  // that records state (for example handoff-summary continuation candidates).
-  if (isUnsupportedActionRequest(query)) {
-    return { domain: "unknown", intent: "unsupported_action_request" };
   }
 
   if (isSemanticPressureQuery(lower)) {

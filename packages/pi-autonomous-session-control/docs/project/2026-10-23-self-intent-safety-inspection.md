@@ -90,10 +90,15 @@ questions and negations inside it are not nested directives.
 - `npm run check`: package-declared verification contract.
 - Fresh Pi process exercising the actual extension: live non-TUI evidence;
   mocked TUI draft tests do not establish compositor/TUI behavior.
+- The action-family collision matrix additionally exercises rejected route/diagnostic
+  aliases against handoff, feedback and crystallization payload keywords, preserving
+  persisted-memory bytes and both empty and occupied drafts.
 
 Passing routing tests do not prove spontaneous adoption or improved decisions.
 
-### Observed verification and landing posture
+### Initial handoff verification and landing posture (historical)
+
+The following records the first handoff, not continuing verification or landing authority.
 
 - The package's full `npm run check` passed, including its declared build,
   lint/typecheck, test, packaging and packed-runtime checks.
@@ -115,6 +120,29 @@ Passing routing tests do not prove spontaneous adoption or improved decisions.
 The fresh-process evidence is non-TUI. Integration fixtures check both empty and
 occupied editor drafts; this does not establish real compositor/TUI behavior.
 
+
+### Continuation inspection and repair
+
+The successor rebased the same patch onto `1ad259d8e`, producing `f2338b059`.
+Ordinary isolated provisioning admitted all 39 install roots and the full repository
+`just ci` passed through the heavy-job runner. No caller skip flags were supplied;
+repo-declared optional/live-test skips remain. This superseded the initial install
+blocker, but did not establish canonical activation.
+
+A fresh independent inspection then reproduced an in-scope bypass: a rejected
+`launch autoresearch campaign` directive with `controller handoff summary` in its
+payload replaced a saved continuation after file activity. Landing was held despite
+the passing suite. New regressions reproduced persisted-memory changes before repair.
+
+The rejection envelope now covers the route and diagnostic action families as well,
+and runs before feedback/diagnostic keyword fallback. Refusal typography normalization
+is rejection-only; it does not widen accepted command syntax. Explicit storage and
+protection command heads retain ownership of their payloads. Handoff rejection is
+anchored too, so explicit feedback and diagnostic queries can still discuss handoff
+prompts. The repaired self suite passed 387 tests, including the cross-family collision
+matrix and positive meta-payload regressions. The earlier full-CI
+pass is not proof for this amended source; fresh repository verification and live
+activation remain separate prerequisites.
 
 ## Remaining work
 

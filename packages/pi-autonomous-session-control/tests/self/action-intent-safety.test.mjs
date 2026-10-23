@@ -66,6 +66,87 @@ for (const query of nonActions) {
   });
 }
 
+// Every action family must reject before stateful keyword fallback, not just
+// avoid domain=action. Include aliases and payloads that collide with other owners.
+const rejectedDirectiveCollisions = [
+  "create checkpoint",
+  "mark checkpoint",
+  "save point",
+  "queue followup",
+  "queue follow-up",
+  "queue follow up",
+  "remind me",
+  "continue safely",
+  "continue suggested next move",
+  "send suggested next move",
+  "advance suggested next move",
+  "next autonomous step",
+  "next safe step",
+  "send user message",
+  "send usermessage",
+  "sendusermessage",
+  "notify operator",
+  "notify user",
+  "message operator",
+  "send operator message",
+  "record continuation candidate",
+  "queue continuation candidate",
+  "remember next autonomous step",
+  "continue with self-evolution",
+  "continue self-evolution",
+  "continue visible self-evolution",
+  "continue diagnostic review",
+  "continue self diagnostic",
+  "send diagnostic review",
+  "send diagnostic followup",
+  "send diagnostic follow-up",
+  "record this friction",
+  "prefill",
+  "prefill editor",
+  "prefill diagnostic record",
+  "prefill agent_vent record",
+  "prefill vent record",
+  "create handoff prompt",
+  "show handoff prompt",
+  ...["prefill", "launch", "run", "start"].flatMap((verb) =>
+    [
+      "visible-loop self-evolution",
+      "visible loop self-evolution",
+      "self-evolution visible-loop",
+      "self-evolution loop",
+      "autoresearch campaign",
+      "measured campaign",
+    ].map((target) => `${verb} ${target}`),
+  ),
+].flatMap((command) =>
+  ["controller handoff summary", "self feedback", "remember this pattern"].flatMap((payload) => [
+    `Do not ${command}: ${payload}`,
+    `Please don’t ${command}: ${payload}`,
+    `Should I ${command}: ${payload}?`,
+    `"${command}: ${payload}"`,
+  ]),
+);
+
+test("rejected action families cannot select stateful fallback domains", () => {
+  for (const query of rejectedDirectiveCollisions) {
+    assert.deepEqual(
+      classifyIntent(query),
+      { domain: "unknown", intent: "unsupported_action_request" },
+      query,
+    );
+  }
+});
+
+for (const [query, intent] of [
+  ["self feedback: helpful — handoff prompt was useful", "record_feedback"],
+  ["feedback: helpful — handoff prompt was useful", "record_feedback"],
+  ["Dogfood self: improve handoff prompt generation", "diagnostic_review"],
+]) {
+  test(`explicit meta query owns action-like payload: ${query}`, () => {
+    assert.deepEqual(classifyIntent(query), { domain: "meta", intent });
+  });
+}
+
 for (const [query, intent] of [
   ['Create checkpoint "before risky refactor"', "create_checkpoint"],
   ["Please create checkpoint before risky refactor", "create_checkpoint"],
@@ -136,7 +217,7 @@ for (const initialDraft of ["OPERATOR-DRAFT", ""]) {
     const memoryPath = path.join(tempDir, "sessions.self-memory.json");
     const before = await readFile(memoryPath, "utf8");
 
-    for (const query of nonActions) {
+    for (const query of [...nonActions, ...rejectedDirectiveCollisions]) {
       const result = await run(query);
       assert.notEqual(result.details.intent, "action", query);
       assert.equal(harness.sentUserMessages.length, 0, query);
