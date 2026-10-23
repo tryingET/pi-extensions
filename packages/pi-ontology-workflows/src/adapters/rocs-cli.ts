@@ -4,6 +4,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -122,8 +123,23 @@ function createPort(outputRoot?: string): RocsPort {
       const args = ["pack", ontId, "--repo", repoPath, ...buildSharedArgs(context)];
       if (typeof options?.depth === "number") args.push("--depth", String(options.depth));
       if (typeof options?.maxDocs === "number") args.push("--max-docs", String(options.maxDocs));
-      const stdout = await runTextCommand(args, context, outputRoot);
-      return { text: stdout.trim() };
+      // ROCS owns pack selection/order/limits. Its text renderer wraps filenames and
+      // document text; use the machine contract and read bytes while snapshots live.
+      const payload = await runJsonCommand([...args, "--json"], context, outputRoot);
+      if (!Array.isArray(payload.docs)) throw new Error("rocs pack output missing docs");
+      const documents: string[] = [];
+      for (const doc of payload.docs) {
+        if (!isRecord(doc) || typeof doc.path !== "string" || !path.isAbsolute(doc.path)) {
+          throw new Error("rocs pack output contains an invalid document path");
+        }
+        const text = await readFile(doc.path, { encoding: "utf8", signal: context.signal });
+        const transient =
+          outputRoot && path.resolve(doc.path).startsWith(`${outputRoot}${path.sep}`);
+        // Omit only the expiring heading, never rewrite legitimate document text
+        // or substitute a potentially dirty workspace filename for pinned content.
+        documents.push(transient ? text : `${doc.path}\n${text}`);
+      }
+      return { text: documents.join("\n---\n") };
     },
   };
 }

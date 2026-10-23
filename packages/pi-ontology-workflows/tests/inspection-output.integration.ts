@@ -244,7 +244,15 @@ test("real ROCS inspection preserves source, projections and both authority rece
           await readFile(path.join(ontology, "src/reference/concepts/demo.Probe.md"), "utf8")
         )
           .replaceAll("demo.Probe", "demo.Pinned")
-          .replaceAll("Probe", "Pinned");
+          .replaceAll("Probe", "Pinned")
+          .concat(
+            "\nLiteral body text (not a filename heading):\n",
+            "/example/.pi-ontology-inspect-legitimate/cache/workspace-ref-snapshots/tree/src/example.md\n",
+            "[bold]Keep markup[/bold] and  two spaces.\n",
+            "A deliberately long body line that must never be wrapped: ",
+            "preserve-exact-bytes ".repeat(12),
+            "\n\n",
+          );
         await writeFile(document, pinnedText);
         const git = (...args: string[]) =>
           execFileSync(
@@ -379,6 +387,12 @@ test("real ROCS inspection preserves source, projections and both authority rece
                 if (kind === "pack") {
                   assert.match(result.pack?.text ?? "", /disposable ontology inspection/);
                   assert.doesNotMatch(result.pack?.text ?? "", /DIRTY WORKTREE/);
+                  assert.equal(
+                    result.pack?.text,
+                    dirty ? pinnedText : `${document}\n${pinnedText}`,
+                    "pack preserves exact pinned bytes and only advertises durable filenames",
+                  );
+                  assert.ok(document.length > 80, "legacy filename heading exceeds console width");
                 }
                 assert.deepEqual(await snapshot(repo), repoBefore);
                 assert.deepEqual(await snapshot(dependency), dependencyBefore);
