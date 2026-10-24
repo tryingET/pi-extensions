@@ -95,6 +95,10 @@ function runFile(file, options) {
         stdio: POSIX ? ["ignore", "pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
       });
       const { child } = run;
+      // Failed spawns can have no pipes and still emit an error on the next tick. Listen before
+      // checking the pipes so even the synchronous failure path leaves that error handled.
+      child.on("error", (error) => finish({ code: null, error }));
+      for (const stream of child.stdio) stream?.on("error", () => {});
       if (!child.stdout || !child.stderr) throw new Error("no output pipes (out of file descriptors?)");
       running.add(run);
       const collect = (chunk) => {
@@ -106,7 +110,6 @@ function runFile(file, options) {
       child.stderr.setEncoding("utf8");
       child.stdout.on("data", collect);
       child.stderr.on("data", collect);
-      for (const stream of child.stdio) stream?.on("error", () => {});
       wallClock = setTimeout(
         () => {
           run.timedOut = true;
@@ -114,8 +117,6 @@ function runFile(file, options) {
         },
         Math.min(options.timeoutMs + GRACE_MS, MAX_TIMER_MS),
       );
-      // A process that could not start (for example at a task limit) fails its file, not the runner.
-      child.on("error", (error) => finish({ code: null, error }));
       child.on("exit", (code, signal) => {
         run.exited = true;
         // The group has served its purpose: anything left in it goes with the file.

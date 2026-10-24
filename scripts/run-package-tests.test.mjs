@@ -99,6 +99,56 @@ test("a file that cannot start fails that file, not the runner", (t) => {
   assert.match(result.stdout, /tests: .*(file\(s\) passed|file\(s\) failed)/, "the runner reports, not crashes");
 });
 
+test("missing pipes from EMFILE fail only that file and leave queued files runnable", { skip: process.platform === "win32" }, (t) => {
+  const dir = fixture(t, {
+    "a.test.mjs": "import test from 'node:test'; test('a', () => {});\n",
+    "b.test.mjs": "throw new Error('a failed spawn must not execute this file');\n",
+    "c.test.mjs": "import test from 'node:test'; test('c', () => {});\n",
+    "exhaust-fds.mjs": `import fs from 'node:fs';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
+const spawn = childProcess.spawn;
+childProcess.spawn = (...args) => {
+  if (!args[1].includes('b.test.mjs')) return spawn(...args);
+  const fds = [];
+  try {
+    try {
+      while (true) fds.push(fs.openSync('/dev/null', 'r'));
+    } catch (error) {
+      if (error.code !== 'EMFILE') throw error;
+    }
+    const child = spawn(...args);
+    // Observe the failed spawn without an error listener that would hide the runner's bug.
+    fs.closeSync(fds.pop());
+    fs.writeFileSync('failed-spawn.json', JSON.stringify({
+      pid: child.pid ?? null, stdout: Boolean(child.stdout), stderr: Boolean(child.stderr),
+    }));
+    return child;
+  } finally {
+    for (const fd of fds) fs.closeSync(fd);
+  }
+};
+syncBuiltinESMExports();\n`,
+  });
+  const { NODE_TEST_CONTEXT: _outerRunner, ...env } = process.env;
+  const result = spawnSync("bash", [
+    "-c", 'ulimit -n 64; exec "$@"', "runner",
+    process.execPath, "--import", path.join(dir, "exhaust-fds.mjs"), RUNNER,
+    "--timeout-ms", "5000", "--", "a.test.mjs", "b.test.mjs", "c.test.mjs",
+  ], { cwd: dir, env, encoding: "utf8", timeout: 30_000 });
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, "failed-spawn.json"), "utf8")), {
+    pid: null, stdout: false, stderr: false,
+  }, "the regression exercises a real failed spawn with missing pipes");
+  assert.equal(result.status, 1, result.stderr);
+  assert.doesNotMatch(result.stderr, /Unhandled|Uncaught|EMFILE|TypeError/, result.stderr);
+  assert.match(result.stdout, /tests: b\.test\.mjs could not start:/);
+  assert.match(result.stdout, /tests: a\.test\.mjs\n/);
+  assert.match(result.stdout, /tests: c\.test\.mjs\n/);
+  assert.match(result.stdout, /tests: 1 of 3 file\(s\) failed: b\.test\.mjs\n$/);
+});
+
 test("an out-of-range timeout is refused instead of firing at once", (t) => {
   const dir = fixture(t, { "a.test.mjs": "import test from 'node:test'; test('a', () => {});\n" });
   const result = run(dir, ["--timeout-ms", "2147483648", "--", "a.test.mjs"]);
