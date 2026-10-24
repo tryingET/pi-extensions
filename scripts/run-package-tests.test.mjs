@@ -99,7 +99,7 @@ test("a file that cannot start fails that file, not the runner", (t) => {
   assert.match(result.stdout, /tests: .*(file\(s\) passed|file\(s\) failed)/, "the runner reports, not crashes");
 });
 
-test("missing pipes from EMFILE fail only that file and leave queued files runnable", { skip: process.platform === "win32" }, (t) => {
+test("Given a real EMFILE spawn with missing pipes, When the runner continues its queue, Then only that file fails and the final summary is emitted", { skip: process.platform === "win32" }, (t) => {
   const dir = fixture(t, {
     "a.test.mjs": "import test from 'node:test'; test('a', () => {});\n",
     "b.test.mjs": "throw new Error('a failed spawn must not execute this file');\n",
