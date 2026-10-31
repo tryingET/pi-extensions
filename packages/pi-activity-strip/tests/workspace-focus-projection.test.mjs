@@ -18,8 +18,11 @@ function fixture({
   extraSessions = [],
   extraWindows = [],
   learnSources = true,
+  // Exact-ownership tests run with no presence apps: a revoked Ghostty owner must hide the strip.
+  presence = false,
 } = {}) {
   const views = [];
+  const env = presence ? {} : { PI_ACTIVITY_STRIP_PRESENCE_APP_IDS: "none" };
   const raw = rawSession ?? {
     sessionId: productionTitle ? "019fa4d0-7142-7fb4-8d30-f98e951f0513" : "agent",
     publisherId: "p",
@@ -33,7 +36,7 @@ function fixture({
     is_focused: true,
   };
   const placement = createPlacementRuntime({
-    env: {},
+    env,
     runtimeStatus: {},
     execFileAsync: async () => assert.fail("no external IPC"),
     onBindingsLearned: () => {},
@@ -53,6 +56,8 @@ function fixture({
   const projection = createNativePanelProjection({
     isNiriSession: () => true,
     publish: (view) => views.push(view),
+    getWindowFacts: (id) => placement.getObservedWindow(id),
+    env,
   });
   projection.updateSnapshot({ generatedAt: 1, sessions: [raw, ...extraSessions] });
   const view = productionTitle

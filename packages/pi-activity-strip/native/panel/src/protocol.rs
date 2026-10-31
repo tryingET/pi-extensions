@@ -146,6 +146,9 @@ pub struct ViewMessage {
     /// Every agent window on every workspace, for the brand block's window list.
     #[serde(default)]
     pub windows: Vec<WindowEntry>,
+    /// The compositor shortcut that enters keyboard mode, as the operator's config binds it.
+    #[serde(default)]
+    pub hotkey: Option<String>,
 }
 
 /// One entry of the window list: the card's first line and the Niri window number to jump to.
@@ -224,6 +227,7 @@ pub fn demo_view() -> ViewMessage {
         interaction_epoch: 1,
         visible: true,
         focused_card_id: Some("demo-tool".into()),
+        hotkey: Some("Super+Shift+A".into()),
         sessions: vec![
             Card {
                 card_id: "demo-monitor".into(),

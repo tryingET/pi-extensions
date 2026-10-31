@@ -2,6 +2,7 @@ use crate::card_view::CardView;
 use crate::directory_view::{
     DirectoryView, JumpChoice, is_query_char, jump_choice, push_query_char,
 };
+use crate::hints;
 use crate::hover_keyboard::{HoverKeyboard, monotonic_ms};
 use crate::interaction::{InteractionLifetime, accepts_pointer, surface_state};
 use crate::protocol::{Card, ViewMessage, WindowEntry, demo_view, emit, emit_error, emit_ready};
@@ -14,7 +15,7 @@ use relm4::gtk::prelude::*;
 use relm4::{Component, ComponentParts, ComponentSender};
 use serde_json::json;
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -35,7 +36,13 @@ pub struct App {
     data: HashMap<String, Card>,
     order: Vec<String>,
     focused_card_id: Option<String>,
-    hovered: HashSet<String>,
+    /// The card under the pointer. One at most: a pointer is in one place, and the card it
+    /// entered last is the one it is on, whatever order GTK delivers the old card's leave in.
+    hovered: Option<String>,
+    /// The compositor shortcut that enters keyboard mode, for the progressive hints.
+    hotkey: Option<String>,
+    /// Niri focus moved while the operator's hand was on the ribbon; follow it once they leave.
+    scroll_deferred: bool,
     keyboard_focused: Option<String>,
     /// Explicit/manual keyboard mode; hover must NOT inherit its arrow or unlisted-window powers.
     keyboard_active: bool,
@@ -263,7 +270,9 @@ impl Component for App {
             data: HashMap::new(),
             order: Vec::new(),
             focused_card_id: None,
-            hovered: HashSet::new(),
+            hovered: None,
+            hotkey: None,
+            scroll_deferred: false,
             keyboard_focused: None,
             keyboard_active: false,
             hover_keyboard: HoverKeyboard::default(),
@@ -293,6 +302,16 @@ impl Component for App {
         };
         let widgets = view_output!();
         widgets.body.set_can_target(!init.click_through);
+        // GTK's viewport scrolls whatever takes focus into view. Focus on this panel only routes
+        // keys, so a hover grab must never move the row under a stationary pointer; the row
+        // scrolls only where the code below asks it to.
+        if let Some(viewport) = widgets.scroller.child().and_downcast::<gtk::Viewport>() {
+            viewport.set_scroll_to_focus(false);
+        }
+        // A key-routing focus target that is not a card, for a hover grab with no card under the
+        // pointer: focusing a card there would draw its focus ring on a card nobody pointed at.
+        widgets.body.set_focusable(true);
+        widgets.body.set_focus_on_click(false);
         widgets.brand.append(&model.directory.root);
 
         // The body is ONE region (including brand, cards and directory). Entry requests controller
@@ -395,16 +414,23 @@ impl Component for App {
                     self.hover_keyboard.inside = false;
                 }
                 if self.hover_keyboard.expired(monotonic_ms()) {
-                    self.leave_keyboard_mode(widgets, root);
+                    // Idle typing time ends the keyboard grab, not the hover: the card under a
+                    // stationary pointer stays open.
+                    self.release_keyboard(widgets, root);
                 }
-                if now_ms() >= self.next_order_refresh_at {
+                // Regrouping moves cards. Never under the pointer or the keyboard selection; the
+                // next tick after the operator leaves catches up.
+                if now_ms() >= self.next_order_refresh_at
+                    && !self.pointer.contains_pointer()
+                    && !self.owns_keyboard()
+                {
                     let focused_at = self.focused_position();
                     self.regroup();
                     self.reorder_widgets(&widgets.cards_box);
                     // Only when regrouping moved the focused card: a row the operator scrolled
                     // by hand stays where they left it.
                     if self.focused_position() != focused_at {
-                        self.scroll_focused_into_view(widgets);
+                        self.follow_focus(widgets);
                     }
                     self.next_order_refresh_at = now_ms() + ORDER_REFRESH_MS;
                 }
@@ -423,14 +449,17 @@ impl Component for App {
                     }) {
                         return;
                     }
-                    self.hovered.insert(id);
-                } else {
-                    self.hovered.remove(&id);
+                    self.hovered = Some(id);
+                } else if self.hovered.as_deref() == Some(id.as_str()) {
+                    self.hovered = None;
                 }
                 self.reconcile_engagement(widgets, root, &sender);
             }
             AppMsg::Focus(id, entered) => {
                 if entered && self.keyboard_active {
+                    // Keyboard selection is the one thing that may move the row: it is where the
+                    // operator is looking. Pointer focus never scrolls (see init).
+                    self.scroll_card_into_view(widgets, &id);
                     self.keyboard_focused = Some(id);
                 } else if !entered && self.keyboard_focused.as_deref() == Some(id.as_str()) {
                     self.keyboard_focused = None;
@@ -470,8 +499,7 @@ impl Component for App {
                     } else {
                         self.keyboard_active = true;
                         self.sync_key_capture();
-                        self.hovered.clear();
-                        self.keyboard_focused = self.order.first().cloned();
+                        self.keyboard_focused = self.keyboard_entry_card(widgets);
                         root.set_keyboard_mode(KeyboardMode::Exclusive);
                         root.present();
                         let focus_grabbed = self
@@ -481,6 +509,7 @@ impl Component for App {
                             .is_some_and(|first| first.root.grab_focus());
                         if focus_grabbed {
                             self.reconcile_engagement(widgets, root, &sender);
+                            self.update_brand(widgets);
                             emit(
                                 json!({ "protocol": 2, "type": "keyboard-active", "active": true, "revision": self.keyboard_request }),
                             );
@@ -516,15 +545,16 @@ impl Component for App {
                     root.present();
                     // GTK still needs a focus widget to route real key events through the root
                     // capture controller. This is NOT explicit/manual card-selection permission.
-                    let focus_grabbed = self
-                        .hovered
-                        .iter()
-                        .next()
-                        .or(self.order.first())
-                        .and_then(|id| self.cards.get(id))
-                        .is_some_and(|card| card.root.grab_focus());
+                    // The card under the pointer if there is one (so Enter opens it), else the
+                    // body: never a card the pointer is not on. Neither scrolls the row.
+                    let focus_grabbed =
+                        match self.hovered.as_ref().and_then(|id| self.cards.get(id)) {
+                            Some(card) => card.root.grab_focus(),
+                            None => widgets.body.grab_focus(),
+                        };
                     if focus_grabbed {
                         self.refresh_directory_status();
+                        self.update_brand(widgets);
                         // Capability confirmation comes from the applied compositor focus, not
                         // grab_focus() (which merely selects a GTK widget before Wayland commits).
                         if root.is_active() {
@@ -548,7 +578,8 @@ impl Component for App {
             }
             AppMsg::HoverInterrupt => {
                 if self.hover_keyboard.active {
-                    self.leave_keyboard_mode(widgets, root);
+                    // The key belongs to the app below; the pointer is still where it was.
+                    self.release_keyboard(widgets, root);
                 }
             }
             AppMsg::PointerIntent => self.request_hover_keyboard(root),
@@ -575,7 +606,12 @@ impl Component for App {
                     }
                     self.refresh_directory_status();
                 } else if !self.hover_keyboard.active || self.hover_keyboard.captured {
-                    self.leave_keyboard_mode(widgets, root);
+                    // Explicit mode ends with the keyboard; a hover grab only gives it back.
+                    if self.keyboard_active {
+                        self.leave_keyboard_mode(widgets, root);
+                    } else {
+                        self.release_keyboard(widgets, root);
+                    }
                     emit(
                         json!({ "protocol": 2, "type": "keyboard-active", "active": false, "revision": self.keyboard_request }),
                     );
@@ -618,7 +654,7 @@ impl Component for App {
             }
             AppMsg::CollapseIf(generation) => {
                 if generation == self.collapse_generation
-                    && self.hovered.is_empty()
+                    && self.hovered.is_none()
                     && !self.brand_hovered
                     && (!self.keyboard_active || self.keyboard_focused.is_none())
                 {
@@ -801,14 +837,14 @@ fn short_path(path: &str, home: &str) -> String {
 }
 
 fn engaged_card_id(
-    hovered: &HashSet<String>,
+    hovered: &Option<String>,
     keyboard_active: bool,
     keyboard_focused: &Option<String>,
 ) -> Option<String> {
     if keyboard_active {
         keyboard_focused.clone()
     } else {
-        hovered.iter().next().cloned()
+        hovered.clone()
     }
 }
 
@@ -853,7 +889,7 @@ impl App {
     }
 
     fn end_engagement(&mut self) {
-        self.hovered.clear();
+        self.hovered = None;
         self.brand_hovered = false;
         self.directory_hovered = false;
         self.keyboard_focused = None;
@@ -887,13 +923,19 @@ impl App {
         let visibility_changed = should_show != self.visible;
         self.visible = should_show;
         let focus_moved = self.focused_card_id != view.focused_card_id;
-        // NULL during controller-authorized ownership is not an app switch. Identity loss wins.
-        if !should_show
-            || view.interaction_epoch != self.interaction_epoch
-            || (focus_moved && !self.owns_keyboard())
-            || visibility_changed
-        {
+        let hotkey_changed = self.hotkey != view.hotkey;
+        self.hotkey = view.hotkey.clone();
+        // Identity loss or hiding ends everything. A focus move inside the same identity (the
+        // controller's own activation echo) is not an app switch: it must not collapse the card
+        // under the pointer, only drop a hover request that has not been answered yet.
+        if !should_show || view.interaction_epoch != self.interaction_epoch || visibility_changed {
             self.leave_keyboard_mode(widgets, root);
+        } else if focus_moved && !self.owns_keyboard() {
+            self.cancel_pending_hover();
+            self.hover_keyboard.clear();
+        }
+        if hotkey_changed {
+            self.render_directory();
         }
         self.interaction_epoch = view.interaction_epoch;
         self.focused_card_id = view.focused_card_id;
@@ -917,7 +959,13 @@ impl App {
                 self.order.push(id);
             }
         }
-        self.hovered.retain(|id| self.data.contains_key(id));
+        if self
+            .hovered
+            .as_ref()
+            .is_some_and(|id| !self.data.contains_key(id))
+        {
+            self.hovered = None;
+        }
         let keyboard_card_removed = self.keyboard_active
             && self
                 .keyboard_focused
@@ -954,7 +1002,7 @@ impl App {
         self.refresh_cards();
         self.update_brand(widgets);
         if focus_moved {
-            self.scroll_focused_into_view(widgets);
+            self.follow_focus(widgets);
         }
 
         if visibility_changed {
@@ -997,6 +1045,7 @@ impl App {
         let now = now_ms();
         // Hovering the brand column is an overview: every card shows its details at once.
         let all_open = self.brand_hovered && self.expanded();
+        let key_hint = hints::card_hint(self.hotkey.as_deref());
         for (id, view) in &self.cards {
             if let Some(card) = self.data.get(id) {
                 view.update(
@@ -1004,6 +1053,7 @@ impl App {
                     self.focused_card_id.as_deref() == Some(id),
                     duplicates.contains(&card.repo_label),
                     now,
+                    key_hint.as_deref(),
                 );
                 view.set_expanded(all_open || self.open_card_id.as_deref() == Some(id));
             }
@@ -1022,14 +1072,22 @@ impl App {
             .and_then(|id| self.data.get(id));
         let home = std::env::var("HOME").unwrap_or_default();
         let brand = brand_text(focused, &counts, &home);
-        widgets.eyebrow.set_text(&brand.eyebrow);
         widgets.title.set_text(&brand.title);
-        widgets.meta.set_text(&brand.meta);
-        widgets.brand.set_tooltip_text(
-            focused
-                .map(|card| card.cwd.as_str())
-                .filter(|cwd| !cwd.is_empty()),
-        );
+        // The last rung of the keyboard hints: in keyboard mode the key map replaces the folder,
+        // ellipsized at its end so the first keys always show.
+        if self.keyboard_active {
+            widgets.eyebrow.set_text(hints::KEYBOARD_EYEBROW);
+            widgets.meta.set_text(hints::KEYBOARD_META);
+            widgets.meta.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        } else {
+            widgets.eyebrow.set_text(&brand.eyebrow);
+            widgets.meta.set_text(&brand.meta);
+            widgets.meta.set_ellipsize(gtk::pango::EllipsizeMode::Start);
+        }
+        widgets.brand.set_tooltip_text(Some(&hints::brand_tooltip(
+            focused.map(|card| card.cwd.as_str()),
+            self.hotkey.as_deref(),
+        )));
     }
 
     fn regroup(&mut self) {
@@ -1125,16 +1183,62 @@ impl App {
     /// Scroll the card row so the focused window's card is fully in view, as Niri focus moves
     /// between windows. Runs once layout has placed the card, so its position in the row is known.
     fn scroll_focused_into_view(&self, widgets: &AppWidgets) {
+        if let Some(id) = self.focused_card_id.clone() {
+            self.scroll_card_into_view(widgets, &id);
+        }
+    }
+
+    /// Follow Niri focus along the row, but never under the operator's hand: while the pointer is
+    /// on the ribbon or it holds the keyboard the scroll waits, and runs once they leave.
+    fn follow_focus(&mut self, widgets: &AppWidgets) {
+        if self.pointer.contains_pointer() || self.owns_keyboard() {
+            self.scroll_deferred = true;
+        } else {
+            self.scroll_deferred = false;
+            self.scroll_focused_into_view(widgets);
+        }
+    }
+
+    /// Where explicit keyboard mode starts: the card under the pointer, else the focused window's
+    /// card, else the first card already on screen, so entering never jumps the row to its start.
+    fn keyboard_entry_card(&self, widgets: &AppWidgets) -> Option<String> {
+        let present = |id: &&String| self.cards.contains_key(*id);
+        if let Some(id) = self.hovered.as_ref().filter(present) {
+            return Some(id.clone());
+        }
+        if let Some(id) = self.focused_card_id.as_ref().filter(present) {
+            return Some(id.clone());
+        }
+        let adjustment = widgets.scroller.hadjustment();
+        let (left, right) = (
+            adjustment.value(),
+            adjustment.value() + adjustment.page_size(),
+        );
+        self.order
+            .iter()
+            .find(|id| {
+                self.cards.get(*id).is_some_and(|card| {
+                    card.root
+                        .compute_point(&widgets.cards_box, &gtk::graphene::Point::new(0.0, 0.0))
+                        .is_some_and(|origin| {
+                            let start = f64::from(origin.x());
+                            start >= left - 1.0
+                                && start + f64::from(card.root.width()) <= right + 1.0
+                        })
+                })
+            })
+            .or(self.order.first())
+            .cloned()
+    }
+
+    /// Bring one card fully into view with the least movement, once layout has placed it.
+    fn scroll_card_into_view(&self, widgets: &AppWidgets, id: &str) {
         if !self.visible || !self.interactive {
             return;
         }
         let lifetime = self.lifetime.clone();
         let ticket = lifetime.ticket();
-        let Some(card) = self
-            .focused_card_id
-            .as_ref()
-            .and_then(|id| self.cards.get(id))
-        else {
+        let Some(card) = self.cards.get(id) else {
             return;
         };
         let row = widgets.cards_box.clone();
@@ -1297,6 +1401,7 @@ impl App {
                 &self.query,
                 self.owns_keyboard(),
                 self.allow_unlisted(),
+                self.hotkey.as_deref(),
             );
         }
     }
@@ -1308,6 +1413,7 @@ impl App {
                 &self.query,
                 self.owns_keyboard(),
                 self.allow_unlisted(),
+                self.hotkey.as_deref(),
             );
         }
     }
@@ -1343,7 +1449,7 @@ impl App {
     /// pointer: the card kept open while the pointer crossed to the list has done its job.
     fn dismiss_directory(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
         self.close_directory(widgets, root);
-        if self.hovered.is_empty() && !self.keyboard_active {
+        if self.hovered.is_none() && !self.keyboard_active {
             self.apply_expansion(widgets, root, None);
         }
     }
@@ -1367,6 +1473,42 @@ impl App {
         self.apply_expansion(widgets, root, None);
         self.resize(root);
         self.sync_directory_layout(widgets);
+        self.update_brand(widgets);
+        self.flush_deferred_scroll(widgets);
+    }
+
+    /// Give the keyboard back without ending what the pointer is doing. An idle or interrupted
+    /// hover grab must not collapse the card still under a stationary pointer, nor move the row:
+    /// only the typing state goes, and the list's prompt says how to take the keyboard again.
+    /// Explicit keyboard mode has no partial release; it leaves through `leave_keyboard_mode`.
+    fn release_keyboard(&mut self, widgets: &mut AppWidgets, root: &gtk::Window) {
+        if self.keyboard_active {
+            self.leave_keyboard_mode(widgets, root);
+            return;
+        }
+        let was_owning = self.owns_keyboard();
+        self.cancel_pending_hover();
+        self.hover_keyboard.clear();
+        self.query.clear();
+        self.sync_key_capture();
+        root.set_keyboard_mode(KeyboardMode::None);
+        GtkWindowExt::set_focus(root, None::<&gtk::Widget>);
+        if was_owning && !root.is_active() {
+            emit(
+                json!({ "protocol": 2, "type": "keyboard-active", "active": false, "revision": self.keyboard_request }),
+            );
+        }
+        self.render_directory();
+        self.resize(root);
+        self.sync_directory_layout(widgets);
+        self.update_brand(widgets);
+    }
+
+    fn flush_deferred_scroll(&mut self, widgets: &AppWidgets) {
+        if self.scroll_deferred && !self.pointer.contains_pointer() && !self.owns_keyboard() {
+            self.scroll_deferred = false;
+            self.scroll_focused_into_view(widgets);
+        }
     }
 
     fn close_directory(&mut self, widgets: &AppWidgets, root: &gtk::Window) {
@@ -1395,7 +1537,6 @@ mod tests {
     };
     use crate::protocol::Card;
     use relm4::gtk::gdk;
-    use std::collections::HashSet;
 
     fn counts() -> BrandCounts {
         BrandCounts {
@@ -1554,13 +1695,13 @@ mod tests {
     #[test]
     fn stale_gtk_focus_does_not_retain_expansion_outside_keyboard_mode() {
         let focused = Some("card-a".to_owned());
-        assert_eq!(engaged_card_id(&HashSet::new(), false, &focused), None);
-        assert_eq!(engaged_card_id(&HashSet::new(), true, &focused), focused);
+        assert_eq!(engaged_card_id(&None, false, &focused), None);
+        assert_eq!(engaged_card_id(&None, true, &focused), focused);
     }
 
     #[test]
     fn pointer_hover_retains_expansion_without_keyboard_mode() {
-        let hovered = HashSet::from(["card-a".to_owned()]);
+        let hovered = Some("card-a".to_owned());
         assert_eq!(
             engaged_card_id(&hovered, false, &Some("card-b".to_owned())),
             Some("card-a".to_owned())
@@ -1569,7 +1710,7 @@ mod tests {
 
     #[test]
     fn explicit_keyboard_mode_takes_precedence_over_pointer_hover() {
-        let hovered = HashSet::from(["card-a".to_owned()]);
+        let hovered = Some("card-a".to_owned());
         assert_eq!(
             engaged_card_id(&hovered, true, &Some("card-b".to_owned())),
             Some("card-b".to_owned())

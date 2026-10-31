@@ -53,25 +53,31 @@ for (const app_id of ["brave-browser", "obsidian", "plain-terminal", "another-ap
 }
 
 test("classification requires exact admitted window ownership, not app-id or a matching-looking title", () => {
+  const strict = { PI_ACTIVITY_STRIP_PRESENCE_APP_IDS: "none" };
   for (const app_id of ["com.mitchellh.ghostty", "brave-browser", "obsidian"]) {
     assert.equal(
-      classifyWorkspaceFocus([{ ...agent, id: 99, app_id }], workspace, [card]),
+      classifyWorkspaceFocus([{ ...agent, id: 99, app_id }], workspace, [card], strict),
       "non-agent",
     );
   }
-  assert.equal(classifyWorkspaceFocus([agent], workspace, [card]), "agent");
+  // Presence is visibility only: a Ghostty window without its own card is never "agent".
+  assert.equal(classifyWorkspaceFocus([{ ...agent, id: 99 }], workspace, [card], {}), "neutral");
+  assert.equal(classifyWorkspaceFocus([agent], workspace, [card], strict), "agent");
   assert.equal(
-    classifyWorkspaceFocus([agent], workspace, [{ ...card, surfaceVisible: false }]),
+    classifyWorkspaceFocus([agent], workspace, [{ ...card, surfaceVisible: false }], strict),
     "non-agent",
   );
   assert.equal(
-    classifyWorkspaceFocus([agent], workspace, [card, { ...card, cardId: "other" }]),
+    classifyWorkspaceFocus([agent], workspace, [card, { ...card, cardId: "other" }], strict),
     "unknown",
   );
-  assert.equal(classifyWorkspaceFocus([agent, { ...agent, id: 45 }], workspace, [card]), "unknown");
-  assert.equal(classifyWorkspaceFocus([], workspace, [card]), "unknown");
   assert.equal(
-    classifyWorkspaceFocus([{ ...agent, workspace_id: 8 }], workspace, [card]),
+    classifyWorkspaceFocus([agent, { ...agent, id: 45 }], workspace, [card], strict),
+    "unknown",
+  );
+  assert.equal(classifyWorkspaceFocus([], workspace, [card], strict), "unknown");
+  assert.equal(
+    classifyWorkspaceFocus([{ ...agent, workspace_id: 8 }], workspace, [card], strict),
     "unknown",
   );
 });

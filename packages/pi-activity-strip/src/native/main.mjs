@@ -25,6 +25,7 @@ import { admitPanelEvent, PANEL_PROTOCOL } from "./panel-protocol.mjs";
 import { createPanelWindowJump } from "./panel-window-jump.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
 import { createRuntimeStatusReader } from "./runtime-diagnostics.mjs";
+import { resolveStripHotkey } from "./strip-hotkey.mjs";
 import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
 import {
   createNiriWorkspaceEventWatcher,
@@ -129,6 +130,11 @@ function writePanel(message) {
 
 const projection = createNativePanelProjection({
   isNiriSession,
+  // Presence ("neutral") focus needs the focused window's app id from the event cache.
+  getWindowFacts: (id) => placement.getObservedWindow(id),
+  env: process.env,
+  // Read once: the panel's progressive hints name the shortcut the compositor really binds.
+  hotkey: resolveStripHotkey({ env: process.env }),
   publish(view) {
     runtimeStatus.rendererCardCount = view.sessions.length;
     runtimeStatus.rendererCardIds = view.sessions.map((session) => String(session.cardId ?? ""));

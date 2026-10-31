@@ -26,6 +26,15 @@ test("agent recognition admits known CLIs and refuses runtimes, Pi, and disabled
   assert.equal(classifyAgentProcess({ command: "/usr/local/bin/codex" })?.kind, "codex");
   assert.equal(classifyAgentProcess({ command: "", argv0: "/opt/bin/gemini" })?.kind, "gemini");
   assert.equal(classifyAgentProcess({ command: "CLAUDE" })?.kind, "claude");
+  assert.equal(classifyAgentProcess({ command: "nodecode" })?.kind, "nodecode");
+  assert.equal(classifyAgentProcess({ command: "angel" })?.kind, "angel", "angelx's cockpit");
+  assert.equal(
+    classifyAgentProcess({ command: "angelx", argv0: "/usr/bin/python3", argv1: "angelx" }),
+    null,
+    "the angelx launcher is not a second record for the same tab",
+  );
+  assert.equal(classifyAgentProcess({ command: "agent" })?.kind, "cursor", "Cursor's `agent`");
+  assert.equal(classifyAgentProcess({ command: "ssh-agent" }), null);
   assert.equal(classifyAgentProcess({ command: "pi" }), null, "Pi publishes its own telemetry");
   assert.equal(classifyAgentProcess({ command: "node" }), null);
   assert.equal(classifyAgentProcess({ command: "bash" }), null);

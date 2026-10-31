@@ -41,7 +41,7 @@ fn type_keys(args: &[&str]) {
 }
 
 fn assert_clean(app: &App) {
-    assert!(app.hovered.is_empty());
+    assert!(app.hovered.is_none());
     assert!(!app.brand_hovered);
     assert!(!app.directory_hovered);
     assert!(!app.directory_open);
@@ -218,7 +218,7 @@ fn isolated_gtk_interaction() {
         point.x() as i32 + 8,
         point.y() as i32 + 8,
     );
-    assert!(app.model().hovered.contains(&id));
+    assert!(app.model().hovered.as_ref() == Some(&id));
     assert_eq!(app.model().open_card_id.as_deref(), Some(id.as_str()));
     assert_eq!(root.keyboard_mode(), KeyboardMode::None);
     assert_eq!(app.model().key_capture.get(), KeyCapture::None);
@@ -248,6 +248,29 @@ fn isolated_gtk_interaction() {
     assert!(app.model().keyboard_active);
     assert!(app.model().expanded());
     assert_eq!(root.keyboard_mode(), KeyboardMode::Exclusive);
+    // Entry starts where the operator is (hovered, else the focused window's card, else the first
+    // card on screen), never by jumping the row to its start.
+    assert_eq!(
+        app.model().keyboard_focused,
+        app.model().focused_card_id,
+        "explicit entry starts at the focused window's card"
+    );
+    // Read the length first: a `for` header keeps its temporaries (here the model borrow) alive
+    // for the whole loop, and the runtime cannot update a borrowed model while keys are pumped.
+    let cards = app.model().order.len();
+    for _ in 0..cards {
+        let at_start = app.model().keyboard_focused.as_ref() == app.model().order.first();
+        if at_start {
+            break;
+        }
+        type_keys(&["-k", "Left"]);
+        pump();
+    }
+    assert_eq!(
+        app.model().keyboard_focused.as_ref(),
+        app.model().order.first(),
+        "Left walks the keyboard selection back to the row start"
+    );
     let next = app.model().order[1].clone();
     type_keys(&["-k", "Right"]);
     pump();

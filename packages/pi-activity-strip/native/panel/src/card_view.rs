@@ -218,7 +218,14 @@ impl CardView {
         }
     }
 
-    pub fn update(&self, card: &Card, focused: bool, duplicate_label: bool, now_ms: i64) {
+    pub fn update(
+        &self,
+        card: &Card,
+        focused: bool,
+        duplicate_label: bool,
+        now_ms: i64,
+        key_hint: Option<&str>,
+    ) {
         let hidden_tab = card.hidden_tab();
         self.repo.set_text(&display_repo(card, duplicate_label));
         self.phase.set_text(text_or(&card.phase, "Idle"));
@@ -303,7 +310,7 @@ impl CardView {
         };
         let ak_note = ak_accessible_note(&card.ak_tasks);
         let window_note = window_note(card);
-        self.root.set_tooltip_text(Some(&format!(
+        let mut tooltip = format!(
             "{} {} ({}{}{}){}",
             if hidden_tab { "Present" } else { "Focus" },
             text_or(&card.repo_label, "Pi session"),
@@ -311,7 +318,13 @@ impl CardView {
             window_note,
             if hidden_tab { ", hidden tab" } else { "" },
             ak_note
-        )));
+        );
+        // The first rung of the keyboard hints: every card names the shortcut.
+        if let Some(hint) = key_hint {
+            tooltip.push('\n');
+            tooltip.push_str(hint);
+        }
+        self.root.set_tooltip_text(Some(&tooltip));
         let accessible_label = format!(
             "{}{}, {}, {}{}",
             text_or(&card.repo_label, "Pi session"),

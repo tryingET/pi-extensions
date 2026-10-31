@@ -215,6 +215,8 @@ try {
     ["org.ak7114.browser", "AK7114 browser fixture"],
     ["org.ak7114.obsidian", "AK7114 Obsidian fixture"],
     ["org.ak7114.plain", "AK7114 plain non-agent fixture"],
+    // A default presence app id: it owns no card, yet the strip stays over it.
+    ["com.onepassword.OnePassword", "AK7114 presence fixture"],
   ])
     start(
       "python3",
@@ -228,8 +230,8 @@ try {
     );
   const windows = await eventually(async () => {
     const windows = await niri("windows");
-    return windows.length === 5 ? windows : null;
-  }, "five private fixture windows");
+    return windows.length === 6 ? windows : null;
+  }, "six private fixture windows");
   const agent = windows.find((w) => w.title.includes("gs:main:7114"));
   const target = windows.find((w) => w.title.includes("gs:main:7115"));
   assert.ok(agent && target);
@@ -346,7 +348,9 @@ try {
     "PUBLIC TELEMETRY PASS actual base publisher and current publisher aggregate into one agent card",
   );
   console.log("CONTROLLER PASS agent focus", JSON.stringify(await layers()));
-  for (const other of windows.filter((w) => w.app_id !== "com.mitchellh.ghostty")) {
+  for (const other of windows.filter(
+    (w) => !["com.mitchellh.ghostty", "com.onepassword.OnePassword"].includes(w.app_id),
+  )) {
     await focus(other.id);
     await eventually(
       async () => (await status())?.windowVisible === false,
@@ -430,12 +434,17 @@ try {
       "real pointer entry granted hover keyboard by Node",
     );
   };
-  const returned = async (id, label) => {
+  // `compact: false` is for releases with the pointer still resting on the ribbon (idle, an
+  // interrupting key): the keyboard and query go back, but the hovered ribbon stays open.
+  const returned = async (id, label, { compact = true } = {}) => {
     await eventually(
       async () => !(await exclusive()) && (await niri("focused-window"))?.id === id,
       label,
     );
-    await eventually(async () => (await status())?.panelExpanded === false, `${label}: compact`);
+    await eventually(
+      async () => (await status())?.panelExpanded === !compact,
+      `${label}: ${compact ? "compact" : "stays open under the pointer"}`,
+    );
     assert.equal(
       trace()
         .filter((e) => e.message.type === "expanded")
@@ -583,7 +592,7 @@ try {
 
   await enterHover();
   await typeQuery("idle-query");
-  await returned(agent.id, "bounded idle releases NONEMPTY query");
+  await returned(agent.id, "bounded idle releases NONEMPTY query", { compact: false });
   await typeReturned("after-idle");
   await delay(3200);
   assert.equal(
@@ -591,7 +600,9 @@ try {
     false,
     "idle remains released through two more polls with pointer still inside",
   );
-  assert.equal((await status()).panelExpanded, false);
+  // Idle gives the keyboard back, not the hover: the brand column under the stationary pointer
+  // keeps the ribbon open (its list now says how to take the keyboard again).
+  assert.equal((await status()).panelExpanded, true, "idle release keeps the hovered ribbon open");
 
   await enterHover();
   await typeQuery("target-agent");
@@ -608,7 +619,9 @@ try {
 
   await enterHover();
   await type("key", "Right");
-  await returned(agent.id, "hover arrow interrupts rather than taking manual navigation");
+  await returned(agent.id, "hover arrow interrupts rather than taking manual navigation", {
+    compact: false,
+  });
   await typeReturned("after-interrupt"); // No claim that the interrupting Right was replayed.
   console.log(
     "CONTROLLER PASS leave/Escape/idle(nonempty query)/interrupt return keyboard; no telemetry recapture or stale expansion",
@@ -708,6 +721,34 @@ try {
     "workspace return collapsed",
   );
   assert.equal((await status()).panelExpanded, false);
+  // Presence: a focused presence app owns no card, yet the strip stays and the shortcut drives
+  // it; leaving keyboard mode hands the keyboard back to that app.
+  const presence = windows.find((w) => w.app_id === "com.onepassword.OnePassword");
+  assert.ok(presence, "presence fixture window");
+  await focus(presence.id);
+  await eventually(
+    async () => (await niri("focused-window"))?.id === presence.id,
+    "presence app focused",
+  );
+  await delay(1500); // two fallback polls: a hide would have landed by now
+  assert.equal((await status()).windowVisible, true, "presence app keeps the strip");
+  assert.equal((await sendBrokerMessage({ type: "focus-strip" }, { expectReply: true })).ok, true);
+  await eventually(
+    async () => (await status())?.panelExpanded === true,
+    "presence keyboard mode expands",
+  );
+  assert.equal((await sendBrokerMessage({ type: "focus-strip" }, { expectReply: true })).ok, true);
+  await eventually(
+    async () => (await status())?.panelExpanded === false,
+    "presence keyboard exit compact",
+  );
+  await returned(presence.id, "presence keyboard exit returns the keyboard to the presence app");
+  console.log("CONTROLLER PASS presence app keeps the strip visible and admits the shortcut");
+  await focus(agent.id);
+  await eventually(
+    async () => (await status())?.windowVisible === true,
+    "return agent after presence",
+  );
   assert.equal((await sendBrokerMessage({ type: "focus-strip" }, { expectReply: true })).ok, true);
   await eventually(
     async () => (await status())?.panelExpanded === true,

@@ -72,6 +72,7 @@ impl DirectoryView {
         query: &str,
         can_type: bool,
         allow_unlisted: bool,
+        hotkey: Option<&str>,
     ) {
         while let Some(child) = self.rows.first_child() {
             self.rows.remove(&child);
@@ -98,8 +99,13 @@ impl DirectoryView {
             empty.set_xalign(0.0);
             self.rows.append(&empty);
         }
-        self.status
-            .set_text(&status_text(windows, query, can_type, allow_unlisted));
+        self.status.set_text(&status_text(
+            windows,
+            query,
+            can_type,
+            allow_unlisted,
+            hotkey,
+        ));
     }
 
     /// The typing hint alone, leaving the rows (and any click in progress on them) untouched.
@@ -109,9 +115,15 @@ impl DirectoryView {
         query: &str,
         can_type: bool,
         allow_unlisted: bool,
+        hotkey: Option<&str>,
     ) {
-        self.status
-            .set_text(&status_text(windows, query, can_type, allow_unlisted));
+        self.status.set_text(&status_text(
+            windows,
+            query,
+            can_type,
+            allow_unlisted,
+            hotkey,
+        ));
     }
 
     /// A transient message after a jump or activation, until the next keystroke re-renders.
@@ -257,10 +269,11 @@ fn status_text(
     query: &str,
     can_type: bool,
     allow_unlisted: bool,
+    hotkey: Option<&str>,
 ) -> String {
     if !can_type {
-        // The keyboard was handed back (hover timeout); a click takes it again.
-        return "Click, then type a name or number".to_owned();
+        // The keyboard was handed back (hover timeout); a click or the shortcut takes it again.
+        return crate::hints::pointer_prompt(hotkey);
     }
     match jump_choice(windows, query, allow_unlisted) {
         _ if query.is_empty() => "Type a name or number · ⏎ go".to_owned(),
@@ -302,19 +315,26 @@ mod tests {
     fn the_status_line_says_what_enter_will_do() {
         let windows = vec![entry("pi-extensions", 432, 2)];
         assert_eq!(
-            status_text(&windows, "", false, true),
+            status_text(&windows, "", false, true, None),
             "Click, then type a name or number"
         );
         assert_eq!(
-            status_text(&windows, "", true, true),
+            status_text(&windows, "", false, true, Some("Super+Shift+A")),
+            "Click or Super+Shift+A to type"
+        );
+        assert_eq!(
+            status_text(&windows, "", true, true, None),
             "Type a name or number · ⏎ go"
         );
-        assert!(status_text(&windows, "43", true, true).starts_with("#43"));
+        assert!(status_text(&windows, "43", true, true, None).starts_with("#43"));
         assert_eq!(
-            status_text(&windows, "ext", true, true),
+            status_text(&windows, "ext", true, true, None),
             "ext▏ ⏎ pi-extensions"
         );
-        assert_eq!(status_text(&windows, "zzz", true, true), "zzz▏ no match");
+        assert_eq!(
+            status_text(&windows, "zzz", true, true, None),
+            "zzz▏ no match"
+        );
     }
 
     #[test]

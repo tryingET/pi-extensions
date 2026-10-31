@@ -177,7 +177,9 @@ export function createRuntimeStatusReader({ runtimeStatus, projection }) {
               ? "no-admitted-owner"
               : runtimeStatus.windowVisible !== true
                 ? "awaiting-panel-visibility"
-                : "eligible-agent-context";
+                : facts.focus === "neutral" || facts.source === "neutral"
+                  ? "eligible-presence-context"
+                  : "eligible-agent-context";
     return {
       ...runtimeStatus,
       warnings: [...(runtimeStatus.warnings ?? [])],

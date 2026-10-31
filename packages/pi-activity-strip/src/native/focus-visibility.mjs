@@ -12,11 +12,13 @@ export function createFocusVisibility() {
   let mode = "none";
   /** @type {number | null} */
   let hoverToken = null;
+  /** A window the strip may stay present over and take an interaction source from. */
+  const isSource = (/** @type {FocusKind} */ kind) => kind === "agent" || kind === "neutral";
   function reset() {
     keyboardRequest = null;
     mode = "none";
     hoverToken = null;
-    if (focus !== "agent") eligible = false;
+    if (!isSource(focus)) eligible = false;
   }
   return {
     /** @param {{workspaceId: unknown; focus: FocusKind; hasCards: boolean}} next */
@@ -24,13 +26,13 @@ export function createFocusVisibility() {
       if (
         next.workspaceId !== workspaceId ||
         !next.hasCards ||
-        !["agent", "none"].includes(next.focus)
+        !(isSource(next.focus) || next.focus === "none")
       )
         reset();
       workspaceId = next.workspaceId;
       focus = next.focus;
       eligible =
-        next.hasCards && (focus === "agent" || (focus === "none" && keyboardRequest !== null));
+        next.hasCards && (isSource(focus) || (focus === "none" && keyboardRequest !== null));
       return eligible;
     },
     /** Reserve BEFORE the panel write: NULL may precede the acknowledgement.

@@ -5,6 +5,7 @@
 // ---
 
 import { canVerifyTabVisibility, placeSessionWindow } from "./niri-focus.mjs";
+import { isPresenceApp } from "./presence-apps.mjs";
 import { projectSessionCards, sessionCardId } from "./session-cards.mjs";
 import { parseTerminalTitleBinding } from "./surface-bindings.mjs";
 import { canonicalGhosttyTerminalKey } from "./terminal-identity.mjs";
@@ -40,15 +41,18 @@ export function resolveSurfaceVisibility(window, session, placement, options = {
   return "unknown";
 }
 
-/** @typedef {"agent" | "non-agent" | "unknown" | "none"} FocusKind */
+/** @typedef {"agent" | "neutral" | "non-agent" | "unknown" | "none"} FocusKind */
 /**
- * Classify exact admitted Niri ownership, never app-id/title heuristics.
+ * Classify exact admitted Niri ownership, never app-id/title heuristics. Card ownership alone
+ * makes a window "agent"; a focused presence application that owns no exact card is "neutral":
+ * the strip stays on screen over it and the window itself, not a card, is the interaction source.
  * @param {Array<Record<string, unknown>>} windows
  * @param {Record<string, unknown>} workspace
  * @param {Array<Record<string, unknown>>} cards
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {FocusKind}
  */
-export function classifyWorkspaceFocus(windows, workspace, cards) {
+export function classifyWorkspaceFocus(windows, workspace, cards, env = process.env) {
   if (
     windows.some(
       (window) => !Number.isInteger(window?.id) || typeof window?.is_focused !== "boolean",
@@ -62,18 +66,23 @@ export function classifyWorkspaceFocus(windows, workspace, cards) {
   if (focused.length !== 1) return "unknown";
   const window = focused[0];
   if (!Number.isInteger(window.id) || window.workspace_id !== workspace.id) return "unknown";
-  return classifyAdmittedWindowFocus(Number(window.id), cards);
+  return classifyAdmittedWindowFocus(Number(window.id), cards, window, env);
 }
 
 /** Exact Niri focus events may update eligibility before a slower full projection finishes.
- * @param {number} windowId @param {Array<Record<string, unknown>>} cards @returns {FocusKind}
+ * Without the window's own facts presence cannot be proven, so the strict result stands.
+ * @param {number} windowId @param {Array<Record<string, unknown>>} cards
+ * @param {Record<string, unknown> | null} [window] @param {NodeJS.ProcessEnv} [env]
+ * @returns {FocusKind}
  */
-export function classifyAdmittedWindowFocus(windowId, cards) {
+export function classifyAdmittedWindowFocus(windowId, cards, window = null, env = process.env) {
   if (!Number.isInteger(windowId)) return "unknown";
-  const owned = cards.filter((card) => card.windowId === windowId);
-  if (owned.length === 0 || owned.every((card) => card.surfaceVisible === false))
-    return "non-agent";
-  return owned.filter((card) => card.surfaceVisible !== false).length === 1 ? "agent" : "unknown";
+  const visible = cards.filter(
+    (card) => card.windowId === windowId && card.surfaceVisible !== false,
+  ).length;
+  if (visible === 1) return "agent";
+  if (window?.id === windowId && isPresenceApp(window.app_id, env)) return "neutral";
+  return visible === 0 ? "non-agent" : "unknown";
 }
 
 /**
@@ -165,9 +174,17 @@ export function resolveWorkspaceView(windows, workspace, sessions, options = {})
       windows.some((window) => window?.id === session.windowId && window?.is_focused === true),
   );
   const focusedCard = focusedCandidates.length === 1 ? focusedCandidates[0] : null;
+  const focusedWindows = windows.filter((window) => window?.is_focused === true);
+  const focusWindow =
+    focusedWindows.length === 1 &&
+    Number.isInteger(focusedWindows[0]?.id) &&
+    focusedWindows[0].workspace_id === workspace.id
+      ? Number(focusedWindows[0].id)
+      : null;
   return {
     workspace,
-    focusKind: classifyWorkspaceFocus(windows, workspace, projectedSessions),
+    focusKind: classifyWorkspaceFocus(windows, workspace, projectedSessions, options.env),
+    focusWindowId: focusWindow,
     sessions: projectedSessions,
     focusedSessionId: focusedCard ? String(focusedCard.sessionId ?? "") || null : null,
     focusedCardId: focusedCard ? String(focusedCard.cardId ?? "") || null : null,

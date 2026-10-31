@@ -21,8 +21,13 @@ export const AGENT_CATALOG = Object.freeze([
   { kind: "opencode", label: "opencode", commands: Object.freeze(["opencode"]) },
   { kind: "crush", label: "Crush", commands: Object.freeze(["crush"]) },
   { kind: "goose", label: "Goose", commands: Object.freeze(["goose"]) },
-  { kind: "cursor", label: "Cursor Agent", commands: Object.freeze(["cursor-agent"]) },
+  // Cursor's CLI installs both names; `agent` is the one its docs now lead with.
+  { kind: "cursor", label: "Cursor Agent", commands: Object.freeze(["cursor-agent", "agent"]) },
   { kind: "zcode", label: "zcode", commands: Object.freeze(["zcode"]) },
+  // The nodecode TUI; its gateway runs outside any terminal, so tab admission never sees it.
+  { kind: "nodecode", label: "Nodecode", commands: Object.freeze(["nodecode"]) },
+  // angelx is a Python launcher; the cockpit binary it starts, `angel`, is what holds the tab.
+  { kind: "angel", label: "angelx", commands: Object.freeze(["angel"]) },
 ]);
 
 /** Pi publishes its own telemetry, so its processes are never discovered this way. */
