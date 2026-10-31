@@ -7,6 +7,11 @@ type: adjudication
 task_id: 7814
 follows: [18338]
 method: many-of-the-greats
+system4d:
+  container: "AK7814 build-vs-depend adjudication for the Pi task-session runtime's npm closure."
+  compass: "Pin what drifts, install only reachable own code, and keep small upstream code as pinned upstream bytes rather than owned forks."
+  engine: "Many-of-the-greats schools, their confrontation, an independent adversarial inspection, then a verdict per dependency class."
+  fog: "Reachability is static, not observed at runtime; newer versions were seen only in the local npm cache."
 ---
 
 **Analysis only.** No installer, manifest, lockfile, dependency or runtime was changed. Reachability
