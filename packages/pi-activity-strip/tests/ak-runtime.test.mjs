@@ -6,11 +6,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as akRuntime from "../src/native/ak-runtime.mjs";
-
-const { createAkTaskRuntime, AK_TASK_REFRESH_MS } = akRuntime;
-/** Read through the namespace so an older runtime fails these tests on behavior, not on import. */
-const AK_DEFERRED_REFRESH_MS = akRuntime.AK_DEFERRED_REFRESH_MS ?? 300_000;
+import { formatBrokerRuntimeStatus } from "../src/common/status-report.mjs";
+import {
+  AK_DEFERRED_REFRESH_MS,
+  AK_TASK_REFRESH_MS,
+  createAkTaskRuntime,
+} from "../src/native/ak-runtime.mjs";
 
 const LIVE_LEASE = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 const SESSION = "01a0993a-d336-739f-a308-cfa4c21d6332";
@@ -29,12 +30,17 @@ function claimList(rows) {
   );
 }
 
-/** @param {{claims?: string; deferred?: string; error?: Error}} [behavior] mutable between refreshes */
+/**
+ * @param {{claims?: string; deferred?: string; error?: Error; claimsError?: Error; deferredError?: Error}} [behavior]
+ *   mutable between refreshes
+ */
 function makeExec(behavior = {}) {
   const calls = [];
   const exec = async (file, args) => {
     calls.push({ file, args });
     if (behavior.error) throw behavior.error;
+    if (behavior.claimsError && args.includes("list")) throw behavior.claimsError;
+    if (behavior.deferredError && args.includes("deferred")) throw behavior.deferredError;
     if (args.includes("deferred")) return { stdout: behavior.deferred ?? "[]" };
     return { stdout: behavior.claims ?? claimList([{}]) };
   };
@@ -129,62 +135,135 @@ test("an alternate ak binary is honored", async () => {
 
 test("the deferral list is read once per AK_DEFERRED_REFRESH_MS while claims refresh every tick", async () => {
   // Given the full deferral list held the workstation-wide AK lock 3.3 s of every 15 s (AK7943)
+  assert.equal(AK_DEFERRED_REFRESH_MS, 300_000);
   let clock = 1_000_000;
   const { exec, calls } = makeExec({ deferred: DEFERRED });
   const { runtime, runtimeStatus, states } = makeOptions(exec, {}, () => clock);
   const reads = () => calls.map((call) => call.args[1]);
   assert.equal(await runtime.refresh(), true);
-  clock += AK_TASK_REFRESH_MS;
-  assert.equal(await runtime.refresh(), true);
-  clock += AK_DEFERRED_REFRESH_MS - AK_TASK_REFRESH_MS - 1;
-  assert.equal(await runtime.refresh(), true);
-  // Then claims are read on every tick and the deferrals only once in the window
+  for (const step of [AK_TASK_REFRESH_MS, AK_DEFERRED_REFRESH_MS - AK_TASK_REFRESH_MS - 1]) {
+    clock += step;
+    assert.equal(await runtime.refresh(), true);
+    // Then a cached tick still reports the original read and the cached count, never "just read"
+    assert.equal(runtimeStatus.akTaskDeferredReadAt, 1_000_000);
+    assert.equal(runtimeStatus.akTaskDeferredCount, 1);
+  }
   assert.deepEqual(reads(), ["list", "deferred", "list", "list"]);
   assert.deepEqual(states.at(-1)?.deferred, [{ id: 5702, title: "parked", repo: "/repo" }]);
   clock += 1;
   assert.equal(await runtime.refresh(), true);
   assert.deepEqual(reads().slice(4), ["list", "deferred"]);
   assert.equal(runtimeStatus.akTaskDeferredReadAt, clock);
+  assert.equal(runtimeStatus.akTaskDeferredMaxAgeMs, AK_DEFERRED_REFRESH_MS);
 });
 
 test("a failed deferral read fails closed and is retried on the next tick", async () => {
+  for (const failure of [
+    { deferred: "<not json>" },
+    { deferredError: new Error("ak timed out") },
+  ]) {
+    let clock = 1_000_000;
+    /** @type {Record<string, unknown>} */
+    const behavior = { deferred: DEFERRED };
+    const { exec, calls } = makeExec(behavior);
+    const { runtime, runtimeStatus, states } = makeOptions(exec, {}, () => clock);
+    assert.equal(await runtime.refresh(), true);
+    clock += AK_DEFERRED_REFRESH_MS;
+    Object.assign(behavior, failure);
+    assert.equal(await runtime.refresh(), false);
+    assert.equal(runtimeStatus.akTaskState, "unavailable");
+    assert.deepEqual(states.at(-1), { claims: [], deferred: [] });
+    // A failure never leaves the older list standing in for a fresh read.
+    Object.assign(behavior, { deferred: DEFERRED, deferredError: undefined });
+    clock += AK_TASK_REFRESH_MS;
+    assert.equal(await runtime.refresh(), true);
+    assert.deepEqual(
+      calls.map((call) => call.args[1]),
+      ["list", "deferred", "list", "deferred", "list", "deferred"],
+    );
+  }
+});
+
+test("a claim failure fails closed without spending the deferral read and keeps the list", async () => {
+  for (const failure of [{ claims: "<not json>" }, { claimsError: new Error("ak timed out") }]) {
+    let clock = 1_000_000;
+    /** @type {Record<string, unknown>} */
+    const behavior = { deferred: DEFERRED };
+    const { exec, calls } = makeExec(behavior);
+    const { runtime, runtimeStatus, states } = makeOptions(exec, {}, () => clock);
+    assert.equal(await runtime.refresh(), true);
+    clock += AK_TASK_REFRESH_MS;
+    Object.assign(behavior, failure);
+    assert.equal(await runtime.refresh(), false);
+    assert.equal(runtimeStatus.akTaskState, "unavailable");
+    assert.equal(runtimeStatus.akTaskDeferredReadAt, null);
+    assert.deepEqual(states.at(-1), { claims: [], deferred: [] });
+    Object.assign(behavior, { claims: undefined, claimsError: undefined });
+    clock += AK_TASK_REFRESH_MS;
+    assert.equal(await runtime.refresh(), true);
+    assert.equal(runtimeStatus.akTaskDeferredReadAt, 1_000_000);
+    assert.deepEqual(
+      calls.map((call) => call.args[1]),
+      ["list", "deferred", "list", "list"],
+    );
+  }
+});
+
+test("a live claim newer than the list on a task it holds as deferred rereads the list at once", async () => {
+  // Given AK refuses to claim a task with an active deferral, such a claim proves the list stale
   let clock = 1_000_000;
+  /** @type {Record<string, unknown>} */
   const behavior = { deferred: DEFERRED };
   const { exec, calls } = makeExec(behavior);
-  const { runtime, runtimeStatus, states } = makeOptions(exec, {}, () => clock);
+  const { runtime, states } = makeOptions(exec, {}, () => clock);
   assert.equal(await runtime.refresh(), true);
-  clock += AK_DEFERRED_REFRESH_MS;
-  behavior.deferred = "<not json>";
-  assert.equal(await runtime.refresh(), false);
-  assert.equal(runtimeStatus.akTaskState, "unavailable");
-  assert.deepEqual(states.at(-1), { claims: [], deferred: [] });
-  // A failure never leaves the older list standing in for a fresh read.
-  behavior.deferred = DEFERRED;
-  clock += AK_TASK_REFRESH_MS;
+  clock += 20_000;
+  // A row both claimed and deferred but claimed before the read (corrupt) does not force reads.
+  behavior.claims = claimList([{ id: 5702, claimed_at: new Date(999_000).toISOString() }]);
   assert.equal(await runtime.refresh(), true);
   assert.deepEqual(
     calls.map((call) => call.args[1]),
-    ["list", "deferred", "list", "deferred", "list", "deferred"],
+    ["list", "deferred", "list"],
+  );
+  // When 5702 is resumed and claimed after the list was read
+  behavior.claims = claimList([{ id: 5702, claimed_at: new Date(1_015_000).toISOString() }]);
+  behavior.deferred = "[]";
+  clock += AK_TASK_REFRESH_MS;
+  assert.equal(await runtime.refresh(), true);
+  assert.deepEqual(calls.map((call) => call.args[1]).slice(3), ["list", "deferred"]);
+  assert.deepEqual(states.at(-1)?.deferred, []);
+});
+
+test("a clock that steps back expires the list instead of stretching it", async () => {
+  let clock = 1_000_000_000;
+  const { exec, calls } = makeExec({ deferred: DEFERRED });
+  const { runtime } = makeOptions(exec, {}, () => clock);
+  assert.equal(await runtime.refresh(), true);
+  clock -= 3_600_000;
+  assert.equal(await runtime.refresh(), true);
+  assert.deepEqual(
+    calls.map((call) => call.args[1]),
+    ["list", "deferred", "list", "deferred"],
   );
 });
 
-test("a claim failure fails closed while a fresh deferral list is cached, then rereads both", async () => {
-  let clock = 1_000_000;
-  const behavior = { deferred: DEFERRED };
-  const { exec, calls } = makeExec(behavior);
-  const { runtime, runtimeStatus, states } = makeOptions(exec, {}, () => clock);
-  assert.equal(await runtime.refresh(), true);
-  clock += AK_TASK_REFRESH_MS;
-  behavior.claims = "<not json>";
-  assert.equal(await runtime.refresh(), false);
-  assert.equal(runtimeStatus.akTaskState, "unavailable");
-  assert.equal(runtimeStatus.akTaskDeferredReadAt, null);
-  assert.deepEqual(states.at(-1), { claims: [], deferred: [] });
-  delete behavior.claims;
-  clock += AK_TASK_REFRESH_MS;
-  assert.equal(await runtime.refresh(), true);
-  assert.deepEqual(
-    calls.map((call) => call.args[1]),
-    ["list", "deferred", "list", "list", "deferred"],
+test("the status line names when the deferral list was read and its reuse window", () => {
+  const status = (runtime) =>
+    formatBrokerRuntimeStatus({
+      ok: true,
+      runtimeStatus: {
+        state: "ready",
+        startedAt: 0,
+        akTaskState: "ok",
+        akTaskClaimCount: 1,
+        ...runtime,
+      },
+    });
+  assert.match(
+    status({ akTaskDeferredReadAt: 0, akTaskDeferredMaxAgeMs: AK_DEFERRED_REFRESH_MS }),
+    /deferral list read 1970-01-01T00:00:00\.000Z, reused up to 300 s/,
   );
+  for (const bad of [Number.NaN, 9e15, null]) {
+    assert.doesNotMatch(status({ akTaskDeferredReadAt: bad }), /deferral list read/);
+  }
 });

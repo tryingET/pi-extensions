@@ -78,20 +78,27 @@ shared store behind an exclusive lock?
 # MODE 3 — INTEGRATION OR DECISION
 - Chosen path: Contextual dominance.
 - Result: claims refresh every 15 s, unchanged. The deferral list refreshes at most every
-  5 minutes; between refreshes the last successfully parsed list is reused. A failed or malformed
-  deferral read still fails closed and is retried on the next tick, never papered over.
+  5 minutes; between refreshes the last successfully parsed list is reused. It is read only after
+  the claim read succeeds, so a failing or contended claim read never also spends the large read,
+  and a claim failure keeps the list (its age is still bounded). A failed or malformed deferral
+  read fails closed, drops the list and is retried on the next tick. A clock that steps back
+  expires the list. A live claim, newer than the list, on a task the list holds as deferred
+  proves the list stale (AK refuses to claim a task with an active deferral) and rereads it at once.
 - Why: it keeps every live-custody fact at its current freshness and moves the dominant cost to the
   timescale on which it changes: lock duty falls from about (3.3 + 1.0) / 15 = 29% to about
   1.0 / 15 + 3.3 / 300 = 8%.
 - What remains unresolved: a change signal or a projected deferral read from AK (Schools 3 and 4).
-  Until then a newly deferred claimed task can show as active, and a new deferral badge can be
-  missing, for up to 5 minutes.
+  Until then, for up to about 5 minutes and one tick: a new deferral badge can be missing, and a
+  resumed or completed task can keep a stale deferred badge. (A task cannot be deferred while
+  claimed, AK refuses that, so a live claim is never wrongly shown as active; a resumed task that is
+  claimed again rereads the list. Independent review, 2026-11-01.)
 
 # PRACTICAL CONSEQUENCE
-- `AK_DEFERRED_REFRESH_MS = 300_000` beside `AK_TASK_REFRESH_MS = 15_000`; the status report says how
-  old the deferral list is.
-- Tests: the deferral read happens once per window while claims refresh every tick; a failed
-  deferral read clears chips and is retried at once; a claim failure still fails closed with a fresh
-  deferral list cached.
+- `AK_DEFERRED_REFRESH_MS = 300_000` beside `AK_TASK_REFRESH_MS = 15_000`; the status report says when
+  the deferral list was read and how long it may be reused.
+- Tests: the deferral read happens once per window while claims refresh every tick, and cached ticks
+  report the original read; a failed or thrown deferral read clears chips and is retried; a failed
+  or thrown claim read fails closed without the deferral read and keeps the list; a newer live claim
+  on a cached deferral rereads it; a backward clock step expires it; the status line is guarded.
 - Measure before and after with the same gate trace once the operator restarts the strip host.
 - Ask AK's owner for a change signal or a projected read in AK7946's decision.
