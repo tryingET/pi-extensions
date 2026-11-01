@@ -4,9 +4,10 @@ import { isAbsolute } from 'node:path';
  * Every supported version requires enqueue/dequeue/complete/start/pass for each body, plus
  * file/global summaries, wrapper completion and global plan. No invented phases.
  * v22.22.2 and v22.23.3 share one dialect: on the calibration fixture both emit the same
- * event types and field shapes (AK6228 evidence 11478). It has no entryFile/testId/parentId/tags:
- * identity is source file, exact
- * name and source location. The (file-as-name, line=1, column=1) wrapper tuple is
+ * event types and field shapes (AK6228 evidence 11478).
+ * v22.23.4 independently matches this dialect (AK7675 positive/zero calibration).
+ * It has no entryFile/testId/parentId/tags: identity is source file, exact name
+ * and source location. The (file-as-name, line=1, column=1) wrapper tuple is
  * reserved: an indistinguishable real body causes duplicate-wrapper rejection.
  * v26.8.1 uses entryFile + testId, checked against source/name/location/parentId.
  * Source-file mismatches, suites, nesting and mixed proof-bearing dialects fail.
@@ -17,7 +18,7 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const check = (condition, message) => { if (!condition) throw new Error(message); };
 const text = value => typeof value === 'string' && value.trim().length > 0 && !/[\x00-\x1f\x7f]/u.test(value);
 const integer = value => Number.isSafeInteger(value) && value >= 0;
-export const NODE22_DIALECT = Object.freeze(['v22.22.2', 'v22.23.3']);
+export const NODE22_DIALECT = Object.freeze(['v22.22.2', 'v22.23.3', 'v22.23.4']);
 export const SUPPORTED_EVENT_NODE_VERSIONS = Object.freeze([...NODE22_DIALECT, 'v26.8.1']);
 export function assertSupportedNode(version = process.version) {
   check(SUPPORTED_EVENT_NODE_VERSIONS.includes(version), 'unsupported Node event protocol: ' + version);

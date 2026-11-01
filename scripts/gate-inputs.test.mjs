@@ -237,3 +237,18 @@ test('commit gates select an installed exact pinned Node, force the pinned lane,
   assert.equal(wrong.status, 0, wrong.stderr);
   assert.equal(wrong.stdout.trim().split('\n').at(-1), ambient, 'a candidate reporting another version is never used');
 });
+
+test('Given the root gate, when its pinned Node runs offline calibration, then exact selection and qualification boundaries hold', t => {
+  const env = { ...process.env, TMPDIR: fixture(t) };
+  // Inherited NODE_TEST_CONTEXT makes nested --test exit 0 without running files.
+  for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'NODE_PATH', 'NODE_V8_COVERAGE']) delete env[key];
+  const run = spawnSync(process.execPath, ['--test', path.join(ROOT, 'scripts/node-pin-calibration.test.mjs')], {
+    cwd: ROOT, encoding: 'utf8', timeout: 10000,
+    env,
+  });
+  assert.ifError(run.error);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  for (const summary of ['# tests 5', '# pass 5', '# fail 0', '# skipped 0']) {
+    assert.ok(run.stdout.split('\n').includes(summary), run.stdout + run.stderr);
+  }
+});

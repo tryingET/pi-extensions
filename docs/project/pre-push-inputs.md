@@ -92,7 +92,7 @@ for ~25 minutes (AK6069; design in softwareco/infra/workstation
 
 ## Toolchain setup (pinned versions)
 
-The pin is Node **22.23.3**, npm **12.0.2**. Do not change the pin merely to admit
+The pin is Node **22.23.4**, npm **12.0.2**. Do not change the pin merely to admit
 ambient machine drift. A Node distribution may bundle an unsuitable npm.
 
 Gate entry points (`scripts/ci/full.sh`, `scripts/prepare-gate-builds.sh`) source
@@ -103,7 +103,7 @@ unpacked nodejs.org tarball), and uses a candidate only if its `--version` match
 Only `node` is shimmed; npm stays the one on PATH and is still admitted exactly.
 Nothing is downloaded or installed: with no candidate, admission fails as before.
 So after a system Node upgrade a plain `git push` keeps working, provided
-Node 22.23.3 is unpacked under `~/.local/opt` or named by `PI_GATE_NODE_BIN`.
+Node 22.23.4 is unpacked under `~/.local/opt` or named by `PI_GATE_NODE_BIN`.
 
 If npm also differs, provision npm 12.0.2 in a separate prefix as CI does; do not
 replace the active shared installation silently. Gate scratch honors

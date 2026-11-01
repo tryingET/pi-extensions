@@ -76,7 +76,7 @@ export function transformBytes(file, bytes) {
 // Frozen AK5597 admission: exactly the Node binaries completion-fixture-inputs.json admits.
 export const ADMITTED_NODE_VERSIONS = Object.freeze(["v22.22.2", "v26.8.1"]);
 // Exact versions a source-regression observation may run on. Widening it never admits a binary.
-export const SUPPORTED_NODE_VERSIONS = Object.freeze(["v22.22.2", "v22.23.3", "v26.8.1"]);
+export const SUPPORTED_NODE_VERSIONS = Object.freeze(["v22.22.2", "v22.23.3", "v22.23.4", "v26.8.1"]);
 export const OBSERVATION_KIND = "source-regression-identity-OBSERVATION-copy-consistency-only";
 export function assertSupportedNode(version) {
   assert.ok(SUPPORTED_NODE_VERSIONS.includes(version), `unsupported exact Node version: ${version}`);

@@ -202,7 +202,7 @@ is deliberately shipped instead of an unsafe save implementation.
 
 ## Development / release
 
-From this package with root-adopted Node **22.23.3** and npm **12.0.2**:
+From this package with root-adopted Node **22.23.4** and npm **12.0.2**:
 
 ```bash
 npm install
