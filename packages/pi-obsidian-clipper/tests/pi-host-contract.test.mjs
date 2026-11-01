@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const HOST_BASELINE = "1.1.0";
-const DEV_TEST_FLOOR = "1.1.0";
+const HOST_BASELINE = "1.4.0";
+const DEV_TEST_FLOOR = "1.4.0";
 const TEMPLATE_SOURCE = "@tryinget/pi-extensions-package-template";
 const HOST_PACKAGES = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"];
 const PEER_COMPATIBILITY = Object.fromEntries(HOST_PACKAGES.map((name) => [name, "*"]));

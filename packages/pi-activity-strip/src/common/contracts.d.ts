@@ -169,6 +169,7 @@ export interface SessionStartContextLike {
 }
 
 export interface BeforeAgentStartEventLike {
+  messageType?: "user" | "custom";
   prompt?: string;
 }
 

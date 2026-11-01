@@ -3,11 +3,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bytesDigest, digest, refuse } from "./json.js";
 
-// Pi 1.1.0 SDK: sha256 of each package.json and of its file tree (node_modules excluded).
+// Pi 1.4.0 SDK: sha256 of each package.json and of its file tree (node_modules excluded).
 const expected = {
   "@earendil-works/pi-ai": {
-    manifest: "a8f10d5157b335379ae00edf9c25ae7a15bfc0f3a76107d4376a3779bb5b2995",
-    tree: "8906de0bd093edbda72827d380f7456517ec34c904f3ab8e0d3b501da5434c94",
+    manifest: "36df91142c18a5912eafab0f2783bb4d88cdd101c5c5e7fd9173d4387cc5cced",
+    tree: "c376650df4f6d0c9a99a18d456080d961bf501882ef258740c893acfb39637a5",
     entries: {
       "": "dist/index.js",
       "/compat": "dist/compat.js",
@@ -15,18 +15,18 @@ const expected = {
     },
   },
   "@earendil-works/pi-coding-agent": {
-    manifest: "c662a36f8bc47843393a60dc8616a34dfcc8376e8fcc96dbc2f1020c60e38e2a",
-    tree: "9f9d59490be5b181cea40745bea3459fd9f480fd6f2802cb42994a1ecb659651",
+    manifest: "df6883685382d6a914e5797232744c26579fe7db5576ea0e9c859d018ca2d54e",
+    tree: "992b967104c380172c03f564ce3c71246d6919889f19fe8b68ac379ebb98c2eb",
     entries: { "": "dist/index.js" },
   },
   "@earendil-works/pi-agent-core": {
-    manifest: "424f45867d4aacd6466729cb915bdfc145c1160bcfbf83ece429ed0982fa606b",
-    tree: "ed6485207ac6207d734d1014e4b487168ded738b71fef90bd5b059c3ac59a669",
+    manifest: "3ee9a0f81587b917e7a010e4391fc10d2b04fa48091b693bffebe3b9b55e9f14",
+    tree: "7747cfe931872097f91da1ce4a386796e9454c4d3705fe43d68defa364cdcd27",
     entries: { "": "dist/index.js" },
   },
   "@earendil-works/pi-tui": {
-    manifest: "25d27adb55392f5bfa4f354f5b5e070f1d5dcb1bb3ef92af244b08541a3ba51d",
-    tree: "fa151b969546306150988db8b60182615ed4b77006ff545be3393dbea2fb395f",
+    manifest: "49362a3815b3f69728c68243609d63355aa54b4c374414c5b037560b41ca6038",
+    tree: "3366636102b3ebf62bfb64bce7daf3ef682b8320337c41e57b1cb3ea2a7601bb",
     entries: { "": "dist/index.js" },
   },
 };

@@ -73,8 +73,8 @@ test("provisioned content-addressed profile and credential load is exact and rea
   await assert.rejects(loadHostProfile(f.locator, f.request.profile));
   assert.equal(readSnapshot(f.locator).attempts.length, 0);
 });
-for (const reasoning of ["off", "minimal", "low", "medium", "high", "xhigh"]) {
-  test(`I03 supported gpt-5.5 reasoning remains exact: ${reasoning}`, async (t) => {
+for (const reasoning of ["minimal", "low", "medium", "high", "xhigh", "max"]) {
+  test(`I03 supported gpt-6.1-sol reasoning remains exact: ${reasoning}`, async (t) => {
     const f = setup(),
       pin = { ...f.pin, reasoning },
       reference = digest(pin);
@@ -129,11 +129,11 @@ for (const defect of [
     const f = setup(),
       pin = structuredClone(f.pin);
     if (defect === "unsupported-reasoning") {
-      pin.reasoning = "max";
+      pin.reasoning = "off";
       const { clampThinkingLevel } = await import("@earendil-works/pi-ai/compat");
-      const model = getModel("openai-codex", "gpt-5.5");
+      const model = getModel("openai-codex", "gpt-6.1-sol");
       assert.equal(bytesDigest(JSON.stringify(model)), pin.modelDigest);
-      assert.equal(clampThinkingLevel(model, pin.reasoning), "xhigh");
+      assert.equal(clampThinkingLevel(model, pin.reasoning), "minimal");
     }
     if (defect === "model-digest") pin.modelDigest = "0".repeat(64);
     if (defect === "missing-credential") pin.credentialDigest = "0".repeat(64);

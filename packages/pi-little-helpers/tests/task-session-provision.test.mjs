@@ -183,7 +183,7 @@ test(
 test("profile refuses before any producer publication and writes nothing", (t) => {
   const w = world(t);
   assert.equal(w.run("init").status, 0);
-  const out = w.run("profile", "--task", "7", "--model", "gpt-5.5", "--reasoning", "high");
+  const out = w.run("profile", "--task", "7", "--model", "gpt-6.1-sol", "--reasoning", "high");
   assert.notEqual(out.status, 0);
   assert.deepEqual(readdirSync(join(w.root, "profiles")), []);
   assert.deepEqual(readdirSync(join(w.root, "credentials")), []);

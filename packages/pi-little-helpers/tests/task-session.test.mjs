@@ -79,7 +79,7 @@ function fixture() {
   return { root, locator, state, d: bound };
 }
 const profile = () => ({
-  model: getModel("openai-codex", "gpt-5.5"),
+  model: getModel("openai-codex", "gpt-6.1-sol"),
   reasoning: "high",
   account: "synthetic-account",
   runDeadline: Date.now() + 60000,

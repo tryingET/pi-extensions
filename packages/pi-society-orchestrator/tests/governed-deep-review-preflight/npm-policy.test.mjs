@@ -209,10 +209,10 @@ test("npm effects and receipts bind exact executable bytes, sanitized policy, ar
       ),
     ];
     const hostSource = { kind: "verified_cache_tarballs" };
-    // 14 package installs, 8 host cache packs (the coding agent and its 7 companions), 1 peer install.
+    // 14 package installs, 7 host cache packs (the coding agent and its 6 companions), 1 peer install.
     assert.equal(
       verifyGovernedRuntimeNpmEffectReceipts(root, npm, hostSource, receipts).length,
-      23,
+      22,
     );
     const forgedExecutable = structuredClone(receipts);
     forgedExecutable[0].npmExecutable.sha256 = "0".repeat(64);

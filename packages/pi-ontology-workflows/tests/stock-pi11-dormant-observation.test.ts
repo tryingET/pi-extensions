@@ -1,4 +1,4 @@
-// AK6847: on the stock Pi 1.1 host (no immutable hostCapabilities), the accepted Decision 89/98
+// AK6847: on the stock Pi host (no immutable hostCapabilities), the accepted Decision 89/98
 // development observers stay inactive and fail closed; SYSTEM bytes stay identical across prompts.
 // Capable-fork behavior remains covered by the Decision 89/98 tests with simulated capabilities.
 // If a future host advertises the capabilities, this test fails so the disposition is revisited
@@ -44,8 +44,8 @@ syncBuiltinESMExports();
 type Message = { role: string; content?: unknown; customType?: string };
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
-test("stock Pi 1.1 keeps the Decision 89/98 development observers inactive with a stable SYSTEM", async (t) => {
-  assert.equal(hostVersion, "1.1.0");
+test("stock Pi keeps the Decision 89/98 development observers inactive with a stable SYSTEM", async (t) => {
+  assert.equal(hostVersion, "1.4.0");
   const scratch = mkdtempSync(path.join(tmpdir(), "ak6847-stock-pi11-"));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const cwd = scratch;

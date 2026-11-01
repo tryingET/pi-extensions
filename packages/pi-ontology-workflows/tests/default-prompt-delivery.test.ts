@@ -48,7 +48,7 @@ assert.equal(
       "utf8",
     ),
   ).version,
-  "1.1.0",
+  "1.4.0",
 );
 const { buildSystemPrompt, buildSystemPromptSections } = (await import(
   new URL("./core/system-prompt.js", import.meta.resolve("@earendil-works/pi-coding-agent")).href
@@ -145,7 +145,7 @@ test("Pi 1.1 actual toolbox startup keeps fixed SYSTEM authority with ontology t
     "concept relation invariant system4d semantic meaning bridge mapping",
     "",
   ]) {
-    const result = await h.runner.emitBeforeAgentStart(prompt, undefined, h.options);
+    const result = await h.runner.emitBeforeAgentStart({ messageType: "user", prompt }, h.options);
     assert.equal(result.systemPromptOptions.forceSystemPrompt, undefined);
     const sections = buildSystemPromptSections(result.systemPromptOptions);
     assert.equal(
@@ -225,8 +225,14 @@ test("actual later pi-modes composition retains guidance for native, append, and
       if (sections)
         event.systemPromptOptions.sections = { ...event.systemPromptOptions.sections, ...sections };
     });
-    const ordinary = await h.runner.emitBeforeAgentStart("ordinary", undefined, h.options);
-    const triggered = await h.runner.emitBeforeAgentStart("ontology", undefined, h.options);
+    const ordinary = await h.runner.emitBeforeAgentStart(
+      { messageType: "user", prompt: "ordinary" },
+      h.options,
+    );
+    const triggered = await h.runner.emitBeforeAgentStart(
+      { messageType: "user", prompt: "ontology" },
+      h.options,
+    );
     assert.equal(
       buildSystemPrompt(ordinary.systemPromptOptions),
       buildSystemPrompt(triggered.systemPromptOptions),
@@ -249,12 +255,18 @@ test("actual later pi-modes composition retains guidance for native, append, and
 test("default guidance remains present after withdraw and in non-TUI modes", async () => {
   const h = harness();
   await h.commands.get("ontology-preflight")?.handler("disable", h.ctx as never);
-  const withdrawn = await h.runner.emitBeforeAgentStart("ontology", undefined, h.options);
+  const withdrawn = await h.runner.emitBeforeAgentStart(
+    { messageType: "user", prompt: "ontology" },
+    h.options,
+  );
   assert.equal(withdrawn.systemPromptOptions.forceSystemPrompt, undefined);
   assert.equal(withdrawn.messages[0]?.content, DISABLED_PREFLIGHT_HINT);
   for (const mode of ["print", "json", "rpc"]) {
     h.ctx.mode = mode;
-    const result = await h.runner.emitBeforeAgentStart("ontology", undefined, h.options);
+    const result = await h.runner.emitBeforeAgentStart(
+      { messageType: "user", prompt: "ontology" },
+      h.options,
+    );
     assert.equal(result.systemPromptOptions.sections[ONTOLOGY_GUIDANCE_SECTION], ONTOLOGY_GUIDANCE);
     assert.equal(result.messages.length, 0); // accepted non-TUI advisory posture remains unchanged
     assert.equal(result.systemPromptOptions.forceSystemPrompt, undefined);

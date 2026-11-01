@@ -23,7 +23,7 @@ import {
 } from "../../src/runtime/governed-runtime-materialization.ts";
 import { createHostLockFixture, SOURCE_ROOT } from "./helpers.mjs";
 
-test("governed runtime pins match the Pi 1.1.0 lock identities", () => {
+test("governed runtime pins match the host lock identities", () => {
   const lock = JSON.parse(
     readFileSync(
       resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package-lock.json"),
@@ -32,7 +32,7 @@ test("governed runtime pins match the Pi 1.1.0 lock identities", () => {
   );
   const lockedPackages = lock.packages ?? {};
 
-  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "1.1.0");
+  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "1.4.0");
   for (const [name, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
     const direct = lockedPackages[`node_modules/${name}`];
     const nested = Object.entries(lockedPackages).find(([packagePath]) =>
@@ -50,14 +50,13 @@ test("governed runtime pins match the Pi 1.1.0 lock identities", () => {
   assert.equal(lockedTypebox?.integrity, GOVERNED_RUNTIME_TYPEBOX_INTEGRITY);
 });
 
-test("cache-backed host closure pins the Pi 1.1.0 coding agent and every companion", () => {
+test("cache-backed host closure pins the coding agent and every companion", () => {
   assert.deepEqual(Object.keys(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS), [
     "@earendil-works/pi-ai",
     "@earendil-works/pi-agent-core",
     "@earendil-works/pi-coding-agent",
     "@earendil-works/pi-tui",
     "@earendil-works/pi-telemetry",
-    "@earendil-works/chord",
     "@earendil-works/pi-mcp",
     "@earendil-works/pi-codemode",
   ]);
