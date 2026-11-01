@@ -1,0 +1,30 @@
+[
+  {
+    "name": "capture releases and late focus cannot revive",
+    "steps": [["grant", true], ["capture", true], ["release", false], ["capture", false]]
+  },
+  {
+    "name": "release before GTK acquisition is final",
+    "steps": [["grant", true], ["release", false], ["capture", false]]
+  },
+  {
+    "name": "old permission cannot transfer to a newer request",
+    "steps": [
+      ["grant", true],
+      ["capture", true],
+      ["release", false],
+      ["grant", true],
+      ["stale-permission", true],
+      ["capture", true],
+      ["release", false]
+    ]
+  },
+  {
+    "name": "source revocation defeats later acquisition",
+    "steps": [["grant", true], ["capture", true], ["source-revoked", false], ["capture", false]]
+  },
+  {
+    "name": "duplicate acquisition preserves one request",
+    "steps": [["grant", true], ["capture", true], ["capture", true], ["release", false]]
+  }
+]

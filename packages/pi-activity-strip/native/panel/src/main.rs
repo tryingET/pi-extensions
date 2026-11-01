@@ -4,6 +4,7 @@ mod directory_view;
 mod hints;
 mod hover_keyboard;
 mod interaction;
+mod keyboard_observation;
 mod protocol;
 mod runtime;
 

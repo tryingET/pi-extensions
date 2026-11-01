@@ -4,6 +4,7 @@
 //   - "changing hidden-tab discovery, its cadence, or its capability gating"
 // ---
 
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bindingKeysFor, parseTerminalTitleBinding } from "../common/surface-bindings.mjs";
@@ -18,6 +19,22 @@ export const TAB_INVENTORY_TIMEOUT_MS = 4000;
 export const TAB_INVENTORY_UNAVAILABLE_EXIT_CODE = 3;
 const ATSPI_IMPORT_PROBE =
   "import gi; gi.require_version('Atspi', '2.0'); from gi.repository import Atspi";
+// Signal names are a fixed OS vocabulary; anything else is reported as unknown.
+const FAILURE_SIGNALS = new Set(Object.keys(os.constants.signals));
+const FAILURE_STAGES = new Set([
+  "import",
+  "desktop-lookup",
+  "desktop-count",
+  "desktop-index",
+  "application-count",
+  "application-index",
+]);
+const FAILURE_REASONS = new Set([
+  "bindings-unavailable",
+  "desktop-unavailable",
+  "enumeration-failed",
+  "access-denied",
+]);
 
 /** @typedef {{pid: number; name: string; tabs: string[]}} TabInventoryFrame */
 /** @typedef {{bindingKey: string; windowId: number; windowPid: number; appId: string}} TabBinding */
@@ -113,20 +130,54 @@ export async function probeGhosttyTabInventory({
     });
     stdout = String(result.stdout ?? "");
   } catch (error) {
-    const failure = /** @type {{code?: unknown; killed?: unknown; stdout?: unknown}} */ (
-      error && typeof error === "object" ? error : {}
-    );
+    const failure =
+      /** @type {{code?: unknown; signal?: unknown; killed?: unknown; stdout?: unknown}} */ (
+        error && typeof error === "object" ? error : {}
+      );
     const unavailable =
       failure.code === TAB_INVENTORY_UNAVAILABLE_EXIT_CODE || failure.code === "ENOENT";
-    let detail = "the tab inventory helper failed";
-    try {
-      const parsed = JSON.parse(String(failure.stdout ?? ""));
-      if (typeof parsed?.error === "string") detail = parsed.error;
-    } catch {
-      if (failure.code === "ENOENT") detail = `${pythonBin} is not installed`;
-      else if (failure.killed) detail = "the tab inventory helper timed out";
+    const code = Number.isSafeInteger(failure.code) ? failure.code : "unknown";
+    const signal =
+      typeof failure.signal === "string" && FAILURE_SIGNALS.has(failure.signal)
+        ? failure.signal
+        : "unknown";
+    // execFile marks only its own deadline kill as `killed`; output limits and aborts reject with
+    // a string code instead. The child's exit after that kill (signal or status) is kept as is.
+    let reason = "unknown";
+    switch (failure.code) {
+      case "ENOENT":
+        reason = "missing-interpreter";
+        break;
+      case TAB_INVENTORY_UNAVAILABLE_EXIT_CODE:
+        reason = "import-unavailable";
+        break;
+      case "EACCES":
+      case "EPERM":
+        reason = "access-denied";
+        break;
+      case "ERR_CHILD_PROCESS_STDIO_MAXBUFFER":
+        reason = "output-limit";
+        break;
+      default:
+        if (failure.killed === true && typeof failure.code !== "string") reason = "timeout";
+        else if (signal !== "unknown") reason = "signal";
+        else if (code !== "unknown") reason = "exit-status";
+        else if (failure.killed === true) reason = "terminated-unknown";
     }
-    return { ok: false, unavailable, error: detail };
+    let stage = "unknown";
+    let helperReason = "unknown";
+    try {
+      const parsed = JSON.parse(typeof failure.stdout === "string" ? failure.stdout : "");
+      if (FAILURE_STAGES.has(parsed?.stage)) stage = parsed.stage;
+      if (FAILURE_REASONS.has(parsed?.reason)) helperReason = parsed.reason;
+    } catch {
+      /* Transport metadata is independent of helper JSON. */
+    }
+    return {
+      ok: false,
+      unavailable,
+      error: `the tab inventory helper failed (reason=${reason}, code=${code}, signal=${signal}, stage=${stage}, helperReason=${helperReason})`,
+    };
   }
   try {
     const parsed = JSON.parse(stdout);
@@ -181,8 +232,8 @@ export async function detectTabInventorySupport({
       available: false,
       detail:
         code === "ENOENT"
-          ? `${pythonBin} is not installed`
-          : `${pythonBin} gi.repository.Atspi (python-gobject + at-spi2-core) is unavailable`,
+          ? "the tab inventory interpreter is not installed"
+          : "AT-SPI bindings (python-gobject + at-spi2-core) are unavailable",
     };
   }
 }

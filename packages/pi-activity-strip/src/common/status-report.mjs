@@ -134,6 +134,12 @@ export function summarizeBrokerRuntimeStatus(result) {
   }
 
   if (runtime.state === "ready") {
+    if (runtime.tabInventoryState === "failed" || runtime.tabInventoryState === "unavailable") {
+      return {
+        headline: `Activity strip overlay is ready; tab inventory ${runtime.tabInventoryState}`,
+        level: "warning",
+      };
+    }
     return { headline: "Activity strip is running and ready", level: "info" };
   }
 

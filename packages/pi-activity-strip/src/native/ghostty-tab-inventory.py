@@ -9,7 +9,8 @@
 Usage: ghostty-tab-inventory.py <pid> [<pid> ...]
 
 Output: {"ok": true, "frames": [{"pid": int, "name": str, "tabs": [str, ...]}, ...]}
-Exit 3 with {"ok": false, "error": ...} when the AT-SPI Python bindings are unavailable.
+Failures emit {"ok": false, "stage": fixed_label, "reason": fixed_label}.
+Exit 3 only when the AT-SPI Python bindings are unavailable; enumeration failures exit 1.
 The script only reads accessibility state; it never activates, selects, or focuses anything.
 """
 
@@ -20,15 +21,19 @@ MAX_NODES_PER_FRAME = 20000
 MAX_DEPTH = 40
 
 
+def fail(stage, reason, code=1):
+    print(json.dumps({"ok": False, "stage": stage, "reason": reason}))
+    return code
+
+
 def main() -> int:
     try:
         import gi
 
         gi.require_version("Atspi", "2.0")
         from gi.repository import Atspi
-    except Exception as error:  # noqa: BLE001 - any import failure means the capability is absent
-        print(json.dumps({"ok": False, "error": f"AT-SPI bindings unavailable: {error}"}))
-        return 3
+    except Exception:  # noqa: BLE001 - any import failure means the capability is absent
+        return fail("import", "bindings-unavailable", 3)
 
     pids = {int(argument) for argument in sys.argv[1:] if argument.isdigit()}
     if not pids:
@@ -68,29 +73,41 @@ def main() -> int:
         return labels
 
     frames = []
-    desktop = Atspi.get_desktop(0)
-    for index in range(desktop.get_child_count()):
-        application = desktop.get_child_at_index(index)
-        if application is None:
-            continue
-        try:
-            pid = application.get_process_id()
-        except Exception:  # noqa: BLE001
-            continue
-        if pid not in pids:
-            continue
-        for window_index in range(application.get_child_count()):
-            frame = application.get_child_at_index(window_index)
-            if frame is None:
+    stage = "desktop-lookup"
+    try:
+        desktop = Atspi.get_desktop(0)
+        if desktop is None:
+            return fail(stage, "desktop-unavailable")
+        stage = "desktop-count"
+        application_count = desktop.get_child_count()
+        for index in range(application_count):
+            stage = "desktop-index"
+            application = desktop.get_child_at_index(index)
+            if application is None:
                 continue
             try:
-                if frame.get_role() != Atspi.Role.FRAME:
-                    continue
-                name = frame.get_name() or ""
+                pid = application.get_process_id()
             except Exception:  # noqa: BLE001
                 continue
-            frames.append({"pid": pid, "name": name, "tabs": tab_labels(frame)})
-
+            if pid not in pids:
+                continue
+            stage = "application-count"
+            window_count = application.get_child_count()
+            for window_index in range(window_count):
+                stage = "application-index"
+                frame = application.get_child_at_index(window_index)
+                if frame is None:
+                    continue
+                try:
+                    if frame.get_role() != Atspi.Role.FRAME:
+                        continue
+                    name = frame.get_name() or ""
+                except Exception:  # noqa: BLE001
+                    continue
+                frames.append({"pid": pid, "name": name, "tabs": tab_labels(frame)})
+    except Exception as error:  # noqa: BLE001 - never report a partial top-level inventory
+        reason = "access-denied" if isinstance(error, PermissionError) else "enumeration-failed"
+        return fail(stage, reason)
     print(json.dumps({"ok": True, "frames": frames}))
     return 0
 

@@ -7,23 +7,22 @@
 import { readFileSync as nodeReadFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { activeKdlNodes, isFocusStripAction } from "./strip-hotkey-kdl.mjs";
 
 /**
  * The bind whose action runs this package's `focus-strip` command. Niri binds are KDL nodes named
  * by their chord, `Mod+Shift+A repeat=false { spawn "node" ".../pi-activity-strip.mjs" "focus-strip"; }`,
- * so the chord is the first token of the node whose block names both the CLI and the subcommand.
- * Commented-out lines never count.
+ * so discover it from active direct children of `binds` with an actual matching spawn action.
+ * Comments, disabled subtrees and quoted command lookalikes never count.
  * @param {string} text
  * @returns {string | null}
  */
 export function findFocusStripChord(text) {
-  const live = String(text ?? "")
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("//"))
-    .join("\n");
-  for (const match of live.matchAll(/^[ \t]*([^\s{}"/=]+)[^\n{}]*\{([^{}]*)\}/gm)) {
-    const [, chord, body] = match;
-    if (/pi-activity-strip/.test(body) && /["\s]focus-strip["\s;]/.test(body)) return chord;
+  for (const group of activeKdlNodes(String(text ?? ""))) {
+    if (group.name !== "binds") continue;
+    for (const bind of group.children) {
+      if (bind.children.some(isFocusStripAction)) return bind.name;
+    }
   }
   return null;
 }

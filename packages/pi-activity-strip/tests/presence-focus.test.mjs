@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isPresenceApp, presenceAppsFor } from "../src/common/presence-apps.mjs";
-import { classifyWorkspaceFocus, resolveWorkspaceView } from "../src/common/workspace-view.mjs";
+import {
+  classifyWorkspaceFocus,
+  resolveWindowDirectory,
+  resolveWorkspaceView,
+} from "../src/common/workspace-view.mjs";
 import { createNativePanelProjection } from "../src/native/panel-projection.mjs";
+import { createPanelWindowJump } from "../src/native/panel-window-jump.mjs";
 
 const workspace = { id: 7, idx: 1, is_focused: true };
 const raw = {
@@ -44,6 +49,210 @@ const browserWindow = {
 };
 const card = { ...raw, cardId: `session:${raw.sessionId}`, windowId: 44, surfaceVisible: true };
 const options = { resolveHostPid: () => null, existsSync: () => false, env: {} };
+
+const sourceChanges = [
+  ["disappears", (facts) => facts.delete(46)],
+  ["moves workspace", (facts) => facts.set(46, { ...facts.get(46), workspace_id: 8 })],
+  [
+    "loses presence admission",
+    (facts) => facts.set(46, { ...facts.get(46), app_id: "brave-browser" }),
+  ],
+  ["changes process", (facts) => facts.set(46, { ...facts.get(46), pid: 9999 })],
+  [
+    "changes presence application",
+    (facts) => facts.set(46, { ...facts.get(46), app_id: "com.mitchellh.ghostty" }),
+  ],
+];
+
+for (const sourceId of [44, 46]) {
+  for (const mode of ["hover", "explicit"]) {
+    for (const selection of ["absent", null, 47, 777, "bad-id", sourceId]) {
+      test(`Given accepted ${mode} jump from${sourceId} after own release, When unpublished fresh workspace selection is${selection}, Then dispatch only for the same source or legacy absence`, async () => {
+        const f = setup();
+        f.focusOn(sourceId);
+        const epoch = f.projection.getInteractionEpoch();
+        const request =
+          mode === "hover"
+            ? f.projection.requestHoverKeyboard(epoch, 55, false)
+            : f.projection.requestKeyboard();
+        assert.ok(request);
+        f.projection.keyboardChanged(request, true);
+        f.focusOn(null);
+        f.projection.setDirectory(
+          resolveWindowDirectory([...f.facts.values()], [workspace], [raw], options),
+        );
+        const reading = Promise.withResolvers();
+        const resume = Promise.withResolvers();
+        const { jump, focused } = panelJump(
+          f,
+          async () => {
+            reading.resolve();
+            await resume.promise;
+            return [...f.facts.values()];
+          },
+          async () => [
+            { ...workspace, ...(selection === "absent" ? {} : { active_window_id: selection }) },
+            { id: 8, idx: 2, is_focused: false, active_window_id: 777 },
+          ],
+        );
+        const pending = jump({ windowId: 44, request, epoch });
+        await reading.promise;
+        assert.equal(
+          f.projection.keyboardChanged(request, false),
+          true,
+          "own key release does not invalidate the accepted action",
+        );
+        resume.resolve();
+        const allowed = selection === "absent" || selection === sourceId;
+        assert.equal(
+          (await pending).ok,
+          allowed,
+          "fresh selection is checked before actual focus dispatch, without publishing a view or receiving an event",
+        );
+        assert.deepEqual(focused, allowed ? [44] : []);
+      });
+    }
+  }
+}
+
+for (const mode of ["hover", "explicit"]) {
+  for (const [change, mutate] of [
+    ...sourceChanges,
+    ["only changes title", (facts) => facts.set(46, { ...facts.get(46), title: "Updated title" })],
+  ]) {
+    test(
+      `Given an accepted neutral ${mode} jump awaiting IPC, When its source ${change} and keys are released, Then only a still-identical source may dispatch`,
+      { timeout: 5000 },
+      async () => {
+        const f = setup();
+        f.focusOn(46);
+        const epoch = f.projection.getInteractionEpoch();
+        const request =
+          mode === "hover"
+            ? f.projection.requestHoverKeyboard(epoch, 55, false)
+            : f.projection.requestKeyboard();
+        f.focusOn(null);
+        f.projection.setDirectory(
+          resolveWindowDirectory([...f.facts.values()], [workspace], [raw], options),
+        );
+        const reading = Promise.withResolvers();
+        const resume = Promise.withResolvers();
+        const { jump, focused } = panelJump(f, async () => {
+          reading.resolve();
+          await resume.promise;
+          return [...f.facts.values()];
+        });
+        const pending = jump({ windowId: 44, request, epoch });
+        await reading.promise;
+        mutate(f.facts);
+        f.projection.keyboardChanged(request, false);
+        resume.resolve();
+        const result = await pending;
+        const valid = change === "only changes title";
+        assert.equal(result.ok, valid);
+        assert.deepEqual(focused, valid ? [44] : []);
+      },
+    );
+  }
+}
+
+for (const [change, mutate] of sourceChanges) {
+  test(`Given a neutral-source keyboard grant, When its source ${change} during NULL focus and a poll publishes, Then authorization is revoked`, () => {
+    const f = setup();
+    f.focusOn(46);
+    const epoch = f.projection.getInteractionEpoch();
+    const request = f.projection.requestKeyboard();
+    f.focusOn(null);
+    mutate(f.facts);
+    const view = resolveWorkspaceView([...f.facts.values()], workspace, [raw], options);
+    f.projection.publishWorkspaceView(view);
+    assert.equal(f.last().visible, false);
+    assert.notEqual(f.projection.getInteractionEpoch(), epoch);
+    assert.equal(f.projection.ownsKeyboardRequest(request), false);
+    assert.equal(f.projection.requestKeyboard(), null);
+    assert.equal(f.projection.acceptJumpIntent(request, epoch), null);
+  });
+
+  test(`Given a neutral-source jump grant, When its source ${change} before intent acceptance, Then no window is focused`, async () => {
+    const f = setup();
+    f.focusOn(46);
+    const request = f.projection.requestKeyboard();
+    const epoch = f.projection.getInteractionEpoch();
+    f.focusOn(null);
+    f.projection.setDirectory(
+      resolveWindowDirectory([...f.facts.values()], [workspace], [raw], options),
+    );
+    const { jump, focused } = panelJump(f);
+    mutate(f.facts);
+    const result = await jump({ windowId: 44, request, epoch });
+    assert.equal(result.ok, false);
+    assert.deepEqual(focused, []);
+  });
+}
+
+test("Given valid neutral NULL continuation, When only its title changes, Then keyboard authorization remains current", () => {
+  const f = setup();
+  f.focusOn(46);
+  const epoch = f.projection.getInteractionEpoch();
+  const request = f.projection.requestKeyboard();
+  f.focusOn(null);
+  f.facts.set(46, { ...f.facts.get(46), title: "New title" });
+  f.projection.publishWorkspaceView(
+    resolveWorkspaceView([...f.facts.values()], workspace, [raw], options),
+  );
+  assert.equal(f.last().visible, true);
+  assert.equal(f.projection.getInteractionEpoch(), epoch);
+  assert.equal(f.projection.ownsKeyboardRequest(request), true);
+});
+
+// Niri reports `pid: null` when it does not know a client's process. Window ids are never reused,
+// so the window, its app and workspace still pin the source; a pid that appears later revokes it.
+const pidless = { 46: { pid: null } };
+
+test("Given a presence window whose PID niri does not report, When it is the source during panel NULL focus, Then the strip and keyboard stay until its identity changes", () => {
+  const f = setup();
+  assert.equal(f.focusOn(46, pidless).published.visible, true, "presence keeps the strip");
+  const epoch = f.projection.getInteractionEpoch();
+  const request = f.projection.requestKeyboard();
+  assert.notEqual(request, null, "the hotkey works over a pid-less presence window");
+  f.focusOn(null, pidless);
+  assert.equal(f.last().visible, true);
+  assert.equal(f.projection.getInteractionEpoch(), epoch, "panel NULL is a continuation");
+  assert.equal(f.projection.ownsKeyboardRequest(request), true);
+  f.facts.set(46, { ...f.facts.get(46), pid: 4200 });
+  f.projection.publishWorkspaceView(
+    resolveWorkspaceView([...f.facts.values()], workspace, [raw], options),
+  );
+  assert.equal(f.last().visible, false, "another process identity is another source");
+  assert.notEqual(f.projection.getInteractionEpoch(), epoch);
+  assert.equal(f.projection.ownsKeyboardRequest(request), false);
+});
+
+test("Given a pid-less presence source, When its accepted jump reaches IPC, Then exactly its target is focused", async () => {
+  const f = setup();
+  f.focusOn(46, pidless);
+  const request = f.projection.requestKeyboard();
+  const epoch = f.projection.getInteractionEpoch();
+  f.focusOn(null, pidless);
+  f.projection.setDirectory(
+    resolveWindowDirectory([...f.facts.values()], [workspace], [raw], options),
+  );
+  const { jump, focused } = panelJump(f);
+  const result = await jump({ windowId: 44, request, epoch });
+  assert.equal(result.ok, true);
+  assert.deepEqual(focused, [44]);
+});
+
+for (const [name, pid] of [
+  ["a string", "4200"],
+  ["undefined", undefined],
+]) {
+  test(`Given a presence window whose PID fact is ${name}, When it would become the source, Then it authorizes nothing`, () => {
+    const f = setup();
+    assert.equal(f.focusOn(46, { 46: { pid } }).published.visible, false, "a malformed fact");
+    assert.equal(f.projection.requestKeyboard(), null);
+  });
+}
 
 test("presence apps: Ghostty and 1Password by default, adjustable through one env list", () => {
   for (const id of [
@@ -111,9 +320,11 @@ function setup() {
     env: {},
   });
   projection.updateSnapshot({ generatedAt: 1, sessions: [raw] });
-  const focusOn = (focused) => {
+  /** @param {number | null} focused @param {Record<number, Record<string, unknown>>} [overrides] */
+  const focusOn = (focused, overrides = {}) => {
     const windows = [agentWindow, shellWindow, vaultWindow, browserWindow].map((window) => ({
       ...window,
+      ...overrides[window.id],
       is_focused: window.id === focused,
     }));
     for (const window of windows) facts.set(window.id, window);
@@ -123,6 +334,29 @@ function setup() {
     return { view, published: published.at(-1) };
   };
   return { projection, published, facts, focusOn, last: () => published.at(-1) };
+}
+
+/** The production jump binding over the fixture's live window facts.
+ * @param {ReturnType<typeof setup>} f @param {() => Promise<Record<string, unknown>[]>} [readWindows]
+ * @param {() => Promise<Record<string, unknown>[]>} [readWorkspaces] */
+function panelJump(
+  f,
+  readWindows = async () => [...f.facts.values()],
+  readWorkspaces = async () => [workspace, { id: 8, idx: 2, is_focused: false }],
+) {
+  /** @type {number[]} */
+  const focused = [];
+  const jump = createPanelWindowJump({
+    projection: f.projection,
+    getWindowFacts: (id) => f.facts.get(id) ?? null,
+    placementOptions: options,
+    isNiriSession: () => true,
+    readWindows,
+    readWorkspaces,
+    focusWindow: async (id) => focused.push(id),
+    reconcile: () => {},
+  });
+  return { jump, focused };
 }
 
 test("the strip stays present over Ghostty and 1Password, and hides over other apps", () => {

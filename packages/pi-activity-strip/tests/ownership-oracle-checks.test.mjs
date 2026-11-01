@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { runOwnershipChallenges } from "./support/challenge-ownership-oracle.mjs";
+import { createOracleEvidence } from "./support/oracle-evidence.mjs";
 import {
   CHILD_TEST_TIMEOUT_MS,
   detectedNamedFailure,
@@ -14,26 +14,45 @@ import {
 } from "./support/ownership-oracle-checks.mjs";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
-const evidence = fs.mkdtempSync(
-  path.join(process.env.PI_ACTIVITY_STRIP_ORACLE_EVIDENCE_DIR ?? os.tmpdir(), "oracle-regression-"),
-);
+const evidenceRun = createOracleEvidence();
+const evidence = evidenceRun.root;
+after((t) => {
+  const result = evidenceRun.finish();
+  if (result.retained) t.diagnostic(`oracle evidence retained (${result.reason})=${evidence}`);
+});
 const named = "Scenario: oracle boundary hover reorder";
 const duplicate = "Scenario: duplicate hover Enter before release cannot consume the intent twice";
 
 function scenario(name, check) {
   test(`Scenario: oracle correctness ${name}`, async (t) => {
     const dir = path.join(evidence, name);
-    fs.mkdirSync(dir);
-    t.diagnostic(`evidence=${dir}`);
     let outcome = { passed: true };
+    let checkFailed = false;
+    let failure;
     try {
+      fs.mkdirSync(dir);
+      t.diagnostic(`evidence=${dir}`);
       await check(dir);
     } catch (error) {
-      outcome = { passed: false, error: error.stack };
-      throw error;
-    } finally {
-      fs.writeFileSync(path.join(dir, "outcome.json"), `${JSON.stringify(outcome, null, 2)}\n`);
+      checkFailed = true;
+      failure = error;
+      evidenceRun.fail();
+      outcome = {
+        passed: false,
+        error: error instanceof Error ? (error.stack ?? error.message) : String(error),
+      };
     }
+    try {
+      fs.writeFileSync(path.join(dir, "outcome.json"), `${JSON.stringify(outcome, null, 2)}\n`);
+    } catch (error) {
+      evidenceRun.fail();
+      if (!checkFailed) {
+        checkFailed = true;
+        failure = error;
+      } else
+        t.diagnostic(`outcome write failed without replacing scenario failure: ${String(error)}`);
+    }
+    if (checkFailed) throw failure;
   });
 }
 

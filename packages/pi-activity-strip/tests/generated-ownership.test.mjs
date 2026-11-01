@@ -20,8 +20,19 @@ const invalidating = new Set([
   "superseded",
   "fresh-workspace-changed",
   "fresh-target-replaced",
+  "selection-contradicted",
+  "fresh-selection-contradicted",
 ]);
-const harmless = ["reorder", "refresh", "source-focus", "null-focus", "old-ack", "old-cancel"];
+const harmless = [
+  "reorder",
+  "refresh",
+  "source-focus",
+  "null-focus",
+  "old-ack",
+  "old-cancel",
+  "same-selection",
+  "foreign-selection",
+];
 const vocabulary = [...harmless, ...invalidating];
 const expectedFocus = (events) => (events.some((event) => invalidating.has(event)) ? [] : [55]);
 
@@ -87,6 +98,9 @@ async function replay({ mode, events }) {
     if (event === "workspace-revoked") f.handlers.onFocusedWorkspace();
     if (event === "owner-closed") f.handlers.onWindowClosed(44);
     if (event === "non-agent-focused") f.focus(99);
+    if (event === "selection-contradicted") f.handlers.onWorkspaceActiveWindowChanged(7, 99);
+    if (event === "same-selection") f.handlers.onWorkspaceActiveWindowChanged(7, 44);
+    if (event === "foreign-selection") f.handlers.onWorkspaceActiveWindowChanged(8, 99);
     if (event === "membership-lost") f.update([f.a, f.target]);
     if (event === "cancelled") p.cancelKeyboard();
     if (event === "superseded") {
@@ -95,6 +109,8 @@ async function replay({ mode, events }) {
     }
     if (event === "fresh-workspace-changed")
       workspaces = workspaces.map((w) => ({ ...w, is_focused: w.id === 9 }));
+    if (event === "fresh-selection-contradicted")
+      workspaces = workspaces.map((w) => (w.id === 7 ? { ...w, active_window_id: 99 } : w));
     if (event === "fresh-target-replaced")
       fresh = fresh.map((w) => (w.id === 55 ? { ...w, pid: 9000, title: "plain shell" } : w));
   }

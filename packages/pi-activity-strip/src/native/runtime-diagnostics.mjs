@@ -9,8 +9,45 @@ import fs from "node:fs";
 import { open, readlink, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeKeyboardObservation } from "../common/keyboard-observation.mjs";
 import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 import { parseProcStat } from "./recovery-proc.mjs";
+
+/** Record only the current supervised child's optional native-clock observation.
+ * This never calls projection/admission and refuses earlier requests or backwards native clocks.
+ * @param {import("../common/contracts.ts").ActivityStripRuntimeStatus} status
+ * @param {unknown} event @param {number | undefined} panelPid */
+export function recordNativeKeyboardObservation(status, event, panelPid) {
+  const observation = normalizeKeyboardObservation(event);
+  if (
+    !observation ||
+    !Number.isSafeInteger(panelPid) ||
+    Number(panelPid) <= 0 ||
+    panelPid !== status.panelPid
+  )
+    return false;
+  const previous = status.nativeKeyboardObservation;
+  if (
+    previous &&
+    previous.panelPid === panelPid &&
+    (observation.request < previous.request || observation.nativeMs < previous.nativeMs)
+  )
+    return false;
+  status.nativeKeyboardObservation = { ...observation, panelPid: Number(panelPid) };
+  return true;
+}
+
+/** @param {import("../common/contracts.ts").ActivityStripRuntimeStatus} status */
+function currentNativeObservation(status) {
+  const previous = status.nativeKeyboardObservation;
+  if (status.state !== "ready" || !previous || previous.panelPid !== status.panelPid) return null;
+  const observation = normalizeKeyboardObservation({
+    ...previous,
+    protocol: 2,
+    type: "keyboard-observation",
+  });
+  return observation ? { ...observation, panelPid: previous.panelPid } : null;
+}
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
 /** @param {import("node:crypto").BinaryLike} bytes */
@@ -166,6 +203,7 @@ export function createRuntimeStatusReader({ runtimeStatus, projection }) {
   return () => {
     refresh(); // async sampling only; status/keyboard event handling never waits for file I/O.
     const facts = projection.diagnostics();
+    const nativeKeyboardObservation = currentNativeObservation(runtimeStatus);
     const visibilityReason =
       runtimeStatus.state !== "ready"
         ? runtimeStatus.state
@@ -182,6 +220,7 @@ export function createRuntimeStatusReader({ runtimeStatus, projection }) {
                   : "eligible-agent-context";
     return {
       ...runtimeStatus,
+      nativeKeyboardObservation,
       warnings: [...(runtimeStatus.warnings ?? [])],
       ribbonDiagnostics: {
         controllerStartupSourceSha256,
@@ -190,8 +229,9 @@ export function createRuntimeStatusReader({ runtimeStatus, projection }) {
         panelBuildObservedAt: sampledAt || null,
         visibilityReason,
         ...facts,
-        // Protocol 2 does not report native monotonic expiry. A grant is NOT capture proof.
-        captureExpiry: "not-observed",
+        // Last observed native-domain fact only: never infer expiry from the controller clock.
+        captureExpiry: nativeKeyboardObservation ? "native-observed" : "not-observed",
+        nativeKeyboardObservation,
       },
     };
   };

@@ -25,6 +25,28 @@ const fixtureRoot = path.join(
   "fixtures",
   "fake-atspi",
 );
+const privateSentinel = "PRIVATE_ATSPI_SENTINEL/path/title/env";
+const diagnostic = (
+  reason,
+  { code = "unknown", signal = "unknown", stage = "unknown", helperReason = "unknown" } = {},
+) =>
+  `the tab inventory helper failed (reason=${reason}, code=${code}, signal=${signal}, stage=${stage}, helperReason=${helperReason})`;
+
+function fixtureEnv(t, tree, extra = {}) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fake-atspi-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const treePath = path.join(directory, "tree.json");
+  fs.writeFileSync(treePath, JSON.stringify(tree));
+  return {
+    ...process.env,
+    PYTHONPATH: fixtureRoot,
+    PYTHONDONTWRITEBYTECODE: "1",
+    FAKE_ATSPI_TREE: treePath,
+    FAKE_ATSPI_IMPORT_FAILURE: "0",
+    ...extra,
+  };
+}
+
 const token = "019fa4d071427fb48d30f98e951f0513";
 const ghostty = (id, title, pid = 4000, extra = {}) => ({
   id,
@@ -117,7 +139,8 @@ test("tab inventory probe distinguishes unavailable bindings from transient help
   assert.deepEqual(await probeGhosttyTabInventory({ execFileAsync: unavailable, pids: [1] }), {
     ok: false,
     unavailable: true,
-    error: "AT-SPI bindings unavailable: No module named gi",
+    // Legacy raw helper text is not a safe diagnostic vocabulary.
+    error: diagnostic("import-unavailable", { code: 3 }),
   });
   const missing = async () => {
     const error = new Error("spawn python3 ENOENT");
@@ -130,17 +153,19 @@ test("tab inventory probe distinguishes unavailable bindings from transient help
     pythonBin: "python3",
   });
   assert.equal(missingResult.unavailable, true);
-  assert.match(missingResult.error, /python3 is not installed/);
-  const timedOut = async () => {
+  assert.equal(missingResult.error, diagnostic("missing-interpreter"));
+  // execFile marks only its own deadline kill as killed; output limits and aborts reject with a
+  // string code instead (measured on Node 22.23.3 and 26.13.0).
+  const terminated = async () => {
     const error = new Error("killed");
     error.killed = true;
     error.code = null;
     throw error;
   };
-  assert.deepEqual(await probeGhosttyTabInventory({ execFileAsync: timedOut, pids: [1] }), {
+  assert.deepEqual(await probeGhosttyTabInventory({ execFileAsync: terminated, pids: [1] }), {
     ok: false,
     unavailable: false,
-    error: "the tab inventory helper timed out",
+    error: diagnostic("timeout"),
   });
   const garbage = async () => ({ stdout: "not json" });
   assert.equal(
@@ -170,7 +195,7 @@ test("tab inventory probe distinguishes unavailable bindings from transient help
   );
 });
 
-test("the AT-SPI helper reports only frames of requested pids and their page tabs", async () => {
+test("the AT-SPI helper reports only frames of requested pids and their page tabs", async (t) => {
   const tree = {
     children: [
       {
@@ -199,9 +224,7 @@ test("the AT-SPI helper reports only frames of requested pids and their page tab
       { pid: 4001, children: [{ role: "frame", name: "other", children: [] }] },
     ],
   };
-  const treePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "fake-atspi-")), "tree.json");
-  fs.writeFileSync(treePath, JSON.stringify(tree));
-  const env = { ...process.env, PYTHONPATH: fixtureRoot, FAKE_ATSPI_TREE: treePath };
+  const env = fixtureEnv(t, tree);
   const result = await probeGhosttyTabInventory({
     execFileAsync,
     env,
@@ -221,12 +244,6 @@ test("the AT-SPI helper reports only frames of requested pids and their page tab
 
   const unavailable = await probeGhosttyTabInventory({
     execFileAsync,
-    env: {
-      ...process.env,
-      PYTHONPATH: fs.mkdtempSync(path.join(os.tmpdir(), "no-gi-")),
-      PYTHONNOUSERSITE: "1",
-      PYTHONSAFEPATH: "1",
-    },
     pythonBin: process.execPath,
     scriptPath: path.join(fixtureRoot, "exit-3.mjs"),
     pids: [4000],
@@ -235,3 +252,372 @@ test("the AT-SPI helper reports only frames of requested pids and their page tab
   assert.equal(unavailable.unavailable, true);
   assert.equal(fs.existsSync(TAB_INVENTORY_SCRIPT), true);
 });
+
+test("Given transport rejection, When stdout varies, Then safe metadata wins independently of JSON", async (t) => {
+  const cases = [
+    ["killed with valid object", { killed: true, stdout: "{}" }, "timeout", {}],
+    ["missing with valid object", { code: "ENOENT", stdout: "{}" }, "missing-interpreter", {}],
+    ["exit one empty", { code: 1, stdout: "" }, "exit-status", { code: 1 }],
+    ["access denied", { code: "EACCES", stdout: "{}" }, "access-denied", {}],
+    ["operation denied", { code: "EPERM" }, "access-denied", {}],
+    [
+      "output limit",
+      { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER", killed: true },
+      "output-limit",
+      {},
+    ],
+    // execFile's own timeout rejects with exactly this shape (code null, killed true).
+    [
+      "parent kill without code",
+      { code: null, signal: "SIGTERM", killed: true },
+      "timeout",
+      { signal: "SIGTERM" },
+    ],
+    [
+      "parent kill the child handled",
+      { code: 143, signal: null, killed: true },
+      "timeout",
+      { code: 143 },
+    ],
+    [
+      "external signal",
+      { code: null, signal: "SIGTERM", killed: false },
+      "signal",
+      { signal: "SIGTERM" },
+    ],
+    ["known signal without killed", { signal: "SIGKILL" }, "signal", { signal: "SIGKILL" }],
+    ["seccomp signal", { signal: "SIGSYS" }, "signal", { signal: "SIGSYS" }],
+    ["unknown signal", { signal: privateSentinel, killed: true }, "timeout", {}],
+    ["killed with unknown code", { code: privateSentinel, killed: true }, "terminated-unknown", {}],
+    ["unknown code", { code: privateSentinel }, "unknown", {}],
+    ["string numeric code", { code: "1" }, "unknown", {}],
+    ["fractional code", { code: 1.5 }, "unknown", {}],
+    ["unbounded code", { code: 1e100 }, "unknown", {}],
+    ["negative code", { code: -7 }, "exit-status", { code: -7 }],
+    [
+      "largest safe integer",
+      { code: Number.MAX_SAFE_INTEGER },
+      "exit-status",
+      { code: Number.MAX_SAFE_INTEGER },
+    ],
+    [
+      "arbitrary error JSON",
+      {
+        code: 1,
+        stdout: JSON.stringify({
+          error: privateSentinel,
+          stage: privateSentinel,
+          reason: privateSentinel,
+        }),
+      },
+      "exit-status",
+      { code: 1 },
+    ],
+    [
+      "safe helper fields",
+      {
+        code: 1,
+        stdout: JSON.stringify({
+          ok: false,
+          stage: "desktop-count",
+          reason: "enumeration-failed",
+          error: privateSentinel,
+        }),
+      },
+      "exit-status",
+      { code: 1, stage: "desktop-count", helperReason: "enumeration-failed" },
+    ],
+    [
+      "unsafe helper reason",
+      { code: 1, stdout: JSON.stringify({ stage: "desktop-count", reason: privateSentinel }) },
+      "exit-status",
+      { code: 1, stage: "desktop-count" },
+    ],
+    [
+      "legacy unavailable",
+      { code: 3, stdout: JSON.stringify({ error: privateSentinel }) },
+      "import-unavailable",
+      { code: 3 },
+    ],
+    [
+      "exit cannot become success",
+      { code: 1, stdout: JSON.stringify({ ok: true, frames: [] }) },
+      "exit-status",
+      { code: 1 },
+    ],
+    ["unknown with raw stdout", { stdout: privateSentinel }, "unknown", {}],
+    ["null JSON", { stdout: "null" }, "unknown", {}],
+  ];
+  for (const [name, metadata, reason, fields] of cases) {
+    await t.test(name, async () => {
+      const result = await probeGhosttyTabInventory({
+        pids: [1],
+        pythonBin: privateSentinel,
+        execFileAsync: async () => {
+          throw Object.assign(new Error(privateSentinel), { stderr: privateSentinel }, metadata);
+        },
+      });
+      assert.deepEqual(result, {
+        ok: false,
+        unavailable: reason === "missing-interpreter" || reason === "import-unavailable",
+        error: diagnostic(reason, fields),
+      });
+      assert.equal(JSON.stringify(result).includes(privateSentinel), false);
+    });
+  }
+  for (const code of ["ENOENT", "EACCES", 1]) {
+    await t.test(`capability failure redacts interpreter for ${code}`, async () => {
+      const result = await detectTabInventorySupport({
+        env: { PI_ACTIVITY_STRIP_PYTHON: privateSentinel },
+        execFileAsync: async () => {
+          throw Object.assign(new Error(privateSentinel), { code, stderr: privateSentinel });
+        },
+      });
+      assert.equal(result.available, false);
+      assert.equal(JSON.stringify(result).includes(privateSentinel), false);
+    });
+  }
+});
+
+test("Given the helper's failure vocabulary, When it fails with any of it, Then the probe keeps it", async (t) => {
+  const source = fs.readFileSync(TAB_INVENTORY_SCRIPT, "utf8");
+  const literals = (pattern) => [...source.matchAll(pattern)].flatMap((match) => match.slice(1));
+  const stages = new Set(literals(/\bstage = "([a-z-]+)"|\bfail\("([a-z-]+)"/g).filter(Boolean));
+  const reasons = new Set(
+    literals(
+      /\bfail\((?:stage|"[a-z-]+"), "([a-z-]+)"|"([a-z-]+)" if isinstance\(.*?\) else "([a-z-]+)"/g,
+    ).filter(Boolean),
+  );
+  assert.equal(stages.size, 6, `helper stages: ${[...stages]}`);
+  assert.equal(reasons.size, 4, `helper reasons: ${[...reasons]}`);
+  const probe = (stage, reason) =>
+    probeGhosttyTabInventory({
+      pids: [1],
+      execFileAsync: async () => {
+        throw Object.assign(new Error("exit 1"), {
+          code: 1,
+          stdout: JSON.stringify({ ok: false, stage, reason }),
+        });
+      },
+    });
+  for (const stage of stages) {
+    await t.test(`stage ${stage}`, async () => {
+      assert.equal(
+        (await probe(stage, "enumeration-failed")).error,
+        diagnostic("exit-status", { code: 1, stage, helperReason: "enumeration-failed" }),
+      );
+    });
+  }
+  for (const reason of reasons) {
+    await t.test(`reason ${reason}`, async () => {
+      assert.equal(
+        (await probe("desktop-count", reason)).error,
+        diagnostic("exit-status", { code: 1, stage: "desktop-count", helperReason: reason }),
+      );
+    });
+  }
+});
+
+test("Given the real execFile transport, When a helper is stopped, Then only the probe's own deadline reads as timeout", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tab-inventory-transport-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const helper = (name, source) => {
+    const file = path.join(directory, name);
+    fs.writeFileSync(file, source);
+    return file;
+  };
+  const outlives = helper("outlives.mjs", "setTimeout(() => {}, 30_000);\n");
+  const killedElsewhere = helper(
+    "killed-elsewhere.mjs",
+    "process.kill(process.pid, 'SIGTERM');\nsetTimeout(() => {}, 30_000);\n",
+  );
+  // An interpreter wrapper that traps SIGTERM exits with a status instead of the signal.
+  const handlesTerm = helper(
+    "handles-term.mjs",
+    "process.on('SIGTERM', () => process.exit(143));\nsetTimeout(() => {}, 30_000);\n",
+  );
+  const probe = (scriptPath, timeout) =>
+    probeGhosttyTabInventory({
+      execFileAsync,
+      env: { PATH: process.env.PATH ?? "" },
+      pids: [1],
+      pythonBin: process.execPath,
+      scriptPath,
+      timeout,
+    });
+
+  await t.test(
+    "Given a helper that outlives the deadline, When the probe stops it, Then reason=timeout",
+    async () => {
+      assert.deepEqual(await probe(outlives, 250), {
+        ok: false,
+        unavailable: false,
+        error: diagnostic("timeout", { signal: "SIGTERM" }),
+      });
+    },
+  );
+  await t.test(
+    "Given a helper that exits on SIGTERM, When the deadline stops it, Then reason=timeout keeps its status",
+    async () => {
+      assert.deepEqual(await probe(handlesTerm, 250), {
+        ok: false,
+        unavailable: false,
+        error: diagnostic("timeout", { code: 143 }),
+      });
+    },
+  );
+  await t.test(
+    "Given a helper terminated by another process, When it dies of SIGTERM, Then reason=signal",
+    async () => {
+      assert.deepEqual(await probe(killedElsewhere, 30_000), {
+        ok: false,
+        unavailable: false,
+        error: diagnostic("signal", { signal: "SIGTERM" }),
+      });
+    },
+  );
+});
+
+test("Given fatal AT-SPI boundaries, When enumeration fails, Then emit fixed JSON and never partial success", async (t) => {
+  const frame = { role: "frame", name: "good", children: [{ role: "page tab", name: "tab" }] };
+  const app = { pid: 4000, children: [frame] };
+  const cases = [
+    ["desktop raises", { desktop: "raise" }, "desktop-lookup", "enumeration-failed"],
+    ["desktop absent", { desktop: "none" }, "desktop-lookup", "desktop-unavailable"],
+    ["desktop count", { faults: { count: "raise" } }, "desktop-count", "enumeration-failed"],
+    [
+      "desktop index after a good app",
+      { children: [app, app], faults: { "index:1": "raise" } },
+      "desktop-index",
+      "enumeration-failed",
+    ],
+    [
+      "target app count",
+      { children: [{ ...app, faults: { count: "raise" } }] },
+      "application-count",
+      "enumeration-failed",
+    ],
+    [
+      "target app index after a good frame",
+      { children: [{ ...app, children: [frame, frame], faults: { "index:1": "raise" } }] },
+      "application-index",
+      "enumeration-failed",
+    ],
+    ["permission denied", { faults: { count: "denied" } }, "desktop-count", "access-denied"],
+    [
+      "bindings import",
+      {},
+      "import",
+      "bindings-unavailable",
+      { FAKE_ATSPI_IMPORT_FAILURE: "1" },
+      3,
+    ],
+  ];
+  for (const [name, tree, stage, reason, extra = {}, code = 1] of cases) {
+    await t.test(name, async (t) => {
+      const env = fixtureEnv(t, tree, extra);
+      let failure;
+      try {
+        await execFileAsync("python3", [TAB_INVENTORY_SCRIPT, "4000"], { env, timeout: 10000 });
+      } catch (error) {
+        failure = error;
+      }
+      assert.ok(failure, "fatal boundary must exit nonzero");
+      assert.equal(failure.code, code);
+      assert.equal(failure.stderr, "", "no traceback/private exception text");
+      assert.deepEqual(JSON.parse(failure.stdout), { ok: false, stage, reason });
+      assert.equal(failure.stdout.includes(privateSentinel), false);
+      const result = await probeGhosttyTabInventory({
+        execFileAsync,
+        env,
+        pids: [4000],
+        timeout: 10000,
+      });
+      assert.deepEqual(result, {
+        ok: false,
+        unavailable: code === 3,
+        error: diagnostic(code === 3 ? "import-unavailable" : "exit-status", {
+          code,
+          stage,
+          helperReason: reason,
+        }),
+      });
+    });
+  }
+});
+
+test("Given vanished transient nodes and non-target apps, When traversing, Then preserve skip logic", async (t) => {
+  const tree = {
+    children: [
+      { pid: 9999, faults: { count: "raise", "index:0": "raise" } },
+      { faults: { pid: "raise" } },
+      {
+        pid: 4000,
+        children: [
+          { role: "frame", faults: { role: "raise" } },
+          { role: "frame", faults: { name: "raise" } },
+          {
+            role: "frame",
+            name: "ok",
+            children: [
+              { faults: { role: "raise" } },
+              { faults: { count: "raise" } },
+              { children: [{}], faults: { "index:0": "raise" } },
+              { children: [null] },
+              { role: "page tab", faults: { name: "raise" } },
+              { role: "page tab", name: "kept" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(
+    await probeGhosttyTabInventory({ execFileAsync, env: fixtureEnv(t, tree), pids: [4000] }),
+    { ok: true, frames: [{ pid: 4000, name: "ok", tabs: ["kept"] }] },
+  );
+});
+
+for (const boundary of ["desktop-child", "frame-sibling"]) {
+  test(`Given healthy siblings and null ${boundary}, When enumerating, Then keep healthy frames and exact bindings`, async (t) => {
+    const label = `hidden · gs:main:17 · ${token}`;
+    const frame = {
+      role: "frame",
+      name: "healthy window",
+      children: [{ role: "page tab", name: label }],
+    };
+    const app = {
+      pid: 4000,
+      children: boundary === "frame-sibling" ? [null, frame, null] : [frame],
+    };
+    const tree = { children: boundary === "desktop-child" ? [null, app, null] : [app] };
+    const result = await probeGhosttyTabInventory({
+      execFileAsync,
+      env: fixtureEnv(t, tree),
+      pids: [4000],
+      timeout: 10_000,
+    });
+    assert.deepEqual(
+      result,
+      {
+        ok: true,
+        frames: [{ pid: 4000, name: "healthy window", tabs: [label] }],
+      },
+      "null siblings must not discard a healthy target or trigger failure backoff",
+    );
+    assert.deepEqual(mapTabInventoryToBindings(result.frames, [ghostty(44, "healthy window")]), [
+      {
+        bindingKey: "ghostty:main:17",
+        windowId: 44,
+        windowPid: 4000,
+        appId: "com.mitchellh.ghostty",
+      },
+      {
+        bindingKey: `pi-session:${token}`,
+        windowId: 44,
+        windowPid: 4000,
+        appId: "com.mitchellh.ghostty",
+      },
+    ]);
+  });
+}

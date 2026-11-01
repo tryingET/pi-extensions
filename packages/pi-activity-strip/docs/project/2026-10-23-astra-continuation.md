@@ -2,6 +2,7 @@
 summary: "AK7417 Astra continuation: verified custody, executable harness repairs, and distinct source, private-GUI and live acceptance rows."
 read_when:
   - "Continuing AK7417 after the Oct23 predecessor safe stop."
+task_id: 7417
 ---
 
 # Astra continuation — qualification in progress

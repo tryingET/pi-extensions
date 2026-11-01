@@ -4,7 +4,10 @@ use crate::directory_view::{
 };
 use crate::hints;
 use crate::hover_keyboard::{HoverKeyboard, monotonic_ms};
-use crate::interaction::{InteractionLifetime, accepts_pointer, surface_state};
+use crate::interaction::{
+    HideAnchor, InteractionLifetime, PointerAnchor, accepts_pointer, is_stationary_reentry,
+    surface_state,
+};
 use crate::protocol::{Card, ViewMessage, WindowEntry, demo_view, emit, emit_error, emit_ready};
 use crate::runtime::{apply_theme, duplicate_labels, install_css, now_ms, start_input_reader};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
@@ -47,6 +50,8 @@ pub struct App {
     /// Explicit/manual keyboard mode; hover must NOT inherit its arrow or unlisted-window powers.
     keyboard_active: bool,
     hover_keyboard: HoverKeyboard,
+    /// Set when the panel hides with the pointer inside; consumed by the next body entry.
+    pointer_anchor: Option<HideAnchor>,
     hover_capture: Rc<Cell<bool>>,
     interaction_epoch: u64,
     open_card_id: Option<String>,
@@ -276,6 +281,7 @@ impl Component for App {
             keyboard_focused: None,
             keyboard_active: false,
             hover_keyboard: HoverKeyboard::default(),
+            pointer_anchor: None,
             hover_capture: Rc::clone(&hover_capture),
             interaction_epoch: 0,
             open_card_id: None,
@@ -368,10 +374,12 @@ impl Component for App {
         widgets.root.add_controller(keys);
 
         let tick_tx = sender.input_sender().clone();
-        glib::timeout_add_seconds_local(1, move || {
+        let _tick_source = glib::timeout_add_seconds_local(1, move || {
             let _ = tick_tx.send(AppMsg::Tick);
             glib::ControlFlow::Continue
         });
+        #[cfg(test)]
+        gui_tests::configure_tick_source(_tick_source);
 
         if init.demo {
             let _ = sender.input_sender().send(AppMsg::View(demo_view()));
@@ -389,6 +397,8 @@ impl Component for App {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
+        #[cfg(test)]
+        let _dispatch_observation = gui_tests::observe_dispatch(&message, self, root);
         if !self.visible || !self.interactive {
             match &message {
                 AppMsg::Hover(..)
@@ -412,10 +422,14 @@ impl Component for App {
                 // Observe an actual mapped absence before rearming after release/hide.
                 if root.is_mapped() && !self.pointer.contains_pointer() {
                     self.hover_keyboard.inside = false;
+                    self.pointer_anchor = self
+                        .pointer_anchor
+                        .and_then(HideAnchor::after_mapped_absence);
                 }
                 if self.hover_keyboard.expired(monotonic_ms()) {
                     // Idle typing time ends the keyboard grab, not the hover: the card under a
                     // stationary pointer stays open.
+                    self.observe_keyboard("idle-expired");
                     self.release_keyboard(widgets, root);
                 }
                 // Regrouping moves cards. Never under the pointer or the keyboard selection; the
@@ -510,6 +524,7 @@ impl Component for App {
                         if focus_grabbed {
                             self.reconcile_engagement(widgets, root, &sender);
                             self.update_brand(widgets);
+                            self.observe_keyboard("acquired");
                             emit(
                                 json!({ "protocol": 2, "type": "keyboard-active", "active": true, "revision": self.keyboard_request }),
                             );
@@ -592,6 +607,9 @@ impl Component for App {
                 }
                 self.window_active = active;
                 if active {
+                    if self.keyboard_active {
+                        self.observe_keyboard("acquired");
+                    }
                     if self.hover_keyboard.active {
                         if accepts_pointer(
                             self.visible,
@@ -675,12 +693,19 @@ impl Component for App {
                 self.directory_hovered = entered;
                 if entered {
                     let fresh_entry = !self.hover_keyboard.inside;
+                    // The compositor re-entering the pointer that sat here at hide is not intent,
+                    // even after a mapped Tick cleared `inside`.
+                    let stationary = is_stationary_reentry(
+                        self.pointer_anchor.take().map(|anchor| anchor.at),
+                        pointer_surface_position(root),
+                    );
                     self.hover_keyboard.inside = true;
                     self.open_directory(widgets, root);
-                    if fresh_entry {
+                    if fresh_entry && !stationary {
                         self.request_hover_keyboard(root);
                     }
                 } else {
+                    self.pointer_anchor = None;
                     self.hover_keyboard.inside = false;
                     if !self.keyboard_active {
                         self.leave_keyboard_mode(widgets, root);
@@ -690,6 +715,7 @@ impl Component for App {
             AppMsg::DirectoryKey(key) => {
                 if self.owns_keyboard() {
                     self.hover_keyboard.touch(monotonic_ms());
+                    self.observe_keyboard("activity");
                     self.handle_directory_key(widgets, root, key);
                 }
             }
@@ -732,6 +758,13 @@ fn scroll_to_show(value: f64, page: f64, start: f64, end: f64) -> f64 {
 /// Whether a result for `target` answers the request the list opened as `session` is waiting on.
 fn answers_request(pending: Option<&PendingRequest>, session: u64, target: &RequestTarget) -> bool {
     pending.is_some_and(|request| request.session == session && &request.target == target)
+}
+
+/// GDK's own surface-local pointer position, while this surface has pointer focus.
+fn pointer_surface_position(root: &gtk::Window) -> Option<(f64, f64)> {
+    let pointer = WidgetExt::display(root).default_seat()?.pointer()?;
+    let (x, y, _) = root.surface()?.device_position(&pointer)?;
+    Some((x, y))
 }
 
 /// A physical Shift press prepares a capital query character; it is not an interrupt or an idle
@@ -853,8 +886,22 @@ impl App {
         self.keyboard_active || self.hover_keyboard.active
     }
 
+    /// Allowlisted native facts only. This message never authorizes input or changes timers.
+    fn observe_keyboard(&self, reason: &str) {
+        if let Some(event) = crate::keyboard_observation::normalize(&json!({
+            "protocol": 2, "type": "keyboard-observation", "request": self.keyboard_request,
+            "origin": if self.keyboard_active { "explicit" } else { "hover" },
+            "reason": reason, "nativeMs": monotonic_ms(),
+            "deadlineMs": self.hover_keyboard.captured_deadline_ms(),
+            "captured": self.hover_keyboard.captured || (self.keyboard_active && self.window_active),
+        })) {
+            emit(event);
+        }
+    }
+
     fn acknowledge_hover_keyboard(&mut self) {
         if self.hover_keyboard.acquired(monotonic_ms()) {
+            self.observe_keyboard("acquired");
             emit(
                 json!({ "protocol": 2, "type": "keyboard-active", "active": true, "revision": self.keyboard_request }),
             );
@@ -921,6 +968,12 @@ impl App {
         self.lifetime.invalidate();
         let should_show = view.visible && !view.sessions.is_empty();
         let visibility_changed = should_show != self.visible;
+        if self.visible && !should_show && self.hover_keyboard.inside {
+            self.pointer_anchor = Some(HideAnchor::new(
+                pointer_surface_position(root)
+                    .map_or(PointerAnchor::Unknown, |(x, y)| PointerAnchor::At(x, y)),
+            ));
+        }
         self.visible = should_show;
         let focus_moved = self.focused_card_id != view.focused_card_id;
         let hotkey_changed = self.hotkey != view.hotkey;
@@ -929,6 +982,7 @@ impl App {
         // controller's own activation echo) is not an app switch: it must not collapse the card
         // under the pointer, only drop a hover request that has not been answered yet.
         if !should_show || view.interaction_epoch != self.interaction_epoch || visibility_changed {
+            self.observe_keyboard("source-revoked");
             self.leave_keyboard_mode(widgets, root);
         } else if focus_moved && !self.owns_keyboard() {
             self.cancel_pending_hover();

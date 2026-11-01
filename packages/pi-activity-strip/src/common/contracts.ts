@@ -80,6 +80,17 @@ export interface BrokerSnapshot {
 
 export type ActivityStripRuntimeState = "starting" | "ready" | "error";
 
+/** A last native observation, not current capture/authorization or a cross-clock timer. */
+export interface NativeKeyboardObservation {
+  panelPid: number;
+  request: number;
+  origin: "hover" | "explicit";
+  reason: "acquired" | "activity" | "idle-expired" | "source-revoked";
+  nativeMs: number;
+  deadlineMs: number | null;
+  captured: boolean;
+}
+
 export interface ActivityStripRuntimeStatus {
   state: ActivityStripRuntimeState;
   backend?: "native-layer-shell";
@@ -124,6 +135,7 @@ export interface ActivityStripRuntimeStatus {
   controllerPid?: number;
   panelPid?: number | null;
   panelExpanded?: boolean;
+  nativeKeyboardObservation?: NativeKeyboardObservation | null;
   /** Optional observational extension; absent on older controllers, never input/AK authority. */
   ribbonDiagnostics?: {
     controllerStartupSourceSha256: string | null;
@@ -143,6 +155,7 @@ export interface ActivityStripRuntimeStatus {
     interactionEpoch: number;
     keyboardAuthorization: "none" | "hover" | "explicit";
     captureExpiry: string;
+    nativeKeyboardObservation?: NativeKeyboardObservation | null;
   };
   clickThrough?: boolean;
   panelMoveCount?: number;

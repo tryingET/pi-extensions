@@ -4,6 +4,8 @@
 //   - "changing diagnostic output or its redaction boundary"
 // ---
 
+import { normalizeKeyboardObservation } from "./keyboard-observation.mjs";
+
 /** @param {unknown} value @param {string[]} allowed */
 const enumValue = (value, allowed) =>
   typeof value === "string" && allowed.includes(value) ? value : "unknown";
@@ -15,10 +17,20 @@ const hashValue = (value) =>
 export function formatRibbonDiagnostics(diagnostics) {
   if (!diagnostics) return ["ribbon diagnostics: not reported by this controller"];
   const build = diagnostics.panelBuild;
+  const native = normalizeKeyboardObservation({
+    ...diagnostics.nativeKeyboardObservation,
+    protocol: 2,
+    type: "keyboard-observation",
+  });
   return [
-    `visibility reason: ${enumValue(diagnostics.visibilityReason, ["starting", "error", "unproven-focus", "non-agent-focus", "no-admitted-owner", "awaiting-panel-visibility", "eligible-agent-context"])}`,
+    `visibility reason: ${enumValue(diagnostics.visibilityReason, ["starting", "error", "unproven-focus", "non-agent-focus", "no-admitted-owner", "awaiting-panel-visibility", "eligible-agent-context", "eligible-presence-context"])}`,
     `keyboard authorization: ${enumValue(diagnostics.keyboardAuthorization, ["none", "hover", "explicit"])} (not proof of capture)`,
-    "capture expiry: not observed (native monotonic clock)",
+    ...(native
+      ? [
+          `capture expiry: last native observation (${native.origin}; ${native.reason}), not current authority`,
+          `native monotonic ms: ${native.nativeMs}; idle deadline ms: ${native.deadlineMs ?? "not applicable (explicit)"}; request: ${native.request} (same native process clock only; not a countdown)`,
+        ]
+      : ["capture expiry: not observed (native monotonic clock)"]),
     `private protocol: expected ${Number.isSafeInteger(diagnostics.expectedPrivateProtocol) ? diagnostics.expectedPrivateProtocol : "unknown"}, receipt ${Number.isSafeInteger(build?.privateProtocol) ? build.privateProtocol : "unknown"}`,
     `panel receipt: ${enumValue(build?.state, ["pending", "unavailable", "changed-during-observation", "incompatible", "receipt-matched", "receipt-mismatch"])}`,
     `panel PID executable sha256: ${hashValue(build?.binarySha256)} (sampled; not custody proof)`,

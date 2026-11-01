@@ -14,17 +14,107 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { normalizeKeyboardObservation } from "../src/common/keyboard-observation.mjs";
 import { formatRibbonDiagnostics } from "../src/common/ribbon-status.mjs";
 import {
   formatBrokerRuntimeStatus,
   summarizeBrokerRuntimeStatus,
 } from "../src/common/status-report.mjs";
+import { createNativePanelProjection } from "../src/native/panel-projection.mjs";
 import {
   createRuntimeStatusReader,
   inspectPanelBuild,
+  recordNativeKeyboardObservation,
 } from "../src/native/runtime-diagnostics.mjs";
 import { productionFixture } from "./support/production-panel-fixture.mjs";
 import { createSocketFixture } from "./support/socket-fixture.mjs";
+
+test("Given a real admitted presence source, When the production reader and formatter explain visibility, Then name eligible presence rather than unknown", () => {
+  const raw = { sessionId: "agent", publisherId: "p" };
+  const presence = { id: 99, workspace_id: 7, app_id: "com.onepassword.OnePassword", pid: 4100 };
+  const projection = createNativePanelProjection({
+    isNiriSession: () => true,
+    publish() {},
+    getWindowFacts: (id) => (id === 99 ? presence : null),
+    env: {},
+  });
+  projection.updateSnapshot({ generatedAt: 1, sessions: [raw] });
+  projection.publishWorkspaceView({
+    workspace: { id: 7, is_focused: true },
+    sessions: [{ ...raw, cardId: "session:agent", windowId: 44 }],
+    focusKind: "neutral",
+    focusWindowId: 99,
+    focusedCardId: null,
+    focusedSessionId: null,
+  });
+  const read = createRuntimeStatusReader({
+    runtimeStatus: { state: "ready", startedAt: 1, windowVisible: true },
+    projection,
+  });
+  const observed = read().ribbonDiagnostics;
+  assert.equal(observed.visibilityReason, "eligible-presence-context");
+  assert.match(
+    formatRibbonDiagnostics(observed).join("\n"),
+    /visibility reason: eligible-presence-context/,
+  );
+});
+
+const observationCases = JSON.parse(
+  fs.readFileSync(
+    new URL("../native/panel/src/keyboard-observation-fixtures.json", import.meta.url),
+    "utf8",
+  ),
+);
+for (const entry of observationCases) {
+  test(`Given shared Node/Rust protocol case ${entry.name}, When observing it, Then respect its independent expected validity without authority`, () => {
+    const normalized = normalizeKeyboardObservation(entry.event);
+    assert.equal(normalized !== null, entry.valid);
+    if (normalized) {
+      assert.doesNotMatch(JSON.stringify(normalized), /SECRET|query|credential/);
+      const f = productionFixture();
+      const before = f.projection.diagnostics();
+      const status = { state: "ready", startedAt: 1, panelPid: 321 };
+      assert.equal(recordNativeKeyboardObservation(status, entry.event, 321), true);
+      const observed = createRuntimeStatusReader({
+        runtimeStatus: status,
+        projection: f.projection,
+      })();
+      assert.equal(observed.ribbonDiagnostics.captureExpiry, "native-observed");
+      assert.deepEqual(f.projection.diagnostics(), before);
+      assert.doesNotMatch(JSON.stringify(observed), /SECRET|credential|query/);
+    }
+  });
+}
+
+test("Given the current supervised native clock, When stale request/clock/process observations arrive, Then keep the last valid fact and never touch input authority", () => {
+  const event = observationCases[0].event;
+  const f = productionFixture();
+  const before = f.projection.diagnostics();
+  const status = { state: "ready", startedAt: 1, panelPid: 321 };
+  assert.equal(recordNativeKeyboardObservation(status, event, 321), true);
+  const saved = structuredClone(status.nativeKeyboardObservation);
+  for (const patch of [
+    { request: 0 },
+    { nativeMs: 999 },
+    { captured: false },
+    { request: "1" },
+    { reason: ["acquired"] },
+  ]) {
+    assert.equal(recordNativeKeyboardObservation(status, { ...event, ...patch }, 321), false);
+    assert.deepEqual(status.nativeKeyboardObservation, saved);
+  }
+  assert.equal(recordNativeKeyboardObservation(status, event, 322), false);
+  status.panelPid = 322;
+  const read = createRuntimeStatusReader({ runtimeStatus: status, projection: f.projection });
+  assert.equal(read().ribbonDiagnostics.captureExpiry, "not-observed");
+  status.nativeKeyboardObservation = null; // Production startPanel reset, even if a PID is reused.
+  assert.equal(
+    recordNativeKeyboardObservation(status, { ...event, nativeMs: 10, deadlineMs: 3010 }, 322),
+    true,
+  );
+  assert.equal(read().ribbonDiagnostics.nativeKeyboardObservation.nativeMs, 10);
+  assert.deepEqual(f.projection.diagnostics(), before);
+});
 
 test("Scenario: a hidden ribbon cannot report its old expansion as current", () => {
   // Given a delayed expanded report after the surface has hidden,
@@ -67,6 +157,47 @@ for (const mode of ["none", "hover", "explicit"])
     f.handlers.onFocusedWorkspace();
     assert.equal(read().ribbonDiagnostics.visibilityReason, "unproven-focus");
   });
+
+test("Given native monotonic expiry evidence, When read-only diagnostics are requested, Then explain the observed hover deadline without wall-clock arithmetic or new authority", () => {
+  const f = productionFixture();
+  const request = f.claim("hover");
+  const before = f.projection.diagnostics();
+  const runtimeStatus = {
+    state: "ready",
+    startedAt: 1,
+    windowVisible: true,
+    panelPid: 123,
+    nativeKeyboardObservation: {
+      panelPid: 123,
+      request,
+      origin: "hover",
+      reason: "idle-expired",
+      nativeMs: 4000,
+      deadlineMs: 4000,
+      captured: true,
+    },
+  };
+  const read = createRuntimeStatusReader({ runtimeStatus, projection: f.projection });
+  const result = read().ribbonDiagnostics;
+  assert.equal(result.captureExpiry, "native-observed");
+  assert.deepEqual(result.nativeKeyboardObservation, runtimeStatus.nativeKeyboardObservation);
+  const text = formatRibbonDiagnostics(result).join("\n");
+  assert.match(text, /native monotonic ms: 4000/);
+  assert.match(text, /idle deadline ms: 4000/);
+  assert.match(text, /idle-expired/);
+  assert.deepEqual(f.projection.diagnostics(), before);
+  assert.equal(
+    f.projection.ownsKeyboardRequest(request),
+    true,
+    "observed expiry must not revoke controller authority",
+  );
+  runtimeStatus.panelPid = 124;
+  assert.equal(
+    read().ribbonDiagnostics.captureExpiry,
+    "not-observed",
+    "old child observation cannot survive process generation change",
+  );
+});
 
 test("Scenario: executable and receipt observations are bounded and do not reveal paths or text", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ak7417-diagnostic-proc-"));

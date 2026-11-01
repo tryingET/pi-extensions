@@ -7,10 +7,25 @@ import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { selectEmptyWorkspace } from "./fixture-workspaces.mjs";
+import {
+  assertNoRecapture,
+  assertRevocationBeforeIdle,
+  bindHoverCapture,
+  captureBeforeFocus,
+} from "./hover-acceptance.mjs";
 import { checkCrossVersions } from "./protocol-cross-check.mjs";
 
 const root = process.cwd();
 const controllerOnly = process.argv.includes("--controller-only");
+const legacyNativeObservations = process.argv.includes("--legacy-native-observations");
+// The native step is a heavy job: it must be attributed to the caller's own task, never a default.
+const heavyJobTask = process.env.PI_ACTIVITY_STRIP_GUI_HEAVY_JOB_TASK;
+const heavyJobLabel = process.env.PI_ACTIVITY_STRIP_GUI_HEAVY_JOB_LABEL;
+assert.ok(
+  controllerOnly ||
+    (/^[0-9]+$/.test(heavyJobTask ?? "") && /^[a-z0-9-]+$/.test(heavyJobLabel ?? "")),
+  "the native step needs PI_ACTIVITY_STRIP_GUI_HEAVY_JOB_TASK=<AK task number> and PI_ACTIVITY_STRIP_GUI_HEAVY_JOB_LABEL=<lowercase-label> (or run --controller-only)",
+);
 const stateFile = process.env.PI_ACTIVITY_STRIP_GUI_STATE;
 assert.ok(stateFile, "PI_ACTIVITY_STRIP_GUI_STATE must name the owned helper state.json");
 const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
@@ -127,7 +142,7 @@ async function eventually(check, label) {
     await delay(50);
   }
 }
-let controller, heartbeat, heartbeatError;
+let controller, heartbeat, heartbeatError, focusObserver;
 try {
   const bus = spawn(
     "dbus-daemon",
@@ -156,14 +171,14 @@ try {
       [
         "run",
         "--label",
-        "ak7114-isolated-gtk",
+        heavyJobLabel,
         "--task",
-        "7114",
+        heavyJobTask,
         "--",
         "env",
         `HOME=${env.HOME}`,
         "RUSTUP_TOOLCHAIN=1.98.0",
-        `CARGO_TARGET_DIR=${root}/native/panel/target`,
+        `CARGO_TARGET_DIR=${process.env.CARGO_TARGET_DIR || `${root}/native/panel/target`}`,
         "cargo",
         "test",
         "--manifest-path",
@@ -311,18 +326,31 @@ try {
   await legacyPublisher.publishSessionSnapshot(secondRecord);
   await publishSessionSnapshot(targetRecord);
   let beat = 0;
+  let heartbeatMisses = 0;
   heartbeat = setInterval(() => {
     beat++;
     const now = Date.now();
     record.updatedAt = record.lastEventAt = now + (beat % 2);
     secondRecord.updatedAt = secondRecord.lastEventAt = now + 1 - (beat % 2);
     targetRecord.updatedAt = targetRecord.lastEventAt = now;
-    void Promise.all([
+    void Promise.allSettled([
       publishSessionSnapshot(record),
       legacyPublisher.publishSessionSnapshot(secondRecord),
       publishSessionSnapshot(targetRecord),
-    ]).catch((error) => {
-      heartbeatError = error;
+    ]).then((results) => {
+      const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length === 0) {
+        heartbeatMisses = 0;
+        return;
+      }
+      // Like production telemetry, a beat whose publish times out once on a loaded host is
+      // dropped and the next beat retries. Three misses in a row, or any other error, fail.
+      heartbeatMisses += 1;
+      const fatal = errors.find(
+        (error) => !/^Timed out contacting activity strip broker/.test(String(error?.message)),
+      );
+      console.log(`HEARTBEAT miss ${heartbeatMisses}: ${errors.map((e) => e?.message).join("; ")}`);
+      if (fatal || heartbeatMisses >= 3) heartbeatError = fatal ?? errors[0];
     });
   }, 1000);
   const focus = (id) => run("niri", ["msg", "action", "focus-window", "--id", String(id)]);
@@ -420,6 +448,11 @@ try {
     await move(300, output.height - 40);
     await focus(agent.id);
     await eventually(async () => (await status())?.windowVisible === true, "hover source visible");
+    // A return after a hide is defined for a pointer that stayed outside the visible strip for two
+    // Tick periods. Faster returns to the pre-hide pixel are the accepted F01 limit, kept as KNOWN
+    // RED GTK oracles (docs/project/2026-11-01-hover-reentry-anchor.md); without this the step
+    // passed or failed with the compositor's speed.
+    await delay(3200);
     const before = trace().length;
     await move(60, 40);
     // Nested IPC inspection can take two seconds per query on a parked compositor. Observe
@@ -433,6 +466,26 @@ try {
           .at(-1)?.message.active === true,
       "real pointer entry granted hover keyboard by Node",
     );
+    const binding = bindHoverCapture(trace(), before, agent.id);
+    const native = trace()
+      .slice(before)
+      .find(
+        (e) =>
+          e.direction === "from-panel" &&
+          e.message.type === "keyboard-observation" &&
+          e.message.request === binding.revision &&
+          e.message.reason === "acquired",
+      )?.message;
+    if (legacyNativeObservations)
+      assert.equal(native, undefined, "legacy private2 panel reports no optional observations");
+    else {
+      assert.ok(
+        native?.captured === true && native.origin === "hover",
+        "actual native capture observation, not controller grant",
+      );
+      assert.ok(native.nativeMs < native.deadlineMs, "native acquired before native idle deadline");
+    }
+    return binding;
   };
   // `compact: false` is for releases with the pointer still resting on the ribbon (idle, an
   // interrupting key): the keyboard and query go back, but the hovered ribbon stays open.
@@ -540,23 +593,125 @@ try {
   );
   await typeReturned("after-jump", true);
   assert.equal((await status()).panelJumpCount, 1);
+  const postJumpObservationStart = firstHoverStart + jumpIndex + 1;
   await delay(1700);
   assert.equal(await exclusive(), false, "no spontaneous regrab after jump/telemetry");
+  assertNoRecapture(trace().slice(postJumpObservationStart));
+  await typeReturned("after-jump-observation", true);
   console.log(
     "CONTROLLER PASS real hover -> typed listed window id -> Enter; exact cross-workspace target + subsequent typing; NULL ownership survives telemetry/two fallback polls",
   );
 
-  await enterHover();
+  // This extra private subscriber observes compositor focus, not fixture intent. It logs
+  // only ids/time, never window titles, app contents or native cause claims.
+  const focusEvents = spawn("niri", ["msg", "-j", "event-stream"], {
+    env,
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  children.push(focusEvents);
+  focusEvents.on("error", (error) => childErrors.set(focusEvents, error));
+  focusObserver = createInterface({ input: focusEvents.stdout });
+  focusObserver.on("line", (line) => {
+    try {
+      const event = JSON.parse(line);
+      for (const kind of ["WindowFocusChanged", "WorkspaceActiveWindowChanged"]) {
+        if (!(kind in event)) continue;
+        const body = event[kind];
+        console.log(
+          "NIRI-FOCUS-OBSERVATION",
+          JSON.stringify({
+            at: Date.now(),
+            kind,
+            id: body.id ?? null,
+            workspaceId: body.workspace_id ?? null,
+            activeWindowId: body.active_window_id ?? null,
+          }),
+        );
+      }
+    } catch {
+      console.log("NIRI-FOCUS-OBSERVATION-INVALID", JSON.stringify({ at: Date.now() }));
+    }
+  });
+  const nonAgentHover = await enterHover();
   const browser = windows.find((w) => w.app_id === "org.ak7114.browser");
+  assert.ok(browser, "SETUP: exact non-presence browser fixture");
+  // Bind this live request before focusing; extra IPC queries can consume idle.
+  const beforeNonAgent = trace();
+  const focusIssuedAt = Date.now();
+  const capture = captureBeforeFocus(beforeNonAgent, focusIssuedAt, nonAgentHover);
+  // Retain the command boundary even when the strict assertion below rejects the run.
+  console.log(
+    "ACTIVE-REVOCATION-FOCUS-ISSUED",
+    JSON.stringify({ captureAt: capture.at, focusIssuedAt, revision: nonAgentHover.revision }),
+  );
   await focus(browser.id);
+  const focusResolvedAt = Date.now();
+  const focusedWindow = await niri("focused-window");
+  const focusedWorkspace = (await niri("workspaces")).find((w) => w.is_focused === true);
+  console.log(
+    "ACTIVE-REVOCATION-FOCUS-RETURNED",
+    JSON.stringify({
+      focusResolvedAt,
+      observedAt: Date.now(),
+      expectedWindowId: browser.id,
+      focusedWindowId: focusedWindow?.id ?? null,
+      workspaceId: focusedWorkspace?.id ?? null,
+      activeWindowId: focusedWorkspace?.active_window_id ?? null,
+    }),
+  );
   await eventually(
     async () => (await status())?.windowVisible === false,
     "known non-agent revokes active hover",
   );
+  const nonAgentTrace = trace().slice(beforeNonAgent.length);
+  const observedRevocation = nonAgentTrace.find(
+    (event) =>
+      event.direction === "from-panel" &&
+      event.message.type === "keyboard-active" &&
+      event.message.active === false &&
+      event.message.revision === nonAgentHover.revision,
+  );
+  console.log(
+    "ACTIVE-REVOCATION-TIMES",
+    JSON.stringify({
+      captureAt: capture.at,
+      focusIssuedAt,
+      focusResolvedAt,
+      revokedAt: observedRevocation?.at ?? null,
+      observationClock: "controller wall clock; native monotonic deadline not directly reported",
+    }),
+  );
+  assertRevocationBeforeIdle(nonAgentTrace, capture, focusIssuedAt);
+  const nativeRevocation = nonAgentTrace.find(
+    (e) =>
+      e.message.type === "keyboard-observation" &&
+      e.message.request === nonAgentHover.revision &&
+      e.message.reason === "source-revoked",
+  )?.message;
+  if (!legacyNativeObservations) {
+    assert.ok(nativeRevocation?.captured === true);
+    assert.ok(
+      nativeRevocation.nativeMs < nativeRevocation.deadlineMs,
+      "production native source revocation, not idle expiry",
+    );
+    const diagnostic = (await status()).ribbonDiagnostics;
+    assert.equal(diagnostic.captureExpiry, "native-observed");
+    assert.equal(diagnostic.nativeKeyboardObservation.request, nonAgentHover.revision);
+    assert.equal(diagnostic.nativeKeyboardObservation.reason, "source-revoked");
+    assert.equal(diagnostic.nativeKeyboardObservation.nativeMs, nativeRevocation.nativeMs);
+  } else assert.equal((await status()).ribbonDiagnostics.captureExpiry, "not-observed");
   assert.equal((await sendBrokerMessage({ type: "focus-strip" }, { expectReply: true })).ok, false);
   assert.equal(
     (await layers()).some((l) => l.namespace === "pi-activity-strip"),
     false,
+  );
+  await type("text", "after-non-agent-revocation");
+  await eventually(
+    () =>
+      fs
+        .readFileSync(path.join(fixture, `${browser.app_id}-typing.txt`), "utf8")
+        .endsWith("after-non-agent-revocation"),
+    "subsequent typing returned to the exact non-presence browser fixture",
   );
   await move(300, output.height - 40);
   await focus(agent.id);
@@ -590,9 +745,25 @@ try {
     "Escape while pointer remains cannot recapture on telemetry",
   );
 
-  await enterHover();
+  const idleHover = await enterHover();
   await typeQuery("idle-query");
   await returned(agent.id, "bounded idle releases NONEMPTY query", { compact: false });
+  if (!legacyNativeObservations) {
+    const nativeIdle = trace().findLast(
+      (e) =>
+        e.message.type === "keyboard-observation" &&
+        e.message.request === idleHover.revision &&
+        e.message.reason === "idle-expired",
+    )?.message;
+    assert.ok(
+      nativeIdle?.captured === true && nativeIdle.nativeMs >= nativeIdle.deadlineMs,
+      "production idle observation uses only native monotonic deadline",
+    );
+    assert.equal(
+      (await status()).ribbonDiagnostics.nativeKeyboardObservation.reason,
+      "idle-expired",
+    );
+  }
   await typeReturned("after-idle");
   await delay(3200);
   assert.equal(
@@ -675,6 +846,11 @@ try {
         layer.namespace === "pi-activity-strip" && layer.keyboard_interactivity === "Exclusive",
     ),
   );
+  if (!legacyNativeObservations) {
+    const observed = (await status()).ribbonDiagnostics.nativeKeyboardObservation;
+    assert.equal(observed.origin, "explicit");
+    assert.equal(observed.deadlineMs, null, "explicit mode has no hover idle deadline");
+  }
   console.log(
     "CONTROLLER PASS explicit keyboard / real Niri NULL focus remains eligible",
     JSON.stringify(await layers()),
@@ -783,6 +959,7 @@ try {
     `${controllerOnly ? "CONTROLLER ONLY" : "ISOLATED"} GUI PASS; fixture telemetry/GTK app identities, not actual agent/browser/Obsidian apps or operator runtime`,
   );
 } finally {
+  focusObserver?.close();
   clearInterval(heartbeat);
   // Only children started here are signalled; nested compositor lifetime remains helper-owned.
   for (const child of children.reverse()) {

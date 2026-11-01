@@ -73,6 +73,11 @@ impl HoverKeyboard {
         }
     }
 
+    /// Observation in this process's monotonic domain, never a controller deadline.
+    pub fn captured_deadline_ms(&self) -> Option<i64> {
+        (self.active && self.captured).then(|| self.touched_at.saturating_add(3_000))
+    }
+
     pub fn expired(&self, now: i64) -> bool {
         // A parked nested compositor can take several seconds to commit a layer-shell change.
         // Acquisition is separately bounded; the typing idle clock starts on actual focus.
@@ -96,6 +101,44 @@ impl HoverKeyboard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_hover_lifecycle_fixtures() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("hover-lifecycle-fixtures.json")).unwrap();
+        for case in cases.as_array().unwrap() {
+            let mut h = HoverKeyboard::default();
+            let mut current = 0;
+            let mut old = 0;
+            for (index, step) in case["steps"].as_array().unwrap().iter().enumerate() {
+                let now = i64::try_from(index).unwrap() * 10;
+                match step[0].as_str().unwrap() {
+                    "grant" => {
+                        old = current;
+                        current = h.request(7, now).unwrap();
+                        assert!(h.grant(current, 7, 7, true, now));
+                    }
+                    "capture" => {
+                        h.acquired(now);
+                    }
+                    "release" | "source-revoked" => {
+                        h.clear();
+                    }
+                    "stale-permission" => {
+                        assert!(!h.grant(old, 7, 7, true, now));
+                    }
+                    other => panic!("unknown fixture operation {other}"),
+                }
+                assert_eq!(
+                    h.active,
+                    step[1].as_bool().unwrap(),
+                    "{} step {index}",
+                    case["name"]
+                );
+                assert_eq!(h.captured_deadline_ms().is_some(), h.captured);
+            }
+        }
+    }
 
     #[test]
     fn attempts_in_one_epoch_are_unique_and_old_grants_cannot_win() {

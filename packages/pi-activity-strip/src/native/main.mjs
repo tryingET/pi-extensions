@@ -24,7 +24,10 @@ import { createNativePanelProjection } from "./panel-projection.mjs";
 import { admitPanelEvent, PANEL_PROTOCOL } from "./panel-protocol.mjs";
 import { createPanelWindowJump } from "./panel-window-jump.mjs";
 import { createPlacementRuntime } from "./placement.mjs";
-import { createRuntimeStatusReader } from "./runtime-diagnostics.mjs";
+import {
+  createRuntimeStatusReader,
+  recordNativeKeyboardObservation,
+} from "./runtime-diagnostics.mjs";
 import { resolveStripHotkey } from "./strip-hotkey.mjs";
 import { createThemeRuntime, THEME_POLL_INTERVAL_MS } from "./theme-runtime.mjs";
 import {
@@ -89,8 +92,6 @@ function isNiriSession() {
   return Boolean(process.env.NIRI_SOCKET);
 }
 
-// Hidden Ghostty tabs are placed by their own runtime: host-process containment plus the window
-// memory learned from visible titles and the bounded AT-SPI tab inventory.
 const placement = createPlacementRuntime({
   env: process.env,
   runtimeStatus,
@@ -149,8 +150,7 @@ const projection = createNativePanelProjection({
   },
 });
 
-// AK task references are a read-only projection of claims held by live sessions; the strip
-// never writes AK state and renders nothing when the read fails.
+// Read-only AK task projection: never writes AK state or invents tasks on read failure.
 startAkTaskProjection({ execFileAsync, env: process.env, runtimeStatus, projection });
 
 /** @param {string} targetId @returns {Promise<{ok: boolean; error?: string; windowId?: number; presented?: boolean; verified?: boolean}>} */
@@ -236,13 +236,14 @@ function consumePanelEvents(child, chunk) {
           const visible = event.visible === true;
           const changed = runtimeStatus.windowVisible !== visible;
           runtimeStatus.windowVisible = visible;
-          // Showing or hiding the surface is the only moment the exclusive zone changes, so it is
-          // the only moment a tiled window can be left at the previous working area's height.
+          // Zone changes can leave tiled window heights stale.
           if (changed) void heightRepair.repairAfterZoneChange();
         } else if (event.type === "hover-request") {
           hoverKeyboard.request(Number(event.token), Number(event.epoch));
         } else if (event.type === "hover-cancel") {
           if (hoverKeyboard.cancel(Number(event.token))) reconcileRunner.request();
+        } else if (event.type === "keyboard-observation") {
+          recordNativeKeyboardObservation(runtimeStatus, event, child.pid);
         } else if (event.type === "keyboard-active") {
           const accepted = projection.keyboardChanged(
             Number(event.revision),
@@ -308,6 +309,7 @@ function startPanel() {
   panelWriteReady = true;
   panelStderr = "";
   runtimeStatus.panelPid = child.pid ?? null;
+  runtimeStatus.nativeKeyboardObservation = null; // New supervised child, new native clock domain.
   runtimeStatus.state = "starting";
   child.stdout.setEncoding("utf8");
   child.stdin.on("error", () => {
@@ -453,8 +455,7 @@ async function main() {
     getRuntimeStatus: createRuntimeStatusReader({ runtimeStatus, projection }),
   });
   broker.on("snapshot", (snapshot) => {
-    // Compare like with like: the raw set also holds discovered agent tabs, which the broker
-    // never publishes, so comparing it to a broker snapshot would always differ and reconcile.
+    // Compare broker-only membership; discovered agent tabs must not force reconciliation.
     const membershipChanged = !haveSameRecordMembership(
       projection.getBrokerSessions(),
       snapshot.sessions,

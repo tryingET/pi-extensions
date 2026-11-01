@@ -59,23 +59,7 @@ fn assert_clean(app: &App) {
 #[test]
 #[ignore = "requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
 fn isolated_gtk_interaction() {
-    assert_eq!(
-        std::env::var("PI_ACTIVITY_STRIP_ISOLATED_GUI").as_deref(),
-        Ok("1")
-    );
-    assert_eq!(std::env::var("GTK_A11Y").as_deref(), Ok("none"));
-    let state: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(std::env::var("PI_ACTIVITY_STRIP_GUI_STATE").unwrap()).unwrap(),
-    )
-    .unwrap();
-    let socket = std::env::var("NIRI_SOCKET").unwrap();
-    assert_ne!(Some(socket.as_str()), state["outer_socket"].as_str());
-    assert!(socket.ends_with(&format!(".{}.sock", state["pid"].as_u64().unwrap())));
-    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap();
-    assert!(
-        !socket.starts_with(&runtime),
-        "fixture runtime must be separate from the desktop runtime"
-    );
+    assert_isolated_gui();
     gtk::init().unwrap();
 
     let fixture = gtk::Window::new();
@@ -140,7 +124,7 @@ fn isolated_gtk_interaction() {
         root.width(),
         root.height()
     );
-    let mut pointer = Command::new(std::env::var("PI_ACTIVITY_STRIP_VIRTUAL_POINTER").unwrap())
+    let mut pointer = Command::new(virtual_pointer_fixture())
         .args(["300", "900", &width, &height])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -379,4 +363,94 @@ fn isolated_gtk_interaction() {
     println!("GUI PASS: click-through rejects keyboard and hover engagement");
     app.widget().close();
     fixture.close();
+}
+
+// Scheduling/observation helpers are compiled only through app's cfg(test) module.
+#[path = "app_hover_gui_tests.rs"]
+mod hover_regressions;
+pub(super) use hover_regressions::{configure_tick_source, observe_dispatch};
+
+fn assert_isolated_gui() {
+    assert_eq!(
+        std::env::var("PI_ACTIVITY_STRIP_ISOLATED_GUI").as_deref(),
+        Ok("1")
+    );
+    assert_eq!(std::env::var("GTK_A11Y").as_deref(), Ok("none"));
+    let state: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("PI_ACTIVITY_STRIP_GUI_STATE").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let socket = std::env::var("NIRI_SOCKET").unwrap();
+    assert_ne!(Some(socket.as_str()), state["outer_socket"].as_str());
+    assert!(socket.ends_with(&format!(".{}.sock", state["pid"].as_u64().unwrap())));
+    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap();
+    assert!(
+        !socket.starts_with(&runtime),
+        "fixture runtime must be separate from the desktop runtime"
+    );
+}
+
+/// The runner's compiled virtual-pointer fixture: an absolute path to a regular file named
+/// `virtual-pointer`, never an arbitrary executable taken from the environment.
+fn virtual_pointer_fixture() -> std::path::PathBuf {
+    let path = std::path::PathBuf::from(
+        std::env::var_os("PI_ACTIVITY_STRIP_VIRTUAL_POINTER")
+            .expect("SETUP: PI_ACTIVITY_STRIP_VIRTUAL_POINTER names the owned fixture"),
+    );
+    assert!(
+        path.is_absolute(),
+        "SETUP: virtual pointer fixture must be absolute"
+    );
+    assert_eq!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some("virtual-pointer"),
+        "SETUP: only the virtual-pointer fixture may be executed"
+    );
+    assert!(
+        std::fs::metadata(&path).is_ok_and(|meta| meta.is_file()),
+        "SETUP: virtual pointer fixture must be a regular file"
+    );
+    path
+}
+
+#[test]
+#[ignore = "KNOWN RED (AK7922, docs/project/2026-11-01-hover-reentry-anchor.md): a client cannot tell this genuine return from a remap; requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
+fn isolated_gtk_rapid_hidden_reentry_requests_again() {
+    hover_regressions::rapid_hidden_reentry();
+}
+
+#[test]
+#[ignore = "KNOWN RED (AK7922, docs/project/2026-11-01-hover-reentry-anchor.md): a client cannot tell this genuine return from a remap; requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
+fn isolated_gtk_rapid_hidden_reentry_elsewhere_requests_again() {
+    hover_regressions::rapid_hidden_reentry_elsewhere();
+}
+
+#[test]
+#[ignore = "requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
+fn isolated_gtk_stationary_remap_does_not_request_again() {
+    hover_regressions::stationary_remap();
+}
+
+#[test]
+#[ignore = "requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
+fn isolated_gtk_stationary_backend_loss_remap_does_not_request_again() {
+    hover_regressions::stationary_backend_loss_remap();
+}
+
+#[test]
+#[ignore = "requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
+fn isolated_gtk_exact_pixel_return_after_two_ticks_requests_again() {
+    hover_regressions::exact_pixel_return_after_two_ticks();
+}
+
+#[test]
+#[ignore = "requires owned private Niri, exact virtual input, private runtime and disabled AT-SPI"]
+fn isolated_gtk_hover_source_revocation_precedes_expiry() {
+    hover_regressions::hover_release_cause(false);
+}
+
+#[test]
+#[ignore = "requires owned private Niri, exact virtual input, private runtime and disabled AT-SPI"]
+fn isolated_gtk_hover_expiry_releases_keyboard() {
+    hover_regressions::hover_release_cause(true);
 }

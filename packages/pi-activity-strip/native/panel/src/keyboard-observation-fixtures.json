@@ -1,0 +1,241 @@
+[
+  {
+    "name": "hover actual acquisition before native deadline",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 1,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 1000,
+      "deadlineMs": 4000,
+      "captured": true
+    }
+  },
+  {
+    "name": "typing activity renews observed hover deadline",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 1,
+      "origin": "hover",
+      "reason": "activity",
+      "nativeMs": 1200,
+      "deadlineMs": 4200,
+      "captured": true
+    }
+  },
+  {
+    "name": "source revocation before expiry",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 1,
+      "origin": "hover",
+      "reason": "source-revoked",
+      "nativeMs": 1200,
+      "deadlineMs": 4000,
+      "captured": true
+    }
+  },
+  {
+    "name": "native idle expiry at boundary",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 2,
+      "origin": "hover",
+      "reason": "idle-expired",
+      "nativeMs": 4000,
+      "deadlineMs": 4000,
+      "captured": true
+    }
+  },
+  {
+    "name": "explicit capture has no hover deadline",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 3,
+      "origin": "explicit",
+      "reason": "acquired",
+      "nativeMs": 5000,
+      "deadlineMs": null,
+      "captured": true
+    }
+  },
+  {
+    "name": "explicit source revocation",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 3,
+      "origin": "explicit",
+      "reason": "source-revoked",
+      "nativeMs": 5100,
+      "deadlineMs": null,
+      "captured": true
+    }
+  },
+  {
+    "name": "unknown text is never projected",
+    "valid": true,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 6000,
+      "deadlineMs": 9000,
+      "captured": true,
+      "query": "SECRET_QUERY",
+      "credential": "SECRET_CREDENTIAL"
+    }
+  },
+  {
+    "name": "grant is not capture",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 6000,
+      "deadlineMs": 9000,
+      "captured": false
+    }
+  },
+  {
+    "name": "early idle cause is rejected",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "idle-expired",
+      "nativeMs": 8999,
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  },
+  {
+    "name": "expired acquisition is rejected",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 9000,
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  },
+  {
+    "name": "explicit never expires by hover idle",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "explicit",
+      "reason": "idle-expired",
+      "nativeMs": 9000,
+      "deadlineMs": null,
+      "captured": true
+    }
+  },
+  {
+    "name": "no missing native deadline",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 6000,
+      "captured": true
+    }
+  },
+  {
+    "name": "no untyped origin",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "SECRET",
+      "reason": "acquired",
+      "nativeMs": 6000,
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  },
+  {
+    "name": "no negative clock",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": -1,
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  },
+  {
+    "name": "no string clock coercion",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": "6000",
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  },
+  {
+    "name": "no unsafe request integer",
+    "valid": false,
+    "event": {
+      "protocol": 2,
+      "type": "keyboard-observation",
+      "request": 9007199254740992,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 6000,
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  },
+  {
+    "name": "legacy ABI still rejected",
+    "valid": false,
+    "event": {
+      "protocol": 1,
+      "type": "keyboard-observation",
+      "request": 4,
+      "origin": "hover",
+      "reason": "acquired",
+      "nativeMs": 6000,
+      "deadlineMs": 9000,
+      "captured": true
+    }
+  }
+]

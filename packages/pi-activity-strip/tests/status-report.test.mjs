@@ -10,6 +10,44 @@ import {
   summarizeBrokerRuntimeStatus,
 } from "../src/common/status-report.mjs";
 
+for (const state of ["failed", "unavailable"]) {
+  test(`Given a ready overlay and ${state} inventory, When summarizing, Then warn without reflecting private detail`, () => {
+    const result = summarizeBrokerRuntimeStatus({
+      ok: true,
+      runtimeStatus: {
+        state: "ready",
+        tabInventoryState: state,
+        tabInventoryDetail: "PRIVATE_QUERY_PATH_SENTINEL",
+        error: null,
+      },
+    });
+    assert.deepEqual(result, {
+      headline: `Activity strip overlay is ready; tab inventory ${state}`,
+      level: "warning",
+    });
+    assert.doesNotMatch(result.headline, /PRIVATE_QUERY_PATH_SENTINEL/);
+  });
+}
+
+test("Given intentional inventory disablement or healthy inventory, When summarizing, Then preserve overlay readiness", () => {
+  for (const tabInventoryState of ["ready", "disabled"]) {
+    assert.deepEqual(
+      summarizeBrokerRuntimeStatus({
+        ok: true,
+        runtimeStatus: { state: "ready", tabInventoryState },
+      }),
+      { headline: "Activity strip is running and ready", level: "info" },
+    );
+  }
+  assert.deepEqual(
+    summarizeBrokerRuntimeStatus({
+      ok: true,
+      runtimeStatus: { state: "error", tabInventoryState: "failed" },
+    }),
+    { headline: "Activity strip reported an error", level: "error" },
+  );
+});
+
 test("formatBrokerRuntimeStatus renders runtime warnings and readiness metadata", () => {
   const text = formatBrokerRuntimeStatus({
     ok: true,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
+import { createLatestOnlyRunner } from "../src/common/alignment-controller.mjs";
 import { sessionRecordKey } from "../src/common/session-cards.mjs";
 import { resolveWorkspaceView } from "../src/common/workspace-view.mjs";
 import { createHoverKeyboard } from "../src/native/hover-keyboard.mjs";
@@ -18,6 +19,7 @@ function fixture({
   extraSessions = [],
   extraWindows = [],
   learnSources = true,
+  onReconcile = () => {},
   // Exact-ownership tests run with no presence apps: a revoked Ghostty owner must hide the strip.
   presence = false,
 } = {}) {
@@ -95,6 +97,7 @@ function fixture({
         },
     reconcile: () => {
       reconciliations++;
+      onReconcile();
     },
   });
   const watcher = createNiriWorkspaceEventWatcher({
@@ -126,6 +129,218 @@ function fixture({
     reconciliations: () => reconciliations,
   };
 }
+
+for (const source of ["agent", "neutral"]) {
+  for (const mode of ["hover", "explicit"]) {
+    for (const selected of [null, 777, source === "agent" ? 99 : 44]) {
+      test(`Given ${source} ${mode} ownership under NULL seat focus, When workspace selection changes to ${selected}, Then revoke synchronously without granting its replacement`, () => {
+        const f = fixture({
+          presence: source === "neutral",
+          extraWindows: [
+            {
+              id: 99,
+              workspace_id: 7,
+              pid: 4100,
+              app_id: "com.onepassword.OnePassword",
+              is_focused: false,
+            },
+          ],
+        });
+        try {
+          const sourceId = source === "agent" ? 44 : 99;
+          if (source === "neutral") f.emit({ WindowFocusChanged: { id: sourceId } });
+          const epoch = f.projection.getInteractionEpoch();
+          const request =
+            mode === "hover"
+              ? f.projection.requestHoverKeyboard(epoch, 1, false)
+              : f.projection.requestKeyboard();
+          assert.ok(request);
+          assert.equal(f.projection.keyboardChanged(request, true), true);
+          f.emit({ WindowFocusChanged: { id: null } });
+          const intent = f.projection.acceptJumpIntent(request, epoch);
+          assert.ok(intent);
+          f.emit({ WorkspaceActiveWindowChanged: { workspace_id: 7, active_window_id: selected } });
+          assert.equal(
+            f.views.at(-1).visible,
+            false,
+            "selection contradiction revokes before seat focus changes or idle",
+          );
+          assert.equal(intent.isCurrent(), false, "pending dispatch proof is invalidated");
+          assert.equal(
+            f.projection.keyboardChanged(request, true),
+            false,
+            "late native acknowledgement cannot revive ownership",
+          );
+          assert.equal(f.projection.requestHoverKeyboard(epoch, 2, false), null);
+          f.emit({ WorkspaceActiveWindowChanged: { workspace_id: 7, active_window_id: sourceId } });
+          f.emit({ WindowFocusChanged: { id: sourceId } });
+          assert.equal(
+            f.views.at(-1).visible,
+            false,
+            "selection and stale seat events cannot re-admit invalid proof",
+          );
+        } finally {
+          f.watcher.stop();
+        }
+      });
+    }
+  }
+}
+
+for (const event of [
+  { WorkspaceActiveWindowChanged: { workspace_id: 8, active_window_id: 99 } },
+  { WorkspaceActiveWindowChanged: { workspace_id: 7, active_window_id: 44 } },
+]) {
+  test(`Given captured source44, When selection does not contradict it ${JSON.stringify(event)}, Then preserve exact epoch and request`, () => {
+    const f = fixture();
+    try {
+      const epoch = f.projection.getInteractionEpoch();
+      const request = f.projection.requestHoverKeyboard(epoch, 1, false);
+      f.projection.keyboardChanged(request, true);
+      f.emit({ WindowFocusChanged: { id: null } });
+      f.emit(event);
+      f.emit(event);
+      assert.equal(f.views.at(-1).visible, true);
+      assert.equal(f.projection.getInteractionEpoch(), epoch);
+      assert.equal(f.projection.ownsKeyboardRequest(request), true);
+    } finally {
+      f.watcher.stop();
+    }
+  });
+}
+
+for (const selection of [null, 99, 777, "44"]) {
+  test(`Given a lost selection event, When a full NULL-focus snapshot reports ${selection}, Then stale source ownership is revoked`, () => {
+    const f = fixture();
+    try {
+      const request = f.projection.requestKeyboard();
+      f.projection.keyboardChanged(request, true);
+      f.emit({ WindowFocusChanged: { id: null } });
+      f.projection.publishWorkspaceView({
+        ...f.view,
+        workspace: { ...f.view.workspace, active_window_id: selection },
+        focusKind: "none",
+        focusedCardId: null,
+        focusedSessionId: null,
+      });
+      assert.equal(f.views.at(-1).visible, false);
+      assert.equal(f.projection.keyboardChanged(request, true), false);
+    } finally {
+      f.watcher.stop();
+    }
+  });
+}
+
+for (const body of [
+  {},
+  { workspace_id: 7 },
+  { workspace_id: 7, active_window_id: "44" },
+  { workspace_id: "7", active_window_id: 44 },
+]) {
+  test(`Given NULL ownership, When a selection event is malformed ${JSON.stringify(body)}, Then fail closed`, () => {
+    const f = fixture();
+    try {
+      const request = f.projection.requestKeyboard();
+      f.emit({ WindowFocusChanged: { id: null } });
+      f.emit({ WorkspaceActiveWindowChanged: body });
+      assert.equal(f.views.at(-1).visible, false);
+      assert.equal(f.projection.keyboardChanged(request, true), false);
+    } finally {
+      f.watcher.stop();
+    }
+  });
+}
+
+test("Given captured source44, When a full workspace event selects99, Then revoke even without a seat-focus event", () => {
+  const f = fixture();
+  try {
+    f.emit({
+      WorkspacesChanged: { workspaces: [{ id: 7, is_focused: true, active_window_id: 44 }] },
+    });
+    f.projection.publishWorkspaceView({
+      ...f.view,
+      workspace: { ...f.view.workspace, active_window_id: 44 },
+    });
+    const request = f.projection.requestKeyboard();
+    f.projection.keyboardChanged(request, true);
+    f.emit({ WindowFocusChanged: { id: null } });
+    f.emit({
+      WorkspacesChanged: {
+        workspaces: [
+          { id: 7, is_focused: true, active_window_id: 44 },
+          { id: 8, is_focused: false, active_window_id: 99 },
+        ],
+      },
+    });
+    assert.equal(
+      f.projection.ownsKeyboardRequest(request),
+      true,
+      "foreign snapshot selection cannot revoke",
+    );
+    f.emit({
+      WorkspacesChanged: { workspaces: [{ id: 7, is_focused: true, active_window_id: 99 }] },
+    });
+    assert.equal(f.views.at(-1).visible, false);
+    assert.equal(f.projection.keyboardChanged(request, true), false);
+  } finally {
+    f.watcher.stop();
+  }
+});
+
+test("Given a pending old full read, When selected-window contradiction invalidates its generation, Then it cannot restore ownership", async () => {
+  let runner;
+  const f = fixture({ onReconcile: () => runner?.request() });
+  let release;
+  const blocked = new Promise((resolve) => {
+    release = resolve;
+  });
+  let reads = 0;
+  let discarded = 0;
+  try {
+    const request = f.projection.requestKeyboard();
+    f.projection.keyboardChanged(request, true);
+    f.emit({ WindowFocusChanged: { id: null } });
+    runner = createLatestOnlyRunner(async ({ isCurrent }) => {
+      const old = ++reads === 1;
+      const view = old
+        ? f.view
+        : {
+            ...f.view,
+            workspace: { ...f.view.workspace, active_window_id: 99 },
+            focusKind: "none",
+            focusedCardId: null,
+            focusedSessionId: null,
+          };
+      if (old) await blocked;
+      if (!isCurrent()) {
+        discarded++;
+        return;
+      }
+      f.projection.publishWorkspaceView(view);
+    });
+    runner.request();
+    const boundary = f.views.length;
+    f.emit({ WorkspaceActiveWindowChanged: { workspace_id: 7, active_window_id: 99 } });
+    assert.equal(
+      f.projection.ownsKeyboardRequest(request),
+      false,
+      "synchronous veto precedes unblocking old IPC",
+    );
+    release();
+    await runner.waitForIdle();
+    assert.equal(discarded, 1);
+    assert.equal(reads, 2);
+    assert.equal(
+      f.views.slice(boundary).every((view) => view.visible === false),
+      true,
+    );
+    assert.equal(f.projection.keyboardChanged(request, true), false);
+  } finally {
+    release();
+    await runner?.waitForIdle();
+    f.watcher.stop();
+  }
+});
 
 test("actual event bindings veto non-agent focus synchronously, without waiting for a slow fallback read", () => {
   const f = fixture();

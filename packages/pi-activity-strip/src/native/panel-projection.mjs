@@ -9,7 +9,14 @@ import { resolveSnapshotSession } from "../common/niri-focus.mjs";
 import { projectSessionCards, sessionRecordKey } from "../common/session-cards.mjs";
 import { classifyAdmittedWindowFocus } from "../common/workspace-view.mjs";
 import { createFocusVisibility } from "./focus-visibility.mjs";
-import { publisherSet, sourceIdentity } from "./interaction-context.mjs";
+import {
+  agentSourceMatches,
+  publisherSet,
+  selectionContradictsSource,
+  sourceIdentity,
+  visibleCardsForWindow,
+} from "./interaction-context.mjs";
+import { createNeutralSource } from "./panel-neutral-source.mjs";
 import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 
 /** @typedef {Record<string, unknown>} SessionRecord */
@@ -17,12 +24,6 @@ import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 /** @typedef {{workspace: Record<string, unknown> | null; sessions: SessionRecord[]; focusedSessionId: string | null; focusedCardId?: string | null; focusWindowId?: number | null; focusKind?: import("./focus-visibility.mjs").FocusKind}} WorkspaceView */
 /** @typedef {{placement: string; surfaceVisible: boolean; windowId: number | null; workspaceIdx: number | null}} CardPlacement */
 /** @typedef {{isNiriSession: () => boolean; publish: (view: Record<string, unknown> & {type: string; sessions: SessionRecord[]}) => void; getWindowFacts?: (id: number) => Record<string, unknown> | null; env?: NodeJS.ProcessEnv; hotkey?: string | null}} NativePanelProjectionOptions */
-
-/** Keep exact-window and visibility cardinality identical at every ownership proof.
- * @param {SessionRecord[]} sessions @param {number | null} windowId */
-function visibleCardsForWindow(sessions, windowId) {
-  return sessions.filter((card) => card.windowId === windowId && card.surfaceVisible !== false);
-}
 
 /** @param {NativePanelProjectionOptions} options */
 export function createNativePanelProjection({
@@ -75,15 +76,16 @@ export function createNativePanelProjection({
   let focusSourceKind = null;
   let focusContextValid = false;
 
-  /** A neutral source is the window itself; it carries no card and no publisher set. */
-  function neutralWindowHolds(/** @type {SessionRecord[]} */ sessions) {
-    if (focusWindowId === null) return false;
-    const facts = getWindowFacts(focusWindowId);
-    return (
-      facts?.id === focusWindowId &&
-      facts?.workspace_id === workspace?.id &&
-      classifyAdmittedWindowFocus(focusWindowId, sessions, facts, env) === "neutral"
-    );
+  const neutralSource = createNeutralSource(getWindowFacts, env);
+
+  function ensureNeutralSource() {
+    if (
+      focusSourceKind !== "neutral" ||
+      neutralSource.holds(workspace?.id, focusWindowId, getDisplaySessions())
+    )
+      return true;
+    invalidateFocus();
+    return false;
   }
 
   function clearFocusState() {
@@ -91,6 +93,7 @@ export function createNativePanelProjection({
     focusKind = "unknown";
     focusWindowId = null;
     focusSourceKind = null;
+    neutralSource.clear();
     focusedCardId = null;
     focusedSessionId = null;
   }
@@ -106,22 +109,14 @@ export function createNativePanelProjection({
    */
   function focusProofMatches(resolveView) {
     if (focusWindowId === null || !focusContextValid) return true;
+    const current = workspace ? resolveView(workspace) : null;
     if (focusSourceKind === "neutral") {
-      const current = workspace ? resolveView(workspace) : null;
       return (
-        current?.workspace?.id === workspace?.id && neutralWindowHolds(current?.sessions ?? [])
+        current?.workspace?.id === workspace?.id &&
+        neutralSource.holds(workspace?.id, focusWindowId, current?.sessions ?? [])
       );
     }
-    const established = visibleCardsForWindow(getDisplaySessions(), focusWindowId);
-    const current = workspace ? resolveView(workspace) : null;
-    const owned = visibleCardsForWindow(current?.sessions ?? [], focusWindowId);
-    return (
-      current?.workspace?.id === workspace?.id &&
-      established.length === 1 &&
-      owned.length === 1 &&
-      owned[0]?.cardId === established[0]?.cardId &&
-      JSON.stringify(publisherSet(owned[0])) === JSON.stringify(publisherSet(established[0]))
-    );
+    return agentSourceMatches(getDisplaySessions(), current, workspace?.id, focusWindowId);
   }
 
   function allSessions() {
@@ -160,6 +155,12 @@ export function createNativePanelProjection({
   function currentView() {
     revision += 1;
     const sessions = getDisplaySessions();
+    if (
+      selectionContradictsSource(workspace, focusWindowId) ||
+      (focusSourceKind === "neutral" &&
+        !neutralSource.holds(workspace?.id, focusWindowId, sessions))
+    )
+      clearFocusState();
     // Keyboard NULL ownership is only a continuation of one still-admitted exact agent window.
     // A publisher ending (or becoming ambiguous) must not leave another window's cards eligible.
     if (
@@ -194,7 +195,9 @@ export function createNativePanelProjection({
       workspace?.is_focused === true &&
       ["agent", "neutral", "none"].includes(focusKind) &&
       sourceHeld
-        ? sourceIdentity(workspace?.id, focusWindowId, owner)
+        ? focusSourceKind === "neutral"
+          ? neutralSource.context(workspace?.id, focusWindowId)
+          : sourceIdentity(workspace?.id, focusWindowId, owner)
         : null;
     if (context !== interactionContext) {
       interactionEpoch += 1;
@@ -241,6 +244,7 @@ export function createNativePanelProjection({
     }),
     /** Reserve ownership before sending; cancel on a failed write or panel exit. */
     requestKeyboard: (clickThrough = false) => {
+      if (!ensureNeutralSource()) return null;
       const request = ++nextKeyboardRequest;
       if (!visibility.requestKeyboard(request, clickThrough)) return null;
       intentGeneration += 1;
@@ -248,7 +252,7 @@ export function createNativePanelProjection({
     },
     /** @param {number} epoch @param {number} token @param {boolean} clickThrough */
     requestHoverKeyboard(epoch, token, clickThrough) {
-      if (epoch !== interactionEpoch) return null;
+      if (!ensureNeutralSource() || epoch !== interactionEpoch) return null;
       const request = ++nextKeyboardRequest;
       if (!visibility.requestKeyboard(request, clickThrough, "hover", token)) return null;
       intentGeneration += 1;
@@ -271,6 +275,7 @@ export function createNativePanelProjection({
     /** One accepted action, not a lease to capture keys. Own release must not cancel it.
      * @param {number} request @param {number} epoch */
     acceptJumpIntent(request, epoch) {
+      if (!ensureNeutralSource()) return null;
       if (
         !visibility.ownsRequest(request) ||
         !visibility.isEligible() ||
@@ -301,13 +306,14 @@ export function createNativePanelProjection({
         /** @param {WorkspaceView | null} view */
         matchesSource(view) {
           if (!view || view.workspace?.id !== sourceWorkspaceId) return false;
+          if (selectionContradictsSource(view.workspace, sourceWindowId)) return false;
           const kind = view.focusKind ?? "unknown";
           const owned = visibleCardsForWindow(view.sessions, sourceWindowId);
           if (sourceKind === "neutral")
             return (
               (kind === "none" || (kind === "neutral" && view.focusWindowId === sourceWindowId)) &&
-              owned.length !== 1 &&
-              sourceIdentity(sourceWorkspaceId, sourceWindowId, undefined) === context
+              neutralSource.holds(sourceWorkspaceId, sourceWindowId, view.sessions) &&
+              neutralSource.context(sourceWorkspaceId, sourceWindowId) === context
             );
           if (!["agent", "none"].includes(kind)) return false;
           return (
@@ -322,6 +328,13 @@ export function createNativePanelProjection({
     keyboardChanged: (request, active) => visibility.keyboardChanged(request, active),
     isEligible: () => visibility.isEligible(),
     invalidateFocus,
+    /** Revocation-only layout metadata; never admit seat focus or a replacement source.
+     * @param {number} id @param {number | null} windowId */
+    observeWorkspaceSelection(id, windowId) {
+      if (workspace?.id !== id) return;
+      workspace = { ...workspace, active_window_id: windowId };
+      send();
+    },
     /** @param {number} windowId */
     invalidateWindowFocus(windowId) {
       if (windowId === focusWindowId) invalidateFocus();
@@ -362,6 +375,7 @@ export function createNativePanelProjection({
       if (focusKind === "agent" || focusKind === "neutral") {
         focusWindowId = windowId;
         focusSourceKind = focusKind;
+        neutralSource.admit(focusKind === "neutral" ? facts : null);
       } else if (focusKind !== "none") {
         focusWindowId = null;
         focusSourceKind = null;
@@ -386,10 +400,8 @@ export function createNativePanelProjection({
       akTasks = state;
       send();
     },
-    /**
-     * A card on this workspace, or else an entry of the window list, which spans every workspace.
-     * @param {string} targetId
-     */
+    /** Resolve a current card or a cross-workspace directory entry.
+     * @param {string} targetId */
     resolveTarget: (targetId) =>
       resolveSnapshotSession(getDisplaySessions(), targetId) ??
       directoryCards.get(targetId) ??
@@ -462,6 +474,7 @@ export function createNativePanelProjection({
       } else if (focusKind === "neutral") {
         focusWindowId = Number.isInteger(view.focusWindowId) ? Number(view.focusWindowId) : null;
         focusSourceKind = focusWindowId === null ? null : "neutral";
+        neutralSource.admit(focusWindowId === null ? null : getWindowFacts(focusWindowId));
       } else if (focusKind !== "none") {
         focusWindowId = null;
         focusSourceKind = null;

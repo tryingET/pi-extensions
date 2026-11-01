@@ -20,6 +20,7 @@
  *   onWindowClosed?: (windowId: number) => void;
  *   onWindowsChanged?: (windows: Record<string, unknown>[]) => void;
  *   onWindowFocusChanged?: (windowId: number | null) => void;
+ *   onWorkspaceActiveWindowChanged?: (workspaceId: number, windowId: number | null) => void;
  *   onWorkspacesChanged?: () => void;
  *   onFocusInvalidated?: () => void;
  *   fallbackMs: number;
@@ -41,6 +42,22 @@ export function createNiriWorkspaceEventWatcher(options) {
     if (!stopped) options.onFallback();
   }, options.fallbackMs);
   fallbackTimer.unref?.();
+
+  /** Selection is a contradiction signal, never a substitute for keyboard focus.
+   * @param {unknown} workspaceId @param {unknown} windowId */
+  function selection(workspaceId, windowId) {
+    if (
+      !Number.isSafeInteger(workspaceId) ||
+      Number(workspaceId) <= 0 ||
+      (windowId !== null && (!Number.isSafeInteger(windowId) || Number(windowId) <= 0))
+    )
+      options.onFocusInvalidated?.();
+    else
+      options.onWorkspaceActiveWindowChanged?.(
+        Number(workspaceId),
+        windowId === null ? null : Number(windowId),
+      );
+  }
 
   /** @param {unknown} chunk */
   function consume(chunk) {
@@ -79,6 +96,8 @@ export function createNiriWorkspaceEventWatcher(options) {
               lastFocusedWorkspaceId = focused[0].id;
               options.onFocusedWorkspace(focused[0].id);
             }
+            if (focused.length === 1 && Object.hasOwn(focused[0], "active_window_id"))
+              selection(focused[0].id, focused[0].active_window_id);
             options.onWorkspacesChanged?.();
           }
           if (event && typeof event === "object" && "WindowsChanged" in event) {
@@ -95,6 +114,10 @@ export function createNiriWorkspaceEventWatcher(options) {
             else if (focused?.length === 0 && windows.length > 0)
               options.onWindowFocusChanged?.(null);
             else options.onFocusInvalidated?.();
+          }
+          if (event && typeof event === "object" && "WorkspaceActiveWindowChanged" in event) {
+            const changed = event.WorkspaceActiveWindowChanged;
+            selection(changed?.workspace_id, changed?.active_window_id);
           }
           const changedWindow = event?.WindowOpenedOrChanged?.window;
           if (changedWindow && typeof changedWindow === "object") {
@@ -186,6 +209,12 @@ export function createWorkspaceProjectionHandlers({ projection, placement, recon
     /** @param {number | null} windowId */
     onWindowFocusChanged(windowId) {
       projection.publishWindowFocus(windowId, placement.resolveCachedWorkspaceView);
+      reconcile();
+    },
+    /** @param {number} workspaceId @param {number | null} windowId */
+    onWorkspaceActiveWindowChanged(workspaceId, windowId) {
+      projection.observeWorkspaceSelection(workspaceId, windowId);
+      projection.revalidateWindowFocus(placement.resolveCachedWorkspaceView);
       reconcile();
     },
     onWorkspacesChanged: reconcile,

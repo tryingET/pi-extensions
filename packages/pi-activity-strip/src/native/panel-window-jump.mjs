@@ -70,6 +70,7 @@ export function createPanelWindowJump({
         windows.some(
           (w) =>
             w?.id === intent.windowId &&
+            w?.workspace_id === intent.workspaceId &&
             w?.workspace_id === sourceFacts.workspace_id &&
             w?.pid === sourceFacts.pid &&
             w?.app_id === sourceFacts.app_id,

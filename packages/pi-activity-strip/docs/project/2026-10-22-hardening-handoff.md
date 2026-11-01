@@ -2,6 +2,7 @@
 summary: "Operator-requested fresh Pi handoff for five activity-ribbon hardening priorities, grounded reasoning, executable Gherkin red–green TDD, and owner-safe integration."
 read_when:
   - "Starting AK7417 or continuing the activity-ribbon hardening portfolio."
+task_id: 7417
 ---
 
 # Activity ribbon hardening — fresh-session handoff
