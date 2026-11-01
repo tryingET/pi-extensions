@@ -189,14 +189,15 @@ export function createSemanticPreflightRuntime(deps: SemanticPreflightRuntimeDep
       }
       state.promptRun = undefined;
       const grantState = currentGrant(ctx, state, now());
-      if (!grantState.grant) {
-        if (grantState.stale) {
-          disable(ctx);
-          visibleUnavailable(ctx, "stale development grant");
-          return;
-        }
-        return legacyHint(event.prompt, (rawCtx as { sessionManager?: unknown }).sessionManager);
+      if (!grantState.grant && grantState.stale) {
+        disable(ctx);
+        visibleUnavailable(ctx, "stale development grant");
+        return;
       }
+      // A run started by pi.sendMessage (Pi 1.2+) has no user prompt to route.
+      if (event.messageType === "custom") return clearObservations();
+      if (!grantState.grant)
+        return legacyHint(event.prompt, (rawCtx as { sessionManager?: unknown }).sessionManager);
 
       const generation = state.generation;
       const hostKey = hostCompatibility(ctx).key;
