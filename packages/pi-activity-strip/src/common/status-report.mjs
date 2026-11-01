@@ -74,7 +74,7 @@ export function formatBrokerRuntimeStatus(result) {
     if (runtime.akTaskState === "ok") {
       const orphaned = Number(runtime.akTaskOrphanCount ?? 0);
       lines.push(
-        `AK task refs: ok (${runtime.akTaskClaimCount ?? 0} live claims, ${runtime.akTaskDeferredCount ?? 0} deferred${orphaned > 0 ? `, ${orphaned} orphaned claims` : ""})`,
+        `AK task refs: ok (${runtime.akTaskClaimCount ?? 0} live claims, ${runtime.akTaskDeferredCount ?? 0} deferred${orphaned > 0 ? `, ${orphaned} orphaned claims` : ""}${typeof runtime.akTaskDeferredReadAt === "number" ? `; deferral list read ${new Date(runtime.akTaskDeferredReadAt).toISOString()}, reused up to 5 min` : ""})`,
       );
     } else if (runtime.akTaskState !== "disabled") {
       lines.push(

@@ -13,6 +13,12 @@ import {
 
 /** AK state changes are rare; a calm clock keeps the ribbon cheap. */
 export const AK_TASK_REFRESH_MS = 15_000;
+/**
+ * Deferrals change on human-decision timescales, and the full list held the workstation-wide AK
+ * lock 3.3 s of every 15 s (AK7943): reuse the last good list for up to five minutes. Claims keep
+ * the 15 s clock. Any failure drops the list, so the next tick reads it again.
+ */
+export const AK_DEFERRED_REFRESH_MS = 300_000;
 const AK_EXEC_TIMEOUT_MS = 8000;
 const AK_EXEC_MAX_BUFFER = 4 * 1024 * 1024;
 
@@ -40,6 +46,8 @@ export function createAkTaskRuntime({
   /** @type {NodeJS.Timeout | null} */
   let timer = null;
   let inFlight = false;
+  /** @type {{at: number; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
+  let deferredCache = null;
 
   runtimeStatus.akTaskState = disabled ? "disabled" : (runtimeStatus.akTaskState ?? "pending");
   runtimeStatus.akTaskError = runtimeStatus.akTaskError ?? null;
@@ -68,6 +76,8 @@ export function createAkTaskRuntime({
     runtimeStatus.akTaskError = error;
     runtimeStatus.akTaskClaimCount = 0;
     runtimeStatus.akTaskDeferredCount = 0;
+    runtimeStatus.akTaskDeferredReadAt = null;
+    deferredCache = null;
     onChange({ claims: [], deferred: [] });
   }
 
@@ -75,12 +85,17 @@ export function createAkTaskRuntime({
     if (disabled || inFlight) return false;
     inFlight = true;
     try {
+      const readAt = now();
+      const cached =
+        deferredCache && readAt - deferredCache.at < AK_DEFERRED_REFRESH_MS ? deferredCache : null;
       const [claimRaw, deferredRaw] = await Promise.all([
         readCli(["task", "list", "--status", "claimed", "--format", "json", "--all", "--verbose"]),
-        readCli(["task", "deferred", "--format", "json", "--all"]),
+        cached ? null : readCli(["task", "deferred", "--format", "json", "--all"]),
       ]);
       const claims = parseAkClaimList(claimRaw);
-      const deferred = parseAkDeferredList(deferredRaw);
+      const deferred = cached
+        ? { ok: /** @type {const} */ (true), deferred: cached.deferred }
+        : parseAkDeferredList(deferredRaw ?? "");
       if (!claims.ok) {
         failClosed(claims.error);
         return false;
@@ -89,6 +104,8 @@ export function createAkTaskRuntime({
         failClosed(deferred.error);
         return false;
       }
+      deferredCache = cached ?? { at: readAt, deferred: deferred.deferred };
+      runtimeStatus.akTaskDeferredReadAt = deferredCache.at;
       runtimeStatus.akTaskState = "ok";
       runtimeStatus.akTaskError = null;
       runtimeStatus.akTaskClaimCount = claims.claims.filter((claim) =>
