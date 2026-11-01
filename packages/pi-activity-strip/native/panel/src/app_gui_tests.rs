@@ -365,6 +365,89 @@ fn isolated_gtk_interaction() {
     fixture.close();
 }
 
+#[test]
+#[ignore = "requires owned nested Niri, private runtime/bus and disabled AT-SPI; AK8077 RED candidate"]
+fn isolated_gtk_directory_focus_only_preserves_rows_and_scroll() {
+    assert_isolated_gui();
+    gtk::init().unwrap();
+
+    // Given an actual, overflowing DirectoryView with stable membership/order/query and a
+    // nonzero scroll offset. Keep strong GTK references: replacement rows cannot pass by
+    // reusing addresses of destroyed widgets.
+    let (sender, _receiver) = relm4::channel::<AppMsg>();
+    let directory = DirectoryView::new(&sender);
+    let mut windows: Vec<WindowEntry> = (0..80)
+        .map(|i| WindowEntry {
+            card_id: format!("directory-focus-{i}"),
+            label: format!("project-{i:02}"),
+            window_id: i + 100,
+            workspace_id: Some(101),
+            workspace_idx: Some(1),
+            workspace_name: Some("fixture".into()),
+            hidden_tab: false,
+            current: i == 0,
+        })
+        .collect();
+    directory.render(&windows, "", false, false, None);
+    directory.set_visible(true);
+    let fixture = gtk::Window::new();
+    fixture.set_title(Some("AK8077 isolated directory focus-only fixture"));
+    fixture.set_default_size(360, 240);
+    fixture.set_child(Some(&directory.root));
+    fixture.present();
+    let scroller = directory
+        .root
+        .last_child()
+        .unwrap()
+        .downcast::<gtk::ScrolledWindow>()
+        .expect("directory has a real GTK scroller");
+    let adjustment = scroller.vadjustment();
+    pump_until(
+        || {
+            fixture.is_mapped()
+                && adjustment.page_size() > 0.0
+                && adjustment.upper() - adjustment.page_size() > 200.0
+        },
+        "SETUP: directory must map and actually overflow",
+    );
+    let before = directory.row_widgets();
+    assert_eq!(before.len(), windows.len());
+    assert!(before.iter().all(|row| row.is::<gtk::Button>()));
+    assert!(before[0].has_css_class("current"));
+    assert!(!before[1].has_css_class("current"));
+    adjustment.set_value((adjustment.upper() - adjustment.page_size()) / 2.0);
+    pump();
+    let scroll_before = adjustment.value();
+    assert!(scroll_before > 0.0, "SETUP: real nonzero scroll required");
+
+    // When only the focused-window flags change, call the production render path, not
+    // set_prompt or a projection/reconciliation helper. Everything else is identical.
+    windows[0].current = false;
+    windows[1].current = true;
+    directory.render(&windows, "", false, false, None);
+    let after = directory.row_widgets();
+    // Allow GTK layout/frame work to expose a delayed scroll reset too.
+    pump();
+    let scroll_after = adjustment.value();
+    fixture.close();
+
+    // Then every real row object survives in order, focus styling changes in place, and
+    // the operator's scroll offset survives. Widget equality is GObject identity, not text.
+    assert_eq!(after.len(), before.len());
+    for (index, (old, new)) in before.iter().zip(&after).enumerate() {
+        assert_eq!(
+            old, new,
+            "focus-only render replaced GTK directory row {index}"
+        );
+    }
+    assert!(!after[0].has_css_class("current"));
+    assert!(after[1].has_css_class("current"));
+    assert!(
+        (scroll_after - scroll_before).abs() < 0.5,
+        "focus-only render moved directory scroll: {scroll_before} -> {scroll_after}"
+    );
+}
+
 // Scheduling/observation helpers are compiled only through app's cfg(test) module.
 #[path = "app_hover_gui_tests.rs"]
 mod hover_regressions;

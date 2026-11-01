@@ -16,6 +16,7 @@ import sys
 
 CASES = (
     "isolated_gtk_interaction",
+    "isolated_gtk_directory_focus_only_preserves_rows_and_scroll",
     "isolated_gtk_stationary_remap_does_not_request_again",
     "isolated_gtk_stationary_backend_loss_remap_does_not_request_again",
     "isolated_gtk_exact_pixel_return_after_two_ticks_requests_again",

@@ -3,7 +3,6 @@
 // read_when:
 //   - "changing native panel card membership, focus, or transport revisions"
 // ---
-
 import { joinAkTaskChips } from "../common/ak-tasks.mjs";
 import { resolveSnapshotSession } from "../common/niri-focus.mjs";
 import { projectSessionCards, sessionRecordKey } from "../common/session-cards.mjs";
@@ -17,6 +16,7 @@ import {
   visibleCardsForWindow,
 } from "./interaction-context.mjs";
 import { createNeutralSource } from "./panel-neutral-source.mjs";
+import { createPanelPresentation } from "./panel-presentation.mjs";
 import { PANEL_PROTOCOL } from "./panel-protocol.mjs";
 
 /** @typedef {Record<string, unknown>} SessionRecord */
@@ -35,8 +35,7 @@ export function createNativePanelProjection({
 }) {
   /** @type {Snapshot} */
   let snapshot = { generatedAt: Date.now(), sessions: [] };
-  /** Agent tabs discovered from the process table; they publish no telemetry of their own. */
-  /** @type {SessionRecord[]} */
+  /** Process-discovered agent tabs publish no telemetry. @type {SessionRecord[]} */
   let agentSessions = [];
   /** @type {string | null} */
   let focusedSessionId = null;
@@ -50,11 +49,9 @@ export function createNativePanelProjection({
   let workspaceRecordKeys = new Set();
   /** @type {Map<string, CardPlacement>} */
   let workspacePlacements = new Map();
-  /** Read-only AK task claims joined onto cards; absent until the first successful AK read. */
-  /** @type {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
+  /** Read-only AK data; absent until first read. @type {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
   let akTasks = null;
-  /** Every agent window on every workspace, for the brand block's window list. */
-  /** @type {import("../common/workspace-view.mjs").WindowDirectoryEntry[]} */
+  /** All-workspace window list. @type {import("../common/workspace-view.mjs").WindowDirectoryEntry[]} */
   let directory = [];
   /** @type {Map<string, SessionRecord>} */
   let directoryCards = new Map();
@@ -68,15 +65,19 @@ export function createNativePanelProjection({
   const visibility = createFocusVisibility();
   /** @type {import("./focus-visibility.mjs").FocusKind} */
   let focusKind = "unknown";
-  /** Exact source window that established eligibility, retained across explicit panel NULL focus. */
-  /** @type {number | null} */
+  /** Exact source, retained across explicit panel NULL focus. @type {number | null} */
   let focusWindowId = null;
-  /** What that window proved: one exact card ("agent") or a presence app owning none ("neutral"). */
-  /** @type {"agent" | "neutral" | null} */
+  /** One exact card, or a presence app owning none. @type {"agent" | "neutral" | null} */
   let focusSourceKind = null;
   let focusContextValid = false;
 
   const neutralSource = createNeutralSource(getWindowFacts, env);
+  const presentation = createPanelPresentation({
+    getWindowFacts,
+    getCards: getDisplaySessions,
+    getRawSessions: allSessions,
+    env,
+  });
 
   function ensureNeutralSource() {
     if (
@@ -99,6 +100,7 @@ export function createNativePanelProjection({
   }
 
   function invalidateFocus() {
+    presentation.clear();
     clearFocusState();
     send();
   }
@@ -209,7 +211,7 @@ export function createNativePanelProjection({
       type: "view",
       revision,
       interactionEpoch,
-      visible: visibility.observe(facts),
+      visible: presentation.visible(visibility.observe(facts), workspace, focusWindowId),
       focusedSessionId,
       focusedCardId,
       generatedAt: snapshot.generatedAt,
@@ -329,19 +331,21 @@ export function createNativePanelProjection({
     isEligible: () => visibility.isEligible(),
     invalidateFocus,
     /** Revocation-only layout metadata; never admit seat focus or a replacement source.
-     * @param {number} id @param {number | null} windowId */
-    observeWorkspaceSelection(id, windowId) {
+     * @param {number} id @param {number | null} windowId
+     * @param {(workspace: Record<string, unknown>) => WorkspaceView | null} resolveView */
+    observeWorkspaceSelection(id, windowId, resolveView) {
       if (workspace?.id !== id) return;
       workspace = { ...workspace, active_window_id: windowId };
+      presentation.prepare(workspace, windowId, resolveView);
       send();
     },
     /** @param {number} windowId */
     invalidateWindowFocus(windowId) {
-      if (windowId === focusWindowId) invalidateFocus();
+      if (windowId === focusWindowId || presentation.involves(windowId)) invalidateFocus();
     },
     /** @param {(workspace: Record<string, unknown>) => WorkspaceView | null} resolveView */
     revalidateWindowFocus(resolveView) {
-      const valid = focusProofMatches(resolveView);
+      const valid = focusProofMatches(resolveView) && presentation.holds(workspace, resolveView);
       if (!valid) invalidateFocus();
       return valid;
     },
@@ -350,6 +354,7 @@ export function createNativePanelProjection({
      * @param {(workspace: Record<string, unknown>) => WorkspaceView | null} [resolveView]
      */
     publishWindowFocus(windowId, resolveView) {
+      if (windowId !== null && resolveView) presentation.prepare(workspace, windowId, resolveView);
       const cards = getDisplaySessions();
       const facts = windowId === null ? null : getWindowFacts(windowId);
       focusKind = !focusContextValid
@@ -390,10 +395,7 @@ export function createNativePanelProjection({
     setAgentSessions(records) {
       agentSessions = Array.isArray(records) ? records : [];
     },
-    /**
-     * Replace the read-only AK task data joined onto cards. An empty refresh clears every chip;
-     * `null` data (AK never read) leaves cards untouched, which is how the strip stays unchanged
-     * when AK is absent.
+    /** Replace read-only AK chips: empty clears them; null (never read) leaves cards untouched.
      * @param {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} state
      */
     setAkTasks(state) {
@@ -415,8 +417,7 @@ export function createNativePanelProjection({
         .map((entry) =>
           sourceIdentity(entry.workspaceId, windowId, directoryCards.get(entry.cardId)),
         ),
-    /**
-     * Replace the window list; it is published with the next view.
+    /** Replace the window list, published with the next view.
      * @param {{entries: import("../common/workspace-view.mjs").WindowDirectoryEntry[]; cards: Map<string, SessionRecord>}} next
      */
     setDirectory(next) {
@@ -425,6 +426,7 @@ export function createNativePanelProjection({
     },
     /** @param {WorkspaceView} view */
     publishWorkspaceView(view) {
+      presentation.prepareView(view, focusWindowId);
       const sameWorkspace = Number.isInteger(workspace?.id) && view.workspace?.id === workspace?.id;
       const retainedCardId = sameWorkspace ? focusedCardId : null;
       const retainedSessionId = sameWorkspace ? focusedSessionId : null;

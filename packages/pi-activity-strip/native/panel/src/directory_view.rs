@@ -3,6 +3,7 @@ use crate::protocol::WindowEntry;
 use relm4::Sender;
 use relm4::gtk;
 use relm4::gtk::prelude::*;
+use std::cell::RefCell;
 
 /// Enough digits for any Niri window id; a longer number is a typo, not a window.
 const MAX_WINDOW_DIGITS: usize = 9;
@@ -25,6 +26,8 @@ pub struct DirectoryView {
     pub root: gtk::Box,
     status: gtk::Label,
     rows: gtk::Box,
+    // Every material field (including the activation target), but not current styling.
+    rendered_rows: RefCell<Vec<WindowEntry>>,
     sender: Sender<AppMsg>,
 }
 
@@ -55,6 +58,7 @@ impl DirectoryView {
             root,
             status,
             rows,
+            rendered_rows: RefCell::new(Vec::new()),
             sender: sender.clone(),
         }
     }
@@ -63,8 +67,20 @@ impl DirectoryView {
         self.root.set_visible(visible);
     }
 
-    /// Rebuild the rows for the current list and query. Clicking a row activates its card, so a
-    /// hidden tab is presented exactly as clicking its card would. The row Enter would open is
+    /// Strong references let GTK tests distinguish retained rows from replacement widgets.
+    #[cfg(test)]
+    pub(crate) fn row_widgets(&self) -> Vec<gtk::Widget> {
+        let mut rows = Vec::new();
+        let mut child = self.rows.first_child();
+        while let Some(row) = child {
+            child = row.next_sibling();
+            rows.push(row);
+        }
+        rows
+    }
+
+    /// Retain rows when their material data and order match; update focus/choice styling in
+    /// place. Clicking a row activates its card, including hidden tabs. The row Enter opens is
     /// marked, so a typed name always shows where it leads.
     pub fn render(
         &self,
@@ -74,10 +90,23 @@ impl DirectoryView {
         allow_unlisted: bool,
         hotkey: Option<&str>,
     ) {
-        while let Some(child) = self.rows.first_child() {
-            self.rows.remove(&child);
-        }
         let shown = filter_entries(windows, query);
+        let key: Vec<WindowEntry> = shown
+            .iter()
+            .map(|entry| {
+                let mut key = (**entry).clone();
+                key.current = false;
+                key
+            })
+            .collect();
+        // Empty states have different messages; rebuild them rather than caching a label.
+        let reuse = !shown.is_empty() && *self.rendered_rows.borrow() == key;
+        if !reuse {
+            while let Some(child) = self.rows.first_child() {
+                self.rows.remove(&child);
+            }
+        }
+        let mut retained = self.rows.first_child();
         let choice = jump_choice(windows, query, allow_unlisted);
         // Alphabetical from the controller, so workspace headings would repeat; each row names
         // its workspace instead.
@@ -87,8 +116,21 @@ impl DirectoryView {
                 Some(JumpChoice::Card(card_id)) => &entry.card_id == card_id,
                 None => false,
             };
-            self.rows.append(&self.row(entry, chosen));
+            if reuse {
+                let row = retained.take().expect("cached directory row exists");
+                retained = row.next_sibling();
+                for (class, enabled) in [("current", entry.current), ("chosen", chosen)] {
+                    if enabled {
+                        row.add_css_class(class);
+                    } else {
+                        row.remove_css_class(class);
+                    }
+                }
+            } else {
+                self.rows.append(&self.row(entry, chosen));
+            }
         }
+        *self.rendered_rows.borrow_mut() = key;
         if shown.is_empty() {
             let empty = gtk::Label::new(Some(if windows.is_empty() {
                 "No agent windows"

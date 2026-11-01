@@ -213,7 +213,11 @@ export function createWorkspaceProjectionHandlers({ projection, placement, recon
     },
     /** @param {number} workspaceId @param {number | null} windowId */
     onWorkspaceActiveWindowChanged(workspaceId, windowId) {
-      projection.observeWorkspaceSelection(workspaceId, windowId);
+      projection.observeWorkspaceSelection(
+        workspaceId,
+        windowId,
+        placement.resolveCachedWorkspaceView,
+      );
       projection.revalidateWindowFocus(placement.resolveCachedWorkspaceView);
       reconcile();
     },

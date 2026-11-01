@@ -7,6 +7,7 @@ import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { selectEmptyWorkspace } from "./fixture-workspaces.mjs";
+import { checkFocusPresentationGeometry } from "./focus-presentation-geometry.mjs";
 import {
   assertNoRecapture,
   assertRevocationBeforeIdle,
@@ -247,6 +248,7 @@ try {
     const windows = await niri("windows");
     return windows.length === 6 ? windows : null;
   }, "six private fixture windows");
+  assert.equal((await niri("layers")).length, 0, "unreserved window reference precedes controller");
   const agent = windows.find((w) => w.title.includes("gs:main:7114"));
   const target = windows.find((w) => w.title.includes("gs:main:7115"));
   assert.ok(agent && target);
@@ -376,6 +378,18 @@ try {
     "PUBLIC TELEMETRY PASS actual base publisher and current publisher aggregate into one agent card",
   );
   console.log("CONTROLLER PASS agent focus", JSON.stringify(await layers()));
+  await checkFocusPresentationGeometry({
+    agent,
+    target,
+    unreservedWindows: windows,
+    niri,
+    run,
+    focus,
+    eventually,
+    status,
+    layers,
+    traceFile: env.PI_ACTIVITY_STRIP_GUI_TRACE,
+  });
   for (const other of windows.filter(
     (w) => !["com.mitchellh.ghostty", "com.onepassword.OnePassword"].includes(w.app_id),
   )) {
@@ -921,10 +935,19 @@ try {
   await returned(presence.id, "presence keyboard exit returns the keyboard to the presence app");
   console.log("CONTROLLER PASS presence app keeps the strip visible and admits the shortcut");
   await focus(agent.id);
-  await eventually(
-    async () => (await status())?.windowVisible === true,
-    "return agent after presence",
-  );
+  // Passive visibility is no longer a proxy for input authority. Wait for fresh admission,
+  // not a fixed dwell or repeated keyboard requests; the success assertion below is unchanged.
+  await eventually(async () => {
+    const current = await status();
+    const proof = current?.ribbonDiagnostics;
+    return (
+      current?.windowVisible === true &&
+      proof?.eligible === true &&
+      proof.contextValid === true &&
+      proof.focus === "agent" &&
+      proof.source === "agent"
+    );
+  }, "return agent after presence with fresh agent admission");
   assert.equal((await sendBrokerMessage({ type: "focus-strip" }, { expectReply: true })).ok, true);
   await eventually(
     async () => (await status())?.panelExpanded === true,
