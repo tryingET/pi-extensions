@@ -13,6 +13,14 @@ import {
 
 /** AK state changes are rare; a calm clock keeps the ribbon cheap. */
 export const AK_TASK_REFRESH_MS = 15_000;
+/**
+ * The full deferral list held the workstation-wide AK lock 3.3 s of every 15 s (AK7943): reuse the
+ * last good list for up to five minutes while claims keep the 15 s clock. It is read only after the
+ * claims read succeeds, is dropped when its own read fails, expires when the clock steps back, and is
+ * reread at once when a newer live claim names a task it still holds as deferred (AK refuses to
+ * claim a task with an active deferral, so that claim proves the list stale).
+ */
+export const AK_DEFERRED_REFRESH_MS = 300_000;
 const AK_EXEC_TIMEOUT_MS = 8000;
 const AK_EXEC_MAX_BUFFER = 4 * 1024 * 1024;
 
@@ -40,6 +48,8 @@ export function createAkTaskRuntime({
   /** @type {NodeJS.Timeout | null} */
   let timer = null;
   let inFlight = false;
+  /** @type {{at: number; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
+  let deferredCache = null;
 
   runtimeStatus.akTaskState = disabled ? "disabled" : (runtimeStatus.akTaskState ?? "pending");
   runtimeStatus.akTaskError = runtimeStatus.akTaskError ?? null;
@@ -63,32 +73,61 @@ export function createAkTaskRuntime({
   /**
    * @param {string} error
    */
-  function failClosed(error) {
+  function failClosed(error, { keepDeferred = false } = {}) {
     runtimeStatus.akTaskState = "unavailable";
     runtimeStatus.akTaskError = error;
     runtimeStatus.akTaskClaimCount = 0;
     runtimeStatus.akTaskDeferredCount = 0;
+    runtimeStatus.akTaskDeferredReadAt = null;
+    if (!keepDeferred) deferredCache = null;
     onChange({ claims: [], deferred: [] });
   }
 
   async function refresh() {
     if (disabled || inFlight) return false;
     inFlight = true;
+    let phase = "claims";
     try {
-      const [claimRaw, deferredRaw] = await Promise.all([
-        readCli(["task", "list", "--status", "claimed", "--format", "json", "--all", "--verbose"]),
-        readCli(["task", "deferred", "--format", "json", "--all"]),
-      ]);
-      const claims = parseAkClaimList(claimRaw);
-      const deferred = parseAkDeferredList(deferredRaw);
+      const readAt = now();
+      // Claims first: a failing or contended claim read never also spends the deferral read.
+      const claims = parseAkClaimList(
+        await readCli([
+          "task",
+          "list",
+          "--status",
+          "claimed",
+          "--format",
+          "json",
+          "--all",
+          "--verbose",
+        ]),
+      );
       if (!claims.ok) {
-        failClosed(claims.error);
+        failClosed(claims.error, { keepDeferred: true });
         return false;
       }
+      const cache = deferredCache;
+      const cachedIds = new Set(cache ? cache.deferred.map((task) => task.id) : []);
+      const contradicted =
+        cache !== null &&
+        claims.claims.some(
+          (claim) =>
+            cachedIds.has(claim.id) && claim.claimedAt > cache.at && claimIsLive(claim, readAt),
+        );
+      const age = cache ? readAt - cache.at : Number.NaN;
+      const fresh =
+        cache && !contradicted && age >= 0 && age < AK_DEFERRED_REFRESH_MS ? cache : null;
+      phase = "deferred";
+      const deferred = fresh
+        ? { ok: /** @type {const} */ (true), deferred: fresh.deferred }
+        : parseAkDeferredList(await readCli(["task", "deferred", "--format", "json", "--all"]));
       if (!deferred.ok) {
         failClosed(deferred.error);
         return false;
       }
+      deferredCache = fresh ?? { at: readAt, deferred: deferred.deferred };
+      runtimeStatus.akTaskDeferredReadAt = deferredCache.at;
+      runtimeStatus.akTaskDeferredMaxAgeMs = AK_DEFERRED_REFRESH_MS;
       runtimeStatus.akTaskState = "ok";
       runtimeStatus.akTaskError = null;
       runtimeStatus.akTaskClaimCount = claims.claims.filter((claim) =>
@@ -98,7 +137,9 @@ export function createAkTaskRuntime({
       onChange({ claims: claims.claims, deferred: deferred.deferred });
       return true;
     } catch (error) {
-      failClosed(`ak CLI unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      failClosed(`ak CLI unavailable: ${error instanceof Error ? error.message : String(error)}`, {
+        keepDeferred: phase === "claims",
+      });
       return false;
     } finally {
       inFlight = false;

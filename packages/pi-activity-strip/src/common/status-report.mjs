@@ -8,6 +8,22 @@
 
 import { formatRibbonDiagnostics } from "./ribbon-status.mjs";
 
+/**
+ * When the AK deferral list was read and how long it may be reused; empty for unusable values.
+ * @param {{akTaskDeferredReadAt?: number | null; akTaskDeferredMaxAgeMs?: number}} runtime
+ */
+function deferralListAge(runtime) {
+  const readAt = runtime.akTaskDeferredReadAt;
+  if (typeof readAt !== "number" || !Number.isFinite(readAt) || Math.abs(readAt) > 8.64e15)
+    return "";
+  const maxAge = runtime.akTaskDeferredMaxAgeMs;
+  const reuse =
+    typeof maxAge === "number" && Number.isFinite(maxAge) && maxAge > 0
+      ? `, reused up to ${Math.round(maxAge / 1000)} s`
+      : "";
+  return `; deferral list read ${new Date(readAt).toISOString()}${reuse}`;
+}
+
 /** @param {BrokerResponse | null | undefined} result */
 export function formatBrokerRuntimeStatus(result) {
   if (!result?.ok) return "stopped";
@@ -74,7 +90,7 @@ export function formatBrokerRuntimeStatus(result) {
     if (runtime.akTaskState === "ok") {
       const orphaned = Number(runtime.akTaskOrphanCount ?? 0);
       lines.push(
-        `AK task refs: ok (${runtime.akTaskClaimCount ?? 0} live claims, ${runtime.akTaskDeferredCount ?? 0} deferred${orphaned > 0 ? `, ${orphaned} orphaned claims` : ""})`,
+        `AK task refs: ok (${runtime.akTaskClaimCount ?? 0} live claims, ${runtime.akTaskDeferredCount ?? 0} deferred${orphaned > 0 ? `, ${orphaned} orphaned claims` : ""}${deferralListAge(runtime)})`,
       );
     } else if (runtime.akTaskState !== "disabled") {
       lines.push(

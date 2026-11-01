@@ -114,6 +114,10 @@ export interface ActivityStripRuntimeStatus {
   akTaskError?: string | null;
   akTaskClaimCount?: number;
   akTaskDeferredCount?: number;
+  /** When the deferral list was last read; it is reused for up to AK_DEFERRED_REFRESH_MS (AK7943). */
+  akTaskDeferredReadAt?: number | null;
+  /** How long that list may be reused (AK_DEFERRED_REFRESH_MS). */
+  akTaskDeferredMaxAgeMs?: number;
   akTaskOrphanCount?: number;
   akTaskRenderedCount?: number;
   rendererVisibilityTransitionCount?: number;
