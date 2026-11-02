@@ -2,8 +2,17 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertLayerOneLock,
+  fetchLockedClosure,
+  installClosure,
+  ownClosure,
+  packOwn,
+  readLock,
+  verifyInstalled,
+} from "../task-session-runtime/closure.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), "task5480-pack-proof-"));
@@ -21,18 +30,16 @@ function run(command, args, cwd = scratch) {
   return r.stdout;
 }
 run.count = 0;
-const little = Object.values(
-  JSON.parse(run("npm", ["pack", "--json", "--pack-destination", scratch], root)),
-)[0];
-const adapter = Object.values(
-  JSON.parse(
-    run(
-      "npm",
-      ["pack", "--json", "--pack-destination", scratch],
-      join(root, "../pi-society-orchestrator"),
-    ),
-  ),
-)[0];
+// The installer's own two layers, so this proves the closure that actually gets installed (AK7845).
+const lock = readLock();
+assertLayerOneLock(lock);
+const cache = join(scratch, "npm-cache");
+const lockedFetch = join(scratch, "locked-fetch");
+mkdirSync(lockedFetch);
+fetchLockedClosure({ directory: lockedFetch, cache });
+const packed = packOwn(ownClosure(join(root, "..")), scratch, cache);
+const little = packed.find((own) => own.name === "@tryinget/pi-little-helpers");
+const adapter = packed.find((own) => own.name === "@tryinget/pi-society-orchestrator");
 for (const pack of [little, adapter]) {
   assert.ok(pack.files.some((f) => f.path.includes("dist/task-session")));
   assert.ok(
@@ -42,28 +49,7 @@ for (const pack of [little, adapter]) {
   );
 }
 assert.ok(little.files.some((f) => f.path.endsWith("custody-linux-x64.node")));
-writeFileSync(
-  join(scratch, "package.json"),
-  JSON.stringify({
-    name: "task5480-synthetic-packed-consumer",
-    version: "1.0.0",
-    private: true,
-    type: "module",
-  }),
-);
-run("npm", [
-  "install",
-  "--ignore-scripts",
-  "--omit=dev",
-  "--no-audit",
-  "--no-fund",
-  join(scratch, little.filename),
-  join(scratch, adapter.filename),
-  "@earendil-works/pi-coding-agent@1.1.0",
-  "@earendil-works/pi-ai@1.1.0",
-  "@earendil-works/pi-agent-core@1.1.0",
-  "@earendil-works/pi-tui@1.1.0",
-]);
+verifyInstalled(installClosure({ staging: scratch, cache, packed }), lock, packed);
 const proof = `
 import assert from 'node:assert/strict';
 import os from 'node:os';
@@ -89,7 +75,7 @@ assertSdkIdentity();
 writeFileSync('synthetic.lock','',{mode:0o600});const n=native(),h=n.openMutex(process.cwd()+'/synthetic.lock');
 assert.equal(n.tryLock(h),true);n.unlockMutex(h);n.closeMutex(h);
 const cwd=process.cwd()+'/synthetic-checkout';mkdirSync(cwd);mkdirSync(cwd+'/.git');mkdirSync(cwd+'/agent');
-const profile={model:getModel('openai-codex','gpt-5.5'),reasoning:'high',account:'synthetic',runDeadline:Date.now()+60000};
+const profile={model:getModel('openai-codex','gpt-6.1-sol'),reasoning:'high',account:'synthetic',runDeadline:Date.now()+60000};
 const credential={type:'oauth',access:'synthetic.'+Buffer.from(JSON.stringify({'https://api.openai.com/auth':{chatgpt_account_id:'synthetic'}})).toString('base64url')+'.synthetic',refresh:'synthetic',expires:Date.now()+3600000};
 let sends=0;
 const host=await sealedHost({incarnation:'synthetic',cwd,objective:'literal packed proof',profile,resources:captureResources(cwd,cwd+'/agent')},credential,{send:async(_url,init)=>{
@@ -150,13 +136,12 @@ assert.match(help, /DB-free/);
 const summary = {
   scratch,
   verified,
-  packages: [little, adapter].map((p) => ({
+  packages: packed.map((p) => ({
     name: p.name,
-    filename: p.filename,
+    version: p.version,
+    filename: basename(p.tarball),
     integrity: p.integrity,
-    shasum: p.shasum,
     files: p.files.length,
-    size: p.size,
   })),
   liveActivation: false,
   producerIntegration: false,
