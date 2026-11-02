@@ -40,12 +40,50 @@ operator-reviewed v1, not an autonomous semantic reviewer.
 | `add` | `title`, `acceptance`, optional exact registered `repo`, `kind: work\|retained`. Assigns stable `O1`, `O2`, etc. No deletion/update operation. |
 | `freeze` | Operator reviews inventory. Further additions invalidate freeze and receipt; existing items remain immutable. |
 | `bind` | Frozen `id`, `disposition: resolved\|deferred\|retained`, `taskId`, `evidenceId` for resolved, and `rationale`. Binding revisions remain in journal. |
+| `budget` | Required `profile: default\|large-assets` and nonempty `rationale`. Selects fixed host-session reader limits; preserves inventory, frozen digest and bindings, bumps revision and clears the historical receipt. |
 | `check` | Fresh AK/Git readbacks, refusal reasons and digest. Always says BLOCKED until separate operator seal. |
 | `seal` | Rechecks facts, requests independent operator review, rechecks again, and only then records the receipt. |
 
 `/session-closeout status`, `/session-closeout check`, and `/session-closeout seal`
 are operator shortcuts. They do not terminate Pi. No automatic commit, push,
 credential change, AK lifecycle write, cancellation, or process cleanup occurs.
+
+## Host-session byte budgets
+
+Untracked readback defaults remain **2MiB/file, 20MiB total, 1000 files**.
+For generated classroom assets, explicitly select **large-assets**:
+
+```json
+{"action":"budget","profile":"large-assets","rationale":"Read generated classroom assets for this host-session closeout"}
+```
+
+This is a `session_closeout` call. The operator shortcut is
+`/session-closeout budget large-assets`; it records an explicit shortcut rationale.
+Large-assets allows **64MiB/file, 512MiB total, 1000 files** (inclusive byte caps).
+Reset with `{"action":"budget","profile":"default","rationale":"Reset reader limits"}`
+or `/session-closeout budget default`. Open the journal first.
+
+The selection applies **only to `state.host.repo` in this exact session journal**;
+other obligation repos and other sessions retain default limits. No global setting,
+dependency change or new approval authority is introduced. Models may select these
+bounded reader resources; operator freeze and independent typed TUI seal remain
+mandatory. Inventory, frozen digest and bindings survive selection/reset; the
+revision advances, the receipt is cleared, and previous evaluations cannot be
+reused, even when reselecting the same profile. Obtain a fresh check and seal.
+
+Status and independent seal review show `budget`: profile, exact byte/file limits,
+host repo, rationale and selection revision. The selection persists across reload;
+legacy journals without it use default. Malformed/unknown persisted selections
+fail closed. Every initial capture, recheck and post-approval read uses the same
+host selection. Regular untracked files are hashed with bounded-memory streaming,
+preserving SHA256(JSON.stringify(base64(file bytes))); symlink targets remain
+unfollowed. No file is omitted or replaced by a metadata-only fingerprint.
+
+Exceeding either byte cap refuses with repository, observed usage, configured limits
+and selection guidance, without file names or contents. Above large-assets caps,
+use separate owner-scoped handling, never discard WIP. All other checks (including
+Git diff command/output limits, gitlinks, AK proof/currentness, pending calls and
+messages, and independent operator acceptance) remain unchanged.
 
 ## Evidence contract
 
@@ -125,7 +163,7 @@ Limits are checked before inventory persistence: 30 items, 12KB total inventory,
 review; choose concise canonical evidence instead of truncating critical facts.
 Git snapshots include HEAD, status, cached/worktree binary diffs and untracked
 file hashes; two content captures must agree. They are reread after AK readbacks
-and after review. Untracked limits: 1000 files, 2MiB each, 20MiB total. Dirty
+and after review. Untracked limits follow the host-session byte budget above. Dirty
 submodules/gitlinks fail closed pending their own owner reconciliation. Never
 clean operator WIP just to satisfy this gate.
 
@@ -165,7 +203,8 @@ node tests/session-closeout-live.mjs "${TMPDIR:?set TMPDIR to your scratch root}
 Tests cover exact identity, fork/reload/branch refusal, disappearing obligations,
 forged verdicts, headless/RPC approval refusal, typed operator decisions, added
 contradictory evidence, same-status content races, expired deferrals, stale hashes,
-aggregate budgets, and concurrent tool/message barriers. Live proof must separately
+aggregate budgets, profile selection/reset and isolation, persisted-profile refusal,
+streaming hash compatibility, and concurrent tool/message barriers. Live proof must separately
 exercise real Pi registration and TUI review; mocked confirmation is not that proof.
 
 The live canary simulates typed operator input for an explicitly empty scratch

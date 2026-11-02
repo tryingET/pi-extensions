@@ -25,6 +25,7 @@ export interface Binding {
   evidenceId?: number;
   rationale: string;
 }
+export type BudgetProfile = "default" | "large-assets";
 export interface CloseoutState {
   schema: 1;
   id: string;
@@ -34,6 +35,7 @@ export interface CloseoutState {
   obligations: Obligation[];
   bindings: Binding[];
   frozenDigest?: string;
+  budget?: { profile: BudgetProfile; rationale: string; revision: number };
   receipt?: {
     id: string;
     at: string;
@@ -81,6 +83,60 @@ export function openState(host: HostIdentity, boundary: string | null): Closeout
     revision: 1,
     obligations: [],
     bindings: [],
+  };
+}
+/** Fixed reader resources, never an approval or a change to the frozen inventory. */
+export function budgetLimits(profile: unknown): {
+  profile: BudgetProfile;
+  maxFileBytes: number;
+  maxTotalBytes: number;
+  maxFiles: number;
+} {
+  if (profile !== "default" && profile !== "large-assets")
+    throw new Error("Unknown closeout budget profile; use default or large-assets");
+  return {
+    profile,
+    maxFileBytes: (profile === "default" ? 2 : 64) * 1024 * 1024,
+    maxTotalBytes: (profile === "default" ? 20 : 512) * 1024 * 1024,
+    maxFiles: 1000,
+  };
+}
+export function closeoutBudget(state: CloseoutState) {
+  const selected = state.budget;
+  if (selected !== undefined) {
+    if (
+      !selected ||
+      typeof selected !== "object" ||
+      Array.isArray(selected) ||
+      Object.keys(selected).sort().join(",") !== "profile,rationale,revision" ||
+      !positive(selected.revision) ||
+      selected.revision > state.revision
+    )
+      throw new Error("Malformed closeout budget profile");
+    text(selected.rationale, "budget rationale");
+  }
+  return {
+    ...budgetLimits(selected === undefined ? "default" : selected.profile),
+    repo: state.host.repo,
+    rationale: selected?.rationale ?? null,
+    revision: selected?.revision ?? null,
+  };
+}
+export function selectBudget(
+  state: CloseoutState,
+  profile: unknown,
+  rationale: unknown,
+): CloseoutState {
+  const limits = budgetLimits(profile);
+  return {
+    ...state,
+    revision: state.revision + 1,
+    receipt: undefined,
+    budget: {
+      profile: limits.profile,
+      rationale: text(rationale, "budget rationale"),
+      revision: state.revision + 1,
+    },
   };
 }
 export function inventoryDigest(state: CloseoutState): string {
@@ -166,6 +222,7 @@ export function evaluate(
     work,
     digest: digest({
       inventory: inventoryDigest(state),
+      budget: closeoutBudget(state),
       bindings: state.bindings,
       observations,
       activity,
@@ -192,6 +249,7 @@ export function restoreState(rows: unknown[], host: HostIdentity): CloseoutState
       s.obligations.length > 30
     )
       throw new Error("Closeout identity/schema drift");
+    closeoutBudget(s); // Legacy absence means default; malformed selections fail closed.
     if (
       previous &&
       (s.id !== previous.id ||

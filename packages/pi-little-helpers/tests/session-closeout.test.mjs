@@ -4,11 +4,13 @@ import test from "node:test";
 import {
   addObligation,
   bindObligation,
+  closeoutBudget,
   digest,
   evaluate,
   inventoryDigest,
   openState,
   restoreState,
+  selectBudget,
 } from "../src/sessionCloseout.ts";
 import { activityDigest, pendingCalls } from "../src/sessionCloseoutHost.ts";
 import { machine, observeObligation } from "../src/sessionCloseoutReadback.ts";
@@ -271,4 +273,41 @@ test("pending parallel calls refuse closure; compaction never selects another se
   entries.push({ type: "compaction", id: "compact", firstKeptEntryId: "a" });
   assert.deepEqual(pendingCalls(entries, "start", "seal"), []);
   assert.match(pendingCalls(entries, "missing", "seal")[0], /boundary/);
+});
+
+test("budget selections preserve frozen nonempty bindings, invalidate receipt/evaluation and restore exactly", () => {
+  const before = { ...bindObligation(frozen(), binding), receipt: { digest: "old" } };
+  const selected = selectBudget(before, "large-assets", "Generated classroom assets");
+  assert.equal(selected.frozenDigest, before.frozenDigest);
+  assert.deepEqual(selected.obligations, before.obligations);
+  assert.deepEqual(selected.bindings, before.bindings);
+  assert.equal(selected.receipt, undefined);
+  assert.equal(selected.revision, before.revision + 1);
+  assert.deepEqual(
+    restoreState([before, JSON.parse(JSON.stringify(selected))], host),
+    JSON.parse(JSON.stringify(selected)),
+  );
+  const again = selectBudget(selected, "large-assets", "Generated classroom assets");
+  assert.notEqual(
+    evaluate(selected, [], "same", []).digest,
+    evaluate(again, [], "same", []).digest,
+  );
+  const reset = selectBudget(again, "default", "Reset");
+  assert.equal(closeoutBudget(reset).maxFileBytes, 2 * 1024 * 1024);
+  assert.equal(closeoutBudget(reset).maxTotalBytes, 20 * 1024 * 1024);
+  assert.equal(closeoutBudget(openState(host, null)).profile, "default");
+  assert.equal(closeoutBudget(restoreState([before], host)).profile, "default");
+  for (const budget of [
+    null,
+    [],
+    "large-assets",
+    {},
+    { ...selected.budget, profile: "unlimited" },
+    { ...selected.budget, profile: undefined },
+    { ...selected.budget, rationale: "" },
+    { ...selected.budget, revision: 0 },
+    { ...selected.budget, revision: selected.revision + 1 },
+    { ...selected.budget, maxFileBytes: 999999999 },
+  ])
+    assert.throws(() => restoreState([{ ...selected, budget }], host), /budget|profile/);
 });

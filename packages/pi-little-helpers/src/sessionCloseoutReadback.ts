@@ -1,11 +1,16 @@
 // summary: bounded, read-only Git and AK adapters for session-closeout receipts.
 // read_when: changing proof identity, deferral contracts, or freshness checks.
+
 import { execFile } from "node:child_process";
-import { lstat, readFile, readlink, realpath } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants, type Stats } from "node:fs";
+import { lstat, open, readlink, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 import {
   type Binding,
+  type BudgetProfile,
+  budgetLimits,
   digest,
   type Obligation,
   type Observation,
@@ -87,13 +92,19 @@ export interface GitSnapshot {
 export async function gitSnapshot(
   repo: string,
   run: ReadCommand = readCommand,
+  profile: BudgetProfile = "default",
 ): Promise<GitSnapshot> {
-  const first = await captureGit(repo, run);
-  const second = await captureGit(repo, run);
+  const limits = budgetLimits(profile);
+  const first = await captureGit(repo, run, limits);
+  const second = await captureGit(repo, run, limits);
   if (first.digest !== second.digest) throw new Error("Git content changed during capture");
   return second;
 }
-async function captureGit(repo: string, run: ReadCommand): Promise<GitSnapshot> {
+async function captureGit(
+  repo: string,
+  run: ReadCommand,
+  limits: ReturnType<typeof budgetLimits>,
+): Promise<GitSnapshot> {
   const head = (await run("git", ["rev-parse", "HEAD"], repo)).trim();
   if (!/^[0-9a-f]{40,64}$/.test(head)) throw new Error("Missing Git HEAD");
   const before = await run("git", ["status", "--porcelain=v1", "-z", "-uall"], repo);
@@ -119,7 +130,10 @@ async function captureGit(repo: string, run: ReadCommand): Promise<GitSnapshot> 
     .split("\0")
     .filter(Boolean)
     .sort();
-  if (names.length > 1000) throw new Error("Untracked inventory exceeds 1000 files");
+  if (names.length > limits.maxFiles)
+    throw new Error(
+      `Untracked inventory exceeds ${limits.maxFiles} files in ${repo} (profile ${limits.profile})`,
+    );
   let bytes = 0;
   const untracked = [];
   for (const name of names) {
@@ -131,13 +145,17 @@ async function captureGit(repo: string, run: ReadCommand): Promise<GitSnapshot> 
     if (!stat.isFile() && !stat.isSymbolicLink())
       throw new Error("Unsupported untracked file type");
     bytes += stat.size;
-    if (stat.size > 2 * 1024 * 1024 || bytes > 20 * 1024 * 1024)
-      throw new Error("Untracked byte budget exceeded");
+    if (stat.size > limits.maxFileBytes || bytes > limits.maxTotalBytes)
+      throw new Error(
+        `Untracked byte budget exceeded in ${repo}: file=${stat.size} bytes, total=${bytes} bytes; ` +
+          `profile=${limits.profile}, limits=${limits.maxFileBytes} bytes/file, ${limits.maxTotalBytes} bytes total, ${limits.maxFiles} files. ` +
+          "For this journal's host repo only, select session_closeout action budget with profile large-assets and rationale, or /session-closeout budget large-assets. Larger inputs require separate owner-scoped handling; do not discard WIP.",
+      );
     // Do not follow symlinks when fingerprinting operator state.
-    const value = stat.isSymbolicLink()
-      ? await readlink(path)
-      : (await readFile(path)).toString("base64");
-    untracked.push([name, stat.mode, digest(value)]);
+    const hash = stat.isSymbolicLink()
+      ? digest(await readlink(path))
+      : await regularFileDigest(path, stat);
+    untracked.push([name, stat.mode, hash]);
   }
   const after = await run("git", ["status", "--porcelain=v1", "-z", "-uall"], repo);
   if (before !== after || (await run("git", ["rev-parse", "HEAD"], repo)).trim() !== head)
@@ -148,6 +166,43 @@ async function captureGit(repo: string, run: ReadCommand): Promise<GitSnapshot> 
     dirty: before.length > 0,
     digest: digest({ head, status: before, diff, index, untracked }),
   };
+}
+
+/** SHA256(JSON.stringify(base64(bytes))), without allocating the full file/base64/JSON. */
+async function regularFileDigest(path: string, expected: Stats): Promise<string> {
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  const same = (s: Stats) =>
+    s.isFile() &&
+    s.dev === expected.dev &&
+    s.ino === expected.ino &&
+    s.size === expected.size &&
+    s.mode === expected.mode &&
+    s.mtimeMs === expected.mtimeMs &&
+    s.ctimeMs === expected.ctimeMs;
+  try {
+    if (!same(await file.stat())) throw new Error("Untracked file changed before read");
+    const hash = createHash("sha256").update('"');
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let carry = Buffer.alloc(0);
+    let bytes = 0;
+    for (;;) {
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, null);
+      if (!bytesRead) break;
+      bytes += bytesRead;
+      // A growing file cannot consume unbounded resources after the size admission.
+      if (bytes > expected.size) throw new Error("Untracked file grew during read; retry capture");
+      const chunk = Buffer.concat([carry, buffer.subarray(0, bytesRead)]);
+      const end = chunk.length - (chunk.length % 3);
+      hash.update(chunk.subarray(0, end).toString("base64"));
+      carry = Buffer.from(chunk.subarray(end));
+    }
+    if (bytes !== expected.size || !same(await file.stat()) || !same(await lstat(path)))
+      throw new Error("Untracked file changed during read");
+    hash.update(carry.toString("base64")).update('"');
+    return hash.digest("hex");
+  } finally {
+    await file.close();
+  }
 }
 
 export async function observeObligation(

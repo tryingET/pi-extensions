@@ -14,11 +14,13 @@ import {
   CLOSEOUT_ENTRY,
   CLOSEOUT_TOOL,
   type CloseoutState,
+  closeoutBudget,
   digest,
   evaluate,
   inventoryDigest,
   type Observation,
   openState,
+  selectBudget,
 } from "../src/sessionCloseout.ts";
 import {
   activityDigest,
@@ -31,7 +33,17 @@ import { gitSnapshot, observeObligation, registeredRepo } from "../src/sessionCl
 
 const parameters = Type.Object(
   {
-    action: StringEnum(["open", "status", "add", "freeze", "bind", "check", "seal"] as const),
+    action: StringEnum([
+      "open",
+      "status",
+      "add",
+      "freeze",
+      "bind",
+      "budget",
+      "check",
+      "seal",
+    ] as const),
+    profile: Type.Optional(StringEnum(["default", "large-assets"] as const)),
     title: Type.Optional(Type.String({ maxLength: 240 })),
     acceptance: Type.Optional(Type.String({ maxLength: 2000 })),
     repo: Type.Optional(Type.String({ maxLength: 4096 })),
@@ -61,6 +73,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
       repo: state.host.repo,
       boundary: state.boundary,
       revision: state.revision,
+      budget: closeoutBudget(state),
       inventoryDigest: inventoryDigest(state),
       frozen: state.frozenDigest === inventoryDigest(state),
       obligations: state.obligations,
@@ -98,9 +111,12 @@ export default function sessionCloseout(pi: ExtensionAPI) {
     if (ctx.hasPendingMessages()) barriers.push("Queued session messages remain");
     if ([...running].some((id) => id !== callId))
       barriers.push("Other tool execution remains active");
+    const profile = closeoutBudget(state).profile;
+    const snapshotFor = (repo: string) =>
+      gitSnapshot(repo, undefined, repo === state.host.repo ? profile : "default");
     const snapshots = new Map<string, Awaited<ReturnType<typeof gitSnapshot>>>();
     for (const repo of new Set([state.host.repo, ...state.obligations.map((o) => o.repo)])) {
-      snapshots.set(repo, await gitSnapshot(repo));
+      snapshots.set(repo, await snapshotFor(repo));
     }
     for (const item of state.obligations) {
       const git = snapshots.get(item.repo);
@@ -114,7 +130,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
       );
     }
     for (const [repo, snapshot] of snapshots) {
-      if ((await gitSnapshot(repo)).digest !== snapshot.digest)
+      if ((await snapshotFor(repo)).digest !== snapshot.digest)
         barriers.push(`Git changed while reading owner facts: ${repo}`);
     }
     if (ctx.signal?.aborted) barriers.push("Closeout cancelled");
@@ -134,6 +150,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
   async function action(
     params: {
       action: string;
+      profile?: "default" | "large-assets";
       title?: string;
       acceptance?: string;
       repo?: string;
@@ -165,17 +182,26 @@ export default function sessionCloseout(pi: ExtensionAPI) {
       const mutationEpoch = epoch;
       const mutationActivity = activityDigest(ctx.sessionManager.getBranch());
       const guardMutation = async () => {
-        // Await first, then do all synchronous checks immediately before journal append.
         const freshHost = await hostIdentity(ctx);
-        if (
-          ctx.signal?.aborted ||
-          digest(freshHost) !== digest(host) ||
-          epoch !== mutationEpoch ||
-          activityDigest(ctx.sessionManager.getBranch()) !== mutationActivity ||
-          digest(journalState(ctx, host)) !== digest(original)
-        )
-          throw new Error("Session/journal changed during closeout operation");
+        // Return the final checks: the caller runs them synchronously with append,
+        // not before an await's continuation where queued branch changes can run.
+        return () => {
+          if (
+            ctx.signal?.aborted ||
+            digest(freshHost) !== digest(host) ||
+            epoch !== mutationEpoch ||
+            activityDigest(ctx.sessionManager.getBranch()) !== mutationActivity ||
+            digest(journalState(ctx, host)) !== digest(original)
+          )
+            throw new Error("Session/journal changed during closeout operation");
+        };
       };
+      if (params.action === "budget") {
+        state = selectBudget(state, params.profile, params.rationale);
+        (await guardMutation())();
+        save(state);
+        return result(display(state));
+      }
       if (params.action === "add") {
         state = addObligation(state, {
           title: params.title ?? "",
@@ -183,7 +209,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
           repo: await registeredRepo(params.repo ?? host.repo),
           kind: params.kind ?? "work",
         });
-        await guardMutation();
+        (await guardMutation())();
         save(state);
         return result(display(state));
       }
@@ -206,7 +232,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
           `${JSON.stringify(display(state), null, 2)}\n\nIndependently review scope and acceptance criteria. Include all session obligations; retained is ONLY unrelated operator state. Empty inventory means you confirm nothing needs closing. Later additions invalidate this approval; existing obligations cannot be removed or weakened.`,
         );
         if (!accepted) throw new Error("Inventory not approved; nothing frozen");
-        await guardMutation();
+        (await guardMutation())();
         state = {
           ...state,
           revision: state.revision + 1,
@@ -244,7 +270,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
       const fresh = await readback(ctx, state, callId);
       if (fresh.blockers.length || fresh.digest !== checked.digest)
         throw new Error("Owner/Git/session facts changed during review; obtain fresh approval");
-      await guardMutation();
+      (await guardMutation())();
       if (fresh.observations.some((o) => o.validUntil !== undefined && o.validUntil <= Date.now()))
         throw new Error("Deferral expired before receipt issuance");
       const receipt: NonNullable<CloseoutState["receipt"]> = {
@@ -277,7 +303,7 @@ export default function sessionCloseout(pi: ExtensionAPI) {
     name: CLOSEOUT_TOOL,
     label: "Session closeout gate",
     description:
-      "Open exact host-bound closeout, append obligations, request operator freeze, bind AK evidence/deferrals, check, then request independent operator seal. No supplied verdict accepted. Seal only in TUI, serially and alone. Mutates only session-local gate journal; reads AK/Git without lifecycle writes. Does not prove exhaustive discovery or automatically verify ASC custody.",
+      "Open exact host-bound closeout, append obligations, request operator freeze, bind AK evidence/deferrals, select bounded host-only budget (default or large-assets, rationale required), check, then request independent operator seal. No supplied verdict accepted. Seal only in TUI, serially and alone. Mutates only session-local gate journal; reads AK/Git without lifecycle writes. Does not prove exhaustive discovery or automatically verify ASC custody.",
     parameters,
     async execute(id, params, _signal, _update, ctx) {
       return action(params, ctx, id);
@@ -288,12 +314,29 @@ export default function sessionCloseout(pi: ExtensionAPI) {
       "Start the runtime closeout workflow, or inspect status/check/seal (operator-reviewed)",
     handler: async (args, ctx) => {
       try {
-        const operation = args.trim() || "open";
-        if (!["open", "status", "check", "seal"].includes(operation))
-          throw new Error("Usage: /session-closeout [status|check|seal]");
+        const tokens = (args.trim() || "open").split(/\s+/);
+        const operation = tokens[0];
+        const profile = tokens[1];
+        if (
+          operation === "budget"
+            ? tokens.length !== 2 || !["default", "large-assets"].includes(profile)
+            : tokens.length !== 1 || !["open", "status", "check", "seal"].includes(operation)
+        )
+          throw new Error(
+            "Usage: /session-closeout [open|status|check|seal|budget default|budget large-assets]",
+          );
         if (!ctx.isIdle() || ctx.hasPendingMessages())
           throw new Error("Wait for the session to settle before using the command");
-        const outcome = await action({ action: operation }, ctx);
+        const outcome = await action(
+          operation === "budget"
+            ? {
+                action: operation,
+                profile: profile as "default" | "large-assets",
+                rationale: `Operator shortcut: select ${profile} reader budget for this host-session journal only`,
+              }
+            : { action: operation },
+          ctx,
+        );
         pi.sendMessage({
           customType: "session-closeout-report",
           content: outcome.content,

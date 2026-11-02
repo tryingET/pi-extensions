@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import extension from "../extensions/session-closeout.ts";
-import { CLOSEOUT_ENTRY } from "../src/sessionCloseout.ts";
+import { addObligation, CLOSEOUT_ENTRY } from "../src/sessionCloseout.ts";
 import { boundCloseoutProcedurePrompt } from "../src/sessionCloseoutPrompt.ts";
 import { gitSnapshot } from "../src/sessionCloseoutReadback.ts";
 import { testGit } from "./session-closeout-git.mjs";
@@ -267,4 +267,106 @@ test("Feature: /session-closeout binds host identity without hotloading tools", 
     assert.match(prompt, /CALLER_SESSION_ID=caller/);
     assert.match(prompt, /CALLER_SESSION_FILE=/);
   }
+});
+
+test("budget profile: default refuses >2MiB, explicit host opt-in persists through check and seal", async (t) => {
+  const h = await harness(t);
+  await h.call("open");
+  await h.call("freeze");
+  await writeFile(join(h.repo, "asset.bin"), Buffer.alloc(2 * 1024 * 1024 + 1, 7));
+  await assert.rejects(h.call("check"), /byte budget/);
+  const selected = (
+    await h.call("budget", {
+      profile: "large-assets",
+      rationale: "Generated classroom asset readback",
+    })
+  ).details;
+  assert.equal(selected.budget.profile, "large-assets");
+  assert.equal(selected.budget.maxFileBytes, 64 * 1024 * 1024);
+  assert.equal(selected.budget.maxTotalBytes, 512 * 1024 * 1024);
+  assert.equal(selected.budget.maxFiles, 1000);
+  assert.equal(selected.frozen, true);
+  h.load();
+  assert.equal((await h.call("status")).details.budget.profile, "large-assets");
+  assert.deepEqual((await h.call("check")).details.blockers, []);
+  assert.equal((await h.call("seal")).details.session, "SAFE_TO_CLOSE");
+  assert.match(h.approvals.at(-1).body, /large-assets/);
+  assert.match(h.approvals.at(-1).body, /536870912/);
+  const prior = h.entries.at(-1).data;
+  const reset = (
+    await h.call("budget", { profile: "default", rationale: "Reset reader resources" })
+  ).details;
+  assert.equal(reset.historicalReceipt, null);
+  assert.equal(reset.frozen, true);
+  assert.equal(h.entries.at(-1).data.frozenDigest, prior.frozenDigest);
+  assert.deepEqual(h.entries.at(-1).data.bindings, prior.bindings);
+  assert.equal(h.entries.at(-1).data.revision, prior.revision + 1);
+  await assert.rejects(h.call("check"), /byte budget/);
+});
+
+test("budget profile: >20MiB aggregate requires opt-in; operator shortcut resets; sessions isolated", async (t) => {
+  const h = await harness(t);
+  await h.call("open");
+  await h.call("freeze");
+  for (let i = 0; i < 11; i++)
+    await writeFile(join(h.repo, `asset-${i}.bin`), Buffer.alloc(2 * 1024 * 1024));
+  await assert.rejects(h.call("check"), /byte budget/);
+  await h.commands().get("session-closeout").handler("budget large-assets", h.ctx);
+  assert.equal((await h.call("status")).details.budget.profile, "large-assets");
+  assert.deepEqual((await h.call("check")).details.blockers, []);
+  const other = await harness(t);
+  await other.call("open");
+  assert.equal((await other.call("status")).details.budget.profile, "default");
+  await h.commands().get("session-closeout").handler("budget default", h.ctx);
+  await assert.rejects(h.call("check"), /byte budget/);
+});
+
+test("budget profile: rejects missing rationale and unknown profile without journal mutation", async (t) => {
+  const h = await harness(t);
+  await h.call("open");
+  const count = h.entries.length;
+  await assert.rejects(h.call("budget", { profile: "large-assets" }), /rationale/);
+  await assert.rejects(h.call("budget", { profile: "unlimited", rationale: "No" }), /profile/);
+  assert.equal(h.entries.length, count);
+});
+
+test("budget profile: same-size asset changes during independent seal still refuse", async (t) => {
+  const h = await harness(t);
+  await h.call("open");
+  await h.call("freeze");
+  await h.call("budget", { profile: "large-assets", rationale: "Read generated assets" });
+  await writeFile(join(h.repo, "asset.bin"), Buffer.alloc(2 * 1024 * 1024 + 1, 1));
+  h.ctx.ui.editor = async (_title, body) => {
+    await writeFile(join(h.repo, "asset.bin"), Buffer.alloc(2 * 1024 * 1024 + 1, 2));
+    return body;
+  };
+  await assert.rejects(h.call("seal"), /changed/);
+  assert.equal(h.entries.at(-1).data.receipt, undefined);
+});
+
+test("budget profile never expands another obligation repository's reader budget", async (t) => {
+  const h = await harness(t);
+  const other = await harness(t);
+  await h.call("open");
+  const state = addObligation(h.entries.at(-1).data, {
+    title: "Retain unrelated operator state",
+    acceptance: "Preserve bytes",
+    repo: other.repo,
+    kind: "retained",
+  });
+  h.entries.push({
+    type: "custom",
+    customType: CLOSEOUT_ENTRY,
+    id: "foreign-obligation",
+    data: state,
+  });
+  await h.call("freeze");
+  await h.call("bind", { id: "O1", disposition: "retained", rationale: "Unrelated WIP remains" });
+  await h.call("budget", { profile: "large-assets", rationale: "Host assets only" });
+  await writeFile(join(other.repo, "asset.bin"), Buffer.alloc(2 * 1024 * 1024 + 1));
+  await assert.rejects(h.call("check"), (error) => {
+    assert.ok(error.message.includes(other.repo));
+    assert.match(error.message, /profile=default/);
+    return true;
+  });
 });
