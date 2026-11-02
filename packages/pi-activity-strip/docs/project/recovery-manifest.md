@@ -62,7 +62,7 @@ builder is [recovery-manifest.mjs](../../src/common/recovery-manifest.mjs).
 | `sessions[]` | **Observation rows, not a census of sessions.** Process-only rows have `session.id:null` |
 | `coverage` | Observation, identified-session, distinct harness-qualified identity, process-only, source-link, transcript and claim counts |
 | `windowContainmentGroups[]` | Candidate window containment, distinct observed process count and known session-identity count; never tab/session cardinality |
-| `claims[]` | Exact AK claimant projection, lease, match state, matching observation IDs and query provenance |
+| `claims[]` | Exact AK claimant projection, the harness of a published claimant or null, lease, match state, matching observation IDs and query provenance |
 | `limitations[]` | Non-atomic capture, incomplete historical coverage, owner boundaries |
 
 Each observation row carries `observationId`, `harness`, `session` (ID/source/provenance/cwd/reported
@@ -116,8 +116,22 @@ No state claims transcript completeness, preservation or recoverability. The ind
 one directory level under the selected roots, caps examined entries at 100000 and reports
 partial/truncated sources. Claude registry reads cap files at 4096 and metadata at 256 KiB.
 
-AK joins preserve `session-UUID`, `claude-session-UUID` and `codex-session-UUID` independently.
-Unknown prefixes are `unsupported-claimant`, never normalized to Pi. `exact-claimant` means
+AK joins preserve `session-UUID`, `claude-session-UUID`, `codex-session-UUID` and
+`nodecode-session-ID` independently. UUIDs fold to lowercase. A Nodecode ID is not a UUID and keeps
+its exact case: AK admits `s-<1-8 base36>`, `session-<time>-<random>` and
+`fork-turn-<time>-<random>-<n>`, with one more number when a name was taken, in uppercase with no
+leading zero, so each session has one spelling. AK owns that grammar
+(`valid_nodecode_session_id` in agent-kernel `crates/ak-core/src/tasks.rs`, AK8195) and
+[recovery-identity.mjs](../../src/common/recovery-identity.mjs) repeats it, so a form AK adds later
+stays unsupported here until it is copied.
+
+The collector has no Nodecode session source, so its processes stay `process-only`. A live Nodecode
+claim is `session-source-unsupported` with `harness: "nodecode"`: the collector has no way to find
+that session, so the state says nothing about whether it is alive. `session-not-observed` is
+unchanged: the harness has a source and no row matched, and `sources[]` says whether it was read.
+
+Unknown prefixes and Nodecode IDs outside that grammar, such as `s-GATEWAY`, are
+`unsupported-claimant` with a null harness, never normalized to Pi. `exact-claimant` means
 **identity equality to an observed AK row**, not that a candidate process owns custody or shows
 that task. Expired/invalid leases, ambiguous session observations and absent identities are
 explicit. No repo/cwd fallback binds claims. Recheck current AK before acting.
@@ -149,6 +163,7 @@ npm run check
 Fixtures are synthetic and include namespace/PID collision, PID reuse and birth mismatch,
 classification changes, ambiguous/shared windows, live observation changes, expired claims,
 cross-harness UUID collisions, unsupported prefixes, missing transcripts and redaction sentinels.
+The exception is `COPIED_NODECODE_IDS` in the identity test: session IDs copied without content.
 Native proof must additionally exercise the exact CLI, full AK query and read-only boundaries;
 a passing pure test or broker snapshot is not that proof.
 

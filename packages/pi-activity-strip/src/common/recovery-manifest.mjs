@@ -67,6 +67,15 @@ export const RECOVERY_CAPABILITIES = [
       "open descriptor proves neither writer nor currently displayed thread; no cwd/recency fallback",
   },
   {
+    harness: "nodecode",
+    session: "unsupported",
+    transcript: "unsupported",
+    currentDisplay: "unsupported",
+    claimantPrefix: "nodecode-session-",
+    limitation:
+      "no session source: a claim names Nodecode but cannot link to a process; ids are unique per home",
+  },
+  {
     harness: "angelx",
     session: "unsupported",
     transcript: "unsupported",
@@ -102,6 +111,12 @@ export const RECOVERY_CAPABILITIES = [
     limitation: "no guessed UUID, command replay, or canonical AK prefix",
   },
 ];
+
+/** A harness with no session source can never observe its claimant, so no match means nothing.
+ * @param {string} harness */
+function hasSessionSource(harness) {
+  return RECOVERY_CAPABILITIES.some((c) => c.harness === harness && c.session !== "unsupported");
+}
 
 /** @param {ProcessObservation | undefined} a @param {ProcessObservation | undefined} b */
 export function sameProcess(a, b) {
@@ -295,7 +310,9 @@ export function buildRecoveryManifest(input, { includePaths = false } = {}) {
               ? "ambiguous-session"
               : matched.length === 1
                 ? "exact-claimant"
-                : "session-not-observed";
+                : hasSessionSource(claimant.harness)
+                  ? "session-not-observed"
+                  : "session-source-unsupported";
     if (state === "exact-claimant")
       matched[0].ak.links.push({
         taskId: c.id,
@@ -307,6 +324,7 @@ export function buildRecoveryManifest(input, { includePaths = false } = {}) {
     return {
       taskId: c.id,
       claimant: c.claimed_by,
+      harness: claimant?.harness ?? null,
       leaseExpiresAt: c.lease_expires_at,
       state,
       observationIds: matched.map((s) => s.observationId),
