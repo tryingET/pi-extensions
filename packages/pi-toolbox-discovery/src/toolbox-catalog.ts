@@ -52,7 +52,7 @@ export const CATALOG: ToolboxBundle[] = [
     id: "context-packer",
     title: "Context-packer tools",
     description:
-      "Read-only context packet planning and assembly across source-owned providers such as AGENTS, docs, git, session metadata, and SCI.",
+      "Read-only context packet planning and assembly across source-owned providers such as AGENTS, docs, git, and session metadata.",
     ownerPackage: "packages/pi-context-packer",
     ownerSemantics:
       "pi-context-packer owns context packet planning/assembly; toolbox discovers and activates already-registered owner tools without turning the packet into source-owner authority; the owner extension must register tool schemas before toolbox can activate them.",
@@ -65,7 +65,6 @@ export const CATALOG: ToolboxBundle[] = [
       "context_dogfood_evaluate",
       "context_dogfood_summarize",
       "dogfood receipt",
-      "sci",
       "docs",
     ],
     profiles: [
