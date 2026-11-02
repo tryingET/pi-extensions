@@ -42,7 +42,7 @@ artifact, pinned, trimmed, or replaced by an owned copy?
 | Our own code from npm | 9 of 11 `@tryinget` resolved from the public registry, because prepack rewrites `file:` dependencies to exact versions (`pi-interaction/scripts/prepare-publish-manifest.mjs:286-311`). 8 of the 9 ship code byte-identical to monorepo HEAD; pi-autonomous-session-control 0.7.0 vs source 0.8.0 differs in 18 code files (unreachable) | lockfile, inspection |
 | Orchestrator | unreachable; its task-session adapter is byte-identical to pi-little-helpers' `producer-adapter.js` (`1adf9ef2…`, re-verified); packed anyway (`task-session-install.mjs:63`); 8 packages, 7.4 MiB | dep-diet, dep-surgeon |
 | Build digest | covers only pi-little-helpers `dist/task-session`; an existing `runtime/<digest>` makes the installer discard new staging (`:104-106`), so closure-only changes are silently not deployed (AK7824) | dep-surgeon |
-| Vulnerabilities | 0 (offline grype DB 2026-10-15; positive control matched 8); OSV not checked | dep-viz |
+| Vulnerabilities | 0 with the offline grype DB of 2026-10-15 (positive control matched 8). **Superseded 2026-11-02:** 9 matches with the DB of 2026-10-31, see the correction below | dep-viz, evidence 19542 |
 | Licences | permissive; 10 `@tryinget` carry a non-SPDX rider (operator's own copyright: scanner noise) | dep-viz |
 | Install scripts | esbuild, protobufjs, @google/genai; the installer passes `--ignore-scripts` (`:78`), so they should not have run (inferred, not observed) | dep-viz, dep-surgeon |
 | Small reachable third-party | partial-json 292 LOC, cross-spawn 239, get-east-asian-width 172, proper-lockfile 412, chalk 657 …: all imported by the SDK; our own code imports only typebox@1.3.34 (`pi-tool.js:1`) | dep-diet, inspection |
@@ -149,7 +149,7 @@ artifact, pinned, trimmed, or replaced by an owned copy?
     (trust on first use). It needs a private cache filled by one locked, integrity-checked fetch;
     offline enforced by `--offline` plus a network namespace (`unshare -rn`), not a flag alone; and an
     update path, since a frozen lock ages (R3).
-  - R3 *Vulnerability currency.* Offline DB 16 days old; OSV not checked.
+  - R3 *Vulnerability currency.* Realised: a refreshed DB found 9 matches (correction below); OSV still not checked.
   - R4 *Publisher identity, toolchain.* Not determinable; `/usr/bin/node` (rolling distro) and the
     per-package `tsc` are unpinned.
   - R5 *Default-host rotation.* Any default-host reinstall changes `host_sha256` (AK7710, freeze 17963).
@@ -177,6 +177,18 @@ core and the provider gating, and overturned three first-draft verdicts (draft 1
    Clash 4; install scripts "should not have run" is inferred; the provider check is api/baseUrl;
    typebox in `pi-tool.js`; dirty-check scope (`:55`) must widen if more packages are packed;
    `/usr/bin/node` unpinned; the licence rider is noise.
+
+## Correction (2026-11-02, evidence 19542, AK8113)
+
+The "0 known vulnerabilities" row was true only for the grype DB of 2026-10-15. Re-scanning the identical
+closure with the refreshed DB (built 2026-10-31) finds 9 matches: `undici@8.10.2` (4 High, 4 Medium; fixed in
+8.12.2) and `minimatch@10.2.6` (1 Medium; fixed in 11.0.1, a major). Both are in host-v1 core. Both are
+**exact-pinned** by `@earendil-works/pi-coding-agent` 1.1.0 and, per cached manifests, still in 1.2.0 and 1.4.0,
+so the planned 1.4.0 update does not clear them, and the live Pi CLI 1.1.0 ships the same versions. This
+changes one verdict above: for these two packages an exact-version pin of upstream bytes is not enough; an
+override to a fixed version (a deliberate divergence from the SDK's pin, tested side by side) or an upstream
+fix is needed. Remedy is AK8113 (operator: triage, override undici 8.12.2, draft an upstream report). Scanner
+matches are not proven exploitability.
 
 ## PRACTICAL CONSEQUENCE
 
