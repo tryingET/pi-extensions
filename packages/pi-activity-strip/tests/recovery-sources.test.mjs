@@ -8,6 +8,9 @@ import {
   claudeRegistry,
   codexDescriptors,
   inspectTranscript,
+  markRepublished,
+  nodecodeShellRoot,
+  nodecodeShells,
   sessionHeader,
   transcriptIndex,
 } from "../src/native/recovery-sources.mjs";
@@ -75,6 +78,110 @@ test("registry admits allowlisted metadata only and counts malformed/oversized e
   assert.equal(found.sessions.length, 1);
   assert.ok(!JSON.stringify(found).includes("PRIVATE_SYNTHETIC_SENTINEL"));
   assert.equal(claudeRegistry(path.join(root, "absent")).coverage.state, "unavailable");
+});
+
+test("Given Nodecode shell presence records, when read, then only well-formed records are admitted and no resume command leaves", (t) => {
+  const root = scratch(t);
+  const shell = {
+    version: 1,
+    kind: "nodecode-shell",
+    pid: 20,
+    start_ticks: 16,
+    session_id: "s-U82YC5MU",
+    profile: "PRIVATE_SYNTHETIC_SENTINEL",
+    home: "/PRIVATE_SYNTHETIC_SENTINEL/",
+    cwd: "/synthetic",
+    resume_argv: ["nodecode", "resume", "PRIVATE_SYNTHETIC_SENTINEL"],
+    updated_at: 1800000000,
+  };
+  const write = (name, value, dir = root) =>
+    fs.writeFileSync(
+      path.join(dir, name),
+      typeof value === "string" ? value : JSON.stringify(value),
+    );
+  const { start_ticks: _ticks, ...withoutTicks } = shell;
+  write("20.json", shell);
+  // Without start ticks a record could claim a later Nodecode on its pid, so it is refused.
+  write("28.json", { ...shell, pid: 28, start_ticks: null });
+  write("33.json", { ...withoutTicks, pid: 33 });
+  write("31.json", { ...shell, pid: 31, start_ticks: -1 });
+  write("25.json", { ...shell, pid: 25, start_ticks: "16" });
+  write("21.json", { ...shell, pid: 22 });
+  write("30.json", { ...shell, pid: "30" });
+  write("0.json", { ...shell, pid: 0 });
+  write("23.json", { ...shell, pid: 23, kind: "nodecode-gateway" });
+  write("24.json", { ...shell, pid: 24, version: 2 });
+  write("26.json", { ...shell, pid: 26, session_id: "" });
+  write("29.json", { ...shell, pid: 29, session_id: "s-U82YC5MU and more" });
+  write("32.json", { ...shell, pid: 32, session_id: "s".repeat(129) });
+  // Valid JSON, refused only for its size.
+  write("27.json", JSON.stringify({ ...shell, pid: 27 }) + " ".repeat(262145));
+  write("bad.json", "not JSON");
+  // The writer never links; a link to an otherwise valid record is refused.
+  const elsewhere = path.join(root, "elsewhere");
+  fs.mkdirSync(elsewhere);
+  write("35.json", { ...shell, pid: 35 }, elsewhere);
+  fs.symlinkSync(path.join(elsewhere, "35.json"), path.join(root, "35.json"));
+  const found = nodecodeShells(root);
+  assert.equal(found.coverage.observed, 16);
+  assert.equal(found.coverage.rejected, 15);
+  assert.deepEqual(
+    found.sessions.map((s) => [s.harness, s.sessionId, s.pid, s.procStart, s.source, s.pidDomain]),
+    [["nodecode", "s-U82YC5MU", 20, "16", "nodecode-shell-presence", null]],
+  );
+  assert.equal(found.sessions[0].cwd, "/synthetic");
+  assert.ok(!JSON.stringify(found).includes("PRIVATE_SYNTHETIC_SENTINEL"));
+  assert.equal(nodecodeShells(path.join(root, "absent")).coverage.state, "unavailable");
+});
+
+test("Given XDG_RUNTIME_DIR, when the shell presence root is chosen, then only an absolute one is read, as Nodecode writes", () => {
+  assert.equal(
+    nodecodeShellRoot({ XDG_RUNTIME_DIR: "/run/user/1000" }),
+    "/run/user/1000/nodecode/shells",
+  );
+  assert.equal(
+    nodecodeShellRoot({ XDG_RUNTIME_DIR: "/run/user/1000/" }),
+    "/run/user/1000/nodecode/shells",
+  );
+  for (const value of [undefined, "", "relative/dir", "./run"]) {
+    assert.equal(nodecodeShellRoot({ XDG_RUNTIME_DIR: value }), null);
+  }
+  const none = nodecodeShells(null);
+  assert.equal(none.coverage.state, "unavailable");
+  assert.equal(none.coverage.observed, 0);
+  assert.ok(none.coverage.limitations.includes("XDG_RUNTIME_DIR unset or relative"));
+  assert.equal(none.sessions.length, 0);
+});
+
+test("Given a source reread after capture, when a row no longer says the same, then its observation is marked changed", () => {
+  const shell = {
+    harness: "nodecode",
+    sessionId: "s-U82YC5MU",
+    pid: 20,
+    source: "nodecode-shell-presence",
+    sourceRef: "/synthetic/20.json",
+    cwd: "/synthetic",
+    startedAt: 0,
+    pidDomain: null,
+    procStart: "16",
+    bootId: null,
+    changed: false,
+    transcripts: [],
+  };
+  const reread = (after, row = shell) => {
+    const sessions = [structuredClone(row)];
+    markRepublished(sessions, new Map([["nodecode-shell-presence", after]]));
+    return sessions[0].changed;
+  };
+  assert.equal(reread([{ ...shell }]), false);
+  assert.equal(reread([{ ...shell, sessionId: "fork-turn-1U6LA5U-Y76LVYTQT8-1" }]), true);
+  assert.equal(reread([{ ...shell, procStart: "17" }]), true);
+  assert.equal(reread([]), true);
+  assert.equal(reread([{ ...shell, changed: true }]), true);
+  // A row already seen changing while it was read stays changed, whatever the reread says.
+  assert.equal(reread([{ ...shell }], { ...shell, changed: true }), true);
+  // A source with no reread keeps its own verdict.
+  assert.equal(reread([], { ...shell, source: "codex-open-rollout" }), false);
 });
 
 test("jq reads first Pi header only; body and malformed later lines are not consumed", (t) => {

@@ -113,8 +113,8 @@ function claim(claimedBy, id = 1) {
   };
 }
 
-function manifest({ sessions = [], claims = [] }) {
-  return buildRecoveryManifest({
+function manifestInput({ sessions = [], claims = [] }) {
+  return {
     startedAt: now,
     endedAt: now + 100,
     bootId: "synthetic-boot",
@@ -128,7 +128,11 @@ function manifest({ sessions = [], claims = [] }) {
     workspacesAfter: [],
     claims,
     sources: [],
-  });
+  };
+}
+
+function manifest(parts) {
+  return buildRecoveryManifest(manifestInput(parts));
 }
 
 for (const id of COPIED_NODECODE_IDS) {
@@ -189,10 +193,10 @@ for (const [harness, prefix] of OTHER_HARNESSES) {
   });
 }
 
-test("Given a live claim by a real Nodecode session, when the manifest cannot look for it, then it reads as Nodecode and says so", () => {
+test("Given a live claim by a real Nodecode session no record names, when the manifest is built, then it reads as Nodecode and unobserved", () => {
   const m = manifest({ claims: [claim("nodecode-session-s-J1YV0VJR")] });
   assert.equal(m.claims[0].harness, "nodecode");
-  assert.equal(m.claims[0].state, "session-source-unsupported");
+  assert.equal(m.claims[0].state, "session-not-observed");
   assert.equal(m.claims[0].claimant, "nodecode-session-s-J1YV0VJR");
   assert.equal(m.coverage.claimStates["unsupported-claimant"], undefined);
 });
@@ -229,7 +233,7 @@ test("Given a claim AK would refuse, when the manifest is built, then it stays u
   );
 });
 
-test("Given no observed session, when each harness's claim is read, then only a harness with a source reports it unobserved", () => {
+test("Given no observed session, when each harness's claim is read, then every claimant harness reports it unobserved", () => {
   const m = manifest({
     claims: [
       claim(`session-${uuid}`, 1),
@@ -245,7 +249,7 @@ test("Given no observed session, when each harness's claim is read, then only a 
       ["pi", "session-not-observed"],
       ["claude", "session-not-observed"],
       ["codex", "session-not-observed"],
-      ["nodecode", "session-source-unsupported"],
+      ["nodecode", "session-not-observed"],
       [null, "unsupported-claimant"],
     ],
   );
@@ -279,10 +283,80 @@ test("Given a Nodecode session observation, when its claim is joined, then the c
   );
 });
 
-test("Given the harness table, when Nodecode is looked up, then it publishes AK's prefix and no session source", () => {
+test("Given the harness table, when Nodecode is looked up, then it publishes AK's prefix and its shell presence source", () => {
   const row = RECOVERY_CAPABILITIES.find((c) => c.harness === "nodecode");
   assert.equal(row?.claimantPrefix, "nodecode-session-");
-  assert.equal(row?.session, "unsupported");
+  assert.equal(row?.session, "shell-presence-pid-startTicks");
   assert.equal(row?.transcript, "unsupported");
-  assert.equal(row?.currentDisplay, "unsupported");
+  assert.equal(row?.currentDisplay, "unproved");
+});
+
+/** A Nodecode shell's presence record, as nodecodeShells admits it. */
+function shellSession(procStart = "100") {
+  return {
+    harness: "nodecode",
+    sessionId: "s-U82YC5MU",
+    pid: 20,
+    source: "nodecode-shell-presence",
+    sourceRef: "/synthetic/nodecode/shells/20.json",
+    cwd: "/synthetic",
+    startedAt: 0,
+    pidDomain: null,
+    procStart,
+    bootId: null,
+    changed: false,
+    transcripts: [],
+  };
+}
+
+/** The shell's own process as procfs shows it. */
+function shellProcess() {
+  return {
+    pid: 20,
+    ppid: 1,
+    startTicks: "100",
+    birthMs: now - 10000,
+    bootId: "synthetic-boot",
+    pidDomain: "synthetic-domain",
+    executable: "/synthetic/bin/nodecode",
+    executableIdentity: "1:20",
+    cwd: "/synthetic",
+    harness: "nodecode",
+  };
+}
+
+test("Given a shell's presence record and its live process, when the manifest is built, then the session links unconfirmed and its claim is exact", () => {
+  const m = buildRecoveryManifest({
+    ...manifestInput({
+      sessions: [shellSession()],
+      claims: [claim("nodecode-session-s-U82YC5MU")],
+    }),
+    before: [shellProcess()],
+    after: [shellProcess()],
+  });
+  assert.equal(m.sessions.length, 1);
+  assert.equal(m.sessions[0].process.state, "unconfirmed");
+  assert.equal(m.sessions[0].process.process?.pid, 20);
+  assert.ok(
+    m.sessions[0].process.uncertainties.includes("registry-missing-pid-domain-or-birth-token"),
+  );
+  assert.equal(m.claims[0].state, "exact-claimant");
+  assert.equal(m.claims[0].harness, "nodecode");
+});
+
+test("Given a presence record a killed shell left behind, when its pid now runs another Nodecode, then the birth token refuses the link", () => {
+  const m = buildRecoveryManifest({
+    ...manifestInput({ sessions: [shellSession("99")] }),
+    before: [shellProcess()],
+    after: [shellProcess()],
+  });
+  assert.equal(m.sessions[0].process.state, "birth-mismatch");
+  assert.equal(m.sessions[0].process.process, null);
+  assert.deepEqual(
+    m.sessions.map((s) => [s.session.id, s.session.source]),
+    [
+      ["s-U82YC5MU", "nodecode-shell-presence"],
+      [null, "process-scan"],
+    ],
+  );
 });

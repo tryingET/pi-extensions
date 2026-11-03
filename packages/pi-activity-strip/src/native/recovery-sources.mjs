@@ -71,6 +71,112 @@ export function claudeRegistry(root) {
   return { sessions, coverage };
 }
 
+/** Where Nodecode's client keeps shell presence: it writes only under an absolute XDG_RUNTIME_DIR,
+ * so nothing else is read. => the directory, or null.
+ * @param {NodeJS.ProcessEnv} env */
+export function nodecodeShellRoot(env) {
+  const runtime = env.XDG_RUNTIME_DIR ?? "";
+  return runtime.startsWith("/") ? path.join(runtime, "nodecode", "shells") : null;
+}
+
+/** Nodecode's own shell presence records: a terminal shell attached to its session names that
+ * session, never one it only previews, with its pid and /proc start ticks, and removes the record
+ * when it ends. Detached sessions and RPC clients write none. A record has no PID-namespace domain
+ * or boot id. Its resume command, home and profile are never read.
+ * @param {string | null} root */
+export function nodecodeShells(root) {
+  /** @type {SessionObservation[]} */
+  const sessions = [];
+  /** @type {SourceCoverage} */
+  const coverage = {
+    source: root ?? "nodecode-shell-presence",
+    state: "observed",
+    observed: 0,
+    rejected: 0,
+    limitations: [
+      "attached terminal shells only; no PID-namespace domain or boot id; ids unique per Nodecode home",
+    ],
+  };
+  if (root === null) {
+    coverage.state = "unavailable";
+    coverage.limitations.push("XDG_RUNTIME_DIR unset or relative");
+    return { sessions, coverage };
+  }
+  try {
+    const names = fs
+      .readdirSync(root)
+      .filter((v) => v.endsWith(".json"))
+      .sort();
+    coverage.observed = names.length;
+    if (names.length > 4096) coverage.limitations.push("registry-file-limit:4096");
+    for (const name of names.slice(0, 4096)) {
+      try {
+        const file = path.join(root, name);
+        // The writer replaces a regular file atomically; it never links one in.
+        if (!fs.lstatSync(file).isFile()) throw new Error("not-a-regular-file");
+        const before = fileIdentity(file);
+        const row = metadataJson(file);
+        const after = fileIdentity(file);
+        const { pid, start_ticks: ticks } = row;
+        const sessionId = string(row.session_id);
+        // Without start ticks a record could claim a later Nodecode on its pid, so it is refused.
+        if (
+          row.version !== 1 ||
+          row.kind !== "nodecode-shell" ||
+          !Number.isSafeInteger(pid) ||
+          Number(pid) <= 0 ||
+          name !== `${pid}.json` ||
+          !Number.isSafeInteger(ticks) ||
+          Number(ticks) < 0 ||
+          !/^[!-~]{1,128}$/.test(sessionId)
+        ) {
+          coverage.rejected++;
+          continue;
+        }
+        sessions.push({
+          harness: "nodecode",
+          sessionId,
+          pid: Number(pid),
+          source: "nodecode-shell-presence",
+          sourceRef: file,
+          cwd: string(row.cwd),
+          startedAt: 0,
+          pidDomain: null,
+          procStart: String(ticks),
+          bootId: null,
+          changed: JSON.stringify(before) !== JSON.stringify(after),
+          transcripts: [],
+        });
+      } catch {
+        coverage.rejected++;
+      }
+    }
+  } catch {
+    coverage.state = "unavailable";
+  }
+  return { sessions, coverage };
+}
+
+/** Mark each session whose source, read again after the capture, no longer says the same thing:
+ * same pid, session, start, cwd, birth token and domain. Ordinary heartbeats do not count.
+ * @param {SessionObservation[]} sessions @param {Map<string, SessionObservation[]>} after */
+export function markRepublished(sessions, after) {
+  for (const s of sessions) {
+    const peers = after.get(s.source);
+    if (!peers) continue;
+    s.changed ||= !peers.some(
+      (a) =>
+        a.pid === s.pid &&
+        a.sessionId === s.sessionId &&
+        a.startedAt === s.startedAt &&
+        a.cwd === s.cwd &&
+        a.procStart === s.procStart &&
+        a.pidDomain === s.pidDomain &&
+        !a.changed,
+    );
+  }
+}
+
 export async function piBroker() {
   /** @type {SessionObservation[]} */
   const sessions = [];

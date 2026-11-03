@@ -13,6 +13,9 @@ import {
   claudeRegistry,
   codexDescriptors,
   inspectTranscript,
+  markRepublished,
+  nodecodeShellRoot,
+  nodecodeShells,
   piBroker,
   transcriptIndex,
 } from "./recovery-sources.mjs";
@@ -91,7 +94,9 @@ export async function collectRecoveryManifest({
     before.processes,
     process.env.CODEX_HOME || path.join(home, ".codex"),
   );
-  sources.push(claude.coverage, pi.coverage, codex.coverage);
+  const shellRoot = nodecodeShellRoot(process.env);
+  const nodecode = nodecodeShells(shellRoot);
+  sources.push(claude.coverage, pi.coverage, codex.coverage, nodecode.coverage);
   const claudeFiles = transcriptIndex(path.join(home, ".claude", "projects"));
   const piFiles = transcriptIndex(
     piSessionRoot ||
@@ -99,7 +104,7 @@ export async function collectRecoveryManifest({
       path.join(process.env.PI_CODING_AGENT_DIR || path.join(home, ".pi", "agent"), "sessions"),
   );
   sources.push(claudeFiles.coverage, piFiles.coverage);
-  const sessions = [...claude.sessions, ...pi.sessions, ...codex.sessions];
+  const sessions = [...claude.sessions, ...pi.sessions, ...codex.sessions, ...nodecode.sessions];
   for (const s of sessions) {
     if (s.harness !== "claude" && s.harness !== "pi") continue;
     const index = s.harness === "claude" ? claudeFiles : piFiles;
@@ -138,26 +143,16 @@ export async function collectRecoveryManifest({
   // Recheck source identity as well as PID birth. Ordinary heartbeat updates do not change identity.
   const claudeAfter = claudeRegistry(registryRoot);
   const piAfter = await piBroker();
+  const nodecodeAfter = nodecodeShells(shellRoot);
+  markRepublished(
+    sessions,
+    new Map([
+      ["claude-registry", claudeAfter.sessions],
+      ["pi-broker", piAfter.sessions],
+      ["nodecode-shell-presence", nodecodeAfter.sessions],
+    ]),
+  );
   for (const s of sessions) {
-    const peers =
-      s.source === "claude-registry"
-        ? claudeAfter.sessions
-        : s.source === "pi-broker"
-          ? piAfter.sessions
-          : null;
-    if (peers) {
-      const equal = peers.some(
-        (a) =>
-          a.pid === s.pid &&
-          a.sessionId === s.sessionId &&
-          a.startedAt === s.startedAt &&
-          a.cwd === s.cwd &&
-          a.procStart === s.procStart &&
-          a.pidDomain === s.pidDomain &&
-          !a.changed,
-      );
-      s.changed ||= !equal;
-    }
     if (s.source === "codex-open-rollout") {
       try {
         s.changed ||=
@@ -182,6 +177,7 @@ export async function collectRecoveryManifest({
   sources.push(
     { ...claudeAfter.coverage, source: `${registryRoot} (after)` },
     { ...piAfter.coverage, source: "pi-activity-strip-broker-after" },
+    { ...nodecodeAfter.coverage, source: `${nodecodeAfter.coverage.source} (after)` },
   );
   const niriAfter = compositor(sources, "after");
   const afterClock = processClock();

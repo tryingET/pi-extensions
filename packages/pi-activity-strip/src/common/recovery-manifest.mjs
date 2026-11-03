@@ -68,12 +68,12 @@ export const RECOVERY_CAPABILITIES = [
   },
   {
     harness: "nodecode",
-    session: "unsupported",
+    session: "shell-presence-pid-startTicks",
     transcript: "unsupported",
-    currentDisplay: "unsupported",
+    currentDisplay: "unproved",
     claimantPrefix: "nodecode-session-",
     limitation:
-      "no session source: a claim names Nodecode but cannot link to a process; ids are unique per home",
+      "presence record lacks pid domain and boot id, so links stay unconfirmed; ids unique per home",
   },
   {
     harness: "angelx",
@@ -111,12 +111,6 @@ export const RECOVERY_CAPABILITIES = [
     limitation: "no guessed UUID, command replay, or canonical AK prefix",
   },
 ];
-
-/** A harness with no session source can never observe its claimant, so no match means nothing.
- * @param {string} harness */
-function hasSessionSource(harness) {
-  return RECOVERY_CAPABILITIES.some((c) => c.harness === harness && c.session !== "unsupported");
-}
 
 /** @param {ProcessObservation | undefined} a @param {ProcessObservation | undefined} b */
 export function sameProcess(a, b) {
@@ -310,9 +304,7 @@ export function buildRecoveryManifest(input, { includePaths = false } = {}) {
               ? "ambiguous-session"
               : matched.length === 1
                 ? "exact-claimant"
-                : hasSessionSource(claimant.harness)
-                  ? "session-not-observed"
-                  : "session-source-unsupported";
+                : "session-not-observed";
     if (state === "exact-claimant")
       matched[0].ak.links.push({
         taskId: c.id,
