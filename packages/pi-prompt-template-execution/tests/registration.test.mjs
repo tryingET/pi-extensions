@@ -260,8 +260,8 @@ describe("prompt-template registration guard", () => {
       { type: "setModel", model: target },
       { type: "setThinkingLevel", thinking: "medium" },
       { type: "sendUserMessage", content: "Commit all changes" },
-      { type: "setThinkingLevel", thinking: "low" },
       { type: "setModel", model: current },
+      { type: "setThinkingLevel", thinking: "low" },
     ]);
   });
 

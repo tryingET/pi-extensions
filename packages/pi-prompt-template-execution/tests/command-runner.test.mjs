@@ -129,8 +129,8 @@ describe("prompt-template command runner", () => {
         content: "Commit all changes",
         options: { expandPromptTemplates: false },
       },
-      { type: "setThinking", thinking: "low" },
       { type: "setModel", model: current },
+      { type: "setThinking", thinking: "low" },
     ]);
   });
 
@@ -192,10 +192,10 @@ describe("prompt-template command runner", () => {
       ctx,
       host,
     );
-    assert.deepEqual(restoreResult, { ok: true, restored: ["thinking", "model"] });
+    assert.deepEqual(restoreResult, { ok: true, restored: ["model", "thinking"] });
     assert.deepEqual(calls.slice(3), [
-      { type: "setThinking", thinking: "low" },
       { type: "setModel", model: current },
+      { type: "setThinking", thinking: "low" },
     ]);
   });
 
@@ -230,6 +230,7 @@ describe("prompt-template command runner", () => {
       { type: "setModel", model: target },
       { type: "sendUserMessage" },
       { type: "setModel", model: current },
+      { type: "setThinking", thinking: "low" },
     ]);
   });
 
@@ -263,6 +264,7 @@ describe("prompt-template command runner", () => {
       { type: "setModel", model: target },
       { type: "sendUserMessage" },
       { type: "setModel", model: current },
+      { type: "setThinking", thinking: "low" },
     ]);
   });
 
@@ -494,8 +496,8 @@ describe("prompt-template command runner", () => {
       { type: "setModel", model: target },
       { type: "setThinkingLevel", thinking: "medium" },
       { type: "sendUserMessage", content: "Commit all changes" },
-      { type: "setThinkingLevel", thinking: "low" },
       { type: "setModel", model: current },
+      { type: "setThinkingLevel", thinking: "low" },
     ]);
   });
 });

@@ -82,6 +82,39 @@ After Phase 4, `/commit` has exactly one extension execution owner: this package
 
 Pi core may still expose a prompt-source `/commit` command from `~/.pi/agent/prompts/commit.md`. That core prompt entry is expected because Prompt Vault exports the prompt markdown for template expansion and editor visibility. It is not treated as a duplicate prompt-template execution owner.
 
+## Active-model fallback
+
+The live entrypoint keeps a template's configured model as its preferred override.
+If that override is unavailable or its switch is refused before dispatch, it renders
+against the invocation-active model and sends the prompt once, with a warning.
+The pure command runner exposes this behavior through `fallbackToCurrentModel: true`;
+existing callers without that option retain their fail-closed selection behavior.
+
+If the override's initial provider response fails with no assistant output (including
+thinking) or tool execution, the live entrypoint attempts the invocation-active model
+once, after Pi's normal retries/recovery. This includes quota errors such as
+`opencode-go`'s `GoUsageLimitError`. The command is **not resent**: a context edit omits
+only the exact terminal failed response from model context, retaining the raw failure
+in session history, and requests one boundary continuation. Invocation thinking is
+restored after the fallback model switch, including for `restore: false` templates.
+
+No automatic fallback occurs after output/tools, on abort, without a different prior
+model, when pending work or manual model/thinking changes intervene, or when model
+conditionals would produce different instructions. Manual changes during preparation
+cancel dispatch. A failed fallback switch is not retried by settlement restoration.
+Expected thinking events remain tracked across settlement so delayed owned events do
+not cancel the next invocation.
+
+Recovery uses Pi's public `agent_before_settle` boundary API. Existing boundary drafts
+are preserved, and pending work/abort/ownership are rechecked after awaited switching.
+Later extension handlers can still change the boundary result; this is not exclusive
+host-wide arbitration. If dispatch is intercepted before a run starts, no recovery is
+inferred from the fire-and-forget send call. Busy/overlapping commands are refused.
+
+`tests/model-fallback-host.test.mjs` exercises the real Pi command lifecycle using
+in-memory synthetic providers only; it does not contact `opencode-go` or perform Git
+commits. Existing sessions must reload after the updated package is installed.
+
 ## Explicit non-goals
 
 - no package prompt bundle registration
