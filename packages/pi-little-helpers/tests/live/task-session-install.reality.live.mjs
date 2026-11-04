@@ -331,11 +331,26 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
       );
       assert.equal(git("status", "--porcelain", "--", path), "");
       const original = execFileSync("git", ["show", `HEAD:${relative}`], { cwd: repo });
+      // Another git process (a reader's status refresh) may hold index.lock for a moment: wait for it,
+      // or the flag would stay set and hide the edit after the test.
+      const updateIndex = (...args) => {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            return execFileSync("git", ["update-index", ...args, relative], {
+              cwd: repo,
+              stdio: "pipe",
+            });
+          } catch (error) {
+            if (attempt >= 50 || !String(error.stderr).includes("index.lock")) throw error;
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+          }
+        }
+      };
       s.after(() => {
         writeFileSync(path, original);
-        execFileSync("git", ["update-index", flag.replace("--", "--no-"), relative], { cwd: repo });
+        updateIndex(flag.replace("--", "--no-"));
       });
-      execFileSync("git", ["update-index", flag, relative], { cwd: repo });
+      updateIndex(flag);
       appendFileSync(path, "\nexport const notAtTheCommit = true;\n");
       assert.equal(git("status", "--porcelain", "--", path), "");
       const refused = install(`hidden${flag}`, "--no-fetch");
