@@ -67,6 +67,13 @@ function install(label, ...extra) {
     receipt: result.status === 0 ? JSON.parse(result.stdout) : undefined,
   };
 }
+const ownDist = () =>
+  readdirSync(join(packageRoot, ".."), { withFileTypes: true })
+    .filter(
+      (entry) => entry.isDirectory() && existsSync(join(packageRoot, "..", entry.name, "dist")),
+    )
+    .map((entry) => entry.name)
+    .sort();
 const runtimes = (root) =>
   readdirSync(join(root, "runtime")).filter((entry) => !entry.startsWith("."));
 const contentPath = (integrity) => {
@@ -220,7 +227,11 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
 
   await t.test("(a) Given a drifted companion in the lock, then the install refuses", () => {
     const lockDir = lockFixture("drift", (lock) => {
-      lock.packages["node_modules/@earendil-works/pi-mcp"].version = "1.2.0";
+      // A real drifted entry names its own tarball, so only the drift rule can refuse it.
+      Object.assign(lock.packages["node_modules/@earendil-works/pi-mcp"], {
+        version: "1.2.0",
+        resolved: "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.2.0.tgz",
+      });
     });
     const refused = install("drift", "--lock-dir", lockDir);
     assert.notEqual(refused.status, 0);
@@ -236,18 +247,80 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
   });
 
   await t.test(
-    "Given a damaged runtime, when it would be reused, then launchers do not move",
+    "Given a damaged runtime, when reinstalling, then it is set aside and a verified tree replaces it",
     () => {
-      const before = sha256(join(first.root, "host-v1"));
       const manifest = join(
         first.receipt.runtime,
         "node_modules/@earendil-works/pi-ai/package.json",
       );
+      const clean = readFileSync(manifest);
       appendFileSync(manifest, "\n");
-      const refused = install("first", "--no-fetch");
+      const repaired = install("first", "--no-fetch");
+      assert.equal(repaired.status, 0, repaired.stderr);
+      assert.equal(repaired.receipt.runtime, first.receipt.runtime);
+      assert.equal(repaired.receipt.reused, false);
+      // Never deleted: the damaged copy stays beside it for inspection.
+      const aside = repaired.receipt.replaced_damaged_runtime;
+      assert.ok(aside && existsSync(aside), String(aside));
+      assert.notDeepEqual(
+        readFileSync(join(aside, "node_modules/@earendil-works/pi-ai/package.json")),
+        clean,
+      );
+      assert.deepEqual(readFileSync(manifest), clean);
+      const identity = spawnSync(join(first.bin, "pi-task-session"), ["identity"]);
+      assert.equal(identity.status, 0, String(identity.stderr));
+    },
+  );
+
+  await t.test(
+    "F1: Given an npm alias for an own package in the lock, then the install refuses",
+    () => {
+      const lockDir = lockFixture("alias", (lock) => {
+        lock.packages["node_modules/innocent-alias"] = {
+          name: "@tryinget/pi-model-selection",
+          version: "0.1.0",
+          resolved:
+            "https://registry.npmjs.org/@tryinget/pi-model-selection/-/pi-model-selection-0.1.0.tgz",
+          integrity: "sha512-AAAA",
+        };
+      });
+      // Dirty allowed, so only the lock guard can refuse: a committed lock would not be dirty.
+      const refused = install("alias", "--lock-dir", lockDir, "--no-fetch", "--allow-dirty");
       assert.notEqual(refused.status, 0);
-      assert.match(refused.stderr, /sdk_resolution_metadata_unsupported/);
-      assert.equal(sha256(join(first.root, "host-v1")), before);
+      assert.match(refused.stderr, /lock_alias_forbidden/);
+      assert.equal(existsSync(join(refused.root, "host-v1")), false);
+    },
+  );
+
+  await t.test(
+    "F2: Given a deleted dependency, when reinstalling, then the tree is restored",
+    () => {
+      const fresh = install("tree", "--no-fetch");
+      assert.equal(fresh.status, 0, fresh.stderr);
+      rmSync(join(fresh.receipt.runtime, "node_modules/typebox"), { recursive: true, force: true });
+      const repaired = install("tree", "--no-fetch");
+      assert.equal(repaired.status, 0, repaired.stderr);
+      assert.ok(existsSync(join(repaired.receipt.runtime, "node_modules/typebox/package.json")));
+      const aside = repaired.receipt.replaced_damaged_runtime;
+      assert.equal(existsSync(join(aside, "node_modules/typebox")), false);
+    },
+  );
+
+  await t.test(
+    "F3: Given an ignored uncommitted file in an own package, then packing refuses",
+    (s) => {
+      const injected = join(packageRoot, "../pi-model-selection/src/dist/injected.js");
+      s.after(() => rmSync(dirname(injected), { recursive: true, force: true }));
+      mkdirSync(dirname(injected), { recursive: true });
+      writeFileSync(injected, "export const uncommitted = true;\n");
+      assert.equal(git("status", "--porcelain", "--", dirname(injected)), "");
+      const built = ownDist();
+      const refused = install("ignored", "--no-fetch");
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr, /own_package_ignored_input/);
+      assert.equal(existsSync(join(refused.root, "host-v1")), false);
+      // Refused before anything was cleared or packed, so no package lost its build output.
+      assert.deepEqual(ownDist(), built);
     },
   );
 

@@ -24,7 +24,7 @@ const REGISTRY = "https://registry.npmjs.org";
 const integrity = (seed) => `sha512-${seed}`;
 const third = (name, version) => ({
   version,
-  resolved: `${REGISTRY}/${name}/-/${name}-${version}.tgz`,
+  resolved: `${REGISTRY}/${name}/-/${name.split("/").at(-1)}-${version}.tgz`,
   integrity: integrity(`${name}${version}`),
 });
 function lockFixture() {
@@ -130,19 +130,23 @@ for (const [label, pin] of [
   test(`Given ${label}, when an override is checked, then it passes`, () => {
     const lock = lockFixture();
     lock.packages["node_modules/@earendil-works/pi-ai"].dependencies = { undici: pin };
+    lock.packages["node_modules/undici"] = third("undici", "8.12.2");
     assert.doesNotThrow(() => assertOverridesCurrent(lock, { overrides: { undici: "8.12.2" } }));
   });
 }
 
 test("Given a companion that drifted from the SDK, when the lock is checked, then it refuses", () => {
   const lock = lockFixture();
-  lock.packages["node_modules/@earendil-works/pi-mcp"] = third("pi-mcp", "1.2.0");
+  lock.packages["node_modules/@earendil-works/pi-mcp"] = third("@earendil-works/pi-mcp", "1.2.0");
   assert.throws(() => assertLayerOneLock(lock), /lock_companion_drift/);
 });
 
 test("Given a nested companion that drifted, when the lock is checked, then it refuses", () => {
   const lock = lockFixture();
-  lock.packages["node_modules/x/node_modules/@earendil-works/pi-ai"] = third("pi-ai", "1.1.0");
+  lock.packages["node_modules/x/node_modules/@earendil-works/pi-ai"] = third(
+    "@earendil-works/pi-ai",
+    "1.1.0",
+  );
   assert.throws(() => assertLayerOneLock(lock), /lock_companion_drift/);
 });
 

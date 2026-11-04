@@ -24,10 +24,16 @@ layers. Nothing in it resolves a version.
 
 One `npm ci` from the lock fills a private cache. Packing and installing then run under `unshare -rn`
 with `--offline`, so a missing tarball fails the install; a flag alone would not stop a fetch. Every
-package npm recorded as installed is then compared with the lock by version and integrity, and every own
-package with the tarball packed for this install. That compares npm's record, which it writes as it checks
-integrity on extraction; it does not re-read installed files. `assertSdkIdentity` is what hashes bytes on
-disk, and only for the four SDK packages.
+package npm recorded as installed is then compared with the lock by name, version, tarball URL and
+integrity, and every own package with the tarball packed for this install. A lock entry must be its own
+registry tarball under its own name, so an npm alias cannot smuggle a package in under another name.
+That comparison reads npm's record. The bytes on disk are bound by a digest of the whole installed tree,
+covering file contents, modes and link targets, and by `assertSdkIdentity` for the four SDK packages.
+
+Packing refuses any ignored file in an own package except `node_modules/`, `dist/` and `.tmp*` test
+scratch, because the clean check cannot see ignored files and a build may read them. Each package's
+`dist/` is then cleared just before it is packed, so built output can only come from this build, and
+every packed file must be tracked at the commit or lie under `dist/`.
 
 Run it from a clean linked worktree, on the Node pinned in `policy/ci-toolchain-lock.json`, with that Node
 first on `PATH`. Packing rewrites each manifest during `prepack`, so the installer and pack-proof refuse
@@ -63,6 +69,18 @@ When the SDK moves, change these together:
 
 A new runtime directory results, keyed by the host build digest and the closure digest. Earlier runtimes
 are kept, and a closure-only change gets its own directory rather than being dropped.
+
+Installing the same closure again reuses its directory only if the tree on disk still equals the one
+this install built and the host's own identity checks pass. Otherwise the old directory is set aside as
+`<runtime>.damaged-<ms>`, never deleted, and the verified tree takes its place. `tree_sha256` in
+`closure.json` records that digest as a receipt; reuse recomputes it from disk instead of trusting it.
+
+## What packing does not prove
+
+Packing runs in the working tree, not an immutable export. Two things therefore stay unverified: a tool
+under `node_modules` changed after it was installed, and a checkout that changes during packing and is
+back where it started by the end. Packing from an export of the commit with its own locked installs
+would close both.
 
 ## The undici override
 

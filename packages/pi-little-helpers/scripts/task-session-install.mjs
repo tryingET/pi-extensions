@@ -35,6 +35,7 @@ import {
   assertLayerOneLock,
   assertOverridesCurrent,
   assertPackEnvironment,
+  assertRuntimeManifest,
   fetchLockedClosure,
   installClosure,
   LOCK_DIR,
@@ -44,6 +45,7 @@ import {
   readRuntimeManifest,
   refuse,
   SDK_VERSION,
+  treeDigest,
   verifyInstalled,
   writeClosureRecord,
 } from "../task-session-runtime/closure.mjs";
@@ -87,7 +89,9 @@ const repo = run("git", ["rev-parse", "--show-toplevel"], pkg).trim();
 // Refuse a bad lock before anything is fetched or packed.
 const lock = readLock(lockDir);
 assertLayerOneLock(lock);
-assertOverridesCurrent(lock, readRuntimeManifest(lockDir));
+const runtimeManifest = readRuntimeManifest(lockDir);
+assertRuntimeManifest(runtimeManifest);
+assertOverridesCurrent(lock, runtimeManifest);
 
 // Installed artifacts come from committed source, never from a dirty tree (D151 rollout G1).
 const closure = ownClosure(dirname(pkg));
@@ -115,6 +119,8 @@ try {
   const verified = verifyInstalled(installed, lock, packed);
   // prepack must leave nothing behind, or the tarballs are not what the commit says.
   if (!dirty && sourceStatus()) throw new Error(`packing dirtied the source:\n${sourceStatus()}`);
+  if (run("git", ["rev-parse", "HEAD"], repo).trim() !== commit)
+    refuse("source_moved_during_install", commit);
 
   // The host checks both itself at every start; check them before anything points here.
   const hostBuild = (directory) => {
@@ -133,6 +139,8 @@ try {
   };
   const buildDigest = hostBuild(staging);
   if (!/^[0-9a-f]{64}$/.test(buildDigest)) throw new Error("host build digest unavailable");
+  // What reuse compares against: the bytes this install puts on disk, after the last code ran here.
+  const tree = treeDigest(join(staging, "node_modules"));
 
   // The build digest covers only pi-little-helpers dist/task-session, so the closure must key the
   // directory too: a dependency-only change gets its own runtime instead of being dropped (AK7824).
@@ -143,18 +151,38 @@ try {
     sdk: SDK_VERSION,
     lock_sha256: sha256(join(lockDir, "runtime.lock")),
     closure_digest: verified.digest,
+    tree_sha256: tree,
     packages: verified.packages,
     own: packed.map(({ name, version, integrity }) => ({ name, version, integrity })),
   };
   const runtime = join(root, "runtime", `${buildDigest}-${verified.digest.slice(0, 16)}`);
-  const reused = existsSync(runtime);
-  if (reused) {
-    const kept = JSON.parse(readFileSync(join(runtime, "closure.json"), "utf8"));
-    if (kept.closure_digest !== verified.digest) refuse("runtime_closure_mismatch", runtime);
-    // A damaged runtime must fail here, not at the next host start after the launchers moved.
-    if (hostBuild(runtime) !== buildDigest) refuse("runtime_build_mismatch", runtime);
-    rmSync(staging, { recursive: true, force: true });
-  } else {
+  // Reuse only the exact tree this install built, checked on disk, not from recorded digests (F2).
+  // A damaged one is set aside, never deleted, and the verified staging tree takes its place.
+  let reused = false;
+  let replaced = null;
+  if (existsSync(runtime)) {
+    let kept;
+    try {
+      kept = JSON.parse(readFileSync(join(runtime, "closure.json"), "utf8"));
+    } catch {}
+    // Same directory name, other closure: a key collision, and that runtime is someone else's.
+    if (kept?.closure_digest && kept.closure_digest !== verified.digest)
+      refuse("runtime_closure_mismatch", runtime);
+    const hostIntact = () => {
+      try {
+        return hostBuild(runtime) === buildDigest;
+      } catch {
+        return false;
+      }
+    };
+    reused = Boolean(kept) && treeDigest(join(runtime, "node_modules")) === tree && hostIntact();
+    if (!reused) {
+      replaced = `${runtime}.damaged-${Date.now()}`;
+      renameSync(runtime, replaced);
+    }
+  }
+  if (reused) rmSync(staging, { recursive: true, force: true });
+  else {
     writeClosureRecord(staging, record);
     renameSync(staging, runtime);
   }
@@ -181,6 +209,7 @@ try {
     node: { version: process.versions.node, path: node },
     runtime,
     reused,
+    replaced_damaged_runtime: replaced,
     host_build_digest: buildDigest,
     closure_digest: verified.digest,
     lock_sha256: record.lock_sha256,

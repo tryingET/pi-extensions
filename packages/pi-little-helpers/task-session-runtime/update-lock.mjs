@@ -13,9 +13,13 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertLayerOneLock, assertOverridesCurrent, LOCK_DIR } from "./closure.mjs";
+import {
+  assertLayerOneLock,
+  assertOverridesCurrent,
+  assertRuntimeManifest,
+  LOCK_DIR,
+} from "./closure.mjs";
 
-const scratch = mkdtempSync(join(tmpdir(), "task-session-lock-"));
 const entries = (lock) =>
   new Map(
     Object.entries(lock.packages)
@@ -23,6 +27,9 @@ const entries = (lock) =>
       .map(([path, entry]) => [path, entry.version]),
   );
 const read = (path) => JSON.parse(readFileSync(path, "utf8"));
+// Refuse an alias, range or path before npm resolves anything over the network.
+assertRuntimeManifest(read(join(LOCK_DIR, "runtime-package.json")));
+const scratch = mkdtempSync(join(tmpdir(), "task-session-lock-"));
 try {
   copyFileSync(join(LOCK_DIR, "runtime-package.json"), join(scratch, "package.json"));
   copyFileSync(join(LOCK_DIR, "../package-lock.json"), join(scratch, "package-lock.json"));
