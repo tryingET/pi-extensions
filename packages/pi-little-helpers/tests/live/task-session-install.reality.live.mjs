@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { LOCK_DIR, SDK_VERSION } from "../../task-session-runtime/closure.mjs";
@@ -247,7 +247,7 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
   });
 
   await t.test(
-    "Given a damaged runtime, when reinstalling, then it is set aside and a verified tree replaces it",
+    "Given a damaged runtime, when reinstalling, then a verified tree takes its place and is reused next",
     () => {
       const manifest = join(
         first.receipt.runtime,
@@ -257,8 +257,12 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
       appendFileSync(manifest, "\n");
       const repaired = install("first", "--no-fetch");
       assert.equal(repaired.status, 0, repaired.stderr);
-      assert.equal(repaired.receipt.runtime, first.receipt.runtime);
       assert.equal(repaired.receipt.reused, false);
+      // Exchanged in place, so launchers keep their path and never point at an absent tree.
+      assert.equal(repaired.receipt.runtime, first.receipt.runtime);
+      const launcher = readFileSync(join(first.bin, "pi-task-session"), "utf8");
+      // The launcher shell-quotes the path, so match the runtime directory's own name.
+      assert.ok(launcher.includes(basename(first.receipt.runtime)));
       // Never deleted: the damaged copy stays beside it for inspection.
       const aside = repaired.receipt.replaced_damaged_runtime;
       assert.ok(aside && existsSync(aside), String(aside));
@@ -266,11 +270,63 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
         readFileSync(join(aside, "node_modules/@earendil-works/pi-ai/package.json")),
         clean,
       );
-      assert.deepEqual(readFileSync(manifest), clean);
+      assert.deepEqual(
+        readFileSync(
+          join(repaired.receipt.runtime, "node_modules/@earendil-works/pi-ai/package.json"),
+        ),
+        clean,
+      );
       const identity = spawnSync(join(first.bin, "pi-task-session"), ["identity"]);
       assert.equal(identity.status, 0, String(identity.stderr));
+      const again = install("first", "--no-fetch");
+      assert.equal(again.status, 0, again.stderr);
+      assert.equal(again.receipt.reused, true);
+      assert.equal(again.receipt.replaced_damaged_runtime, null);
     },
   );
+
+  await t.test(
+    "Given a runtime whose node_modules is gone, when reinstalling, then it is replaced",
+    () => {
+      const fresh = install("emptied", "--no-fetch");
+      assert.equal(fresh.status, 0, fresh.stderr);
+      rmSync(join(fresh.receipt.runtime, "node_modules"), { recursive: true, force: true });
+      const repaired = install("emptied", "--no-fetch");
+      assert.equal(repaired.status, 0, repaired.stderr);
+      assert.ok(existsSync(join(repaired.receipt.runtime, "node_modules/typebox/package.json")));
+      assert.ok(existsSync(repaired.receipt.replaced_damaged_runtime));
+    },
+  );
+
+  for (const flag of ["--assume-unchanged", "--skip-worktree"]) {
+    await t.test(`Given a tracked edit hidden by ${flag}, then the install refuses`, (s) => {
+      const relative = "packages/pi-model-selection/src/modelSelection.js";
+      const repo = join(packageRoot, "../..");
+      const path = join(repo, relative);
+      // A run killed before s.after leaves the edit hidden; stop rather than build on it.
+      assert.equal(
+        git("ls-files", "-v", "--", path).slice(0, 1),
+        "H",
+        "hidden index flag left over",
+      );
+      assert.equal(git("status", "--porcelain", "--", path), "");
+      const original = execFileSync("git", ["show", `HEAD:${relative}`], { cwd: repo });
+      s.after(() => {
+        writeFileSync(path, original);
+        execFileSync("git", ["update-index", flag.replace("--", "--no-"), relative], { cwd: repo });
+      });
+      execFileSync("git", ["update-index", flag, relative], { cwd: repo });
+      appendFileSync(path, "\nexport const notAtTheCommit = true;\n");
+      assert.equal(git("status", "--porcelain", "--", path), "");
+      const refused = install(`hidden${flag}`, "--no-fetch");
+      assert.notEqual(refused.status, 0);
+      assert.match(
+        refused.stderr,
+        /source not clean[\s\S]*differs from HEAD: \S*modelSelection\.js/,
+      );
+      assert.equal(existsSync(join(refused.root, "host-v1")), false);
+    });
+  }
 
   await t.test(
     "F1: Given an npm alias for an own package in the lock, then the install refuses",

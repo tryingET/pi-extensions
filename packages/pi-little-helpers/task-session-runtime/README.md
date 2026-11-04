@@ -33,7 +33,10 @@ covering file contents, modes and link targets, and by `assertSdkIdentity` for t
 Packing refuses any ignored file in an own package except `node_modules/`, `dist/` and `.tmp*` test
 scratch, because the clean check cannot see ignored files and a build may read them. Each package's
 `dist/` is then cleared just before it is packed, so built output can only come from this build, and
-every packed file must be tracked at the commit or lie under `dist/`.
+every packed file must be tracked at the commit or lie under `dist/`. Tracked files are compared with
+`HEAD` by their own bytes, type and owner execute bit, hashed here rather than through `git status` or
+git's filters, so an edit hidden by `--assume-unchanged`, `--skip-worktree` or an end-of-line conversion
+still counts as dirty.
 
 Run it from a clean linked worktree, on the Node pinned in `policy/ci-toolchain-lock.json`, with that Node
 first on `PATH`. Packing rewrites each manifest during `prepack`, so the installer and pack-proof refuse
@@ -71,9 +74,13 @@ A new runtime directory results, keyed by the host build digest and the closure 
 are kept, and a closure-only change gets its own directory rather than being dropped.
 
 Installing the same closure again reuses its directory only if the tree on disk still equals the one
-this install built and the host's own identity checks pass. Otherwise the old directory is set aside as
-`<runtime>.damaged-<ms>`, never deleted, and the verified tree takes its place. `tree_sha256` in
-`closure.json` records that digest as a receipt; reuse recomputes it from disk instead of trusting it.
+this install built and the host's own identity checks pass. Otherwise the verified tree takes the
+directory's place in one atomic exchange (`exch`, util-linux 2.40 or later, the package that also
+provides `unshare`), so a launcher sees the old tree or the new one and never a missing directory, and
+the next install of the closure finds it. The old tree is then set aside as `<runtime>.damaged-<ms>`,
+never deleted; if the process stops between the two steps it stays under `runtime/.staging-*`.
+`tree_sha256` in `closure.json` records the digest as a receipt; reuse recomputes it from disk instead
+of trusting it.
 
 ## What packing does not prove
 

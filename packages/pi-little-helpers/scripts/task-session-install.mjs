@@ -21,7 +21,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
-  existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -37,6 +37,7 @@ import {
   assertPackEnvironment,
   assertRuntimeManifest,
   fetchLockedClosure,
+  headMismatches,
   installClosure,
   LOCK_DIR,
   ownClosure,
@@ -103,12 +104,17 @@ const sourcePaths = [
 ];
 const sourceStatus = () => run("git", ["status", "--porcelain", "--", ...sourcePaths], repo).trim();
 const lockOutsideCommit = resolve(lockDir) !== resolve(LOCK_DIR) ? `lock from ${lockDir}` : "";
-const dirty = [sourceStatus(), lockOutsideCommit].filter(Boolean).join("\n");
+// Status trusts the index; an edit hidden by --assume-unchanged or --skip-worktree only shows in the bytes.
+const differsFromHead = () =>
+  headMismatches(repo, sourcePaths).map((path) => `differs from HEAD: ${path}`);
+const dirty = [sourceStatus(), lockOutsideCommit, ...differsFromHead()].filter(Boolean).join("\n");
 if (dirty && !allowDirty) throw new Error(`source not clean; commit first:\n${dirty}`);
 
 mkdirSync(join(root, "runtime"), { recursive: true, mode: 0o755 });
 const staging = mkdtempSync(join(root, "runtime", ".staging-"));
 const work = mkdtempSync(join(root, "runtime", ".work-"));
+// Where a replaced tree was set aside; never deleted, even if that is the staging path.
+let damaged = null;
 try {
   const cache = sharedCache ?? join(work, "cache");
   mkdirSync(cache, { recursive: true, mode: 0o700 });
@@ -118,7 +124,10 @@ try {
   const installed = installClosure({ lockDir, staging, cache, packed });
   const verified = verifyInstalled(installed, lock, packed);
   // prepack must leave nothing behind, or the tarballs are not what the commit says.
-  if (!dirty && sourceStatus()) throw new Error(`packing dirtied the source:\n${sourceStatus()}`);
+  if (!dirty) {
+    const after = [sourceStatus(), ...differsFromHead()].filter(Boolean).join("\n");
+    if (after) throw new Error(`packing dirtied the source:\n${after}`);
+  }
   if (run("git", ["rev-parse", "HEAD"], repo).trim() !== commit)
     refuse("source_moved_during_install", commit);
 
@@ -157,10 +166,15 @@ try {
   };
   const runtime = join(root, "runtime", `${buildDigest}-${verified.digest.slice(0, 16)}`);
   // Reuse only the exact tree this install built, checked on disk, not from recorded digests (F2).
-  // A damaged one is set aside, never deleted, and the verified staging tree takes its place.
+  const present = (() => {
+    try {
+      return Boolean(lstatSync(runtime));
+    } catch {
+      return false;
+    }
+  })();
   let reused = false;
-  let replaced = null;
-  if (existsSync(runtime)) {
+  if (present) {
     let kept;
     try {
       kept = JSON.parse(readFileSync(join(runtime, "closure.json"), "utf8"));
@@ -168,6 +182,13 @@ try {
     // Same directory name, other closure: a key collision, and that runtime is someone else's.
     if (kept?.closure_digest && kept.closure_digest !== verified.digest)
       refuse("runtime_closure_mismatch", runtime);
+    const onDisk = (() => {
+      try {
+        return treeDigest(join(runtime, "node_modules"));
+      } catch {
+        return null;
+      }
+    })();
     const hostIntact = () => {
       try {
         return hostBuild(runtime) === buildDigest;
@@ -175,16 +196,27 @@ try {
         return false;
       }
     };
-    reused = Boolean(kept) && treeDigest(join(runtime, "node_modules")) === tree && hostIntact();
-    if (!reused) {
-      replaced = `${runtime}.damaged-${Date.now()}`;
-      renameSync(runtime, replaced);
-    }
+    reused = Boolean(kept) && onDisk === tree && hostIntact();
   }
-  if (reused) rmSync(staging, { recursive: true, force: true });
-  else {
+  if (!reused) {
     writeClosureRecord(staging, record);
-    renameSync(staging, runtime);
+    if (!present) renameSync(staging, runtime);
+    else {
+      // One RENAME_EXCHANGE: whatever points at the key sees the damaged tree or the verified one, never
+      // neither, and the key stays where the next install of this closure looks.
+      try {
+        run("exch", ["--", staging, runtime]);
+      } catch (error) {
+        refuse("runtime_exchange_failed", String(error.stderr || error.message).trim());
+      }
+      // Set aside, never deleted. If even the rename fails, it stays at the staging path, kept.
+      damaged = `${runtime}.damaged-${Date.now()}`;
+      try {
+        renameSync(staging, damaged);
+      } catch {
+        damaged = staging;
+      }
+    }
   }
   const entry = join(runtime, "node_modules/@tryinget/pi-little-helpers/dist/task-session");
 
@@ -209,7 +241,7 @@ try {
     node: { version: process.versions.node, path: node },
     runtime,
     reused,
-    replaced_damaged_runtime: replaced,
+    replaced_damaged_runtime: damaged,
     host_build_digest: buildDigest,
     closure_digest: verified.digest,
     lock_sha256: record.lock_sha256,
@@ -226,6 +258,6 @@ try {
   };
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
 } finally {
-  rmSync(staging, { recursive: true, force: true });
+  if (damaged !== staging) rmSync(staging, { recursive: true, force: true });
   rmSync(work, { recursive: true, force: true });
 }

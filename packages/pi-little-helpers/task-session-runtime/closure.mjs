@@ -54,7 +54,12 @@ export function assertRuntimeManifest(manifest) {
 }
 
 const git = (args, cwd) =>
-  execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 64 * 1024 * 1024,
+  }).trim();
 
 /** Npm and every prepack run on PATH's node, so it must be the pin too, not only this process. */
 export function nodeRefusal({ pinned, running, onPath, pinnedNpm, npm }) {
@@ -112,11 +117,15 @@ const older = (left, right) => {
 /** An override holds a version down as well as up: refuse one a package's exact pin has moved past. */
 export function assertOverridesCurrent(lock, manifest) {
   for (const [name, version] of Object.entries(manifest.overrides ?? {}))
-    for (const [path, entry] of Object.entries(lock.packages)) {
-      const pin = entry.dependencies?.[name];
-      if (EXACT.test(pin ?? "") && older(version, pin))
-        refuse("lock_override_stale", `${name}@${version} is below ${path || "root"} pin ${pin}`);
-    }
+    for (const [path, entry] of Object.entries(lock.packages))
+      for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+        const pin = entry[field]?.[name];
+        if (EXACT.test(pin ?? "") && older(version, pin))
+          refuse(
+            "lock_override_stale",
+            `${name}@${version} is below ${path || "root"} ${field} ${pin}`,
+          );
+      }
   for (const [name, version] of Object.entries(manifest.overrides ?? {})) {
     const copies = Object.entries(lock.packages).filter(([path]) => path && nameOf(path) === name);
     if (!copies.length) refuse("lock_override_not_applied", `${name}@${version} is not installed`);
@@ -189,6 +198,43 @@ export function fetchLockedClosure({ lockDir = LOCK_DIR, directory, cache }) {
       timeout: COMMAND_TIMEOUT_MS,
     },
   );
+}
+
+/**
+ * Tracked files under paths whose bytes, type or executable bit differ from HEAD. It hashes the files
+ * itself, not through the index or git's filters, so an edit hidden by --assume-unchanged,
+ * --skip-worktree or an end-of-line conversion still counts.
+ */
+export function headMismatches(repo, paths) {
+  const format = git(["rev-parse", "--show-object-format"], repo);
+  const blobId = (bytes) =>
+    createHash(format).update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+  const changed = [];
+  for (const row of git(["ls-tree", "-r", "-z", "HEAD", "--", ...paths], repo).split("\0")) {
+    const tab = row.indexOf("\t");
+    const [mode, type, blob] = row.slice(0, tab).split(" ");
+    const file = row.slice(tab + 1);
+    if (type !== "blob") continue;
+    let stat;
+    try {
+      stat = lstatSync(join(repo, file));
+    } catch {
+      changed.push(file);
+      continue;
+    }
+    const link = mode === "120000";
+    if (link ? !stat.isSymbolicLink() : !stat.isFile()) {
+      changed.push(file);
+      continue;
+    }
+    const bytes = link
+      ? readlinkSync(join(repo, file), { encoding: "buffer" })
+      : readFileSync(join(repo, file));
+    // Git records 100755 from the owner's execute bit alone.
+    const modeDiffers = !link && Boolean(stat.mode & 0o100) !== (mode === "100755");
+    if (blobId(bytes) !== blob || modeDiffers) changed.push(file);
+  }
+  return changed;
 }
 
 /** Files a tarball carries that are neither tracked at the commit nor rebuilt `dist/` output. */

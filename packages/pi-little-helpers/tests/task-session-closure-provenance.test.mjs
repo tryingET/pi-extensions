@@ -2,6 +2,7 @@
 // real package identity, a reused runtime must still be the tree that was installed, and every packed file
 // must be tracked at the commit or rebuilt output. Real installs: tests/live/task-session-install.reality.live.mjs.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   chmodSync,
   mkdirSync,
@@ -160,4 +161,64 @@ test("F3: Given ignored paths in an own package, then all but installs, rebuilt 
     "tsconfig.tsbuildinfo",
     ".package.json.prepack.backup",
   ]);
+});
+
+for (const field of ["optionalDependencies", "peerDependencies"]) {
+  test(`Given a newer exact pin in ${field}, then the override counts as stale`, () => {
+    const lock = lockFixture();
+    lock.packages["node_modules/undici"] = entry("undici", "8.12.3");
+    lock.packages["node_modules/@earendil-works/pi-ai"][field] = { undici: "9.0.0" };
+    assert.throws(
+      () => closure.assertOverridesCurrent(lock, { overrides: { undici: "8.12.3" } }),
+      /lock_override_stale/,
+    );
+  });
+}
+
+// A throwaway repository: a link to output not built yet, an executable, and a newline in a name.
+function headRepo(t) {
+  const repo = mkdtempSync(join(tmpdir(), "task-session-head-"));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  const git = (...args) =>
+    execFileSync(
+      "git",
+      ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+      { cwd: repo, stdio: ["ignore", "pipe", "pipe"] },
+    );
+  git("init", "-q");
+  git("config", "core.autocrlf", "input");
+  git("config", "core.hooksPath", "/dev/null");
+  mkdirSync(join(repo, "pkg"));
+  writeFileSync(join(repo, "pkg/a.js"), "one\ntwo\n");
+  writeFileSync(join(repo, "pkg/b.js"), "b\n", { mode: 0o644 });
+  writeFileSync(join(repo, "pkg/odd\nname.js"), "odd\n");
+  symlinkSync("gen/out.js", join(repo, "pkg/link"));
+  git("add", "-A");
+  git("commit", "-qm", "base");
+  return repo;
+}
+
+test("Given a clean checkout with a dangling link and a newline in a name, then nothing differs from HEAD", (t) => {
+  assert.deepEqual(closure.headMismatches(headRepo(t), ["pkg"]), []);
+});
+
+test("Given bytes git's hashing filters would normalise, then they still differ from HEAD", (t) => {
+  const repo = headRepo(t);
+  writeFileSync(join(repo, "pkg/a.js"), "one\r\ntwo\r\n");
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/a.js"]);
+});
+
+test("Given an execute bit git does not record, then nothing differs; given the owner's, then it does", (t) => {
+  const repo = headRepo(t);
+  chmodSync(join(repo, "pkg/b.js"), 0o654);
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), []);
+  chmodSync(join(repo, "pkg/b.js"), 0o744);
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/b.js"]);
+});
+
+test("Given a tracked link replaced by a file with the link's bytes, then it differs from HEAD", (t) => {
+  const repo = headRepo(t);
+  unlinkSync(join(repo, "pkg/link"));
+  writeFileSync(join(repo, "pkg/link"), "gen/out.js");
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/link"]);
 });
