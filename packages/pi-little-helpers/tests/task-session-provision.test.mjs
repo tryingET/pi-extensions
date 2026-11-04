@@ -42,6 +42,35 @@ const ownerParent = [
 });
 const ownerTest = (name, fn) =>
   test(name, { skip: !ownerParent && "no directory the installed check accepts" }, fn);
+const identity = new URL("../dist/task-session/identity.js", import.meta.url).href;
+let sdkProbe;
+/**
+ * Why this checkout's SDK fails the installed check, if it does, probed once in a child started
+ * like the producer's. The canonical checkout links Pi's host SDK, which can differ from the one
+ * the build pins, and then every producer refuses there. Only an sdk_* refusal can skip a test.
+ */
+function sdkRefusal() {
+  sdkProbe ??= spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import { assertSdkIdentity } from ${JSON.stringify(identity)};\n` +
+        `try { assertSdkIdentity(); } catch (e) { if (!/^sdk_/.test(e.message)) throw e; ` +
+        `process.stdout.write(e.message); }`,
+    ],
+    { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } },
+  );
+  assert.equal(sdkProbe.status, 0, `the SDK identity probe failed: ${sdkProbe.stderr}`);
+  return sdkProbe.stdout;
+}
+/** A test that needs the installed check to get past the SDK, to the host build or to success. */
+const fullCheckTest = (name, fn) =>
+  ownerTest(name, (t) => {
+    const refusal = sdkRefusal();
+    if (refusal) return t.skip(`this checkout's SDK fails the installed check: ${refusal}`);
+    return fn(t);
+  });
 
 const akFixtures =
   "/home/tryinget/ai-society/softwareco/owned/agent-kernel/docs/project/contracts/task-session-deployment-v1.fixtures.json";
@@ -262,7 +291,9 @@ for (const [cause, refusal, hostBuild, prepare] of [
     (w) => rmSync(join(w.home, ".local/libexec/agent-kernel/runtime/current")),
   ],
 ]) {
-  ownerTest(`producer refuses ${cause} without changing the earlier publication`, (t) => {
+  // A refusal at the host build needs the check to get past the SDK; a missing runtime does not.
+  const scenario = hostBuild ? fullCheckTest : ownerTest;
+  scenario(`producer refuses ${cause} without changing the earlier publication`, (t) => {
     // Given an earlier publication, and a candidate the installed check refuses
     const w = publishedWorld(t, hostBuild);
     prepare?.(w);
@@ -298,14 +329,15 @@ ownerTest("producer refuses a namespace root that is no longer private", (t) => 
 });
 
 ownerTest("producer reports the refusal even when setting the candidate aside fails", (t) => {
-  // Given a candidate the installed check refuses, and a rename aside that fails
-  const w = publishedWorld(t, "e".repeat(64));
+  // Given a candidate the installed check refuses (no AK runtime), and a rename aside that fails
+  const w = publishedWorld(t);
+  rmSync(join(w.home, ".local/libexec/agent-kernel/runtime/current"));
   // When the producer runs
   const out = w.runWith({ TEST_FAIL_RENAME: ".rejected-" }, "producer");
   // Then it reports the refusal and the failure to set the candidate aside, and the earlier
   // publication stays
   assert.notEqual(out.status, 0);
-  assert.match(out.stderr, /producer_host_build_mismatch/);
+  assert.match(out.stderr, /producer_runtime_unavailable/);
   assert.match(out.stderr, /injected_fault \S+\.rejected-\d+/);
   assert.equal(readFileSync(w.published, "utf8"), w.earlier);
   // And the candidate stays staged where no host reads it
@@ -344,7 +376,7 @@ ownerTest("a producer killed during its installed check leaves the earlier publi
   assert.equal(candidate.bindings.policy_generation, "fixture-1");
 });
 
-ownerTest("producer replaces the earlier publication once the installed check passes", (t) => {
+fullCheckTest("producer replaces the earlier publication once the installed check passes", (t) => {
   // Given an earlier publication and an installation the check accepts
   const w = publishedWorld(t);
   // When the producer runs
