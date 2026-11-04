@@ -50,6 +50,8 @@ const fingerprint = () => liveSurfaces.map((path) => (existsSync(path) ? sha256(
 const liveBefore = skip ? [] : fingerprint();
 
 function install(label, ...extra) {
+  // An object first in `extra` adds environment variables for this install only.
+  const env = typeof extra[0] === "object" ? { ...process.env, ...extra.shift() } : undefined;
   // The actual launcher must preserve a literal path, not split it or parse its apostrophe.
   const root = join(scratch, label, "root with space and ' quote");
   const bin = join(scratch, label, "bin with space and ' quote");
@@ -58,7 +60,7 @@ function install(label, ...extra) {
   const result = spawnSync(
     process.execPath,
     [installer, "--root", root, "--bin-dir", bin, "--cache", cache, ...extra],
-    { cwd: packageRoot, encoding: "utf8", timeout: 240_000 },
+    { cwd: packageRoot, encoding: "utf8", timeout: 240_000, env },
   );
   return {
     ...result,
@@ -327,6 +329,35 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
       assert.equal(existsSync(join(refused.root, "host-v1")), false);
     });
   }
+
+  await t.test(
+    "F3: Given an exchange that swaps and then fails, then neither tree is deleted",
+    () => {
+      const fresh = install("exch-fail", "--no-fetch");
+      assert.equal(fresh.status, 0, fresh.stderr);
+      // A stray file damages the tree, so the next install takes the repair path.
+      const sentinel = "node_modules/typebox/DAMAGED";
+      writeFileSync(join(fresh.receipt.runtime, sentinel), "damaged");
+      const wrapper = join(scratch, "exch-swaps-then-fails");
+      mkdirSync(wrapper, { recursive: true });
+      writeFileSync(join(wrapper, "exch"), '#!/bin/sh\n/usr/bin/exch "$@"\nexit 1\n', {
+        mode: 0o755,
+      });
+      const refused = install(
+        "exch-fail",
+        { PATH: `${wrapper}:${process.env.PATH}` },
+        "--no-fetch",
+      );
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr, /runtime_exchange_failed/);
+      assert.equal(existsSync(join(fresh.receipt.runtime, sentinel)), false);
+      const runtimes = join(fresh.root, "runtime");
+      const kept = readdirSync(runtimes).filter((name) =>
+        existsSync(join(runtimes, name, sentinel)),
+      );
+      assert.equal(kept.length, 1, readdirSync(runtimes).join(", "));
+    },
+  );
 
   await t.test(
     "F1: Given an npm alias for an own package in the lock, then the install refuses",

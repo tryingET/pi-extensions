@@ -37,6 +37,7 @@ import {
   assertPackEnvironment,
   assertRuntimeManifest,
   fetchLockedClosure,
+  GIT_ENV,
   headMismatches,
   installClosure,
   LOCK_DIR,
@@ -76,9 +77,16 @@ if (args.length) throw new Error(`unknown arguments: ${args}`);
 if (noFetch && !sharedCache) throw new Error("--no-fetch needs --cache");
 // Each defaulted to a live path once: passing only --root still replaced the live CLI.
 if (!root || !binDir) refuse("install_paths_required", "pass both --root and --bin-dir");
+// Files this run writes, prepack's restored package.json among them, get the modes a checkout has.
+process.umask(0o022);
 
 const run = (cmd, argv, cwd) =>
-  execFileSync(cmd, argv, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  execFileSync(cmd, argv, {
+    cwd,
+    env: GIT_ENV,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 // Launchers name this exact Node, checked against the toolchain pin, so moving the pin needs a reinstall.
 const node = process.execPath;
@@ -92,10 +100,14 @@ const lock = readLock(lockDir);
 assertLayerOneLock(lock);
 const runtimeManifest = readRuntimeManifest(lockDir);
 assertRuntimeManifest(runtimeManifest);
-assertOverridesCurrent(lock, runtimeManifest);
 
 // Installed artifacts come from committed source, never from a dirty tree (D151 rollout G1).
 const closure = ownClosure(dirname(pkg));
+assertOverridesCurrent(
+  lock,
+  runtimeManifest,
+  closure.map(({ name, manifest }) => [name, manifest]),
+);
 const commit = run("git", ["rev-parse", "HEAD"], repo).trim();
 // The closure holds this package's lock and scripts; prepack also runs pi-interaction's shared script.
 const sourcePaths = [
@@ -207,7 +219,21 @@ try {
       try {
         run("exch", ["--", staging, runtime]);
       } catch (error) {
-        refuse("runtime_exchange_failed", String(error.stderr || error.message).trim());
+        // If the runtime already holds the verified tree, the swap happened and staging holds the old
+        // one: keep it, and say where.
+        const swapped = (() => {
+          try {
+            return treeDigest(join(runtime, "node_modules")) === tree;
+          } catch {
+            return false;
+          }
+        })();
+        if (swapped) damaged = staging;
+        const detail = String(error.stderr || error.message).trim();
+        refuse(
+          "runtime_exchange_failed",
+          swapped ? `${detail}; old tree kept at ${staging}` : detail,
+        );
       }
       // Set aside, never deleted. If even the rename fails, it stays at the staging path, kept.
       damaged = `${runtime}.damaged-${Date.now()}`;

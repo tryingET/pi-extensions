@@ -22,7 +22,10 @@ layers. Nothing in it resolves a version.
    `@tryinget` package `pi-little-helpers` and `pi-society-orchestrator` reach. The lock must hold none
    of them, and an install refuses one that resolves from the registry.
 
-One `npm ci` from the lock fills a private cache. Packing and installing then run under `unshare -rn`
+One `npm ci` from the lock fills a private cache. Every npm call sees only the public registry, with
+`--replace-registry-host=never`, no inherited `npm_config_*`, user or global npmrc, update check,
+`NODE_OPTIONS` or `NODE_PATH`, so an inherited mirror or preload cannot move the fetch or the build. A
+proxy or CA comes from `HTTPS_PROXY` and `NODE_EXTRA_CA_CERTS`, not from an npmrc. Packing and installing then run under `unshare -rn`
 with `--offline`, so a missing tarball fails the install; a flag alone would not stop a fetch. Every
 package npm recorded as installed is then compared with the lock by name, version, tarball URL and
 integrity, and every own package with the tarball packed for this install. A lock entry must be its own
@@ -34,9 +37,13 @@ Packing refuses any ignored file in an own package except `node_modules/`, `dist
 scratch, because the clean check cannot see ignored files and a build may read them. Each package's
 `dist/` is then cleared just before it is packed, so built output can only come from this build, and
 every packed file must be tracked at the commit or lie under `dist/`. Tracked files are compared with
-`HEAD` by their own bytes, type and owner execute bit, hashed here rather than through `git status` or
-git's filters, so an edit hidden by `--assume-unchanged`, `--skip-worktree` or an end-of-line conversion
-still counts as dirty.
+`HEAD` by their own bytes, type and mode, hashed here rather than through `git status` or git's filters,
+so an edit hidden by `--assume-unchanged`, `--skip-worktree` or an end-of-line conversion still counts
+as dirty. Every git call runs without inherited `GIT_*` variables and with `GIT_NO_REPLACE_OBJECTS=1`, so
+no other repository, index or replacement tree can stand in for the recorded commit. npm packs a file's
+mode after adding owner read-write and dropping group and other write, and that must give 644 or 755:
+664 passes, 600 or 654 do not; restore a drifted one with `chmod`. The installer runs with umask 022, so
+the `package.json` prepack restores keeps its mode even under a stricter caller, such as heavy-job's 077.
 
 Run it from a clean linked worktree, on the Node pinned in `policy/ci-toolchain-lock.json`, with that Node
 first on `PATH`. Packing rewrites each manifest during `prepack`, so the installer and pack-proof refuse
@@ -59,7 +66,8 @@ node task-session-runtime/update-lock.mjs
 
 This is the only step that resolves anything. It seeds from the tracked `package-lock.json`, prints every
 version change, and refuses a lock with an own package, a non-registry source, a missing integrity, a
-drifted `@earendil-works` package or a stale override. Inspect the printed changes and the diff, then
+drifted `@earendil-works` package or a stale override. The new lock replaces the old one by rename, so
+an interrupted update leaves the reviewed lock whole. Inspect the printed changes and the diff, then
 commit.
 
 When the SDK moves, change these together:
@@ -67,7 +75,8 @@ When the SDK moves, change these together:
 - `SDK_VERSION` in [`closure.mjs`](closure.mjs) and the pins in `runtime-package.json`.
 - The hashes in `src/task-session/identity.ts`.
 - `overrides` in `runtime-package.json`. An override holds a version down as well as up, so
-  `update-lock.mjs` refuses one that an exact pin has moved past. Remove it once the SDK catches up.
+  `update-lock.mjs` and the installer refuse one that an exact pin has moved past, in the lock or in a
+  packed own package. Remove it once the SDK catches up.
 - This lock, through the command above.
 
 A new runtime directory results, keyed by the host build digest and the closure digest. Earlier runtimes
@@ -78,7 +87,8 @@ this install built and the host's own identity checks pass. Otherwise the verifi
 directory's place in one atomic exchange (`exch`, util-linux 2.40 or later, the package that also
 provides `unshare`), so a launcher sees the old tree or the new one and never a missing directory, and
 the next install of the closure finds it. The old tree is then set aside as `<runtime>.damaged-<ms>`,
-never deleted; if the process stops between the two steps it stays under `runtime/.staging-*`.
+never deleted; if the process stops between the two steps, or `exch` fails without saying whether it
+swapped, it stays under `runtime/.staging-*`.
 `tree_sha256` in `closure.json` records the digest as a receipt; reuse recomputes it from disk instead
 of trusting it.
 

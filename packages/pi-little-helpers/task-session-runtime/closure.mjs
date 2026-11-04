@@ -53,13 +53,47 @@ export function assertRuntimeManifest(manifest) {
         refuse("runtime_spec_not_exact", `${field}.${name}@${spec}`);
 }
 
+/**
+ * Git as the recorded commit stores it. No inherited `GIT_*` may point it at another repository, index
+ * or configuration, and replacement refs would show another tree under HEAD's name.
+ */
+export const GIT_ENV = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
+  GIT_NO_REPLACE_OBJECTS: "1",
+};
 const git = (args, cwd) =>
   execFileSync("git", args, {
     cwd,
+    env: GIT_ENV,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 64 * 1024 * 1024,
   }).trim();
+
+/**
+ * npm sees only this configuration: no inherited `npm_config_*`, user or global npmrc, mirror, update
+ * check, preload or module path. Without it an inherited registry moves the locked fetch, since npm
+ * swaps the host of every registry.npmjs.org tarball URL for the configured one. A proxy or CA still
+ * comes from HTTPS_PROXY and NODE_EXTRA_CA_CERTS.
+ */
+export function isolatedNpm(args) {
+  return {
+    args: [
+      ...args,
+      `--registry=${REGISTRY}`,
+      "--replace-registry-host=never",
+      // Two paths, since npm refuses one file as both; nothing can exist below /dev/null.
+      "--userconfig=/dev/null",
+      "--globalconfig=/dev/null/npmrc",
+      "--update-notifier=false",
+    ],
+    env: Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([name]) => !/^npm_config_/i.test(name) && name !== "NODE_OPTIONS" && name !== "NODE_PATH",
+      ),
+    ),
+  };
+}
 
 /** Npm and every prepack run on PATH's node, so it must be the pin too, not only this process. */
 export function nodeRefusal({ pinned, running, onPath, pinnedNpm, npm }) {
@@ -115,9 +149,11 @@ const older = (left, right) => {
 };
 
 /** An override holds a version down as well as up: refuse one a package's exact pin has moved past. */
-export function assertOverridesCurrent(lock, manifest) {
+export function assertOverridesCurrent(lock, manifest, own = []) {
+  // `own` holds [name, manifest] for the packed packages, whose pins the lock never records.
+  const holders = [...Object.entries(lock.packages), ...own];
   for (const [name, version] of Object.entries(manifest.overrides ?? {}))
-    for (const [path, entry] of Object.entries(lock.packages))
+    for (const [path, entry] of holders)
       for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
         const pin = entry[field]?.[name];
         if (EXACT.test(pin ?? "") && older(version, pin))
@@ -169,16 +205,25 @@ export function ownClosure(packagesRoot, roots = OWN_ROOTS) {
   }
   return [...seen.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([name, own]) => ({ name, version: own.manifest.version, dir: own.dir }));
+    .map(([name, own]) => ({
+      name,
+      version: own.manifest.version,
+      dir: own.dir,
+      manifest: own.manifest,
+    }));
 }
 
 const NO_SCRIPTS = "--ignore-scripts";
-const offlineNpm = (args, cwd, cache) =>
-  execFileSync(
-    "unshare",
-    ["-rn", "npm", ...args, "--offline", "--no-audit", "--no-fund", "--cache", cache],
-    { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: COMMAND_TIMEOUT_MS },
-  );
+const offlineNpm = (args, cwd, cache) => {
+  const npm = isolatedNpm([...args, "--offline", "--no-audit", "--no-fund", "--cache", cache]);
+  return execFileSync("unshare", ["-rn", "npm", ...npm.args], {
+    cwd,
+    env: npm.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: COMMAND_TIMEOUT_MS,
+  });
+};
 
 function layDownLock(lockDir, dir) {
   copyFileSync(join(lockDir, "runtime-package.json"), join(dir, "package.json"));
@@ -188,16 +233,22 @@ function layDownLock(lockDir, dir) {
 /** The one network step: npm fills the private cache from the lock and checks every integrity. */
 export function fetchLockedClosure({ lockDir = LOCK_DIR, directory, cache }) {
   layDownLock(lockDir, directory);
-  execFileSync(
-    "npm",
-    ["ci", "--ignore-scripts", "--omit=dev", "--no-audit", "--no-fund", "--cache", cache],
-    {
-      cwd: directory,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: COMMAND_TIMEOUT_MS,
-    },
-  );
+  const npm = isolatedNpm([
+    "ci",
+    "--ignore-scripts",
+    "--omit=dev",
+    "--no-audit",
+    "--no-fund",
+    "--cache",
+    cache,
+  ]);
+  execFileSync("npm", npm.args, {
+    cwd: directory,
+    env: npm.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: COMMAND_TIMEOUT_MS,
+  });
 }
 
 /**
@@ -230,8 +281,9 @@ export function headMismatches(repo, paths) {
     const bytes = link
       ? readlinkSync(join(repo, file), { encoding: "buffer" })
       : readFileSync(join(repo, file));
-    // Git records 100755 from the owner's execute bit alone.
-    const modeDiffers = !link && Boolean(stat.mode & 0o100) !== (mode === "100755");
+    // The mode npm packs: tar's portable mode adds owner read-write and drops group and other write.
+    const packed = (stat.mode | 0o600) & ~0o22 & 0o777;
+    const modeDiffers = !link && packed !== (mode === "100755" ? 0o755 : 0o644);
     if (blobId(bytes) !== blob || modeDiffers) changed.push(file);
   }
   return changed;

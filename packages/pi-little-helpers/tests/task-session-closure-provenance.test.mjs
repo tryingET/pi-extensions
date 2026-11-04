@@ -2,11 +2,14 @@
 // real package identity, a reused runtime must still be the tree that was installed, and every packed file
 // must be tracked at the commit or rebuilt output. Real installs: tests/live/task-session-install.reality.live.mjs.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -208,12 +211,17 @@ test("Given bytes git's hashing filters would normalise, then they still differ 
   assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/a.js"]);
 });
 
-test("Given an execute bit git does not record, then nothing differs; given the owner's, then it does", (t) => {
+test("F5: Given a mode npm would pack other than 644 or 755, then it differs from HEAD", (t) => {
   const repo = headRepo(t);
-  chmodSync(join(repo, "pkg/b.js"), 0o654);
-  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), []);
-  chmodSync(join(repo, "pkg/b.js"), 0o744);
-  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/b.js"]);
+  for (const mode of [0o654, 0o600, 0o744]) {
+    chmodSync(join(repo, "pkg/b.js"), mode);
+    assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/b.js"], mode.toString(8));
+  }
+  // tar's portable mode drops group and other write, so a umask 002 checkout packs the same.
+  for (const mode of [0o664, 0o644]) {
+    chmodSync(join(repo, "pkg/b.js"), mode);
+    assert.deepEqual(closure.headMismatches(repo, ["pkg"]), [], mode.toString(8));
+  }
 });
 
 test("Given a tracked link replaced by a file with the link's bytes, then it differs from HEAD", (t) => {
@@ -222,3 +230,153 @@ test("Given a tracked link replaced by a file with the link's bytes, then it dif
   writeFileSync(join(repo, "pkg/link"), "gen/out.js");
   assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/link"]);
 });
+
+test("F2: Given a replacement ref for HEAD, then bytes still compare with the recorded commit", (t) => {
+  const repo = headRepo(t);
+  const git = (...args) =>
+    execFileSync(
+      "git",
+      ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+      { cwd: repo, encoding: "utf8" },
+    ).trim();
+  const recorded = git("rev-parse", "HEAD");
+  writeFileSync(join(repo, "pkg/a.js"), "not at the recorded commit\n");
+  git("commit", "-qam", "replacement");
+  const replacement = git("rev-parse", "HEAD");
+  git("update-ref", "HEAD", recorded);
+  git("replace", recorded, replacement);
+  assert.equal(git("status", "--porcelain"), "");
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/a.js"]);
+});
+
+test("Given an inherited GIT_DIR naming another repository, then HEAD is still this one", (t) => {
+  const repo = headRepo(t);
+  const other = headRepo(t);
+  writeFileSync(join(other, "pkg/a.js"), "another repository\n");
+  execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "other"], {
+    cwd: other,
+  });
+  const module = new URL("../task-session-runtime/closure.mjs", import.meta.url).href;
+  const run = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import { headMismatches } from ${JSON.stringify(module)};
+       process.stdout.write(JSON.stringify(headMismatches(${JSON.stringify(repo)}, ["pkg"])));`,
+    ],
+    { encoding: "utf8", env: { ...process.env, GIT_DIR: join(other, ".git") } },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(JSON.parse(run.stdout), []);
+});
+
+test("Given an own package pinning an overridden package above the override, then the override is stale", () => {
+  const lock = lockFixture();
+  lock.packages["node_modules/undici"] = entry("undici", "8.12.3");
+  const own = [["@tryinget/pi-little-helpers", { dependencies: { undici: "9.0.0" } }]];
+  assert.throws(
+    () => closure.assertOverridesCurrent(lock, { overrides: { undici: "8.12.3" } }, own),
+    /lock_override_stale/,
+  );
+});
+
+// F1: npm's registry-host substitution and an inherited config must not move the one locked fetch.
+const unshareWorks = spawnSync("unshare", ["-rn", "true"]).status === 0;
+test(
+  "F1: Given an inherited npm registry, when fetching the locked closure, then npm still asks the public registry",
+  { skip: !unshareWorks && "unshare -rn is unavailable" },
+  (t) => {
+    const root = mkdtempSync(join(tmpdir(), "task-session-fetch-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const [lockDir, directory, cache] = ["lock", "fetch", "cache"].map((name) => join(root, name));
+    for (const dir of [lockDir, directory, cache]) mkdirSync(dir);
+    const real = closure.readLock();
+    const pin = real.packages["node_modules/balanced-match"];
+    const manifest = {
+      name: "fetch-probe",
+      version: "1.0.0",
+      dependencies: { "balanced-match": pin.version },
+    };
+    writeFileSync(join(lockDir, "runtime-package.json"), JSON.stringify(manifest));
+    writeFileSync(
+      join(lockDir, "runtime.lock"),
+      JSON.stringify({
+        name: manifest.name,
+        version: "1.0.0",
+        lockfileVersion: 3,
+        packages: { "": manifest, "node_modules/balanced-match": pin },
+      }),
+    );
+    // Record every request npm builds, then stop it before any connection; the network is unshared too.
+    // The probe enters through an npm shim on PATH, which isolation keeps, not through NODE_OPTIONS.
+    const requests = join(root, "requests.jsonl");
+    const probe = join(root, "probe.cjs");
+    writeFileSync(
+      probe,
+      `const fs = require("node:fs");
+       for (const name of ["http", "https"]) {
+         const mod = require("node:" + name);
+         mod.request = (arg) => {
+           const url = typeof arg === "string" || arg instanceof URL ? new URL(arg) : { host: arg.host ?? arg.hostname, pathname: arg.path };
+           fs.appendFileSync(${JSON.stringify(requests)}, JSON.stringify({ host: url.host, path: url.pathname }) + "\\n");
+           throw new Error("probe: no network");
+         };
+       }`,
+    );
+    const npmCli = realpathSync(
+      execFileSync("sh", ["-c", "command -v npm"], { encoding: "utf8" }).trim(),
+    );
+    const shim = join(root, "bin");
+    mkdirSync(shim);
+    writeFileSync(
+      join(shim, "npm"),
+      `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} --require ${JSON.stringify(probe)} ${JSON.stringify(npmCli)} "$@"\n`,
+      { mode: 0o755 },
+    );
+    // An inherited preload must not reach npm at all.
+    const preloaded = join(root, "preloaded");
+    const hostile = join(root, "hostile.cjs");
+    writeFileSync(
+      hostile,
+      `require("node:fs").writeFileSync(${JSON.stringify(preloaded)}, "loaded");`,
+    );
+    const userconfig = join(root, "npmrc");
+    writeFileSync(userconfig, "registry=https://user-config.invalid/\n");
+    const module = new URL("../task-session-runtime/closure.mjs", import.meta.url).href;
+    const run = spawnSync(
+      "unshare",
+      [
+        "-rn",
+        process.execPath,
+        "--input-type=module",
+        "-e",
+        `process.env.NODE_OPTIONS = ${JSON.stringify(`--require ${hostile}`)};
+         const { fetchLockedClosure } = await import(${JSON.stringify(module)});
+         fetchLockedClosure(${JSON.stringify({ lockDir, directory, cache })});`,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${shim}:${process.env.PATH}`,
+          npm_config_registry: "https://inherited.invalid/",
+          NPM_CONFIG_USERCONFIG: userconfig,
+          npm_config_update_notifier: "true",
+        },
+      },
+    );
+    assert.notEqual(run.status, 0, "the probe stops every request");
+    assert.ok(existsSync(requests), run.stderr);
+    const seen = readFileSync(requests, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(seen.length > 0, run.stderr);
+    for (const { host, path } of seen) {
+      assert.equal(host, "registry.npmjs.org", path);
+      assert.notEqual(path, "/npm", "no update-notifier request");
+    }
+    assert.equal(existsSync(preloaded), false, "inherited NODE_OPTIONS reached npm");
+  },
+);
