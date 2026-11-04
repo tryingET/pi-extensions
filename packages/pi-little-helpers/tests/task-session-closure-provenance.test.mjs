@@ -8,6 +8,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -213,7 +214,7 @@ test("Given bytes git's hashing filters would normalise, then they still differ 
 
 test("F5: Given a mode npm would pack other than 644 or 755, then it differs from HEAD", (t) => {
   const repo = headRepo(t);
-  for (const mode of [0o654, 0o600, 0o744]) {
+  for (const mode of [0o654, 0o600, 0o744, 0o4644, 0o2644]) {
     chmodSync(join(repo, "pkg/b.js"), mode);
     assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/b.js"], mode.toString(8));
   }
@@ -247,6 +248,21 @@ test("F2: Given a replacement ref for HEAD, then bytes still compare with the re
   git("replace", recorded, replacement);
   assert.equal(git("status", "--porcelain"), "");
   assert.deepEqual(closure.headMismatches(repo, ["pkg"]), ["pkg/a.js"]);
+});
+
+test("Given a commit other than HEAD, then the comparison is against that commit", (t) => {
+  const repo = headRepo(t);
+  const git = (...args) =>
+    execFileSync(
+      "git",
+      ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+      { cwd: repo, encoding: "utf8" },
+    ).trim();
+  const recorded = git("rev-parse", "HEAD");
+  writeFileSync(join(repo, "pkg/a.js"), "after the recorded commit\n");
+  git("commit", "-qam", "later");
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"]), []);
+  assert.deepEqual(closure.headMismatches(repo, ["pkg"], recorded), ["pkg/a.js"]);
 });
 
 test("Given an inherited GIT_DIR naming another repository, then HEAD is still this one", (t) => {
@@ -378,5 +394,107 @@ test(
       assert.notEqual(path, "/npm", "no update-notifier request");
     }
     assert.equal(existsSync(preloaded), false, "inherited NODE_OPTIONS reached npm");
+  },
+);
+
+// R2: npm follows a redirect to any host, so the online step may connect only to the registry. The probe
+// answers the registry's request with a 302 and hands the redirected one to the real network code.
+test(
+  "R2: Given the registry redirects a locked tarball to another host, then npm is refused before it connects",
+  { skip: !unshareWorks && "unshare -rn is unavailable" },
+  (t) => {
+    const root = mkdtempSync(join(tmpdir(), "task-session-egress-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const [lockDir, directory, cache] = ["lock", "fetch", "cache"].map((name) => join(root, name));
+    for (const dir of [lockDir, directory, cache]) mkdirSync(dir);
+    const pin = closure.readLock().packages["node_modules/balanced-match"];
+    const manifest = {
+      name: "egress-probe",
+      version: "1.0.0",
+      dependencies: { "balanced-match": pin.version },
+    };
+    writeFileSync(join(lockDir, "runtime-package.json"), JSON.stringify(manifest));
+    writeFileSync(
+      join(lockDir, "runtime.lock"),
+      JSON.stringify({
+        name: manifest.name,
+        version: "1.0.0",
+        lockfileVersion: 3,
+        packages: { "": manifest, "node_modules/balanced-match": pin },
+      }),
+    );
+    const requests = join(root, "requests.jsonl");
+    const probe = join(root, "redirect.cjs");
+    writeFileSync(
+      probe,
+      `const fs = require("node:fs");
+       const { Writable, PassThrough } = require("node:stream");
+       for (const name of ["http", "https"]) {
+         const mod = require("node:" + name);
+         const original = mod.request;
+         mod.request = function (arg, ...rest) {
+           const url = typeof arg === "string" || arg instanceof URL ? new URL(arg) : { hostname: arg.hostname || arg.host };
+           fs.appendFileSync(${JSON.stringify(requests)}, JSON.stringify({ host: url.hostname }) + "\\n");
+           if (url.hostname !== "registry.npmjs.org") return original.call(this, arg, ...rest);
+           const request = new Writable({
+             write(chunk, encoding, done) { done(); },
+             final(done) {
+               process.nextTick(() => {
+                 const response = new PassThrough();
+                 Object.assign(response, { statusCode: 302, statusMessage: "Found", trailers: {},
+                   headers: { location: "https://redirect-outside.invalid/package.tgz" } });
+                 request.emit("response", response);
+                 response.end();
+               });
+               done();
+             },
+           });
+           request.abort = () => {};
+           return request;
+         };
+       }`,
+    );
+    const npmCli = realpathSync(
+      execFileSync("sh", ["-c", "command -v npm"], { encoding: "utf8" }).trim(),
+    );
+    const shim = join(root, "bin");
+    mkdirSync(shim);
+    writeFileSync(
+      join(shim, "npm"),
+      `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} --require ${JSON.stringify(probe)} ${JSON.stringify(npmCli)} "$@" --fetch-retries=0\n`,
+      { mode: 0o755 },
+    );
+    const module = new URL("../task-session-runtime/closure.mjs", import.meta.url).href;
+    const run = spawnSync(
+      "unshare",
+      [
+        "-rn",
+        process.execPath,
+        "--input-type=module",
+        "-e",
+        `const { fetchLockedClosure } = await import(${JSON.stringify(module)});
+         try { fetchLockedClosure(${JSON.stringify({ lockDir, directory, cache })}); }
+         catch (error) { process.stderr.write(String(error.stderr)); process.exit(3); }`,
+      ],
+      {
+        encoding: "utf8",
+        timeout: 120_000,
+        env: { ...process.env, PATH: `${shim}:${process.env.PATH}` },
+      },
+    );
+    assert.equal(run.status, 3, run.stderr);
+    const hosts = readFileSync(requests, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line).host);
+    assert.deepEqual(hosts.slice(0, 2), ["registry.npmjs.org", "redirect-outside.invalid"]);
+    const logs = join(cache, "_logs");
+    const said = [
+      run.stderr,
+      ...(existsSync(logs) ? readdirSync(logs) : []).map((name) =>
+        readFileSync(join(logs, name), "utf8"),
+      ),
+    ].join("\n");
+    assert.match(said, /task_session_egress_refused: redirect-outside\.invalid/);
   },
 );

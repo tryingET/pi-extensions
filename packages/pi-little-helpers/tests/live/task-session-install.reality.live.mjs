@@ -249,6 +249,24 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
   });
 
   await t.test(
+    "N1: Given status.showUntrackedFiles=no, then an untracked .npmrc in an own package still counts as dirty",
+    (s) => {
+      const npmrc = join(packageRoot, "../pi-model-selection/.npmrc");
+      assert.equal(existsSync(npmrc), false, "leftover .npmrc from an earlier run");
+      s.after(() => rmSync(npmrc, { force: true }));
+      // Set through a private HOME's global config: the shared repository config is never touched.
+      const home = join(scratch, "home-hiding-untracked");
+      mkdirSync(home, { recursive: true });
+      writeFileSync(join(home, ".gitconfig"), "[status]\n\tshowUntrackedFiles = no\n");
+      writeFileSync(npmrc, "node-options=--require ./not-at-the-commit.cjs\n");
+      const refused = install("untracked-npmrc", { HOME: home }, "--no-fetch");
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr, /source not clean[\s\S]*\?\? \S*\.npmrc/);
+      assert.equal(existsSync(join(refused.root, "host-v1")), false);
+    },
+  );
+
+  await t.test(
     "Given a damaged runtime, when reinstalling, then a verified tree takes its place and is reused next",
     () => {
       const manifest = join(

@@ -76,7 +76,25 @@ const git = (args, cwd) =>
  * swaps the host of every registry.npmjs.org tarball URL for the configured one. A proxy or CA still
  * comes from HTTPS_PROXY and NODE_EXTRA_CA_CERTS.
  */
-export function isolatedNpm(args) {
+// npm reads NODE_ENV and PREFIX as configuration and Node reads NODE_OPTIONS and NODE_PATH before any
+// code runs. A proxy would hide the real destination from the egress guard, so npm connects directly.
+const NPM_STRIPPED = new Set(
+  ["NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "PREFIX"].concat(
+    ...["https_proxy", "http_proxy", "all_proxy", "no_proxy"].map((name) => [
+      name,
+      name.toUpperCase(),
+    ]),
+  ),
+);
+const EGRESS_GUARD = fileURLToPath(new URL("egress-guard.cjs", import.meta.url));
+/** `online` preloads the egress guard, so npm connects only to the registry, redirects included. */
+export function isolatedNpm(args, { online = false } = {}) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !/^npm_config_/i.test(name) && !NPM_STRIPPED.has(name),
+    ),
+  );
+  if (online) env.NODE_OPTIONS = `--require ${JSON.stringify(EGRESS_GUARD)}`;
   return {
     args: [
       ...args,
@@ -86,12 +104,10 @@ export function isolatedNpm(args) {
       "--userconfig=/dev/null",
       "--globalconfig=/dev/null/npmrc",
       "--update-notifier=false",
+      // npm runs git itself for a git dependency, outside the guard; the lock admits none, so fail it.
+      "--git=/dev/null/git",
     ],
-    env: Object.fromEntries(
-      Object.entries(process.env).filter(
-        ([name]) => !/^npm_config_/i.test(name) && name !== "NODE_OPTIONS" && name !== "NODE_PATH",
-      ),
-    ),
+    env,
   };
 }
 
@@ -233,15 +249,10 @@ function layDownLock(lockDir, dir) {
 /** The one network step: npm fills the private cache from the lock and checks every integrity. */
 export function fetchLockedClosure({ lockDir = LOCK_DIR, directory, cache }) {
   layDownLock(lockDir, directory);
-  const npm = isolatedNpm([
-    "ci",
-    "--ignore-scripts",
-    "--omit=dev",
-    "--no-audit",
-    "--no-fund",
-    "--cache",
-    cache,
-  ]);
+  const npm = isolatedNpm(
+    ["ci", "--ignore-scripts", "--omit=dev", "--no-audit", "--no-fund", "--cache", cache],
+    { online: true },
+  );
   execFileSync("npm", npm.args, {
     cwd: directory,
     env: npm.env,
@@ -256,12 +267,12 @@ export function fetchLockedClosure({ lockDir = LOCK_DIR, directory, cache }) {
  * itself, not through the index or git's filters, so an edit hidden by --assume-unchanged,
  * --skip-worktree or an end-of-line conversion still counts.
  */
-export function headMismatches(repo, paths) {
+export function headMismatches(repo, paths, commit = "HEAD") {
   const format = git(["rev-parse", "--show-object-format"], repo);
   const blobId = (bytes) =>
     createHash(format).update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
   const changed = [];
-  for (const row of git(["ls-tree", "-r", "-z", "HEAD", "--", ...paths], repo).split("\0")) {
+  for (const row of git(["ls-tree", "-r", "-z", commit, "--", ...paths], repo).split("\0")) {
     const tab = row.indexOf("\t");
     const [mode, type, blob] = row.slice(0, tab).split(" ");
     const file = row.slice(tab + 1);
@@ -282,7 +293,8 @@ export function headMismatches(repo, paths) {
       ? readlinkSync(join(repo, file), { encoding: "buffer" })
       : readFileSync(join(repo, file));
     // The mode npm packs: tar's portable mode adds owner read-write and drops group and other write.
-    const packed = (stat.mode | 0o600) & ~0o22 & 0o777;
+    // Setuid, setgid and sticky bits survive into the tarball too, so they count.
+    const packed = (stat.mode | 0o600) & ~0o22 & 0o7777;
     const modeDiffers = !link && packed !== (mode === "100755" ? 0o755 : 0o644);
     if (blobId(bytes) !== blob || modeDiffers) changed.push(file);
   }

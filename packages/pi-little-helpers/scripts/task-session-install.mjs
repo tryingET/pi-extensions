@@ -114,11 +114,13 @@ const sourcePaths = [
   ...closure.map(({ dir }) => relative(repo, dir)),
   relative(repo, join(dirname(pkg), "pi-interaction/scripts")),
 ];
-const sourceStatus = () => run("git", ["status", "--porcelain", "--", ...sourcePaths], repo).trim();
+// -uall: status.showUntrackedFiles=no in any config would otherwise hide an untracked .npmrc.
+const sourceStatus = () =>
+  run("git", ["status", "--porcelain", "--untracked-files=all", "--", ...sourcePaths], repo).trim();
 const lockOutsideCommit = resolve(lockDir) !== resolve(LOCK_DIR) ? `lock from ${lockDir}` : "";
 // Status trusts the index; an edit hidden by --assume-unchanged or --skip-worktree only shows in the bytes.
 const differsFromHead = () =>
-  headMismatches(repo, sourcePaths).map((path) => `differs from HEAD: ${path}`);
+  headMismatches(repo, sourcePaths, commit).map((path) => `differs from HEAD: ${path}`);
 const dirty = [sourceStatus(), lockOutsideCommit, ...differsFromHead()].filter(Boolean).join("\n");
 if (dirty && !allowDirty) throw new Error(`source not clean; commit first:\n${dirty}`);
 
@@ -219,21 +221,11 @@ try {
       try {
         run("exch", ["--", staging, runtime]);
       } catch (error) {
-        // If the runtime already holds the verified tree, the swap happened and staging holds the old
-        // one: keep it, and say where.
-        const swapped = (() => {
-          try {
-            return treeDigest(join(runtime, "node_modules")) === tree;
-          } catch {
-            return false;
-          }
-        })();
-        if (swapped) damaged = staging;
+        // Whether the swap happened is unknown, and a failed look would not settle it, so staging is kept
+        // whichever tree it holds. Never deleted; the refusal says where.
+        damaged = staging;
         const detail = String(error.stderr || error.message).trim();
-        refuse(
-          "runtime_exchange_failed",
-          swapped ? `${detail}; old tree kept at ${staging}` : detail,
-        );
+        refuse("runtime_exchange_failed", `${detail}; staging kept at ${staging}`);
       }
       // Set aside, never deleted. If even the rename fails, it stays at the staging path, kept.
       damaged = `${runtime}.damaged-${Date.now()}`;

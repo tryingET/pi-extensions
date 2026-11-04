@@ -24,8 +24,13 @@ layers. Nothing in it resolves a version.
 
 One `npm ci` from the lock fills a private cache. Every npm call sees only the public registry, with
 `--replace-registry-host=never`, no inherited `npm_config_*`, user or global npmrc, update check,
-`NODE_OPTIONS` or `NODE_PATH`, so an inherited mirror or preload cannot move the fetch or the build. A
-proxy or CA comes from `HTTPS_PROXY` and `NODE_EXTRA_CA_CERTS`, not from an npmrc. Packing and installing then run under `unshare -rn`
+`NODE_OPTIONS`, `NODE_PATH`, `NODE_ENV` or `PREFIX`, so an inherited mirror or preload cannot move the
+fetch or the build. A CA comes from `NODE_EXTRA_CA_CERTS`. No proxy is used: npm connects directly, since
+through a proxy the guard below would see only the proxy, and `git` is disabled.
+npm still reads a project `.npmrc`: the fetch runs in an empty directory, and in an own package one must
+be committed, since an untracked one makes the source dirty. Configuration does not stop npm following a
+redirect, so the two online steps preload [`egress-guard.cjs`](egress-guard.cjs), which refuses any TCP
+connection except to registry.npmjs.org. Packing and installing then run under `unshare -rn`
 with `--offline`, so a missing tarball fails the install; a flag alone would not stop a fetch. Every
 package npm recorded as installed is then compared with the lock by name, version, tarball URL and
 integrity, and every own package with the tarball packed for this install. A lock entry must be its own
@@ -42,7 +47,7 @@ so an edit hidden by `--assume-unchanged`, `--skip-worktree` or an end-of-line c
 as dirty. Every git call runs without inherited `GIT_*` variables and with `GIT_NO_REPLACE_OBJECTS=1`, so
 no other repository, index or replacement tree can stand in for the recorded commit. npm packs a file's
 mode after adding owner read-write and dropping group and other write, and that must give 644 or 755:
-664 passes, 600 or 654 do not; restore a drifted one with `chmod`. The installer runs with umask 022, so
+664 passes, 600, 654 or a setuid, setgid or sticky bit does not; restore a drifted one with `chmod`. The installer runs with umask 022, so
 the `package.json` prepack restores keeps its mode even under a stricter caller, such as heavy-job's 077.
 
 Run it from a clean linked worktree, on the Node pinned in `policy/ci-toolchain-lock.json`, with that Node
@@ -87,8 +92,8 @@ this install built and the host's own identity checks pass. Otherwise the verifi
 directory's place in one atomic exchange (`exch`, util-linux 2.40 or later, the package that also
 provides `unshare`), so a launcher sees the old tree or the new one and never a missing directory, and
 the next install of the closure finds it. The old tree is then set aside as `<runtime>.damaged-<ms>`,
-never deleted; if the process stops between the two steps, or `exch` fails without saying whether it
-swapped, it stays under `runtime/.staging-*`.
+never deleted; if the process stops between the two steps, or `exch` fails, it stays under
+`runtime/.staging-*`, whichever tree that holds, and the refusal names it.
 `tree_sha256` in `closure.json` records the digest as a receipt; reuse recomputes it from disk instead
 of trusting it.
 

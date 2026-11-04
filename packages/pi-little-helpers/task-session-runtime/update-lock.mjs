@@ -38,13 +38,10 @@ const temporary = join(LOCK_DIR, `.runtime.lock.${process.pid}.tmp`);
 try {
   copyFileSync(join(LOCK_DIR, "runtime-package.json"), join(scratch, "package.json"));
   copyFileSync(join(LOCK_DIR, "../package-lock.json"), join(scratch, "package-lock.json"));
-  const npm = isolatedNpm([
-    "install",
-    "--package-lock-only",
-    "--ignore-scripts",
-    "--no-audit",
-    "--no-fund",
-  ]);
+  const npm = isolatedNpm(
+    ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"],
+    { online: true },
+  );
   execFileSync("npm", npm.args, {
     cwd: scratch,
     env: npm.env,

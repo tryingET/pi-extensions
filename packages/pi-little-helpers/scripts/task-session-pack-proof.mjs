@@ -14,6 +14,8 @@ import {
   verifyInstalled,
 } from "../task-session-runtime/closure.mjs";
 
+// The modes a checkout has, as the installer packs, even under heavy-job's umask 077.
+process.umask(0o022);
 const root = fileURLToPath(new URL("../", import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), "task5480-pack-proof-"));
 function run(command, args, cwd = scratch) {
