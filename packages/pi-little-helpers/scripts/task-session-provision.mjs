@@ -20,9 +20,14 @@
 // One enrolled domain also protects its whole checkout and Git family from legacy launches.
 // Enrolling is the owner's positive custody statement for that checkout: see softwareco/owned
 // docs/project/2026-09-07-visible-task-session-lane-custody.md. withdraw stops new admissions and
-// keeps every attempt, enrollment and history. producer copies the bindings AK publishes
-// (`ak task-session describe`, enabled) into producer.json and has the installed producer check
-// every pinned artifact; run it again after each AK rotation (AK6744). profile pins one
+// keeps every attempt, enrollment and history. producer has the installed producer check the
+// bindings AK publishes (`ak task-session describe`, enabled): every pinned artifact but the
+// policy, which it never opens, and the host build, which only a checkout built as the pinned host
+// passes; run it again after each AK rotation (AK6744). The check runs on a candidate in a private
+// .producer-candidate-* directory, and only a candidate that passes replaces producer.json. One
+// the check refuses (or that makes it throw) is set aside as producer.json.rejected-<ms>, and the
+// publication in place keeps its bytes. A crash or a failed step can leave that directory, empty
+// or holding the candidate; nothing reads it (AK8117). profile pins one
 // openai-codex model from the pinned SDK catalog, the account's current OAuth credential from
 // Pi's auth store (copied, content-addressed, never refreshed), the producer bindings and the
 // database identity AK's plan reports for an enrolled task; the host's own preflight then checks
@@ -32,7 +37,8 @@
 // (an admission without a recorded result needs an unclaimed task); then it keeps an immutable
 // receipt with the owner's host-closure and effect-disposition statements beside the attempt and
 // sets hostClosed, effectsDisposed and claimResolved together. A claim is released only by AK
-// (`ak task-session recover`), never here. No command deletes anything.
+// (`ak task-session recover`), never here. Beyond replacing state.json and producer.json whole,
+// no command deletes anything but the empty staging directory producer made in the same run.
 import { execFileSync } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
 import {
@@ -40,13 +46,16 @@ import {
   closeSync,
   constants,
   existsSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
+  rmdirSync,
 } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
@@ -63,6 +72,7 @@ import {
   accountLocator,
   durableWrite,
   physicalIdentity,
+  privatePath,
   readSnapshot,
   validateSnapshot,
 } from "../dist/task-session/state.js";
@@ -211,6 +221,27 @@ function enroll() {
   );
 }
 
+/** Remove a staging directory only if it is empty: one that holds bytes stays for the owner. */
+function dropEmpty(staging) {
+  try {
+    rmdirSync(staging);
+  } catch {
+    // Not empty, or not removable: nothing reads it, and its bytes are not this command's to drop.
+  }
+}
+
+/** Move the staged candidate to `target` and make that durable, then drop the empty staging. */
+function settle(staging, candidate, target, root) {
+  renameSync(candidate, target);
+  const fd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  dropEmpty(staging);
+}
+
 function producer() {
   noMoreArguments();
   const descriptor = interpretTaskSessionDescriptor(
@@ -219,20 +250,37 @@ function producer() {
   if (descriptor.state !== "enabled" || !descriptor.bindings) refuse("producer_not_published");
   const locator = accountLocator();
   const published = join(locator.root, "producer.json");
-  durableWrite(published, {
-    schema: "pi.task-session.producer-binding.v1",
-    publication: "owner-approved",
-    bindings: descriptor.bindings,
-  });
-  // The same identity check the host runs before any owner entrypoint: closure, worker, host.
-  // A publication that fails it is set aside, never left in place and never deleted.
-  let bindings;
+  // The candidate is checked in a private directory no host reads, so the publication in place
+  // changes only by one rename after the check passes (AK8117). The root must still be private,
+  // as it was when the publication was written there directly.
+  privatePath(locator.root, true);
+  const staging = mkdtempSync(join(locator.root, ".producer-candidate-"));
+  const candidate = join(staging, "producer.json");
   try {
-    ({ bindings } = installedProducerPins(locator));
+    durableWrite(candidate, {
+      schema: "pi.task-session.producer-binding.v1",
+      publication: "owner-approved",
+      bindings: descriptor.bindings,
+    });
   } catch (error) {
-    renameSync(published, `${published}.rejected-${Date.now()}`);
+    dropEmpty(staging);
     throw error;
   }
+  // The same identity check the host runs before any owner entrypoint: closure, worker, host.
+  // A candidate that fails it is set aside, never published and never deleted. The refusal stays
+  // the reported error even when setting the candidate aside fails too.
+  let bindings;
+  try {
+    ({ bindings } = installedProducerPins({ ...locator, root: staging }));
+  } catch (error) {
+    try {
+      settle(staging, candidate, `${published}.rejected-${Date.now()}`, locator.root);
+    } catch (aside) {
+      throw new AggregateError([error, aside], error.message);
+    }
+    throw error;
+  }
+  settle(staging, candidate, published, locator.root);
   return {
     published: true,
     policy_generation: bindings.policy_generation,

@@ -1,24 +1,47 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import os, { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { classifySnapshot } from "../dist/task-session/classify.js";
 import { identityFromSnapshot } from "../dist/task-session/installed-identity.js";
 import { accountLocator, readSnapshot } from "../dist/task-session/state.js";
+import { enabledDescriptor, ownerBundle } from "./fixtures/task-session/producer-owner-bundle.mjs";
 
 const script = fileURLToPath(new URL("../scripts/task-session-provision.mjs", import.meta.url));
+
+/** The installed check refuses an artifact below a symlink, a foreign owner or a shared write bit. */
+function ownerSafe(dir) {
+  for (let p = dir; ; p = dirname(p)) {
+    const s = lstatSync(p, { throwIfNoEntry: false });
+    if (!s || s.isSymbolicLink() || ![0, process.getuid()].includes(s.uid) || s.mode & 0o022)
+      return false;
+    if (p === dirname(p)) return true;
+  }
+}
+/** Owner artifacts go under TMPDIR when the check accepts it there, else under this package. */
+const ownerParent = [
+  tmpdir(),
+  join(fileURLToPath(new URL("../node_modules", import.meta.url)), ".cache"),
+].find((dir) => {
+  mkdirSync(dir, { recursive: true, mode: 0o755 });
+  return ownerSafe(dir);
+});
+const ownerTest = (name, fn) =>
+  test(name, { skip: !ownerParent && "no directory the installed check accepts" }, fn);
 
 const akFixtures =
   "/home/tryinget/ai-society/softwareco/owned/agent-kernel/docs/project/contracts/task-session-deployment-v1.fixtures.json";
@@ -35,9 +58,14 @@ const disabledDescriptor = {
   worker_test_support: null,
 };
 
-/** A synthetic OS account home, a git checkout in it, and an `ak` stub that owns task 7. */
-function world(t, descriptor = disabledDescriptor) {
-  const base = mkdtempSync(join(tmpdir(), "task5480-provision-"));
+/**
+ * A synthetic OS account home, a git checkout in it, and an `ak` stub that owns task 7. A test
+ * that installs owner artifacts passes a `parent` with no group- or world-writable ancestor.
+ */
+function world(t, descriptor = disabledDescriptor, parent = tmpdir()) {
+  mkdirSync(parent, { recursive: true });
+  const base = mkdtempSync(join(parent, "task5480-provision-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
   const home = join(base, "home");
   const checkout = join(base, "repo");
   mkdirSync(home);
@@ -56,8 +84,23 @@ function world(t, descriptor = disabledDescriptor) {
   const loader = join(base, "home-loader.mjs");
   writeFileSync(
     loader,
-    `import os from "node:os"; import { syncBuiltinESMExports } from "node:module";\n` +
+    `import fs from "node:fs"; import os from "node:os";\n` +
+      `import { syncBuiltinESMExports } from "node:module";\n` +
       `const a = os.userInfo(); os.userInfo = () => ({ ...a, homedir: process.env.TEST_HOME });\n` +
+      `const env = process.env, { openSync: open, renameSync: move, fsyncSync: sync } = fs;\n` +
+      `const { appendFileSync: note, readlinkSync: link } = fs;\n` +
+      `const fault = (p) => Object.assign(new Error("injected_fault " + p), { code: "EIO" });\n` +
+      // A crash at a chosen moment (SIGKILL just before opening that path), or a failing open or
+      // rename of a path containing the given text; and the order of durable effects.
+      `fs.openSync = (p, ...r) => {\n` +
+      `  if (String(p) === env.TEST_KILL_BEFORE_OPEN) process.kill(process.pid, "SIGKILL");\n` +
+      `  if (env.TEST_FAIL_OPEN && String(p).includes(env.TEST_FAIL_OPEN)) throw fault(p);\n` +
+      `  return open(p, ...r); };\n` +
+      `fs.renameSync = (a, b) => {\n` +
+      `  if (env.TEST_FAIL_RENAME && String(b).includes(env.TEST_FAIL_RENAME)) throw fault(b);\n` +
+      `  move(a, b); if (env.TEST_EFFECTS) note(env.TEST_EFFECTS, "rename " + a + " " + b + "\\n"); };\n` +
+      `fs.fsyncSync = (fd) => { sync(fd);\n` +
+      `  if (env.TEST_EFFECTS) note(env.TEST_EFFECTS, "fsync " + link("/proc/self/fd/" + fd) + "\\n"); };\n` +
       `syncBuiltinESMExports();\n`,
   );
   const account = os.userInfo();
@@ -67,12 +110,13 @@ function world(t, descriptor = disabledDescriptor) {
     t.mock.restoreAll();
     syncBuiltinESMExports();
   });
-  const run = (...args) =>
+  const runWith = (env, ...args) =>
     spawnSync(process.execPath, ["--import", loader, script, ...args], {
       encoding: "utf8",
-      env: { PATH: `${bin}:/usr/bin:/bin`, TEST_HOME: home },
+      env: { PATH: `${bin}:/usr/bin:/bin`, TEST_HOME: home, ...env },
     });
-  return { base, home, checkout, run, root: join(home, ".local/state/pi-task-sessions") };
+  const run = (...args) => runWith({}, ...args);
+  return { base, home, checkout, run, runWith, root: join(home, ".local/state/pi-task-sessions") };
 }
 const mode = (path) => lstatSync(path).mode & 0o777;
 const legacyRequest = (checkout, taskIds) => ({
@@ -179,6 +223,150 @@ test(
     );
   },
 );
+
+/**
+ * An initialized namespace that holds an earlier publication, with an owner bundle installed. AK
+ * offers bindings whose host is pinned to `hostBuild`, this checkout's build by default. Where the
+ * installation itself is sound, the earlier publication passes the installed check exactly when
+ * the offered one does not, so a check of the wrong file is caught. `added()` lists the root
+ * entries created after that.
+ */
+function publishedWorld(t, hostBuild) {
+  const w = world(t, disabledDescriptor, ownerParent);
+  assert.equal(w.run("init").status, 0);
+  const installed = ownerBundle(w.home);
+  const bindings = hostBuild ? { ...installed, host_build_digest: hostBuild } : installed;
+  writeFileSync(join(w.base, "descriptor.json"), JSON.stringify(enabledDescriptor(bindings)));
+  const published = join(w.root, "producer.json");
+  const earlier = `${JSON.stringify({
+    schema: "pi.task-session.producer-binding.v1",
+    publication: "owner-approved",
+    bindings: {
+      ...installed,
+      policy_generation: "fixture-0",
+      host_build_digest: hostBuild ? installed.host_build_digest : "d".repeat(64),
+    },
+  })}\n`;
+  writeFileSync(published, earlier, { mode: 0o600 });
+  const before = new Set(readdirSync(w.root));
+  const added = () => readdirSync(w.root).filter((name) => !before.has(name));
+  return { ...w, bindings, published, earlier, inode: lstatSync(published).ino, added };
+}
+
+for (const [cause, refusal, hostBuild, prepare] of [
+  ["a checkout whose build is not the pinned host", "producer_host_build_mismatch", "e".repeat(64)],
+  [
+    "a missing AK runtime bundle",
+    "producer_runtime_unavailable",
+    undefined,
+    (w) => rmSync(join(w.home, ".local/libexec/agent-kernel/runtime/current")),
+  ],
+]) {
+  ownerTest(`producer refuses ${cause} without changing the earlier publication`, (t) => {
+    // Given an earlier publication, and a candidate the installed check refuses
+    const w = publishedWorld(t, hostBuild);
+    prepare?.(w);
+    // When the producer runs
+    const out = w.run("producer");
+    // Then it refuses, and the earlier publication keeps its bytes and its file
+    assert.notEqual(out.status, 0);
+    assert.match(out.stderr, new RegExp(refusal));
+    assert.equal(readFileSync(w.published, "utf8"), w.earlier);
+    assert.equal(lstatSync(w.published).ino, w.inode);
+    // And the refused candidate is set aside, with nothing else left in the namespace
+    const [aside, ...rest] = w.added();
+    assert.deepEqual(rest, []);
+    assert.match(aside, /^producer\.json\.rejected-\d+$/);
+    assert.equal(
+      JSON.parse(readFileSync(join(w.root, aside), "utf8")).bindings.policy_generation,
+      "fixture-1",
+    );
+  });
+}
+
+ownerTest("producer refuses a namespace root that is no longer private", (t) => {
+  // Given an earlier publication and a namespace root others can now list
+  const w = publishedWorld(t);
+  chmodSync(w.root, 0o755);
+  // When the producer runs
+  const out = w.run("producer");
+  // Then it refuses before writing anything, and the earlier publication stays
+  assert.notEqual(out.status, 0);
+  assert.match(out.stderr, /private_identity_invalid/);
+  assert.equal(readFileSync(w.published, "utf8"), w.earlier);
+  assert.deepEqual(w.added(), []);
+});
+
+ownerTest("producer reports the refusal even when setting the candidate aside fails", (t) => {
+  // Given a candidate the installed check refuses, and a rename aside that fails
+  const w = publishedWorld(t, "e".repeat(64));
+  // When the producer runs
+  const out = w.runWith({ TEST_FAIL_RENAME: ".rejected-" }, "producer");
+  // Then it reports the refusal and the failure to set the candidate aside, and the earlier
+  // publication stays
+  assert.notEqual(out.status, 0);
+  assert.match(out.stderr, /producer_host_build_mismatch/);
+  assert.match(out.stderr, /injected_fault \S+\.rejected-\d+/);
+  assert.equal(readFileSync(w.published, "utf8"), w.earlier);
+  // And the candidate stays staged where no host reads it
+  const [staged, ...rest] = w.added();
+  assert.deepEqual(rest, []);
+  assert.match(staged, /^\.producer-candidate-/);
+});
+
+ownerTest("a candidate that cannot be written leaves the namespace as it was", (t) => {
+  // Given an earlier publication, and a candidate file that cannot be created
+  const w = publishedWorld(t);
+  // When the producer runs
+  const out = w.runWith({ TEST_FAIL_OPEN: "/.publish-" }, "producer");
+  // Then it fails, the earlier publication stays, and no empty staging directory is left
+  assert.notEqual(out.status, 0);
+  assert.match(out.stderr, /injected_fault/);
+  assert.equal(readFileSync(w.published, "utf8"), w.earlier);
+  assert.deepEqual(w.added(), []);
+});
+
+ownerTest("a producer killed during its installed check leaves the earlier publication", (t) => {
+  // Given an earlier publication and an installation the check would accept
+  const w = publishedWorld(t);
+  // When the producer is killed just before it opens the installed host
+  const host = join(w.home, ".local/libexec/pi-task-sessions/host-v1");
+  const out = w.runWith({ TEST_KILL_BEFORE_OPEN: host }, "producer");
+  // Then the earlier publication is still the one in place
+  assert.equal(out.signal, "SIGKILL");
+  assert.equal(readFileSync(w.published, "utf8"), w.earlier);
+  assert.equal(lstatSync(w.published).ino, w.inode);
+  // And the only leftover is the staged candidate, which no host reads
+  const [staged, ...rest] = w.added();
+  assert.deepEqual(rest, []);
+  assert.match(staged, /^\.producer-candidate-/);
+  const candidate = JSON.parse(readFileSync(join(w.root, staged, "producer.json"), "utf8"));
+  assert.equal(candidate.bindings.policy_generation, "fixture-1");
+});
+
+ownerTest("producer replaces the earlier publication once the installed check passes", (t) => {
+  // Given an earlier publication and an installation the check accepts
+  const w = publishedWorld(t);
+  // When the producer runs
+  const effects = join(w.base, "effects.log");
+  const out = w.runWith({ TEST_EFFECTS: effects }, "producer");
+  // Then the checked candidate is the publication, private, and nothing else is left
+  assert.equal(out.status, 0, out.stderr);
+  // And the publication is the staged, checked candidate, moved in and made durable before the
+  // producer reports it
+  const [moved, synced] = readFileSync(effects, "utf8").trim().split("\n").slice(-2);
+  const staged = join(w.root, ".producer-candidate-");
+  assert.ok(moved.startsWith(`rename ${staged}`), moved);
+  assert.ok(moved.endsWith(`/producer.json ${w.published}`), moved);
+  assert.equal(synced, `fsync ${w.root}`);
+  assert.equal(JSON.parse(out.stdout).host_build_digest, w.bindings.host_build_digest);
+  assert.equal(
+    JSON.parse(readFileSync(w.published, "utf8")).bindings.policy_generation,
+    "fixture-1",
+  );
+  assert.equal(mode(w.published), 0o600);
+  assert.deepEqual(w.added(), []);
+});
 
 test("profile refuses before any producer publication and writes nothing", (t) => {
   const w = world(t);
