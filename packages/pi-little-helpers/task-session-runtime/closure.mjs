@@ -78,20 +78,24 @@ const git = (args, cwd) =>
  */
 // npm reads NODE_ENV and PREFIX as configuration and Node reads NODE_OPTIONS and NODE_PATH before any
 // code runs. A proxy would hide the real destination from the egress guard, so npm connects directly.
-const NPM_STRIPPED = new Set(
-  ["NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "PREFIX"].concat(
-    ...["https_proxy", "http_proxy", "all_proxy", "no_proxy"].map((name) => [
-      name,
-      name.toUpperCase(),
-    ]),
-  ),
-);
+// npm lowercases every variable name, so they are compared in lower case.
+const NPM_STRIPPED = new Set([
+  "node_options",
+  "node_path",
+  "node_env",
+  "prefix",
+  "https_proxy",
+  "http_proxy",
+  "all_proxy",
+  "no_proxy",
+  "proxy",
+]);
 const EGRESS_GUARD = fileURLToPath(new URL("egress-guard.cjs", import.meta.url));
 /** `online` preloads the egress guard, so npm connects only to the registry, redirects included. */
 export function isolatedNpm(args, { online = false } = {}) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
-      ([name]) => !/^npm_config_/i.test(name) && !NPM_STRIPPED.has(name),
+      ([name]) => !/^npm_config_/i.test(name) && !NPM_STRIPPED.has(name.toLowerCase()),
     ),
   );
   if (online) env.NODE_OPTIONS = `--require ${JSON.stringify(EGRESS_GUARD)}`;

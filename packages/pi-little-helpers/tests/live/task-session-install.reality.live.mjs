@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   appendFileSync,
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -13,6 +14,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -304,6 +306,25 @@ test("task-session installer, real installs in scratch", { skip }, async (t) => 
       assert.equal(again.receipt.replaced_damaged_runtime, null);
     },
   );
+
+  for (const where of ["runtime", "node_modules"]) {
+    await t.test(
+      `V1: Given a ${where} directory opened to 0777, when reinstalling, then it is replaced`,
+      () => {
+        const fresh = install(`wide-${where}`, "--no-fetch");
+        assert.equal(fresh.status, 0, fresh.stderr);
+        const directory =
+          where === "runtime" ? fresh.receipt.runtime : join(fresh.receipt.runtime, "node_modules");
+        const before = statSync(directory).mode & 0o7777;
+        chmodSync(directory, 0o777);
+        const again = install(`wide-${where}`, "--no-fetch");
+        assert.equal(again.status, 0, again.stderr);
+        assert.equal(again.receipt.reused, false);
+        assert.equal(statSync(directory).mode & 0o7777, before);
+        assert.ok(existsSync(again.receipt.replaced_damaged_runtime));
+      },
+    );
+  }
 
   await t.test(
     "Given a runtime whose node_modules is gone, when reinstalling, then it is replaced",

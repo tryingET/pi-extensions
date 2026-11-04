@@ -164,6 +164,11 @@ try {
   if (!/^[0-9a-f]{64}$/.test(buildDigest)) throw new Error("host build digest unavailable");
   // What reuse compares against: the bytes this install puts on disk, after the last code ran here.
   const tree = treeDigest(join(staging, "node_modules"));
+  // The digest covers what is inside node_modules, not the two directories that hold it: a runtime
+  // reused with a wider mode on either would keep it, so their type and mode must be the fresh ones.
+  const boundary = (directory) =>
+    [directory, join(directory, "node_modules")].map((path) => lstatSync(path).mode).join("/");
+  const freshBoundary = boundary(staging);
 
   // The build digest covers only pi-little-helpers dist/task-session, so the closure must key the
   // directory too: a dependency-only change gets its own runtime instead of being dropped (AK7824).
@@ -210,7 +215,14 @@ try {
         return false;
       }
     };
-    reused = Boolean(kept) && onDisk === tree && hostIntact();
+    const boundaryIntact = (() => {
+      try {
+        return boundary(runtime) === freshBoundary;
+      } catch {
+        return false;
+      }
+    })();
+    reused = Boolean(kept) && onDisk === tree && boundaryIntact && hostIntact();
   }
   if (!reused) {
     writeClosureRecord(staging, record);

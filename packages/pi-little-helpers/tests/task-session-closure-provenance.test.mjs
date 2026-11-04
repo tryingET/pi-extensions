@@ -498,3 +498,17 @@ test(
     assert.match(said, /task_session_egress_refused: redirect-outside\.invalid/);
   },
 );
+
+test("V2: Given proxy or npm-read variables in any case, then npm sees none of them", () => {
+  const names = ["Https_proxy", "proxy", "PROXY", "No_Proxy", "Node_Env", "prefix"];
+  const saved = names.map((name) => [name, process.env[name]]);
+  try {
+    for (const name of names) process.env[name] = "http://proxy.invalid:3128";
+    const { env } = closure.isolatedNpm([], { online: true });
+    for (const name of names) assert.equal(env[name], undefined, name);
+  } finally {
+    for (const [name, value] of saved)
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+  }
+});

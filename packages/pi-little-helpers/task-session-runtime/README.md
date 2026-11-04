@@ -24,7 +24,7 @@ layers. Nothing in it resolves a version.
 
 One `npm ci` from the lock fills a private cache. Every npm call sees only the public registry, with
 `--replace-registry-host=never`, no inherited `npm_config_*`, user or global npmrc, update check,
-`NODE_OPTIONS`, `NODE_PATH`, `NODE_ENV` or `PREFIX`, so an inherited mirror or preload cannot move the
+`NODE_OPTIONS`, `NODE_PATH`, `NODE_ENV` or `PREFIX` in any letter case, so an inherited mirror or preload cannot move the
 fetch or the build. A CA comes from `NODE_EXTRA_CA_CERTS`. No proxy is used: npm connects directly, since
 through a proxy the guard below would see only the proxy, and `git` is disabled.
 npm still reads a project `.npmrc`: the fetch runs in an empty directory, and in an own package one must
@@ -88,7 +88,8 @@ A new runtime directory results, keyed by the host build digest and the closure 
 are kept, and a closure-only change gets its own directory rather than being dropped.
 
 Installing the same closure again reuses its directory only if the tree on disk still equals the one
-this install built and the host's own identity checks pass. Otherwise the verified tree takes the
+this install built, the runtime directory and its `node_modules` keep the fresh build's type and mode,
+and the host's own identity checks pass. Otherwise the verified tree takes the
 directory's place in one atomic exchange (`exch`, util-linux 2.40 or later, the package that also
 provides `unshare`), so a launcher sees the old tree or the new one and never a missing directory, and
 the next install of the closure finds it. The old tree is then set aside as `<runtime>.damaged-<ms>`,
