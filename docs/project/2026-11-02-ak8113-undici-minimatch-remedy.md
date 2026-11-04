@@ -15,10 +15,12 @@ system4d:
 
 # AK8113: undici and minimatch remedy
 
-Status: the live CLI is still exposed. A rebuilt candidate exists but is not ready for a PATH switch, and
-the task-session override is applied in AK7845 but not landed. No live CLI change, PATH switch, default
-host reinstall, push or filing happened. Authority: operator rulings 19575, 19601, 19717 and 19763.
-Evidence: AK task 8113. Artifacts: `/data/agnt/worktrees/ak8113-790a2a89.artifacts/`.
+Status, updated 2026-11-04: the live CLI is still exposed, and **upstream has now fixed it**. Pi 1.5.0 was
+published on 2026-11-02 at 11:05Z, after this write-up, and its bundle was verified (see "Upstream 1.5.0"
+below). Adopting it supersedes the local rebuild. The task-session override landed with AK7845, done on
+2026-11-04. No live CLI change, PATH switch, default host reinstall or filing happened. Authority: operator
+rulings 19575, 19601, 19717 and 19763. Evidence: AK task 8113. Artifacts:
+`/data/agnt/worktrees/ak8113-790a2a89.artifacts/`.
 
 No reproducer ran, so nothing here confirms or refutes exploitability. Every "no path" below is static
 reasoning, not proof. "Offline" below means no TCP or UDP. DNS lookups escaped most of those runs through
@@ -90,8 +92,8 @@ non-executing local-lab designs. Running either needs separate approval.
 
 ## Override for the task-session lock
 
-**Applied by AK7845** at `420f4ed2c` on `task/7963-1.4.0-qual`, not landed. I confirmed the override in that
-commit. The rest of this paragraph is that session's report: the real `update-lock.mjs` changed one lock
+**Applied by AK7845** at `420f4ed2c`, which is on main; AK7845 completed on 2026-11-04. I confirmed the
+override in that commit. The rest of this paragraph is that session's report: the real `update-lock.mjs` changed one lock
 entry, a new `assertOverridesCurrent` refuses an override that an exact pin has passed, the README change
 list and the `update-lock.mjs` comment are corrected, and the real end-to-end install passed 13/13.
 
@@ -100,6 +102,10 @@ list and the `update-lock.mjs` comment are corrected, and the real end-to-end in
 ```
 
 The lock alone is not enough: the SDK exact-pins 8.10.2, so `npm ci` needs the manifest's `overrides`.
+
+When the lock moves to SDK 1.5.0, which pins undici 8.12.3 exactly, the override becomes a no-op. Remove it
+then. `assertOverridesCurrent` refuses only an override below an exact pin, so it will not flag the redundant
+one.
 
 The ruled version was 8.12.2, and 8.12.3 replaced it after a further ruling. The difference is not a security
 change: `client-h2.js` gains a PING liveness probe, and `pool-base.js` keeps async context on queued
@@ -134,6 +140,25 @@ Run on an override install, where grype reports no undici advisory:
 So the ruling's RED/GREEN by grype cannot judge the CLI. The AK6971 adoption doc warns of the same trap:
 "a version/loader-only smoke cannot establish adoption". Judge a CLI candidate by what it loads. "0
 asserts" evidences GHSA-qrxm only; the other fixes were checked by reading the 8.10.2 and 8.12.2 source.
+
+## Upstream 1.5.0, published after this write-up
+
+`@earendil-works/pi-coding-agent` 1.5.0 is the npm `latest` tag since 2026-11-02T11:05Z. Release commit
+`f9a263655` contains both fix commits, and its changelog lists the undici security update and the glob fix.
+Checked offline on 2026-11-04, from the published tarball in the local npm cache, integrity matching its
+index entry:
+
+| Check | Result |
+|---|---|
+| Pins | undici 8.12.3, minimatch 11.0.3; `bin` still `dist/bundle/cli.js` |
+| Vulnerable asserts in the bundle chunk | 0 |
+| 8.12.3's unique H2 probe string | present |
+| External undici imports | none |
+
+This is now the recommended path for the live CLI: adopt 1.5.0 through the AK7963 route. It needs no
+catalogue generation and no local qualification of unreleased commits. The blockers under "Before any PATH
+switch" below still apply to it, except the reinstall from `install-lock`, which concerns only the local
+rebuild. The rebuilt candidate below is superseded and kept only as evidence.
 
 ## Live CLI: the rebuilt candidate
 
@@ -173,7 +198,7 @@ one real turn and a self-fetch, DNS-masked: the dispatcher is the bundle's `EnvH
 2. Reinstall the candidate from `install-lock`: its third-party tree differs from upstream's in 38 paths,
    though in a fleet run only the bundle and jiti opened from the consumer.
 3. Exercise what one turn does not: idle custom turns with an ontology grant (`a447ba11f`, handled by
-   AK7963's unlanded `68f4ded66`), `task_session`, MCP, RPC, a real TUI, real keybindings and themes.
+   AK7963's `68f4ded66`, now on main), `task_session`, MCP, RPC, a real TUI, real keybindings and themes.
 4. Operator decides on `pi.dev/api/report-install`, which stock also sends, and the new conditional
    `openrouter.ai` `models/user` call carrying the user's key.
 5. Snapshot `settings.json`, `models-store.json` and `mcp-auth.json`, keep 1.1.0 installed, and keep a commit
@@ -185,11 +210,14 @@ so the build is not reproducible from the commit alone. Record the data manifest
 
 ## Upstream
 
-Main fixed both after 1.4.0, so there is nothing to ask for except a release. Pi's `SECURITY.md` says not to
-open public issues for security reports, so `bin/it write issue` is the wrong vehicle. **The operator sends
-this privately** to `security@earendil.com` (19717). The draft is
-`softwareco/infra/issue-tracker/pi-mono-upstream/undici-minimatch-unreleased-fixes.md`, deliberately
-uncommitted so it cannot travel in a push. Strip its leading HTML comment first. Nothing was sent by me.
+Main fixed both after 1.4.0, and the 1.5.0 release then met the only ask, so the report is moot. Pi's
+`SECURITY.md` says not to open public issues for security reports, so `bin/it write issue` was never the
+vehicle. The tracker row is abandoned, and the never-sent draft is kept at
+`/data/agnt/worktrees/ak8113-790a2a89.artifacts/upstream-draft/`.
+
+This write-up itself was pushed to GitHub on 2026-11-03 (evidence 20184), a day after the fix was public, so
+it disclosed nothing still under embargo. A security write-up in a pushable repo is a publication: judge it as
+one before committing.
 
 ## Corrections kept on record
 
