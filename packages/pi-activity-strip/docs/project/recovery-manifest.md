@@ -34,7 +34,7 @@ are SHA-256 references, including procfs provenance and `/proc/PID/root/...` pat
 ## Read boundary
 
 The collector reads procfs metadata for the current Unix user, Claude registry metadata, an
-already-running Pi broker, filename inventories, and fixed `niri msg -j windows|workspaces` and
+already-running Pi broker, Nodecode's shell presence records, filename inventories, and fixed `niri msg -j windows|workspaces` and
 `ak task list --status claimed --format json --all --verbose` queries. It never opens the society
 DB directly. It does not install hooks, focus windows, acquire session leases, replay prompts,
 close sessions, start an LLM, launch an agent or change AK claims. Owner CLIs retain their own
@@ -62,7 +62,7 @@ builder is [recovery-manifest.mjs](../../src/common/recovery-manifest.mjs).
 | `sessions[]` | **Observation rows, not a census of sessions.** Process-only rows have `session.id:null` |
 | `coverage` | Observation, identified-session, distinct harness-qualified identity, process-only, source-link, transcript and claim counts |
 | `windowContainmentGroups[]` | Candidate window containment, distinct observed process count and known session-identity count; never tab/session cardinality |
-| `claims[]` | Exact AK claimant projection, lease, match state, matching observation IDs and query provenance |
+| `claims[]` | Exact AK claimant projection, the harness of a published claimant or null, lease, match state, matching observation IDs and query provenance |
 | `limitations[]` | Non-atomic capture, incomplete historical coverage, owner boundaries |
 
 Each observation row carries `observationId`, `harness`, `session` (ID/source/provenance/cwd/reported
@@ -97,6 +97,17 @@ resumed twice remains two observation rows but one distinct harness-qualified id
   `open-descriptor-associated`. **Neither writable mode nor current display is asserted.**
   Root-thread `session_id` is not substituted for thread `id`. No latest-file, cwd/time,
   filename-final-UUID or SQLite recency fallback is used.
+- Nodecode's client keeps `$XDG_RUNTIME_DIR/nodecode/shells/<pid>.json` while a terminal shell is
+  attached to its session, naming that session (never one it only previews) with the shell's pid
+  and `/proc` start ticks. Only version 1 `nodecode-shell` regular files that carry start ticks and
+  whose pid matches the filename are admitted, and only under an absolute `XDG_RUNTIME_DIR`, as the
+  client writes them. A start-tick mismatch is `birth-mismatch`, so a record a killed shell left
+  behind cannot claim a later Nodecode on the same pid. The record has no PID-namespace domain or
+  boot ID, so a match stays `unconfirmed`, never `birth-correlated`. A session left running after
+  its shell detached, an RPC client and a shell not yet connected write no record: those processes
+  stay process-only and their claims read `session-not-observed`. `resume_argv`, `home` and
+  `profile` are never read into the manifest; Nodecode history is not read, so there is no
+  transcript.
 - Reused PIDs and source changes cannot suppress an independent process-only observation.
 - `boot-mismatch`, `source-changed`, `not-observed`, `harness-mismatch` and `process-only` retain
   their literal meaning. Unsupported process kinds never acquire a guessed session ID.
@@ -114,10 +125,23 @@ Transcript states distinguish `filename-candidate` (Claude), `header-id-matched`
 and `unavailable-after-capture`. `changed:true` preserves file growth/replacement observations.
 No state claims transcript completeness, preservation or recoverability. The index scans only
 one directory level under the selected roots, caps examined entries at 100000 and reports
-partial/truncated sources. Claude registry reads cap files at 4096 and metadata at 256 KiB.
+partial/truncated sources. Claude registry and Nodecode presence reads cap files at 4096 and metadata at 256 KiB.
 
-AK joins preserve `session-UUID`, `claude-session-UUID` and `codex-session-UUID` independently.
-Unknown prefixes are `unsupported-claimant`, never normalized to Pi. `exact-claimant` means
+AK joins preserve `session-UUID`, `claude-session-UUID`, `codex-session-UUID` and
+`nodecode-session-ID` independently. UUIDs fold to lowercase. A Nodecode ID is not a UUID and keeps
+its exact case: AK admits `s-<1-8 base36>`, `session-<time>-<random>` and
+`fork-turn-<time>-<random>-<n>`, with one more number when a name was taken, in uppercase with no
+leading zero, so each session has one spelling. AK owns that grammar
+(`valid_nodecode_session_id` in agent-kernel `crates/ak-core/src/tasks.rs`, AK8195) and
+[recovery-identity.mjs](../../src/common/recovery-identity.mjs) repeats it, so a form AK adds later
+stays unsupported here until it is copied.
+
+Every claimant harness has a session source, so a live claim no observation names is
+`session-not-observed`; `sources[]` says whether each source was read. Nodecode IDs are unique per
+Nodecode home, not across homes.
+
+Unknown prefixes and Nodecode IDs outside that grammar, such as `s-GATEWAY`, are
+`unsupported-claimant` with a null harness, never normalized to Pi. `exact-claimant` means
 **identity equality to an observed AK row**, not that a candidate process owns custody or shows
 that task. Expired/invalid leases, ambiguous session observations and absent identities are
 explicit. No repo/cwd fallback binds claims. Recheck current AK before acting.
@@ -149,6 +173,7 @@ npm run check
 Fixtures are synthetic and include namespace/PID collision, PID reuse and birth mismatch,
 classification changes, ambiguous/shared windows, live observation changes, expired claims,
 cross-harness UUID collisions, unsupported prefixes, missing transcripts and redaction sentinels.
+The exception is `COPIED_NODECODE_IDS` in the identity test: session IDs copied without content.
 Native proof must additionally exercise the exact CLI, full AK query and read-only boundaries;
 a passing pure test or broker snapshot is not that proof.
 

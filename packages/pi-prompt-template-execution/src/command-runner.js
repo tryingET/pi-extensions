@@ -49,10 +49,6 @@ export async function restorePromptTemplateSessionState(deferredRestore, ctx, ho
   const setModel = getHostAction(ctx, host, "setModel");
   const setThinking = getHostAction(ctx, host, "setThinking");
 
-  if (Object.hasOwn(deferredRestore, "thinking") && typeof setThinking === "function") {
-    await setThinking(deferredRestore.thinking ?? "off");
-    restored.push("thinking");
-  }
   if (deferredRestore.model && typeof setModel === "function") {
     const ok = await setModel(deferredRestore.model);
     if (ok === false) {
@@ -61,6 +57,11 @@ export async function restorePromptTemplateSessionState(deferredRestore, ctx, ho
     }
     restored.push("model");
   }
+  // A host model switch can reset its thinking default. Restore thinking last.
+  if (Object.hasOwn(deferredRestore, "thinking") && typeof setThinking === "function") {
+    await setThinking(deferredRestore.thinking ?? "off");
+    restored.push("thinking");
+  }
 
   return { ok: true, restored };
 }
@@ -68,7 +69,40 @@ export async function restorePromptTemplateSessionState(deferredRestore, ctx, ho
 export async function executePromptTemplateCommand(prompt, args, ctx, host = {}, options = {}) {
   const currentModel = options.currentModel ?? ctx?.model;
   const modelRegistry = options.modelRegistry ?? ctx?.modelRegistry;
-  const plan = await preparePromptExecutionPlan(prompt, args, currentModel, modelRegistry, options);
+  const ownsSession = () => options.ownsSession?.() !== false;
+  const sessionChanged = () => ({ ok: false, reason: "session_changed" });
+  const fallbackPlan = async () => {
+    if (!options.fallbackToCurrentModel || !currentModel || !ownsSession()) return undefined;
+    // A refused switch must not render invocation-model instructions while a
+    // different model is now active. A manual change wins; do not guess.
+    if (ctx?.model && modelRef(ctx.model) !== modelRef(currentModel)) return undefined;
+    const available = modelRegistry?.getAvailable?.();
+    if (
+      Array.isArray(available) &&
+      !available.some((model) => modelRef(model) === modelRef(currentModel))
+    )
+      return undefined;
+    const fallback = await preparePromptExecutionPlan(
+      { ...prompt, models: [] },
+      args,
+      currentModel,
+      modelRegistry,
+      { ...options, inheritedModel: currentModel },
+    );
+    if (fallback && !fallback.message) {
+      notify(
+        ctx,
+        `Prompt /${prompt.name}: falling back to active model ${modelRef(currentModel)}; override unavailable.`,
+        "warning",
+        host,
+      );
+    }
+    return fallback;
+  };
+  let plan = await preparePromptExecutionPlan(prompt, args, currentModel, modelRegistry, options);
+  if (!ownsSession()) return sessionChanged();
+  if (!plan) plan = await fallbackPlan();
+  if (!ownsSession()) return sessionChanged();
 
   if (!plan) {
     notify(ctx, `No available model from: ${prompt.models.join(", ")}`, "error", host);
@@ -91,17 +125,22 @@ export async function executePromptTemplateCommand(prompt, args, ctx, host = {},
   const deferRestore =
     options.restoreTiming === "agent_settled" || options.restoreTiming === "deferred";
   let sent = false;
-  const deferredRestore = {
-    ...(plan.actions.restoreModel ? { model: plan.actions.restoreModel } : {}),
-    ...(plan.restore && changedThinking ? { thinking: previousThinking ?? "off" } : {}),
-  };
+  let didSwitch = false;
 
   try {
     if (switchedModel) {
       const switched = await maybeCall(setModel, switchedModel.to);
+      if (!ownsSession()) return sessionChanged();
       if (switched === false) {
-        notify(ctx, `Failed to switch to model ${modelRef(switchedModel.to)}`, "error", host);
-        return { ok: false, reason: "model_switch_failed", plan };
+        const fallback = await fallbackPlan();
+        if (!ownsSession()) return sessionChanged();
+        if (!fallback || fallback.message) {
+          notify(ctx, `Failed to switch to model ${modelRef(switchedModel.to)}`, "error", host);
+          return { ok: false, reason: "model_switch_failed", plan };
+        }
+        plan = fallback;
+      } else {
+        didSwitch = true;
       }
     }
 
@@ -139,11 +178,21 @@ export async function executePromptTemplateCommand(prompt, args, ctx, host = {},
       return { ok: false, reason: "missing_send_user_message", plan };
     }
 
+    if (!ownsSession()) return sessionChanged();
     // Explicit non-expansion (pi >= 0.84.2 expandPromptTemplates, #7857):
     // plan.content is already rendered by this package; host-side expansion
     // would double-expand and could execute slash-looking tokens.
+    // Arm lifecycle tracking before Pi's fire-and-forget extension dispatch.
+    await options.onDispatch?.(plan, previousThinking);
+    if (!ownsSession()) return sessionChanged();
     await sendUserMessage(plan.content, { expandPromptTemplates: false });
     sent = true;
+    const deferredRestore = {
+      ...(plan.actions.restoreModel ? { model: plan.actions.restoreModel } : {}),
+      ...(plan.restore && (changedThinking || didSwitch)
+        ? { thinking: previousThinking ?? "off" }
+        : {}),
+    };
     return {
       ok: true,
       plan,
@@ -152,12 +201,12 @@ export async function executePromptTemplateCommand(prompt, args, ctx, host = {},
         : {}),
     };
   } finally {
-    if (!deferRestore || !sent) {
-      if (plan.restore && changedThinking) {
-        await maybeCall(setThinking, previousThinking ?? "off");
-      }
-      if (plan.actions.restoreModel) {
+    if ((!deferRestore || !sent) && ownsSession()) {
+      if (didSwitch && plan.actions.restoreModel) {
         await maybeCall(setModel, plan.actions.restoreModel);
+      }
+      if (plan.restore && (changedThinking || didSwitch)) {
+        await maybeCall(setThinking, previousThinking ?? "off");
       }
     }
   }

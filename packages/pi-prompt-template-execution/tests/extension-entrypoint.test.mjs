@@ -234,7 +234,10 @@ describe("live prompt-template execution extension entrypoint", () => {
     ]);
 
     await emit("agent_settled", { type: "agent_settled" }, { ...ctx, model: target });
-    assert.deepEqual(calls.slice(2), [{ type: "setModel", model: "openai-codex/gpt-5.4" }]);
+    assert.deepEqual(calls.slice(2), [
+      { type: "setModel", model: "openai-codex/gpt-5.4" },
+      { type: "setThinkingLevel", thinking: "low" },
+    ]);
   });
 
   it("handles thinking frontmatter and restores thinking on agent_settled", async () => {
@@ -249,7 +252,6 @@ describe("live prompt-template execution extension entrypoint", () => {
     const calls = [];
     const { pi, handlers, emit } = createPi([], {
       getThinkingLevel() {
-        calls.push({ type: "getThinkingLevel" });
         return "low";
       },
       async setModel(model) {
@@ -275,16 +277,15 @@ describe("live prompt-template execution extension entrypoint", () => {
 
     await handlers.get("think")("hard", ctx);
     assert.deepEqual(calls, [
-      { type: "getThinkingLevel" },
       { type: "setModel", model: "zai/glm-5.1" },
       { type: "setThinkingLevel", thinking: "high" },
       { type: "sendUserMessage", content: "Think hard" },
     ]);
 
     await emit("agent_settled", { type: "agent_settled" }, { ...ctx, model: target });
-    assert.deepEqual(calls.slice(4), [
-      { type: "setThinkingLevel", thinking: "low" },
+    assert.deepEqual(calls.slice(3), [
       { type: "setModel", model: "openai-codex/gpt-5.4" },
+      { type: "setThinkingLevel", thinking: "low" },
     ]);
   });
 
@@ -300,7 +301,6 @@ describe("live prompt-template execution extension entrypoint", () => {
     const calls = [];
     const { pi, handlers, emit } = createPi([], {
       getThinkingLevel() {
-        calls.push({ type: "getThinkingLevel" });
         return "low";
       },
       async setModel(model) {
@@ -328,7 +328,6 @@ describe("live prompt-template execution extension entrypoint", () => {
     await emit("agent_settled", { type: "agent_settled" }, { ...ctx, model: target });
 
     assert.deepEqual(calls, [
-      { type: "getThinkingLevel" },
       { type: "setModel", model: "zai/glm-5.1" },
       { type: "setThinkingLevel", thinking: "high" },
       { type: "sendUserMessage", content: "Stay active" },

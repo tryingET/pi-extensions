@@ -63,6 +63,9 @@ export function createNativePanelProjection({
   /** @type {string | null} */
   let interactionContext = null;
   const visibility = createFocusVisibility();
+  // Passive desktop presence is not permission to capture keys or activate a stale source.
+  const persistent = env.PI_ACTIVITY_STRIP_VISIBILITY !== "focus";
+  const keepsSurface = () => persistent && isNiriSession() && workspace?.is_focused === true;
   /** @type {import("./focus-visibility.mjs").FocusKind} */
   let focusKind = "unknown";
   /** Exact source, retained across explicit panel NULL focus. @type {number | null} */
@@ -105,8 +108,7 @@ export function createNativePanelProjection({
     send();
   }
 
-  /** Recheck the established exact owner against current complete-window admission facts.
-   * This only revokes: event facts cannot publish new card membership or re-admit invalid proof.
+  /** Recheck exact ownership: revoke only, never admit new membership from event facts.
    * @param {(workspace: Record<string, unknown>) => WorkspaceView | null} resolveView
    */
   function focusProofMatches(resolveView) {
@@ -140,8 +142,7 @@ export function createNativePanelProjection({
       });
     }
     if (!akTasks) return cards;
-    // Dead-session detection must consider every live session, including cards projected onto
-    // other workspaces, so a claim is only orphaned when no live session anywhere holds it.
+    // Claims are orphaned only when no live session anywhere (including other workspaces) holds them.
     const liveSessionIds = new Set(
       rawSessions.map((session) => String(session.sessionId ?? "")).filter(Boolean),
     );
@@ -163,8 +164,7 @@ export function createNativePanelProjection({
         !neutralSource.holds(workspace?.id, focusWindowId, sessions))
     )
       clearFocusState();
-    // Keyboard NULL ownership is only a continuation of one still-admitted exact agent window.
-    // A publisher ending (or becoming ambiguous) must not leave another window's cards eligible.
+    // NULL continues only an exact admitted owner, never another card after owner loss/ambiguity.
     if (
       focusSourceKind !== "neutral" &&
       (focusKind === "agent" || (focusKind === "none" && focusWindowId !== null)) &&
@@ -189,8 +189,7 @@ export function createNativePanelProjection({
       focus: isNiriSession() ? focusKind : "unknown",
       hasCards: workspace?.is_focused === true && sessions.length > 0,
     };
-    // Source identity outlives the action's own keyboard release/NULL, not an app switch or
-    // admission loss. Presentation visibility and capture ownership are independent facts.
+    // Source identity survives own release/NULL, not app switch/admission loss; presence is separate.
     const sourceHeld = focusSourceKind === "neutral" ? focusWindowId !== null : owner !== undefined;
     const context =
       focusContextValid &&
@@ -206,12 +205,13 @@ export function createNativePanelProjection({
       visibility.resetKeyboard();
       interactionContext = context;
     }
+    const focusVisible = presentation.visible(visibility.observe(facts), workspace, focusWindowId);
     return {
       protocol: PANEL_PROTOCOL,
       type: "view",
       revision,
       interactionEpoch,
-      visible: presentation.visible(visibility.observe(facts), workspace, focusWindowId),
+      visible: keepsSurface() || focusVisible,
       focusedSessionId,
       focusedCardId,
       generatedAt: snapshot.generatedAt,
@@ -237,6 +237,7 @@ export function createNativePanelProjection({
     getDisplaySessions,
     // Observe existing fields only: no publish, epoch advancement, admission or query access.
     diagnostics: () => ({
+      persistentPresentation: keepsSurface(),
       focus: focusKind,
       source: focusSourceKind,
       contextValid: focusContextValid,
@@ -367,8 +368,7 @@ export function createNativePanelProjection({
               facts?.workspace_id === workspace?.id ? facts : null,
               env,
             );
-      // NULL is the panel holding the keyboard (or a layer surface above the source): the source
-      // window and its current card stand, so the ring and scroll position do not move under it.
+      // NULL may be a layer surface: retain the source ring and scroll position, not input authority.
       if (focusKind !== "none") {
         const current =
           focusKind === "agent"

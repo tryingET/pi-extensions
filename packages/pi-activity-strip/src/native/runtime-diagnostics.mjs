@@ -207,17 +207,21 @@ export function createRuntimeStatusReader({ runtimeStatus, projection }) {
     const visibilityReason =
       runtimeStatus.state !== "ready"
         ? runtimeStatus.state
-        : !facts.contextValid
-          ? "unproven-focus"
-          : facts.focus === "non-agent"
-            ? "non-agent-focus"
-            : !facts.eligible
-              ? "no-admitted-owner"
-              : runtimeStatus.windowVisible !== true
-                ? "awaiting-panel-visibility"
-                : facts.focus === "neutral" || facts.source === "neutral"
-                  ? "eligible-presence-context"
-                  : "eligible-agent-context";
+        : facts.persistentPresentation
+          ? runtimeStatus.windowVisible === true
+            ? "persistent-workspace"
+            : "awaiting-panel-visibility"
+          : !facts.contextValid
+            ? "unproven-focus"
+            : facts.focus === "non-agent"
+              ? "non-agent-focus"
+              : !facts.eligible
+                ? "no-admitted-owner"
+                : runtimeStatus.windowVisible !== true
+                  ? "awaiting-panel-visibility"
+                  : facts.focus === "neutral" || facts.source === "neutral"
+                    ? "eligible-presence-context"
+                    : "eligible-agent-context";
     return {
       ...runtimeStatus,
       nativeKeyboardObservation,

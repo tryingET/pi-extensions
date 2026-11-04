@@ -1,3 +1,4 @@
+// Legacy focus visibility coverage; keyboard authorization assertions remain independent.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createKeyboardEntry } from "../src/native/keyboard-entry.mjs";
@@ -9,6 +10,7 @@ function fixture() {
   const raw = { sessionId: "agent", publisherId: "publisher" };
   const projection = createNativePanelProjection({
     isNiriSession: () => true,
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
     publish: (v) => views.push(v),
   });
   projection.updateSnapshot({ generatedAt: 1, sessions: [raw] });
@@ -109,6 +111,7 @@ test("loss of the admitted owner hides even when another window's cards remain, 
     const views = [];
     const projection = createNativePanelProjection({
       isNiriSession: () => true,
+      env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
       publish: (view) => views.push(view),
     });
     const owner = { sessionId: "owner", publisherId: "owner-p" };

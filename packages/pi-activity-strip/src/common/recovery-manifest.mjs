@@ -67,6 +67,15 @@ export const RECOVERY_CAPABILITIES = [
       "open descriptor proves neither writer nor currently displayed thread; no cwd/recency fallback",
   },
   {
+    harness: "nodecode",
+    session: "shell-presence-pid-startTicks",
+    transcript: "unsupported",
+    currentDisplay: "unproved",
+    claimantPrefix: "nodecode-session-",
+    limitation:
+      "presence record lacks pid domain and boot id, so links stay unconfirmed; ids unique per home",
+  },
+  {
     harness: "angelx",
     session: "unsupported",
     transcript: "unsupported",
@@ -307,6 +316,7 @@ export function buildRecoveryManifest(input, { includePaths = false } = {}) {
     return {
       taskId: c.id,
       claimant: c.claimed_by,
+      harness: claimant?.harness ?? null,
       leaseExpiresAt: c.lease_expires_at,
       state,
       observationIds: matched.map((s) => s.observationId),

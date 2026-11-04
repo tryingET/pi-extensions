@@ -1,3 +1,4 @@
+// Legacy focus visibility coverage; projection fixtures explicitly opt out of persistent visibility.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyWorkspaceFocus, resolveWorkspaceView } from "../src/common/workspace-view.mjs";
@@ -25,6 +26,7 @@ for (const app_id of ["brave-browser", "obsidian", "plain-terminal", "another-ap
     const published = [];
     const projection = createNativePanelProjection({
       isNiriSession: () => true,
+      env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
       publish: (v) => published.push(v),
     });
     projection.updateSnapshot({ generatedAt: 1, sessions: [raw] });

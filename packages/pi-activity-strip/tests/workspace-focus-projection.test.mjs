@@ -13,6 +13,7 @@ import {
   createWorkspaceProjectionHandlers,
 } from "../src/native/workspace-events.mjs";
 
+// Legacy focus visibility fixture: visibility follows admitted focus, not persistent presentation.
 function fixture({
   productionTitle,
   rawSession,
@@ -24,7 +25,10 @@ function fixture({
   presence = false,
 } = {}) {
   const views = [];
-  const env = presence ? {} : { PI_ACTIVITY_STRIP_PRESENCE_APP_IDS: "none" };
+  const env = {
+    PI_ACTIVITY_STRIP_VISIBILITY: "focus",
+    ...(presence ? {} : { PI_ACTIVITY_STRIP_PRESENCE_APP_IDS: "none" }),
+  };
   const raw = rawSession ?? {
     sessionId: productionTitle ? "019fa4d0-7142-7fb4-8d30-f98e951f0513" : "agent",
     publisherId: "p",
