@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 CASES = (
+    "isolated_gtk_empty_visible_preserves_zone_without_keyboard_capture",
     "isolated_gtk_interaction",
     "isolated_gtk_directory_focus_only_preserves_rows_and_scroll",
     "isolated_gtk_stationary_remap_does_not_request_again",

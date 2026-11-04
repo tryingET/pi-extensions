@@ -23,7 +23,7 @@ export function formatRibbonDiagnostics(diagnostics) {
     type: "keyboard-observation",
   });
   return [
-    `visibility reason: ${enumValue(diagnostics.visibilityReason, ["starting", "error", "unproven-focus", "non-agent-focus", "no-admitted-owner", "awaiting-panel-visibility", "eligible-agent-context", "eligible-presence-context"])}`,
+    `visibility reason: ${enumValue(diagnostics.visibilityReason, ["starting", "error", "unproven-focus", "non-agent-focus", "no-admitted-owner", "awaiting-panel-visibility", "eligible-agent-context", "eligible-presence-context", "persistent-workspace"])}`,
     `keyboard authorization: ${enumValue(diagnostics.keyboardAuthorization, ["none", "hover", "explicit"])} (not proof of capture)`,
     ...(native
       ? [

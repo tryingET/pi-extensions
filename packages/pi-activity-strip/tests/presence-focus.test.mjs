@@ -309,6 +309,7 @@ test("a presence app owning no exact card is neutral; card ownership still decid
   );
 });
 
+// Legacy focus visibility fixture: presence admission retains the strip; unrelated focus hides it.
 function setup() {
   const published = [];
   /** @type {Map<number, Record<string, unknown>>} */
@@ -317,7 +318,7 @@ function setup() {
     isNiriSession: () => true,
     publish: (view) => published.push(view),
     getWindowFacts: (id) => facts.get(id) ?? null,
-    env: {},
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
   projection.updateSnapshot({ generatedAt: 1, sessions: [raw] });
   /** @param {number | null} focused @param {Record<number, Record<string, unknown>>} [overrides] */

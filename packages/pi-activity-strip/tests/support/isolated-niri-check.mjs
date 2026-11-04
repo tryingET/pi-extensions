@@ -67,6 +67,8 @@ const env = {
   PI_ACTIVITY_STRIP_RUNTIME_LOCK_HELD: "1",
   PI_ACTIVITY_STRIP_PANEL_DEMO: "0",
   PI_ACTIVITY_STRIP_CLICK_THROUGH: "0",
+  // This suite retains legacy hide/reclaim oracles; persistent-niri-check covers the default.
+  PI_ACTIVITY_STRIP_VISIBILITY: "focus",
   PI_ACTIVITY_STRIP_SOCKET_DIR: "native/panel/target/gui-fixture/broker",
   PI_ACTIVITY_STRIP_SOCKET_PATH: "native/panel/target/gui-fixture/broker/activity-strip.sock",
   PI_ACTIVITY_STRIP_TAB_INVENTORY: "0",

@@ -966,7 +966,8 @@ impl App {
         // Data changes revoke two-frame scroll callbacks, NOT keyboard ownership attempts. The
         // latter are bound to the controller's exact admission epoch and a unique pointer token.
         self.lifetime.invalidate();
-        let should_show = view.visible && !view.sessions.is_empty();
+        // Visibility is controller policy; an empty workspace still has a compact ribbon.
+        let should_show = view.visible;
         let visibility_changed = should_show != self.visible;
         if self.visible && !should_show && self.hover_keyboard.inside {
             self.pointer_anchor = Some(HideAnchor::new(

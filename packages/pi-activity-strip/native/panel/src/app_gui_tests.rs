@@ -366,6 +366,197 @@ fn isolated_gtk_interaction() {
 }
 
 #[test]
+#[ignore = "requires owned nested Niri, private runtime/bus, disabled AT-SPI and virtual pointer"]
+fn isolated_gtk_empty_visible_preserves_zone_without_keyboard_capture() {
+    assert_isolated_gui();
+    gtk::init().unwrap();
+
+    // Keep actual pointer input away from the ribbon before mapping it. Visibility alone,
+    // not pointer intent or a controller grant, is the subject of this test.
+    let outputs: serde_json::Value = serde_json::from_slice(
+        &Command::new("niri")
+            .args(["msg", "-j", "outputs"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let logical = &outputs.as_object().unwrap().values().next().unwrap()["logical"];
+    let width = logical["width"].as_u64().unwrap().to_string();
+    let height = logical["height"].as_u64().unwrap();
+    let mut pointer = Command::new(virtual_pointer_fixture())
+        .args([
+            "300",
+            &(height - 40).to_string(),
+            &width,
+            &height.to_string(),
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut events = BufReader::new(pointer.stdout.take().unwrap());
+    let mut ready = String::new();
+    assert!(events.read_line(&mut ready).unwrap() > 0);
+    assert_eq!(ready.trim(), "ready");
+
+    let fixture = gtk::Window::new();
+    fixture.set_title(Some("AK8273 isolated empty-ribbon typing receiver"));
+    let entry = gtk::Entry::new();
+    fixture.set_child(Some(&entry));
+    fixture.present();
+    entry.grab_focus();
+    pump_until(
+        || fixture.is_active(),
+        "SETUP: typing receiver must have focus",
+    );
+    let app = App::builder()
+        .launch(AppInit {
+            demo: true,
+            click_through: false,
+        })
+        .detach();
+    let root = app.widget();
+    let mut empty = demo_view();
+    empty.revision += 1;
+    empty.visible = true;
+    empty.sessions.clear();
+    empty.focused_card_id = None;
+    empty.windows.clear();
+    app.emit(AppMsg::View(empty.clone()));
+    pump();
+
+    // RED on the old sessions-count visibility guard: explicit true with no cards hides.
+    assert!(root.is_mapped(), "visible=true must map even without cards");
+    let assert_idle_ribbon = || {
+        assert!(app.model().visible);
+        assert!(root.is_visible() && root.is_mapped());
+        assert_eq!(root.exclusive_zone(), COMPACT_HEIGHT);
+        assert_eq!(root.default_size().1, COMPACT_HEIGHT);
+        assert!(!app.model().expanded());
+        assert_clean(&app.model());
+        assert!(!app.model().hover_capture.get());
+        assert_eq!(root.keyboard_mode(), KeyboardMode::None);
+        assert!(!root.is_active());
+        assert!(
+            fixture.is_active(),
+            "presentation must not steal window focus"
+        );
+    };
+    assert_idle_ribbon();
+    assert!(app.model().cards.is_empty());
+    type_keys(&["empty"]);
+    pump();
+    assert_eq!(entry.text().as_str(), "empty");
+
+    // Detect a transient unmap as well as checking the final zone; all updates keep the
+    // same admission epoch so epoch revocation cannot mask accidental capture.
+    let unmaps = Rc::new(Cell::new(0));
+    let observed_unmaps = Rc::clone(&unmaps);
+    root.connect_unmap(move |_| observed_unmaps.set(observed_unmaps.get() + 1));
+    let mut populated = demo_view();
+    populated.revision = empty.revision + 1;
+    let first_populated = populated.clone();
+    empty.revision = populated.revision + 1;
+    populated.revision = empty.revision + 1;
+    for (view, typed, expected) in [
+        (first_populated, " populated", "empty populated"),
+        (empty.clone(), " empty", "empty populated empty"),
+        (
+            populated.clone(),
+            " returned",
+            "empty populated empty returned",
+        ),
+    ] {
+        let card_count = view.sessions.len();
+        app.emit(AppMsg::View(view));
+        pump();
+        assert_idle_ribbon();
+        assert_eq!(app.model().cards.len(), card_count);
+        assert_eq!(
+            unmaps.get(),
+            0,
+            "membership updates must not unmap the ribbon"
+        );
+        type_keys(&[typed]);
+        pump();
+        assert_eq!(entry.text().as_str(), expected);
+    }
+
+    // Removing the last card also releases an existing explicit card keyboard selection,
+    // without hiding the now-empty ribbon or giving up its compact reservation.
+    app.emit(AppMsg::FocusStrip(71, app.model().interaction_epoch));
+    pump_until(
+        || root.is_active(),
+        "SETUP: explicit keyboard mode must acquire focus",
+    );
+    assert!(app.model().keyboard_active);
+    assert_eq!(root.keyboard_mode(), KeyboardMode::Exclusive);
+    empty.revision = populated.revision + 1;
+    app.emit(AppMsg::View(empty.clone()));
+    pump();
+    assert_idle_ribbon();
+    assert_eq!(unmaps.get(), 0);
+    type_keys(&[" released"]);
+    pump();
+    assert_eq!(
+        entry.text().as_str(),
+        "empty populated empty returned released"
+    );
+
+    // Explicit false must still revoke actual keyboard ownership and release the zone.
+    populated.revision = empty.revision + 1;
+    app.emit(AppMsg::View(populated.clone()));
+    pump();
+    app.emit(AppMsg::FocusStrip(72, app.model().interaction_epoch));
+    pump_until(
+        || root.is_active(),
+        "SETUP: reacquire explicit keyboard mode",
+    );
+    assert_eq!(root.keyboard_mode(), KeyboardMode::Exclusive);
+    populated.revision += 1;
+    populated.visible = false;
+    app.emit(AppMsg::View(populated));
+    pump();
+    assert!(!app.model().visible);
+    assert!(!root.is_visible() && !root.is_mapped());
+    assert_eq!(root.exclusive_zone(), -1);
+    assert_eq!(root.keyboard_mode(), KeyboardMode::None);
+    assert_clean(&app.model());
+    assert!(!app.model().hover_capture.get());
+    assert!(fixture.is_active());
+    type_keys(&[" hidden"]);
+    pump();
+    assert_eq!(
+        entry.text().as_str(),
+        "empty populated empty returned released hidden"
+    );
+
+    // The explicit hide contract applies to an empty view too.
+    empty.revision = app.model().revision + 1;
+    app.emit(AppMsg::View(empty.clone()));
+    pump();
+    assert_idle_ribbon();
+    empty.revision += 1;
+    empty.visible = false;
+    app.emit(AppMsg::View(empty));
+    pump();
+    assert!(!app.model().visible);
+    assert!(!root.is_visible() && !root.is_mapped());
+    assert_eq!(root.exclusive_zone(), -1);
+    assert_eq!(root.keyboard_mode(), KeyboardMode::None);
+    assert_clean(&app.model());
+    assert!(fixture.is_active());
+
+    pointer.stdin.take();
+    assert!(pointer.wait().unwrap().success());
+    root.close();
+    fixture.close();
+    drop(app);
+    pump();
+}
+
+#[test]
 #[ignore = "requires owned nested Niri, private runtime/bus and disabled AT-SPI; AK8077 RED candidate"]
 fn isolated_gtk_directory_focus_only_preserves_rows_and_scroll() {
     assert_isolated_gui();

@@ -1,5 +1,5 @@
 // ---
-// summary: "verifies native panel view revisions, workspace membership, and focus retention"
+// summary: "verifies native panel revisions, workspace membership, and focus retention under legacy focus visibility"
 // read_when:
 //   - "changing broker-to-native-panel projection"
 // ---
@@ -28,6 +28,7 @@ test("native projection publishes only the focused workspace card with monotonic
   const projection = createNativePanelProjection({
     isNiriSession: () => true,
     publish: (view) => published.push(view),
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
 
   projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
@@ -69,6 +70,7 @@ test("native projection fails closed without compositor ownership facts", () => 
   const projection = createNativePanelProjection({
     isNiriSession: () => false,
     publish: (view) => published.push(view),
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
   projection.updateSnapshot({ generatedAt: 100, sessions: [session()] });
   assert.equal(published.at(-1).visible, false);
@@ -86,6 +88,7 @@ test("native projection carries workspace placement onto display cards", () => {
   const projection = createNativePanelProjection({
     isNiriSession: () => true,
     publish: (view) => published.push(view),
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
   projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
   projection.publishWorkspaceView({
@@ -128,6 +131,7 @@ test("native projection drops a workspace number that is not an integer", () => 
   const projection = createNativePanelProjection({
     isNiriSession: () => true,
     publish: (view) => published.push(view),
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
   projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
   projection.publishWorkspaceView({
@@ -162,6 +166,7 @@ test("native projection joins AK task chips onto cards and clears them fail-clos
   const projection = createNativePanelProjection({
     isNiriSession: () => false,
     publish: (view) => published.push(view),
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
   projection.updateSnapshot({ generatedAt: 100, sessions: [raw] });
   assert.equal(published.at(-1).sessions[0].akTasks, undefined, "no chips before AK data");

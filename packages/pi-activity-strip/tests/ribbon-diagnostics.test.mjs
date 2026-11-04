@@ -36,7 +36,7 @@ test("Given a real admitted presence source, When the production reader and form
     isNiriSession: () => true,
     publish() {},
     getWindowFacts: (id) => (id === 99 ? presence : null),
-    env: {},
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
   });
   projection.updateSnapshot({ generatedAt: 1, sessions: [raw] });
   projection.publishWorkspaceView({
@@ -56,6 +56,23 @@ test("Given a real admitted presence source, When the production reader and form
   assert.match(
     formatRibbonDiagnostics(observed).join("\n"),
     /visibility reason: eligible-presence-context/,
+  );
+});
+
+test("Given persistent presentation over a browser, When status explains visibility, Then it does not imply keyboard eligibility", () => {
+  const f = productionFixture({});
+  f.focus(99);
+  const read = createRuntimeStatusReader({
+    runtimeStatus: { state: "ready", startedAt: 1, windowVisible: true },
+    projection: f.projection,
+  });
+  const observed = read().ribbonDiagnostics;
+  assert.equal(observed.visibilityReason, "persistent-workspace");
+  assert.equal(observed.eligible, false);
+  assert.equal(observed.keyboardAuthorization, "none");
+  assert.match(
+    formatRibbonDiagnostics(observed).join("\n"),
+    /visibility reason: persistent-workspace/,
   );
 });
 

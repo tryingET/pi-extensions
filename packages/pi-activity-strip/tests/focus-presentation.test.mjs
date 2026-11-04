@@ -1,5 +1,5 @@
 // ---
-// summary: "Focus handoffs revoke interaction without tearing down an eligible ribbon surface."
+// summary: "Legacy focus visibility: handoffs revoke interaction without tearing down an eligible ribbon surface."
 // read_when:
 //   - "Changing selection revocation, passive presentation, or focus-change geometry."
 // ---
@@ -75,7 +75,7 @@ function fixture(source = 44) {
   const projection = createNativePanelProjection({
     isNiriSession: () => true,
     getWindowFacts: placement.getObservedWindow,
-    env: {},
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
     publish: (view) => views.push(view),
   });
   projection.updateSnapshot(store.snapshot(1000));

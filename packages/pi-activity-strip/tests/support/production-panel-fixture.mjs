@@ -7,7 +7,7 @@ import { createPanelWindowJump } from "../../src/native/panel-window-jump.mjs";
 import { createPlacementRuntime } from "../../src/native/placement.mjs";
 import { createWorkspaceProjectionHandlers } from "../../src/native/workspace-events.mjs";
 
-export function productionFixture() {
+export function productionFixture(env = { PI_ACTIVITY_STRIP_VISIBILITY: "focus" }) {
   const sourceId = "019fa4d0-7142-7fb4-8d30-f98e951f0513";
   const raw = (sessionId, publisherId, surface, activity) => ({
     sessionId,
@@ -58,6 +58,7 @@ export function productionFixture() {
     },
   ];
   const projection = createNativePanelProjection({
+    env,
     isNiriSession: () => true,
     publish: (view) => views.push(view),
   });

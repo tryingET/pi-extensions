@@ -33,8 +33,8 @@ The runtime is Electron-free. A Node controller retains the tested telemetry, id
 - expands rich details only on actual pointer hover or explicit keyboard-mode entry
 - supports Left/Right navigation and Shift+Left/Right manual movement
 - focuses the exact matching Ghostty window on click or Enter, presenting a hidden tab first
-- stays up while an agent terminal or a presence app has focus: any Ghostty window (agent or not) and 1Password by default, so a quick password lookup or a plain shell does not make it vanish
-- hides when a browser, Obsidian, or any other app outside that set has focus, and on workspaces without tracked cards
+- stays present across browser, Obsidian and other app focus, competing overlays, and empty focused workspaces; its reserved band stays constant instead of resizing the desktop
+- keeps presentation separate from keyboard permission: the existing agent/presence-app admission still guards keyboard entry and hover typing; other apps and overlays retain their input
 - teaches its own keyboard shortcut progressively: every card and brand tooltip names it, the window list says what the keyboard would do right now, and keyboard mode shows its key map in the brand block
 - releases its 84px exclusive zone automatically when hidden or crashed
 
@@ -112,7 +112,7 @@ node ./bin/pi-activity-strip.mjs stop
 
 A broker pong alone does not establish overlay readiness. Launcher/startup waiting and CLI
 `status` succeed only with explicit `runtimeStatus.state: ready`. CLI `open` reports unknown
-or starting readiness as non-success without stopping or replacing that live runtime. A ready
+or starting readiness as non-success without stopping or replacing that live runtime. In the optional focus-visibility mode, a ready
 ribbon may correctly be hidden while a non-agent window is focused; visibility is not startup
 readiness. This check does not itself approve the controller/panel artifact pair.
 
@@ -161,7 +161,8 @@ The ribbon reads the bound chord from the Niri config (`$NIRI_CONFIG`, else `$XD
 ## Interaction contract
 
 - **Workspace locality:** Niri focus events and workspace list changes trigger immediate reprojection; bounded polling remains a fallback.
-- **Hide/reclaim:** the ribbon is eligible while the focused window on the focused workspace is either exactly one admitted agent card's window or a presence app (`PI_ACTIVITY_STRIP_PRESENCE_APP_IDS`, default every Ghostty window and 1Password). A presence app is a neutral source: the strip stays up, accepts the shortcut and hover typing, and a jump from it is checked against that same window, but no card is claimed as "you are here". Other non-agent focus, missing/ambiguous ownership, or zero cards unmaps the surface and releases its exclusive zone. A controller-reserved hover or explicit keyboard request may preserve eligibility through Niri's transient NULL focused window on that same workspace; a known non-agent focus always revokes it, even if an old panel acknowledgement arrives later. Returning starts compact, unless there is actual pointer hover or a new explicit shortcut. Hiding, losing keyboard ownership, and pointer leave outside explicit keyboard mode clear stale hover, brand, search and keyboard engagement and revoke delayed callbacks.
+- **Persistent presentation:** by default, once a focused Niri workspace is known, the compact surface stays mapped even without cards or a focused application window. Switching apps or opening another overlay does not change its reservation. Compositor stacking remains normal: the strip uses the Top layer, not Overlay. Presence does not grant keyboard access, and losing an interaction source still releases input immediately. `PI_ACTIVITY_STRIP_VISIBILITY=focus` restores the earlier hide/reclaim policy below.
+- **Keyboard admission / optional hide/reclaim:** the ribbon is eligible for keyboard interaction while the focused window on the focused workspace is either exactly one admitted agent card's window or a presence app (`PI_ACTIVITY_STRIP_PRESENCE_APP_IDS`, default every Ghostty window and 1Password). A presence app is a neutral source: the strip stays up, accepts the shortcut and hover typing, and a jump from it is checked against that same window, but no card is claimed as "you are here". Other non-agent focus, missing/ambiguous ownership, or zero cards revokes keyboard eligibility; only in focus-visibility mode does this unmap the surface and release its exclusive zone. A controller-reserved hover or explicit keyboard request may preserve eligibility through Niri's transient NULL focused window on that same workspace; a known non-agent focus always revokes it, even if an old panel acknowledgement arrives later. Returning starts compact, unless there is actual pointer hover or a new explicit shortcut. Hiding, losing keyboard ownership, and pointer leave outside explicit keyboard mode clear stale hover, brand, search and keyboard engagement and revoke delayed callbacks.
 - **Crash behavior:** panel lifetime is bound to the Node controller through Linux parent-death signaling and stdin EOF. Unexpected panel exits are restarted with bounded backoff; a dead surface cannot retain an exclusive zone.
 - **Exact focus:** card activation returns to Node, which performs existing fail-closed terminal identity resolution and Niri focus.
 - **Hidden tabs:** a Ghostty window title only names its active tab. A bound surface whose title is not visible is placed through its Ghostty host process: one host window is exact containment; several host windows use the window remembered for that tab. Memory comes from titles seen while the strip runs and from a read-only AT-SPI inventory of tab labels, and is persisted per Niri instance under `~/.pi/agent/state/pi-activity-strip/surface-bindings.json`. A tab whose window has never been observed stays unplaced rather than guessed; `status` reports that count. Activating a hidden-tab card calls the host process's `present-surface` action on the session bus, then focuses the window, and reports success only after the title proves the tab is visible.
@@ -181,13 +182,14 @@ The ribbon reads the bound chord from the Niri config (`$NIRI_CONFIG`, else `$XD
 ## Environment controls
 
 - `PI_ACTIVITY_STRIP_AUTO_START=0` disables extension autostart.
+- `PI_ACTIVITY_STRIP_VISIBILITY=focus` opts into the earlier focus-dependent hide/reclaim behavior. Default is persistent presentation, including empty focused workspaces. Environment controls are read by the controller at startup; restart the strip to apply a change.
 - `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` installs an empty Wayland input region and disables keyboard entry.
 - `PI_ACTIVITY_STRIP_NATIVE_PANEL_BIN=/absolute/path` selects another receipted panel artifact. A nonempty selection is binding: if missing or nonexecutable, startup fails instead of silently falling back to the packaged panel, including with the development escape hatch.
 - `PI_ACTIVITY_STRIP_SOCKET_DIR` and `PI_ACTIVITY_STRIP_SOCKET_PATH` isolate broker fixtures and nested-compositor tests.
 - `PI_ACTIVITY_STRIP_TAB_INVENTORY=0` disables the read-only AT-SPI tab inventory; hidden tabs are then placed only from titles seen while the strip runs.
 - `PI_ACTIVITY_STRIP_AK_TASKS=0` disables AK task reference joining.
 - `PI_ACTIVITY_STRIP_AK_BIN=/absolute/path` selects the `ak` binary used for the read-only task queries (default `ak` on `PATH`).
-- `PI_ACTIVITY_STRIP_PRESENCE_APP_IDS` edits the set of Niri app ids that keep the ribbon up while focused. A comma-separated list adds ids to the defaults (`com.mitchellh.ghostty`, `com.tryinget.ghosttysidequest`, `com.onepassword.OnePassword`, `1Password`), `-id` removes one, `none` empties the set (strict agent-only behaviour), and `*` keeps the ribbon up for every app.
+- `PI_ACTIVITY_STRIP_PRESENCE_APP_IDS` edits which Niri apps admit keyboard interaction (and keep the ribbon up in optional focus-visibility mode). A comma-separated list adds ids to the defaults (`com.mitchellh.ghostty`, `com.tryinget.ghosttysidequest`, `com.onepassword.OnePassword`, `1Password`), `-id` removes one, `none` empties the set (strict agent-only behaviour), and `*` admits every app as a keyboard interaction source. The wildcard is unnecessary for persistent visibility; it also broadens which apps keep the ribbon up in focus-visibility mode.
 - `PI_ACTIVITY_STRIP_HOTKEY="Super+Shift+A"` sets the shortcut the hints name, instead of reading it from the Niri config.
 - `PI_ACTIVITY_STRIP_AGENT_TABS=0` disables discovery of non-Pi agent tabs.
 - `PI_ACTIVITY_STRIP_AGENT_KINDS_DISABLED=claude,codex` excludes named agent kinds from discovery.
@@ -233,7 +235,7 @@ Implemented:
 - local broker and telemetry publishers
 - native GTK4 layer-shell rendering
 - workspace-local Niri projection
-- hide/reclaim and restore
+- persistent presentation with stable reserved space; optional focus-dependent hide/reclaim
 - pointer and keyboard card interaction
 - exact Ghostty activation, including hidden tabs via `present-surface`
 - hidden Ghostty tab placement through host process containment and learned window memory
