@@ -216,14 +216,24 @@ Production artifact tests use a fresh per-run empty npm cache and a
 Changing the runtime dependency requires refreshing that fixture and its negative
 controls; ordinary checks need no network access for the artifact installation.
 
-Development Pi pins/host metadata: **1.1.0**, peers `*` (compatibility declaration,
+Artifact host checks use the exact **1.4.0** development alias `pi-test-host`,
+installed by the normal package install. Its bundled SDK and CLI run only in test
+subprocesses; never import the alias in extension code or select it through
+`.bin/pi`. The canonical landing command links true-name host packages to Pi on
+PATH (which may be older after rollback), so those live links cannot supply the
+pinned development-host proof. Manifest/lock assertions bind both development
+pins and the alias; the root install checker owns installed-tree consistency.
+No PATH upgrade or declared compatibility-floor change is part of this split.
+
+Development Pi pins/host metadata: **1.4.0**, peers `*` (compatibility declaration,
 not proof against all versions). `typebox` is host-provided: peer `*`, exact
 `1.3.7` development pin, no runtime dependency copy. The only runtime dependency
 is `ipaddr.js@2.2.0`. The development compiler is the fleet's exact TypeScript
 `7.0.2` and the TypeScript loader is `tsx@4.23.15` (**AK6871**; before/after scans,
 runtime re-observation and rollback proof are in the
 [qualification dossier](docs/project/2026-10-10-ak6871-dependency-qualification.md)).
-The canonical root declares Pi **1.1.0** and includes the clipper release mapping.
+The canonical root pins Pi **1.4.0** in its compatibility canary and owns the
+clipper release mapping.
 Passing gates are not universal compiler/dependency compatibility proof.
 Root engineering policy owns the lane; there is no package-local lane override.
 Package version/release component

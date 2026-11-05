@@ -21,9 +21,30 @@ function readPackageJson(filePath = "package.json") {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+test("artifact test host is an exact, development-only alias independent of live host links", () => {
+  const pkg = readPackageJson();
+  const lock = readPackageJson("package-lock.json");
+  const alias = "pi-test-host";
+  const name = "@earendil-works/pi-coding-agent";
+  const spec = `npm:${name}@${DEV_TEST_FLOOR}`;
+  assert.equal(pkg.devDependencies[alias], spec);
+  assert.equal(lock.packages[""].devDependencies[alias], spec);
+  for (const section of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+    assert.equal(pkg[section]?.[alias], undefined);
+  }
+  const pinned = lock.packages[`node_modules/${alias}`];
+  assert.equal(pinned.name, name);
+  assert.equal(pinned.version, DEV_TEST_FLOOR);
+  assert.equal(pinned.integrity, lock.packages[`node_modules/${name}`].integrity);
+  const installed = readPackageJson(`node_modules/${alias}/package.json`);
+  assert.equal(installed.name, name);
+  assert.equal(installed.version, DEV_TEST_FLOOR);
+});
+
 test("Pi host contract keeps package, host, development, and peer versions distinct", () => {
   const pkg = readPackageJson();
   const contract = pkg["x-pi-template"]?.piHostContract;
+  const lock = readPackageJson("package-lock.json");
 
   assert.match(pkg.version, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
   assert.equal(contract?.schemaVersion, 1);
@@ -37,11 +58,10 @@ test("Pi host contract keeps package, host, development, and peer versions disti
     assert.equal(pkg.devDependencies?.[packageName], DEV_TEST_FLOOR);
     assert.equal(pkg.peerDependencies?.[packageName], PEER_COMPATIBILITY[packageName]);
 
-    const installed = readPackageJson(
-      path.join("node_modules", ...packageName.split("/"), "package.json"),
-    );
-    assert.equal(installed.name, packageName);
-    assert.equal(installed.version, DEV_TEST_FLOOR);
+    // Canonical installs are deliberately linked to the live Pi, which can be
+    // older after rollback. Authored development pins still bind the test host.
+    assert.equal(lock.packages[""].devDependencies[packageName], DEV_TEST_FLOOR);
+    assert.equal(lock.packages[`node_modules/${packageName}`].version, DEV_TEST_FLOOR);
   }
 });
 
@@ -69,7 +89,7 @@ test("host-provided TypeBox has a wildcard peer and an exact development pin onl
   assert.equal(pkg.devDependencies?.typebox, "1.3.7");
 });
 
-test("Pi host dependencies and extension imports use only the governed namespace", () => {
+test("Pi host dependencies and live imports use only the governed namespace", () => {
   const pkg = readPackageJson();
   const governed = new Set(HOST_PACKAGES);
 
@@ -91,10 +111,16 @@ test("Pi host dependencies and extension imports use only the governed namespace
     }
   }
 
-  const extensionFiles = fs.readdirSync("extensions").filter((name) => name.endsWith(".ts"));
-  assert.ok(extensionFiles.length > 0);
-  for (const name of extensionFiles) {
-    const source = fs.readFileSync(path.join("extensions", name), "utf8");
+  const liveFiles = ["extensions", "src"].flatMap((root) =>
+    fs
+      .readdirSync(root, { recursive: true })
+      .filter((name) => /\.(?:[cm]?[jt]s|[jt]sx)$/.test(name))
+      .map((name) => path.join(root, name)),
+  );
+  assert.ok(liveFiles.length > 0);
+  for (const name of liveFiles) {
+    const source = fs.readFileSync(name, "utf8");
     assert.doesNotMatch(source, /["']@mariozechner\/pi-/);
+    assert.doesNotMatch(source, /pi-test-host/, "the artifact host must never enter live code");
   }
 });

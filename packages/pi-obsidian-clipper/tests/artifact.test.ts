@@ -101,9 +101,16 @@ test("published production artifact contains and loads all runtime sources with 
     ); // No host packages or TypeBox physical copy in the production installation.
     const config = join(f.dir, "contract.json");
     await writeFile(config, JSON.stringify(contract()), { mode: 0o600 });
-    const hostRoot = resolve("node_modules/@earendil-works/pi-coding-agent");
+    // A dev-only alias survives canonical host linking. Always use its bundled
+    // entrypoint in a subprocess, never its unbundled root or ambiguous .bin/pi.
+    const hostRoot = resolve("node_modules/pi-test-host");
     const hostManifestPath = join(hostRoot, "package.json");
     const hostManifest = JSON.parse(await readFile(hostManifestPath, "utf8"));
+    assert.equal(hostManifest.name, "@earendil-works/pi-coding-agent");
+    assert.equal(
+      manifest.devDependencies["pi-test-host"],
+      `npm:${hostManifest.name}@${hostManifest.version}`,
+    );
     assert.equal(hostManifest.version, manifest["x-pi-template"].piHostContract.hostBaseline);
     assert.equal(hostManifest.version, manifest.devDependencies[hostManifest.name]);
     // The shipped bundle uses authentic host virtualModules (not unbundled jiti aliases).
