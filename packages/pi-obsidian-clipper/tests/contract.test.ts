@@ -11,7 +11,7 @@ test("exact alias and non-secret additive recipe; capability is not payload", ()
   const result = recipe(parse(contract()));
   assert.equal(result.model.providerModelId, "baseline-multimodal");
   assert.equal(result.defaultModel, result.model.id);
-  assert.equal(result.provider.baseUrl, "http://127.0.0.1:1234/v1/chat/completions");
+  assert.equal(result.provider.baseUrl, "http://127.0.0.1:1200/v1/chat/completions");
   assert.equal(result.provider.apiKey, "");
   assert.equal(result.provider.apiKeyRequired, true);
   assert.equal(result.previewOnly, true);
@@ -81,13 +81,13 @@ test("credential fields, model/JSON/file and nesting budgets", () => {
 });
 test("loopback literals only, canonical URL paths and same origin", () => {
   for (const url of [
-    "http://localhost:1234/v1",
+    "http://localhost:1200/v1",
     "http://127.0.0.2:1234/v1",
     "http://2130706433:1234/v1",
-    "http://127.0.0.1:1234/v1?key=secret",
-    "http://secret@127.0.0.1:1234/v1",
-    "http://127.0.0.1:1234/v1#x",
-    "http://127.0.0.1:1234/v1/",
+    "http://127.0.0.1:1200/v1?key=secret",
+    "http://secret@127.0.0.1:1200/v1",
+    "http://127.0.0.1:1200/v1#x",
+    "http://127.0.0.1:1200/v1/",
     "https://remote.example/v1",
   ]) {
     assert.throws(() => loopback(url, "/v1"));

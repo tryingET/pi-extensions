@@ -89,10 +89,10 @@ try {
       return undefined;
     },
   });
-  await health.prime(["http://127.0.0.1:1234/health"]);
+  await health.prime(["http://127.0.0.1:1200/health"]);
   const healthStartedAt = performance.now();
   for (let index = 0; index < iterations; index += 1) {
-    await health.check("http://127.0.0.1:1234/health", { mode: "background" });
+    await health.check("http://127.0.0.1:1200/health", { mode: "background" });
   }
   const healthElapsedMs = performance.now() - healthStartedAt;
 

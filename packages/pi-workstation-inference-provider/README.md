@@ -80,8 +80,8 @@ Minimal shape:
   "authority": "workstation/lane-op",
   "family": "baseline-text",
   "surface": "canonical",
-  "base_url": "http://127.0.0.1:1234/v1",
-  "health_url": "http://127.0.0.1:1234/health",
+  "base_url": "http://127.0.0.1:1200/v1",
+  "health_url": "http://127.0.0.1:1200/health",
   "models": [
     {
       "pi_model_id": "baseline-text",

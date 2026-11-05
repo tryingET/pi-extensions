@@ -31,7 +31,7 @@ export function contract(overrides = {}) {
     refresh_after_seconds: 1,
     provider_id: "workstation-inference",
     provider_name: "Workstation Inference",
-    base_url: "http://127.0.0.1:1234/v1",
+    base_url: "http://127.0.0.1:1200/v1",
     health_url: "http://127.0.0.1:9/health",
     models: [
       {

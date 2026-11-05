@@ -8,9 +8,9 @@ export function contract() {
     surface: "canonical",
     generated_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     refresh_after_seconds: 3600,
-    base_url: "http://127.0.0.1:1234/v1",
-    health_url: "http://127.0.0.1:1234/health",
-    models_url: "http://127.0.0.1:1234/v1/models",
+    base_url: "http://127.0.0.1:1200/v1",
+    health_url: "http://127.0.0.1:1200/health",
+    models_url: "http://127.0.0.1:1200/v1/models",
     models: [
       {
         pi_model_id: "baseline-multimodal",

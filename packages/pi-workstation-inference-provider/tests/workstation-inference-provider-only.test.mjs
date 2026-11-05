@@ -42,7 +42,7 @@ function contract(overrides = {}) {
     family: "baseline-text",
     surface: "canonical",
     provider_id: provider,
-    base_url: "http://127.0.0.1:1234/v1",
+    base_url: "http://127.0.0.1:1200/v1",
     models: ids.map((id) => ({
       pi_model_id: id,
       upstream_model: "raw-artifact",
@@ -73,7 +73,7 @@ async function scenario(t, value, fn) {
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
     calls.push({ url: String(url), init });
-    assert.match(String(url), /^http:\/\/127\.0\.0\.1:1234\//);
+    assert.match(String(url), /^http:\/\/127\.0\.0\.1:1200\//);
     return String(url).endsWith("/health") ? Response.json({ status: "ok" }) : sse();
   });
   try {

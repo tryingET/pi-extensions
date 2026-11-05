@@ -376,7 +376,7 @@ test("streamWorkstationInference returns an error event when health is bad", asy
           name: "Visible",
           provider: "workstation-inference",
           api: "workstation-inference",
-          baseUrl: "http://127.0.0.1:1234/v1",
+          baseUrl: "http://127.0.0.1:1200/v1",
           reasoning: false,
           input: ["text"],
           contextWindow: 32768,

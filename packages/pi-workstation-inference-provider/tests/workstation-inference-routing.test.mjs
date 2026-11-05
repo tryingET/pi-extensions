@@ -96,7 +96,7 @@ async function capture(
         ...providerModel(selectedModel),
         provider: "workstation-inference",
         api: "workstation-inference",
-        baseUrl: "http://127.0.0.1:1234/v1",
+        baseUrl: "http://127.0.0.1:1200/v1",
       };
       const stream = streamWorkstationInference(model, normalizeContext(requestContext), {
         maxTokens: 1024,
@@ -120,7 +120,7 @@ async function capture(
 for (const effort of [undefined, ...EFFORTS]) {
   test(`baseline alias preserves adapter-owned effort ${effort ?? "off"}`, async () => {
     const { url, payload, result } = await capture(baselineModel(), { reasoning: effort });
-    assert.equal(url, "http://127.0.0.1:1234/v1/chat/completions");
+    assert.equal(url, "http://127.0.0.1:1200/v1/chat/completions");
     assert.equal(payload.model, "baseline-text");
     assert.equal(payload.enable_thinking, effort !== undefined);
     assert.equal(payload.reasoning_effort, effort);
