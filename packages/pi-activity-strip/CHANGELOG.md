@@ -57,6 +57,31 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.10.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.9.0...pi-activity-strip-v0.10.0) (2026-11-06)
+
+
+### Features
+
+* **activity-strip:** explain sampled runtime state without input or custody effects (AK7417) ([66a4a33](https://github.com/tryingET/pi-extensions/commit/66a4a3328c79a0103c4d6b039368b2b902e2ba1b))
+* **activity-strip:** read Nodecode shell presence as a recovery session source (AK8256) ([1cee40f](https://github.com/tryingET/pi-extensions/commit/1cee40f95305c29479168a471e70eee0ad0c04e3))
+* **activity-strip:** recognise Nodecode claimants in the recovery manifest (AK8200) ([fb0a57d](https://github.com/tryingET/pi-extensions/commit/fb0a57d48bf174ad48951940c2b4c0889015bfb1))
+* **pi-activity-strip:** add conservative read-only recovery manifest (AK7378) ([1250d98](https://github.com/tryingET/pi-extensions/commit/1250d98f201c50d689603b1e494c3f9a1de1ea27))
+
+
+### Bug Fixes
+
+* **activity-strip:** bind explicit panel selection without silent fallback (AK7417) ([78d13b2](https://github.com/tryingET/pi-extensions/commit/78d13b23e9250b59d27b29e7ce7db86c78face40))
+* **activity-strip:** bind visibility and expansion to actual focus and pointer ownership (AK7114) ([784a75c](https://github.com/tryingET/pi-extensions/commit/784a75c653576ec00be6e578b81644e97b82274f))
+* **activity-strip:** deferral cache follows claims, AK's claim rule and a monotone age (AK7943) ([c47daa6](https://github.com/tryingET/pi-extensions/commit/c47daa6be35a83aaa18d7a9e34fb6e9da0bd7919))
+* **activity-strip:** keep passive ribbon presence independent of focus (AK8273) ([4cf1b66](https://github.com/tryingET/pi-extensions/commit/4cf1b66630ba161e2374187b9a408b7318db39e0))
+* **activity-strip:** keep strip up in presence apps, stop hover displacement, teach the hotkey ([0a80760](https://github.com/tryingET/pi-extensions/commit/0a80760799f9d2d1293c96daed7a33fd2baa48af))
+* **activity-strip:** make broker startup and oracle cleanup transactional ([858f398](https://github.com/tryingET/pi-extensions/commit/858f398b03b61b41ece097ad0b74ff7936f60baa))
+* **activity-strip:** read the AK deferral list every 5 min, not every 15 s (AK7943) ([f04eec5](https://github.com/tryingET/pi-extensions/commit/f04eec5fc6034889170bf33f249cc6d2ef2223c0))
+* **activity-strip:** require overlay readiness without replacing unknown runtimes (AK7417) ([e7b830f](https://github.com/tryingET/pi-extensions/commit/e7b830f319de879ae9194c5a6fb8a891225aeed0))
+* **activity-strip:** restore bounded hover-to-type navigation with guarded keyboard ownership (AK7114) ([e8f18a6](https://github.com/tryingET/pi-extensions/commit/e8f18a649efb38765d999cc736abddada8db3366))
+* **activity-strip:** revoke hidden selection ownership and qualify ribbon pair ([9535d27](https://github.com/tryingET/pi-extensions/commit/9535d2763be34f65045e1a5ee52955f701b0d27e))
+* **activity-strip:** stabilize eligible handoffs and directory rows ([4d11058](https://github.com/tryingET/pi-extensions/commit/4d1105870546980c02adcb911d2e0c587421da30))
+
 ## [0.9.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.8.0...pi-activity-strip-v0.9.0) (2026-09-28)
 
 
