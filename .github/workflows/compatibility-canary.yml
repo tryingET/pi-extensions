@@ -1,10 +1,11 @@
 name: compatibility-canary
+# Isolated validation branch: fixed upgrade inputs; do not land this probe on main.
 
 on:
   pull_request:
   push:
     branches:
-      - main
+      - codex/validate-pi-canary-upgrade-20261106
   workflow_dispatch:
     inputs:
       profile:
@@ -36,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      profile: ${{ steps.profile.outputs.value }}
+      profile: ${{ steps.host.outputs.profile }}
       host_version: ${{ steps.host.outputs.version }}
       review_anchor: ${{ steps.host.outputs.review_anchor }}
       matrix: ${{ steps.matrix.outputs.matrix }}
@@ -50,13 +51,44 @@ jobs:
           node-version: "22.23.4"
           package-manager-cache: false
 
-      - name: Validate profile before dependency effects
+      - id: host
+        name: Validate canary inputs before dependency effects
         env:
-          WORKFLOW_PROFILE: ${{ inputs.profile || 'current' }}
+          WORKFLOW_PROFILE: upgrade
+          PI_HOST_COMPAT_HOST_VERSION: "1.5.0"
+          PI_HOST_COMPAT_CHANGELOG_REF: "https://github.com/earendil-works/pi/blob/8a19e8c4a22b61e378df0a1d483a2c1397cc68cd/packages/coding-agent/CHANGELOG.md"
         run: |
           node --input-type=module <<'NODE'
-          const profile = process.env.WORKFLOW_PROFILE;
-          if (!['current', 'upgrade'].includes(profile)) throw new Error('Unknown canary profile');
+          import { appendFileSync } from "node:fs";
+          import { loadManifest, resolveProfileHost, validateManifest } from "./scripts/pi-host-compatibility-canary/manifest.mjs";
+          import { DEFAULT_MANIFEST_PATH } from "./scripts/pi-host-compatibility-canary/paths.mjs";
+
+          try {
+            const profile = process.env.WORKFLOW_PROFILE || "current";
+            if (!["current", "upgrade"].includes(profile)) throw new Error("Unknown canary profile");
+            if (profile === "upgrade") {
+              const missing = [
+                ["host_version", "PI_HOST_COMPAT_HOST_VERSION"],
+                ["changelog_ref", "PI_HOST_COMPAT_CHANGELOG_REF"],
+              ].filter(([, variable]) => !process.env[variable]?.trim()).map(([input]) => input);
+              if (missing.length > 0) {
+                throw new Error(`profile=upgrade requires workflow inputs: ${missing.join(", ")}`);
+              }
+            }
+
+            const manifest = validateManifest(loadManifest(DEFAULT_MANIFEST_PATH), DEFAULT_MANIFEST_PATH);
+            const host = resolveProfileHost(manifest, profile);
+            if (/[\r\n]/u.test(host.reviewAnchor)) {
+              throw new Error("Resolved review anchor must be a single line (workflow input: changelog_ref)");
+            }
+            // Validate every value before writing any GitHub outputs.
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `profile=${profile}\nversion=${host.version}\nreview_anchor=${host.reviewAnchor}\n`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(`::error::${message.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}`);
+            process.exitCode = 1;
+          }
           NODE
 
       - name: Install governed npm client
@@ -65,53 +97,10 @@ jobs:
           npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
           echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
 
-      - id: profile
-        name: Select canary profile
-        env:
-          WORKFLOW_PROFILE: ${{ inputs.profile }}
-        run: |
-          profile="${WORKFLOW_PROFILE:-current}"
-          if [ -z "$profile" ]; then
-            profile="current"
-          fi
-          echo "value=$profile" >> "$GITHUB_OUTPUT"
-
-      - name: Validate canary manifest
-        run: node ./scripts/pi-host-compatibility-canary.mjs validate
-
-      - id: host
-        name: Resolve exact host contract
-        env:
-          WORKFLOW_PROFILE: ${{ steps.profile.outputs.value }}
-          PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version }}
-          PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref }}
-        run: |
-          node <<'NODE' >> "$GITHUB_OUTPUT"
-          const { execFileSync } = require("node:child_process");
-
-          const profile = process.env.WORKFLOW_PROFILE;
-          const payload = JSON.parse(
-            execFileSync(
-              process.execPath,
-              [
-                "./scripts/pi-host-compatibility-canary.mjs",
-                "resolve-host",
-                "--profile",
-                profile,
-                "--json",
-              ],
-              { encoding: "utf8" },
-            ),
-          );
-
-          console.log(`version=${payload.host.version}`);
-          console.log(`review_anchor=${payload.host.reviewAnchor}`);
-          NODE
-
       - id: matrix
         name: Build scenario matrix
         env:
-          PI_HOST_COMPAT_PROFILE: ${{ steps.profile.outputs.value }}
+          PI_HOST_COMPAT_PROFILE: ${{ steps.host.outputs.profile }}
           PI_HOST_COMPAT_HOST_VERSION: ${{ steps.host.outputs.version }}
           PI_HOST_COMPAT_CHANGELOG_REF: ${{ steps.host.outputs.review_anchor }}
         run: |
