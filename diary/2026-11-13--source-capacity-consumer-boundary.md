@@ -209,3 +209,55 @@ continue dispatching. Owner-authorized canonical land/install, loaded-generation
 checks, real denial/health/canary checks, browser actions and coordinated rollback
 checks remain separate. Rolling only the file or only the package back can restore
 old hint permission. No full-task done/closeout was performed.
+
+## Pi1.1 inherited-registration correction
+
+Verifier `dispatch-1794605564329` demonstrated six unsafe old `b61361850` to
+`083b9c0d` migrations: schema1, unknown schema2 and malformed sources, both
+entrypoints. Actual ModelRuntime retained-object calls and AgentSession prompts
+sent one request each. Original report/scripts and six-failure verdict remain at
+managed scratch `ak8605-reload-verifier-YQfm8y/`; they were not edited.
+
+Red/green/delete evidence is under `ak8605-evidence/reload-correction/`:
+
+- Original characterization: **12/12**, explicitly not safety passes. Requirement-
+  derived red assertions then failed **6/12**, preserving all positive controls.
+- Minimal source correction: bound `session_start` revocation/reconciliation in
+  both entrypoints; provider-only defers unusable-source errors until cleanup can
+  run. Pi1.1 factory-only unregister filters only the new queue, not the old map.
+- Restored authentic migration suite: **32/32**, no skips. Six original failures
+  and ten additional denied migrations now have zero retained-object and real
+  session-prompt sends. Valid observations, exact legacy-canary route, async-hook
+  withdrawal, source precedence, unrelated-owner dispatch and fresh bound startups
+  have separate controls. Actual installed SDK/OpenAI **1.1.0**, private/fake state;
+  zero guarded socket/process/real-config/outside-scratch-write attempts.
+- Delete each normal/provider-only post-bind hook or provider-only deferred-error
+  handling in scratch: **9 failures each** in the expanded 28-case suite. Restore:
+  **28/28** before adding four separate fresh-bound checks. These parts stay.
+- Faithful prebind/bound registry regression: original source **16 failures/20**;
+  final suite **22/22**, including source withdrawal between factory and binding.
+  Another owner's registration is preserved. Existing provider-only rejection
+  assertions now drive bound initialization; their zero-send/zero-registration
+  assertions remain. The formerly forbidden lifecycle API is narrowed explicitly
+  to only `session_start`; all other hooks/actions remain prohibited by tests.
+- Full package checks: provider **205/205**, Clipper **81/81**, zero failures/skips,
+  pinned Node/npm/Pi1.4 development gates. Exact original hook chain is retained.
+  npm is forced offline, including clean-environment packaging children; attempted
+  registry metadata lookup fails locally with ENOTCACHED, not a registry check.
+
+The expanded harness initially over-required reference equality for an unrelated
+owner's model object; Pi availability refresh recomposes equal metadata. That new
+observer was corrected to deep metadata equality plus successful dispatch of the
+retained foreign object. Its two failures/logs remain; no original safety/positive
+assertion was relaxed. Initial formatting and fake-API phase failures also remain
+in the logs, rather than being counted as implementation safety passes.
+
+Later operator authorization allows consumer installation, but official landing
+was blocked before mutation by the existing canonical index lock (21525). Exact
+inactivity inspection exposed protected FD visibility gaps (21526); the lock and
+foreign files remain untouched. This correction does not attempt installation,
+privileged inspection or producer mutation. Supported idle interactive `/reload`
+and SDK `session.reload()` now have authentic fixture revocation evidence, not
+actual operator-generation attestation. No restart/input injection or full task
+completion. Unreloaded processes, in-flight calls, hard interruption and module
+compilation failure remain unproved; parent must coordinate live activation.

@@ -7,14 +7,16 @@ system4d:
   container: "Two source-owned consumers of a workstation capacity projection."
   compass: "Unknown capacity never becomes registration or dispatch permission."
   engine: "Owner proof -> schema2 -> admission -> final serialized dispatch fence."
-  fog: "Offline source evidence cannot revoke old loaded runtime generations."
+  fog: "Fixture reload proof does not attest operator generations or live activation."
 ---
 
 # Soma capacity consumer boundary — AK8605
 
 **Source/offline only.** Operator assignment: evidence21382. No canonical landing,
 installation, reload, service action, browser change or live inference is proved
-or authorized by this change. Independent parent inspection is still required.
+by this change. Later operator authorization permits consumer installation, but
+the canonical lock remains unresolved (evidence21525/21526); no installation has
+occurred. Independent parent inspection of the reload correction is still required.
 
 ## Exact interface
 
@@ -96,6 +98,52 @@ When removal is unsupported, status says so. Removal does not prove that every
 selected model object or UI entry vanished. An already-selected object is fenced
 by the stream's dispatch checks, not by a status label or file-change assertion.
 No global Pi model configuration is rewritten.
+
+## Pi1.1 old-to-new reload
+
+Independent verifier `dispatch-1794605564329` confirmed that `083b9c0d` left
+`b61361850` registrations and dispatch closures alive for schema1, unknown schema2
+and malformed publication, in both entrypoints. Real retained-object invocation and
+real `AgentSession.prompt()` each sent one stubbed request in all six cases.
+Fresh-candidate passes were not migration proof.
+
+Both entrypoints now reconcile in bound `session_start`, not just the factory.
+They revoke the known owned `workstation-inference` id and their own recorded
+registration before admitting current source bindings. No provider enumeration or
+other-owner removal is used. Provider-only keeps its cleanup handler loaded when
+initial source admission fails; bound initialization retries and reports the error
+only after revocation. The bare loader can consequently succeed with no models.
+Valid canonical bindings and explicitly supplied unrelated legacy canaries still
+register from coherent snapshots. Source failure cannot restore an old closure.
+
+Offline authentic Pi1.1 proof uses old source at one private path, copies candidate
+source over it, invokes actual `AgentSession.reload()`, and retains the exact old
+selected object. It passes **32/32**: sixteen denied migrations (eight source states,
+both entrypoints), valid/canary controls, async-hook withdrawal, optional-source
+precedence, another owner's provider, and distinct fresh-start checks. Both retained
+ModelRuntime calls and real session prompts send zero requests in denied migrations.
+The real interactive reload command body is also exercised, with presentation-only
+doubles, not keyboard/PTY control. SDK/OpenAI bindings are actual installed **1.1.0**;
+transport is stubbed, credentials/settings are private, and guarded real socket,
+subprocess, config-read and outside-scratch-write attempts are zero.
+
+The supported interactive route is **`/reload` after installation, while idle**;
+Pi refuses it during streaming or compaction. SDK owners may call
+`await session.reload()` (or command-context `ctx.reload()`). There is no direct
+reload RPC command: do not send a literal `/reload` as a generic model prompt.
+In-process `pi.unregisterProvider(id)` is supported after binding, not a remote
+process-control interface. Model selection/UI objects may remain visible with old
+limits after removal; they are not permission, and their real invocation is denied.
+Provider-only hosts without session binding must use a new verified ModelRuntime,
+not reuse old registrations by copying the loader's pending queue.
+
+This is source migration proof, **not installed-package or operator-session proof**.
+No operator input/reload, service, GPU, producer, Soma or browser action occurred.
+The known canonical index lock is untouched. Actual loaded generations, all affected
+sessions/workers, busy/in-flight reload, hard crashes, module-load/compile failure
+before the handler exists, co-loading both entrypoints and live backend fitness
+remain outside this proof. Parent must coordinate each idle owner and verify the
+new generation before declaring cutover; unreloaded old processes remain unfenced.
 
 ## Final request boundary
 

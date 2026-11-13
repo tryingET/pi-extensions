@@ -159,13 +159,23 @@ exact provider/model pair; the host must not substitute another model. No
 it is **not** added to `pi.extensions`, but is included in the publish file list.
 Do not co-load the full lifecycle entrypoint in that worker.
 
-Bootstrap reads the existing contract sources and calls `registerProvider` (explicit rebootstrap on the same API removes its prior registration with `unregisterProvider`):
-no health priming/network, audio cleanup, timers, lifecycle handlers, tools,
-commands, session/UI APIs, or exec. Invalid/missing sources are isolated: another valid source can still contribute
-unrelated canaries; an all-unusable catalog rejects bootstrap. Only lane-op models
-without audio declarations, a runtime profile, or the reserved Inkling identity
-are registered; scheduler-owned models are excluded even for text-only requests.
-An all-excluded catalog is an error. Registration never grants audio permission.
+Bootstrap reads existing sources and queues only admissible provider metadata.
+One registration-only `session_start` handler revokes this consumer's inherited
+provider after Pi binds the runtime, then re-reads and reconciles current sources.
+Pi1.1 factory-time `unregisterProvider` alone only filters the new queue; it cannot
+revoke the old runtime. Invalid/missing/all-excluded catalogs queue no registration;
+the bound handler reports the error **after** revocation, rather than throwing away
+the cleanup path during extension loading. A bare loader's empty error list is
+therefore not capacity permission: cold queue-transfer hosts must require the exact
+model in a **fresh** ModelRuntime. Do not use queue transfer to reload an existing
+runtime; use the supported bound lifecycle described in the
+[capacity boundary](docs/project/2026-11-13-soma-capacity-consumer.md#pi11-old-to-new-reload).
+
+There is no startup health priming/network, audio cleanup, timer, scheduler/service
+lifecycle action, tool, command, UI operation or exec. Invalid sources remain
+independent: an explicitly supplied unrelated legacy canary can still register.
+Only lane-op models without audio declarations, a runtime profile, or the reserved
+Inkling identity are registered. Registration never grants audio permission.
 
 Invocation delegates to the shared capacity-fenced workstation stream, preserving contract
 model mapping, baseline aliases, other-family upstream routing, thinking controls,

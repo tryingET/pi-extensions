@@ -45,6 +45,7 @@ async function isolated(run) {
     sends = [],
     commands = new Map();
   let healthEffect = () => {};
+  let sessionStart;
   const set = (c) => {
     process.env[envs[0]] = JSON.stringify(c);
   };
@@ -60,7 +61,9 @@ async function isolated(run) {
     );
   };
   const api = {
-    on() {},
+    on(event, handler) {
+      if (event === "session_start") sessionStart = handler;
+    },
     unregisterProvider() {},
     registerProvider: (id, config) => registrations.push({ id, config }),
     registerCommand: (id, command) => commands.set(id, command),
@@ -85,6 +88,10 @@ async function isolated(run) {
       dir,
       set,
       api,
+      start: async (factory) => {
+        await factory(api);
+        await sessionStart?.({ type: "session_start", reason: "startup" });
+      },
       registrations,
       sends,
       commands,
@@ -109,7 +116,7 @@ for (const [name, factory] of [
 ]) {
   test(`${name}: optional schema2 copy never resurrects omitted, invalid or missing primary capacity`, async () => {
     for (const withdrawal of ["omitted", "invalid", "missing"])
-      await isolated(async ({ dir, set, api, registrations, sends, invoke }) => {
+      await isolated(async ({ dir, set, api, start, registrations, sends, invoke }) => {
         const c = await fixture();
         c.models[0].pi_model_id = "baseline-text";
         const unavailable = structuredClone(c.models[0]);
@@ -136,7 +143,7 @@ for (const [name, factory] of [
         assert.equal(result.stopReason, "error", withdrawal);
         assert.equal(sends.length, 0, withdrawal);
         const before = registrations.length;
-        if (name === "provider-only") await assert.rejects(() => factory(api));
+        if (name === "provider-only") await assert.rejects(() => start(factory));
         else await factory(api);
         assert.equal(
           registrations.length,

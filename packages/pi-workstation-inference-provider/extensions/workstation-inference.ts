@@ -195,6 +195,15 @@ export default async function (pi: ExtensionAPI) {
   };
 
   if (typeof pi.on === "function") {
+    // Pi1.1 keeps old ModelRuntime registrations across /reload. Factory-time
+    // unregister only filters the new queue; revoke our inherited id after bind.
+    pi.on("session_start", async () => {
+      if (registeredProviderId !== DEFAULT_PROVIDER_ID) pi.unregisterProvider(DEFAULT_PROVIDER_ID);
+      await reconcileRegistration(
+        await resolveContractStatus({ checkHealth: false, refreshContracts: true }),
+      );
+    });
+
     const dispose = (reason: string) => async () => {
       try {
         await quarantineCurrentAudio(pi, reason);

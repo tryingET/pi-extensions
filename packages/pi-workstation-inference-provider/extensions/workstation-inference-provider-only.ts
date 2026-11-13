@@ -1,5 +1,5 @@
 /**
-summary: "Explicit registration-only text/image entrypoint; never acquires audio or lifecycle authority."
+summary: "Explicit text/image registration lifecycle only; never acquires audio/runtime authority."
 read_when:
   - "Embedding workstation inference in a cold model-only worker."
 */
@@ -236,7 +236,7 @@ function boundedStream(
 }
 
 const registered = new WeakMap<ExtensionAPI, string>();
-export default async function (pi: ExtensionAPI): Promise<void> {
+async function registerAvailableProvider(pi: ExtensionAPI): Promise<void> {
   const prior = registered.get(pi);
   if (prior) {
     pi.unregisterProvider(prior);
@@ -275,4 +275,19 @@ export default async function (pi: ExtensionAPI): Promise<void> {
     },
   });
   registered.set(pi, providerId);
+}
+
+export default async function (pi: ExtensionAPI): Promise<void> {
+  pi.on("session_start", async () => {
+    // Pre-bind unregister does not revoke an old Pi1.1 runtime registration.
+    // The helper revokes this generation's id; also retire our inherited default.
+    if (registered.get(pi) !== DEFAULT_PROVIDER_ID) pi.unregisterProvider(DEFAULT_PROVIDER_ID);
+    await registerAvailableProvider(pi);
+  });
+  try {
+    await registerAvailableProvider(pi);
+  } catch {
+    // Keep the extension loaded so bound cleanup can run even for malformed or
+    // unusable sources. session_start retries and reports the error AFTER revoke.
+  }
 }

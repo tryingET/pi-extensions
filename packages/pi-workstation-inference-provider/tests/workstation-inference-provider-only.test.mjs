@@ -93,10 +93,22 @@ async function scenario(t, value, fn) {
 async function bootstrap() {
   const registrations = [];
   const forbidden = [];
+  let start;
   const api = new Proxy(
     {},
     {
       get(_target, key) {
+        if (key === "on")
+          return (event, handler) => {
+            assert.equal(event, "session_start", "only registration lifecycle is permitted");
+            start = handler;
+          };
+        if (key === "unregisterProvider")
+          return (name) => {
+            assert.equal(name, provider);
+            for (let i = registrations.length - 1; i >= 0; i--)
+              if (registrations[i].name === name) registrations.splice(i, 1);
+          };
         if (key === "registerProvider")
           return (name, config) => registrations.push({ name, config });
         forbidden.push(String(key));
@@ -106,6 +118,8 @@ async function bootstrap() {
   );
   const factory = (await import(entry.href)).default;
   await factory(api);
+  // Drive the supported bound-runtime initialization; rejection assertions remain.
+  await start({ type: "session_start", reason: "startup" });
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.deepEqual(forbidden, []);
@@ -348,11 +362,11 @@ test("Given a later governed contract generation When an old registration invoke
   });
 });
 
-test("Given explicit host resource loading When pending registrations transfer to ModelRuntime Then no hooks, fallback or image loss", async (t) => {
+test("Given explicit host resource loading When pending registrations transfer to ModelRuntime Then only registration lifecycle, no fallback or image loss", async (t) => {
   await scenario(t, contract(), async (calls) => {
     const { Given, When, Then } = steps(t);
     const { runtime, model } = await Given(
-      "an explicit resource loader, empty handlers and exact model runtime registration",
+      "an explicit resource loader, registration-only handlers and exact model runtime registration",
       async () => {
         const sdk = process.env.PI_TEST_SDK
           ? await import(pathToFileURL(process.env.PI_TEST_SDK).href)
@@ -374,7 +388,8 @@ test("Given explicit host resource loading When pending registrations transfer t
         assert.deepEqual(loaded.errors, []);
         assert.equal(loaded.extensions.length, 1);
         for (const extension of loaded.extensions) {
-          for (const key of ["handlers", "tools", "commands", "shortcuts", "flags"])
+          assert.deepEqual([...extension.handlers.keys()], ["session_start"]);
+          for (const key of ["tools", "commands", "shortcuts", "flags"])
             assert.equal(extension[key].size, 0, key);
         }
         const runtime = await sdk.ModelRuntime.create({
@@ -513,6 +528,7 @@ test("Given cold registration When deferred ticks pass Then bootstrap schedules 
         {},
         {
           get(_target, key) {
+            if (key === "on") return (event) => assert.equal(event, "session_start");
             assert.equal(key, "registerProvider");
             return () => {
               registrations++;

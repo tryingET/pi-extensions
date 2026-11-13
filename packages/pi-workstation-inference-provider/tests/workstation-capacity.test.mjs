@@ -52,11 +52,14 @@ async function scenario(_t, run) {
   const commands = new Map();
   const removed = [];
   const sends = [];
+  let sessionStart;
   const api = {
     registerProvider: (id, config) => registrations.push({ id, config }),
     unregisterProvider: (id) => removed.push(id),
     registerCommand: (id, command) => commands.set(id, command),
-    on: () => {},
+    on: (event, handler) => {
+      if (event === "session_start") sessionStart = handler;
+    },
   };
   const oldFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -87,7 +90,19 @@ async function scenario(_t, run) {
   };
   reset();
   try {
-    await run({ set, api, registrations, commands, removed, sends, invoke });
+    await run({
+      set,
+      api,
+      start: async (factory) => {
+        await factory(api);
+        await sessionStart?.({ type: "session_start", reason: "startup" });
+      },
+      registrations,
+      commands,
+      removed,
+      sends,
+      invoke,
+    });
   } finally {
     globalThis.fetch = oldFetch;
     if (old === undefined) delete process.env[CONTRACT_JSON_ENV];
@@ -320,7 +335,7 @@ for (const [name, factory] of [
 ]) {
   test(`${name}: nonadmissible declaration matrix cannot register or send`, async (t) => {
     for (const [label, mutate] of denials)
-      await scenario(t, async ({ set, api, registrations, sends }) => {
+      await scenario(t, async ({ set, api, start, registrations, sends }) => {
         const c = source();
         mutate(c.models[0].capacity);
         c.models[0].context_window = 262144;
@@ -329,7 +344,7 @@ for (const [name, factory] of [
         const status = await resolveContractStatus();
         assert.equal(status.declaration, "valid", label);
         assert.equal(status.capacity[0].admissible, false, label);
-        if (name === "provider-only") await assert.rejects(() => factory(api));
+        if (name === "provider-only") await assert.rejects(() => start(factory));
         else await factory(api);
         assert.equal(registrations.length, 0, label);
         assert.equal(sends.length, 0, label);
@@ -530,14 +545,15 @@ test("installed: a host without removal API reports retained registrations but c
 });
 
 test("provider-only: explicit rebootstrap withdraws previous registration on same API", async (t) => {
-  await scenario(t, async ({ set, api, registrations, removed }) => {
+  await scenario(t, async ({ set, api, start, registrations, removed }) => {
     const c = source();
     set(c);
     await providerOnly(api);
     c.models[0].capacity.availability = "unavailable";
     set(c);
-    await assert.rejects(() => providerOnly(api));
-    assert.deepEqual(removed, ["workstation-inference"]);
+    await assert.rejects(() => start(providerOnly));
+    // Pre-bind queue cleanup followed by actual bound-runtime revocation.
+    assert.deepEqual(removed, ["workstation-inference", "workstation-inference"]);
     assert.equal(registrations.length, 1);
   });
 });
