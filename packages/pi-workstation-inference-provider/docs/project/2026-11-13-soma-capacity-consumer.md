@@ -85,6 +85,12 @@ After awaited health or lifecycle work, registration rereads independent authori
 sources and re-admits from that new snapshot; it does not register the earlier
 status/health snapshot. Provider-only bootstrap likewise builds its final bindings
 from a single new source snapshot, with no per-model await before registration.
+That final snapshot is atomically adopted into the active dispatch generation before
+registration. Its models, routes, source identities and generation IDs are therefore
+shared by registration and immediate dispatch, including unrelated legacy canaries.
+Older in-flight refresh results or failures are invalidated and cannot overwrite
+that publication. This cache adoption is not canonical capacity permission: canonical
+registration/dispatch still require the independent primary-role/proof checks above.
 Provider-only rebootstrap on the same API also removes its prior registration.
 When removal is unsupported, status says so. Removal does not prove that every
 selected model object or UI entry vanished. An already-selected object is fenced

@@ -167,6 +167,27 @@ test("blocking health callers share one probe and caller cancellation is isolate
   assert.equal(probes, 1);
 });
 
+test("adopting registration sources atomically replaces dispatch and fences older refresh success or failure", async () => {
+  for (const failure of [false, true]) {
+    const gate = deferred();
+    const generations = makeCache({ load: async () => gate.promise });
+    const pending = generations.refresh("explicit");
+    await Promise.resolve();
+    const source = { contract: { name: "B", models: [{ id: "m1", route: "B" }] }, source: "B" };
+    const published = generations.adopt([source]);
+    assert.equal(generations.resolveCurrent("m1").model.route, "B");
+    assert.equal(generations.mergedCurrent().source, "B");
+    assert.equal(generations.resolveCurrent("m1").generationId, published.generationId);
+    if (failure) gate.reject(new Error("old A read failed"));
+    else
+      gate.resolve([{ contract: { name: "A", models: [{ id: "m1", route: "A" }] }, source: "A" }]);
+    await assert.rejects(pending);
+    assert.equal(generations.resolveCurrent("m1").model.route, "B");
+    assert.equal(generations.status().lastRefreshError, undefined);
+    assert.equal(generations.status().refreshInFlight, false);
+  }
+});
+
 test("clearing during generation refresh prevents a late generation from repopulating the cache", async () => {
   const gate = deferred();
   const generations = makeCache({ load: async () => gate.promise });

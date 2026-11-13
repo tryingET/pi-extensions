@@ -17,7 +17,10 @@ Operator source/offline assignment: evidence21382. Claim actor:
 on canonical `b61361850debbd3d0bfa03da6c9eb6f505583739`. Original unhooked commit
 `9343e8e931fd6022a1b9e5a4457fae0d881501d0` remains intact under
 `archive/ak8605-unhooked-9343e8e9` and `task/8605-source-capacity`; its evidence is
-not rewritten. No canonical landing or task completion.
+not rewritten. The first fully hooked snapshot `0c56eae6abb9761d61080f5db5bcd5e29f5047d0`
+is also retained under `archive/ak8605-reviewed-0c56eae6`; the coherence follow-up
+below is an additional scoped fix commit, not a rewrite. No canonical landing or
+task completion.
 
 ## Source changes
 
@@ -56,8 +59,9 @@ prompt-token accounting; the SDK may also choose smaller reservations before hoo
   schema2 unsupported). Recorded at managed scratch `ak8605-evidence/original-red.log`.
 - First candidate package `npm run check`: provider **162/162**, Clipper **69/69**.
   Parent inspection nevertheless confirmed three must-fixes; those passes were not
-  complete boundary proof. Revised offline package gates: provider **180/180**,
-  Clipper **81/81**, zero test skips/failures; lint, typecheck, structure and quick
+  complete boundary proof. First fully hooked snapshot package gates: provider
+  **180/180**, Clipper **81/81**. Coherence follow-up gates below are **183/183**
+  and **81/81**. Zero test skips/failures; lint, typecheck, structure and quick
   packaging checks passed.
 - Root docs strict check was run and failed on **25 unchanged existing diagnostics**;
   each affected file was compared with `b61361850` and was unchanged. The provider's
@@ -78,7 +82,8 @@ prompt-token accounting; the SDK may also choose smaller reservations before hoo
 - Node **22.23.4**, npm **12.0.2**, exact existing Pi SDK **1.4.0** dependencies
   reused via isolated worktree dependency links. No host/version replacement or
   gate bypass. New runtime modules stay below 500 LOC; the existing contract module
-  is 619 LOC versus 650 at the base (561 in the original candidate), under its
+  is 620 LOC versus 650 at the base (561 in the original candidate, 619 in the first
+  fully hooked snapshot), under its
   unchanged owner-scoped exception. Source reading remains in that existing module,
   avoiding an out-of-scope policy edit.
 
@@ -155,6 +160,45 @@ checking only the three corrections. Original custody is retained by the archiva
 ref. Hook output, staged tree identity and actual execution result belong to the
 final AK source evidence; this diary does not substitute for that receipt. Canonical
 Git config, hooks, index and main are not edited by this path resolution.
+
+## Legacy registration/dispatch coherence follow-up
+
+The parent recheck cleared the original three safety findings in 59 independent
+cases, but found one regression: final registration reread B while legacy dispatch
+still used cached A. A normal status health callback could register `:1444/route-B`
+but send to `:1334/route-A`; provider-only could successfully bootstrap B and then
+reject its immediate unchanged-source invocation as drift.
+
+Two real-factory falsifiers in `tests/workstation-registration-coherence.test.mjs`
+were red before the fix (**0/2 passed**). They assert the actual fetch URL, actual
+serialized route and successful immediate invocation, not merely registration or
+status labels. The final registration source snapshot is now atomically adopted
+into the dispatch generation, and its generation ID is used by the bindings and
+status. An epoch fence retires older pending refreshes, including their failures,
+so neither stale values nor stale error state can overwrite the adopted snapshot.
+The new cache publication test was independently red (**18/19 passed**, new test
+failed) before implementation. The two factory falsifiers, cache suite and preserved
+three-finding review suite now pass **39/39**, no skips. Canonical aliases still
+require fresh primary-role capacity checks at registration and final dispatch;
+cache publication does not grant canonical permission.
+
+Commands (same pinned Node/npm/SDK and forced-offline npm wrapper):
+
+- `node --experimental-strip-types --test tests/workstation-registration-coherence.test.mjs`
+- `node --experimental-strip-types --test tests/workstation-provider-hot-path.test.mjs`
+- `node --experimental-strip-types --test tests/workstation-registration-coherence.test.mjs tests/workstation-provider-hot-path.test.mjs tests/workstation-capacity-review.test.mjs`
+- `npm run check` in both packages: provider **183/183**, Clipper **81/81**, zero
+  failures/skips; original assertions remain unchanged.
+
+Logs are in `$TMPDIR/ak8605-evidence/coherence/`. This follow-up uses the same
+controller-authorized actual UBS → unmodified worktree hook chain and an ordinary
+additional explicit-path commit on `task/8605-reviewed-hooked`. Its hook checks the
+staged **delta against 0c56eae6**, not a newly staged 32-path snapshot. Full package
+checks cover the final tree; prior full-snapshot hook evidence remains21396. Exact
+staged paths, tree identity, chain output and final source evidence are recorded in
+AK after execution. No additional reset or persistent Git configuration change is
+needed. Prior evidence21387/21390 and both earlier commits remain intact. The exact
+schema2 JSON fixture and its hash are unchanged. All live integration stays held.
 
 ## Still held
 

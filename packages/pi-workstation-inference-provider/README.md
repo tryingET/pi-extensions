@@ -86,7 +86,10 @@ Canonical aliases belong exclusively to the designated primary source: an option
 schema2 copy cannot replace a missing/invalid primary or an omitted alias. Binding
 fingerprints include source identity/role. Both consumers reject contradictory
 `id`/`pi_model_id` declarations and ineligible runtime profiles; registration rereads
-and re-admits authoritative sources after awaited health work.
+and re-admits authoritative sources after awaited health work. The final registration
+snapshot is atomically published as the dispatch generation, keeping unrelated
+legacy canary registrations and immediate requests on the same route. Earlier
+in-flight refreshes cannot overwrite it; canonical source/proof fences still apply.
 
 Contracts must use credential-free loopback HTTP and a recognized workstation authority. If a contract has `generated_at` plus `refresh_after_seconds` (or the legacy `stale_after_seconds`), `/workstation-inference status` reports the refresh warning. Ordinary runtime requests fail closed on missing/invalid/unhealthy contracts through the package's custom stream handler; audio is stricter and rejects stale contract authority.
 

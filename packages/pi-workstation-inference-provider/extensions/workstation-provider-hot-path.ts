@@ -183,6 +183,18 @@ export class ContractGenerationCache<TContract, TModel> {
     return this.status();
   }
 
+  /** Publish a source snapshot already read for registration as the dispatch generation. */
+  adopt(sources: ContractSource<TContract>[]): ContractGenerationStatus {
+    const generation = this.#buildGeneration(sources);
+    // Retire earlier reads: neither their values nor their errors may replace this snapshot.
+    this.#epoch += 1;
+    this.#active = generation;
+    this.#refreshPromise = undefined;
+    this.#lastRefreshError = undefined;
+    this.#nextRefreshAttemptAt = generation.refreshDueAt;
+    return this.status();
+  }
+
   status(): ContractGenerationStatus {
     const active = this.#active;
     return {

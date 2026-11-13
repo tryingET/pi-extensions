@@ -251,6 +251,7 @@ async function loadContract(): Promise<LoadedContract> {
 /** One independent source read after awaited work; registration must not reuse a prior health snapshot. */
 export async function readRegistrationSnapshot() {
   const sources = await loadAvailableContracts();
+  const generation = contractGenerationCache().adopt(sources);
   const merged = mergeContracts(sources);
   const seen = new Set<string>();
   const bindings: ContractBinding[] = [];
@@ -262,10 +263,10 @@ export async function readRegistrationSnapshot() {
       bindings.push({
         ...owner,
         model,
-        generationId: workstationContractGenerationStatus().generationId ?? 0,
+        generationId: generation.generationId ?? 0,
       });
     }
-  return { ...merged, bindings };
+  return { ...merged, bindings, generation };
 }
 
 export async function refreshWorkstationContractGeneration(): Promise<ContractGenerationStatus> {

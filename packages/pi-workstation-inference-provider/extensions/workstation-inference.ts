@@ -171,6 +171,7 @@ export default async function (pi: ExtensionAPI) {
       const current = await readRegistrationSnapshot();
       status.contract = current.contract;
       status.source = current.source;
+      status.generation = current.generation;
       status.declaration = "valid";
       status.capacity = contractCapacityStatus(current.contract);
       status.status = status.status === "unhealthy" ? "unhealthy" : "ok";
