@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
+import { capacityStatus } from "./capacity.ts";
 
 const LIMIT = 65536;
 export const ALIAS = "baseline-multimodal";
@@ -52,10 +53,12 @@ export function parseContract(text: string, now = Date.now()) {
   inspect(raw);
   const c = record(raw);
   assert(
-    c.schema_version === 1 &&
+    c.schema_version === 2 &&
       c.authority === "workstation/lane-op" &&
       c.family === "baseline-text" &&
-      c.surface === "canonical",
+      c.surface === "canonical" &&
+      c.provider_id === "workstation-inference" &&
+      (c.runtime_profile_id === undefined || c.runtime_profile_id === ""),
     "Wrong contract authority, schema or scope",
   );
   const baseUrl = loopback(c.base_url, "/v1");
@@ -89,6 +92,11 @@ export function parseContract(text: string, now = Date.now()) {
     "Invalid model list",
   );
   const models = c.models.map(record);
+  for (const model of models)
+    assert(
+      model.id === undefined || model.id === model.pi_model_id,
+      "Contradictory id and pi_model_id",
+    );
   const ids = models.map((m) => m.pi_model_id);
   assert(
     ids.every((id) => typeof id === "string" && /^[a-z0-9][a-z0-9._-]{0,127}$/.test(id)) &&
@@ -104,21 +112,15 @@ export function parseContract(text: string, now = Date.now()) {
       model.input.includes("image"),
     "Required baseline-multimodal text+image alias absent",
   );
-  for (const field of ["context_window", "max_tokens"])
-    assert(
-      Number.isInteger(model[field]) && Number(model[field]) > 0 && Number(model[field]) <= 2097152,
-      "Invalid model bounds",
-    );
-  assert(
-    Number(model.max_tokens) <= Number(model.context_window),
-    "Output budget exceeds context window",
-  );
+  // Schema2 compatibility hints/current-route data are never capacity permission.
+  const capacity = capacityStatus(model.capacity, now / 1000);
   return {
     baseUrl,
     generatedAt: c.generated_at,
     freshness: now - generated > Number(c.refresh_after_seconds) * 1000 ? "stale" : "fresh",
     alias: ALIAS,
     capability: ["text", "image"],
+    capacity,
   };
 }
 export async function readContract() {
@@ -159,6 +161,12 @@ export function recipe(c: ReturnType<typeof parseContract>) {
     c.freshness === "fresh",
     "Contract declaration is stale; ask workstation owner to refresh it. No lifecycle action performed.",
   );
+  assert(
+    c.capacity.admissible &&
+      c.capacity.expiresAt !== null &&
+      Date.now() / 1000 < c.capacity.expiresAt,
+    `Soma capacity is not eligible: ${c.capacity.reason ?? "expired source proof"}. No browser configuration emitted or revoked.`,
+  );
   return {
     schemaVersion: 1,
     declaration: c,
@@ -193,7 +201,7 @@ export function recipe(c: ReturnType<typeof parseContract>) {
       "Test explicitly in the browser. Browser loopback permission, CORS, authentication and JSON prompts_responses response support remain unverified. Do not import whole settings: that clears sync storage.",
     ],
     limitation:
-      "The model supports text+image; current native Interpreter sends text strings only. No automatic image/video processing.",
+      "The model supports text+image; current native Interpreter sends text strings only. No automatic image/video processing. This preview does not revoke existing browser configuration or enforce later browser dispatch capacity; the endpoint/backend owns token accounting.",
   };
 }
 export async function command(args: string) {

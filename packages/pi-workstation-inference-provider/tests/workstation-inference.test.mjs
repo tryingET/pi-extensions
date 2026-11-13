@@ -148,6 +148,7 @@ test("default provider registration merges baseline and distinct Inkling canary 
       join(stateDir, "workstation-inference-provider.canary.json"),
       JSON.stringify(
         contract({
+          schema_version: 1,
           surface: "canary",
           base_url: "http://127.0.0.1:1334/v1",
           health_url: "http://127.0.0.1:1334/health",
@@ -464,7 +465,7 @@ test("IW9: known-dead lanes deny their models fast; healthy lanes proceed", asyn
               },
               {
                 lane_id: "qwopus4b_q8_f16",
-                models: ["baseline-text-small", "baseline-text-small-visible"],
+                models: ["think-small"],
                 healthy: true,
                 is_default: false,
               },
@@ -476,11 +477,7 @@ test("IW9: known-dead lanes deny their models fast; healthy lanes proceed", asyn
     };
     process.env[CONTRACT_JSON_ENV] = JSON.stringify(
       contract({
-        models: [
-          { id: "baseline-text" },
-          { id: "baseline-text-visible" },
-          { id: "baseline-text-small" },
-        ],
+        models: [{ id: "baseline-text" }, { id: "baseline-text-visible" }, { id: "think-small" }],
       }),
     );
     __resetWorkstationInferenceCachesForTests();
@@ -493,8 +490,8 @@ test("IW9: known-dead lanes deny their models fast; healthy lanes proceed", asyn
     const dead = resolveContractForModel("baseline-text");
     await assert.rejects(dead, /unhealthy lane qwen27b_configi.*connection refused/u);
 
-    const alive = await resolveContractForModel("baseline-text-small");
-    assert.equal(alive.model.id, "baseline-text-small");
+    const alive = await resolveContractForModel("think-small");
+    assert.equal(alive.model.id, "think-small");
   } finally {
     globalThis.fetch = oldFetch;
     if (oldInline === undefined) delete process.env[CONTRACT_JSON_ENV];

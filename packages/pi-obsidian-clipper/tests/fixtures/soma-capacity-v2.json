@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "authority": "workstation/lane-op",
+  "provider_id": "workstation-inference",
+  "provider_name": "Workstation Inference",
+  "family": "baseline-text",
+  "surface": "canonical",
+  "generated_at": "2027-01-15T08:00:00Z",
+  "refresh_after_seconds": 60,
+  "base_url": "http://127.0.0.1:1200/v1",
+  "health_url": "http://127.0.0.1:1200/health",
+  "models_url": "http://127.0.0.1:1200/v1/models",
+  "models": [
+    {
+      "pi_model_id": "baseline-multimodal",
+      "name": "Baseline multimodal (synthetic capacity fixture)",
+      "input": ["text", "image"],
+      "reasoning": true,
+      "thinking_format": "qwen-chat-template",
+      "thinking_level_map": { "high": "high" },
+      "capacity": {
+        "schema": "soma.capacity/v1",
+        "source_generated_at": 1800000000,
+        "expires_at": 1800000590,
+        "availability": "available",
+        "guaranteed": {
+          "state": "observed",
+          "context_window": 32768,
+          "max_output_tokens": 32767,
+          "max_tokens": 32767
+        }
+      }
+    }
+  ]
+}

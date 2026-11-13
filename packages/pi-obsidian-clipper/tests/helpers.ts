@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 export function contract() {
   return {
-    schema_version: 1,
+    schema_version: 2,
+    provider_id: "workstation-inference",
     authority: "workstation/lane-op",
     family: "baseline-text",
     surface: "canonical",
@@ -17,6 +18,18 @@ export function contract() {
         input: ["text", "image"],
         context_window: 262144,
         max_tokens: 131072,
+        capacity: {
+          schema: "soma.capacity/v1",
+          source_generated_at: Date.now() / 1000 - 1,
+          expires_at: Date.now() / 1000 + 590,
+          availability: "available",
+          guaranteed: {
+            state: "observed",
+            context_window: 262144,
+            max_output_tokens: 262143,
+            max_tokens: 262143,
+          },
+        },
         upstream_model: "MUST-NOT-EXPORT",
       },
     ],

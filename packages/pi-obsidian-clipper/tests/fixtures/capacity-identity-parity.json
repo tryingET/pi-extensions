@@ -1,0 +1,23 @@
+[
+  { "name": "pi alias only", "patch": {}, "eligible": true },
+  { "name": "matching identity", "patch": { "id": "baseline-multimodal" }, "eligible": true },
+  { "name": "contradictory identity", "patch": { "id": "baseline-text" }, "eligible": false },
+  { "name": "empty contradictory identity", "patch": { "id": "" }, "eligible": false },
+  {
+    "name": "whitespace contradictory identity",
+    "patch": { "id": " baseline-multimodal " },
+    "eligible": false
+  },
+  { "name": "invalid identity type", "patch": { "id": null }, "eligible": false },
+  { "name": "empty profile", "profile": "", "patch": {}, "eligible": true },
+  {
+    "name": "runtime profile",
+    "profile": "workbench-inkling-canary",
+    "patch": {},
+    "eligible": false
+  },
+  { "name": "whitespace profile", "profile": " ", "patch": {}, "eligible": false },
+  { "name": "null profile", "profile": null, "patch": {}, "eligible": false },
+  { "name": "numeric profile", "profile": 0, "patch": {}, "eligible": false },
+  { "name": "boolean profile", "profile": false, "patch": {}, "eligible": false }
+]

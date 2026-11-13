@@ -14,12 +14,14 @@ import {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { latestUserAudioMarker } from "./workstation-audio.ts";
 import {
+  admissibleModels,
   type ContractModel,
   DEFAULT_PROVIDER_ID,
   DEFAULT_PROVIDER_NAME,
   INKLING_CANARY_MODEL_ID,
   normalizeBaseUrl,
   providerModel,
+  readRegistrationSnapshot,
   resolveContractForModel,
   resolveContractStatus,
   WORKSTATION_API_ID,
@@ -138,7 +140,7 @@ function assertWirePayload(value: unknown, supportsImages: boolean): Record<stri
 }
 
 function fingerprint(binding: Binding): string {
-  return JSON.stringify([binding.contract, binding.model]);
+  return JSON.stringify([binding.source, binding.sourceRole, binding.contract, binding.model]);
 }
 
 function boundedStream(
@@ -233,18 +235,24 @@ function boundedStream(
   return stream;
 }
 
+const registered = new WeakMap<ExtensionAPI, string>();
 export default async function (pi: ExtensionAPI): Promise<void> {
+  const prior = registered.get(pi);
+  if (prior) {
+    pi.unregisterProvider(prior);
+    registered.delete(pi);
+  }
   const initial = await resolveContractStatus({ checkHealth: false, refreshContracts: true });
   if (initial.status !== "ok" || !initial.contract || initial.generation?.lastRefreshError) {
     throw new Error(`provider-only contract unavailable: ${initial.detail ?? initial.summary}`);
   }
-  const contract = initial.contract;
+  const snapshot = await readRegistrationSnapshot();
+  const contract = snapshot.contract;
   const providerId = contract.provider_id ?? DEFAULT_PROVIDER_ID;
   const bindings = new Map<string, Binding>();
-  for (const model of contract.models) {
-    const binding = await resolveContractForModel(model.pi_model_id ?? model.id ?? "", {
-      checkHealth: false,
-    });
+  const eligible = new Set(admissibleModels(contract));
+  for (const binding of snapshot.bindings) {
+    if (!eligible.has(binding.model)) continue;
     if (!supported(binding.contract, binding.model)) continue;
     if ((binding.contract.provider_id ?? DEFAULT_PROVIDER_ID) !== providerId) {
       throw new Error("provider-only merged contracts disagree on provider identity");
@@ -266,4 +274,5 @@ export default async function (pi: ExtensionAPI): Promise<void> {
       return boundedStream(binding, model, context, options);
     },
   });
+  registered.set(pi, providerId);
 }

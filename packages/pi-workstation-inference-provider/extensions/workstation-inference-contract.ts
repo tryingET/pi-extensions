@@ -1,8 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type Static, Type } from "typebox";
-import { Value } from "typebox/value";
+import { capacityAdmission, SOMA_ALIASES } from "./workstation-capacity.ts";
+import {
+  type ContractModel,
+  parseContract,
+  stringValue,
+  type WorkstationInferenceContract,
+} from "./workstation-inference-schema.ts";
+
+export {
+  type ContractModel,
+  stringValue,
+  type WorkstationInferenceContract,
+} from "./workstation-inference-schema.ts";
+
 import type { AudioInputPolicy } from "./workstation-audio.ts";
 import {
   ContractGenerationCache,
@@ -16,88 +28,131 @@ import {
 
 type NotifyLevel = "info" | "warning" | "error";
 
-const OptionalString = Type.Optional(Type.String());
-const OptionalPositiveNumber = Type.Optional(Type.Number({ exclusiveMinimum: 0 }));
-const ThinkingLevelMapSchema = Type.Object(
-  {
-    minimal: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    low: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    medium: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    high: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    xhigh: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  },
-  { additionalProperties: false },
-);
-const InputKindSchema = Type.Union([Type.Literal("text"), Type.Literal("image")]);
-const NativeInputKindSchema = Type.Union([
-  Type.Literal("text"),
-  Type.Literal("image"),
-  Type.Literal("audio"),
-]);
-const AudioFormatSchema = Type.Union([
-  Type.Literal("wav"),
-  Type.Literal("mp3"),
-  Type.Literal("flac"),
-]);
-const AudioInputSchema = Type.Object(
-  {
-    request_format: Type.Literal("openai-chat-input-audio"),
-    formats: Type.Array(AudioFormatSchema, { minItems: 1 }),
-    max_bytes: Type.Number({ minimum: 1 }),
-    max_encoded_bytes: Type.Number({ minimum: 1 }),
-    transport: Type.Literal("inline-base64"),
-    authorization_mode: Type.Literal("external-scheduler-claim-required"),
-  },
-  { additionalProperties: false },
-);
-const ContractModelSchema = Type.Object(
-  {
-    id: OptionalString,
-    pi_model_id: OptionalString,
-    name: OptionalString,
-    upstream_model: OptionalString,
-    context_window: OptionalPositiveNumber,
-    max_tokens: OptionalPositiveNumber,
-    reasoning: Type.Optional(Type.Boolean()),
-    thinking_level_map: Type.Optional(ThinkingLevelMapSchema),
-    thinking_format: Type.Optional(
-      Type.Union([Type.Literal("qwen"), Type.Literal("qwen-chat-template")]),
-    ),
-    input: Type.Optional(Type.Array(InputKindSchema, { minItems: 1 })),
-    native_input_modalities: Type.Optional(Type.Array(NativeInputKindSchema, { minItems: 1 })),
-    audio_input: Type.Optional(AudioInputSchema),
-  },
-  { additionalProperties: true },
-);
-const WorkstationInferenceContractSchema = Type.Object(
-  {
-    schema_version: Type.Literal(1),
-    authority: OptionalString,
-    family: OptionalString,
-    surface: OptionalString,
-    generated_at: OptionalString,
-    stale_after_seconds: OptionalPositiveNumber,
-    refresh_after_seconds: OptionalPositiveNumber,
-    provider_id: OptionalString,
-    provider_name: OptionalString,
-    runtime_profile_id: OptionalString,
-    base_url: Type.String({ minLength: 1 }),
-    health_url: OptionalString,
-    api_key_env: OptionalString,
-    api_key: OptionalString,
-    recovery_hint: OptionalString,
-    models: Type.Array(ContractModelSchema, { minItems: 1 }),
-  },
-  { additionalProperties: true },
-);
-
-export type ContractModel = Static<typeof ContractModelSchema>;
-export type WorkstationInferenceContract = Static<typeof WorkstationInferenceContractSchema>;
-
+type SourceRole = "canonical" | "optional";
 type LoadedContract = {
   contract: WorkstationInferenceContract;
   source: string;
+  sourceRole?: SourceRole;
 };
+export type ContractBinding = LoadedContract & { model: ContractModel; generationId: number };
+// Source-role metadata is local reader state, never a producer-overridable wire field.
+const optionalCapacityModels = new WeakSet<ContractModel>();
+export const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
+export const CANARY_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CANARY_CONTRACT";
+export const INKLING_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_INKLING_CONTRACT";
+export const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
+export const WORKSTATION_ROOT_ENV = "PI_WORKSTATION_ROOT";
+export const DEFAULT_WORKSTATION_ROOT = join(
+  homedir(),
+  "ai-society",
+  "softwareco",
+  "infra",
+  "workstation",
+);
+export const LANE_OP_SCRIPT = join("scripts", "phasee", "lane-op.py");
+let sourceErrors: string[] = [];
+export function workstationRoot(): string {
+  return process.env[WORKSTATION_ROOT_ENV]?.trim() || DEFAULT_WORKSTATION_ROOT;
+}
+export function defaultContractPath(surface: "canonical" | "canary" = "canonical"): string {
+  return join(
+    workstationRoot(),
+    "phasee",
+    "state",
+    surface === "canary"
+      ? "workstation-inference-provider.canary.json"
+      : "workstation-inference-provider.json",
+  );
+}
+export function defaultInklingContractPath(): string {
+  return join(
+    workstationRoot(),
+    "phasee",
+    "state",
+    "workstation-inference-provider.inkling-canary.json",
+  );
+}
+async function loadPath(path: string): Promise<LoadedContract> {
+  return { contract: parseContract(JSON.parse(await readFile(path, "utf8"))), source: path };
+}
+async function loadAvailableContracts(): Promise<LoadedContract[]> {
+  const inline = process.env[CONTRACT_JSON_ENV];
+  const explicit = inline?.trim() || process.env[CONTRACT_ENV]?.trim();
+  const candidates: {
+    source: string;
+    sourceRole: SourceRole;
+    load: () => Promise<LoadedContract>;
+  }[] = [
+    {
+      sourceRole: "canonical",
+      source: inline?.trim()
+        ? CONTRACT_JSON_ENV
+        : process.env[CONTRACT_ENV]?.trim() || defaultContractPath(),
+      load: async () => {
+        const current = process.env[CONTRACT_JSON_ENV];
+        return current?.trim()
+          ? { contract: parseContract(JSON.parse(current)), source: CONTRACT_JSON_ENV }
+          : loadPath(process.env[CONTRACT_ENV]?.trim() || defaultContractPath());
+      },
+    },
+  ];
+  for (const [env, fallback] of [
+    [CANARY_CONTRACT_ENV, defaultContractPath("canary")],
+    [INKLING_CONTRACT_ENV, defaultInklingContractPath()],
+  ]) {
+    const path = process.env[env]?.trim();
+    if (!explicit || path)
+      candidates.push({
+        source: path || fallback,
+        sourceRole: "optional",
+        load: () => loadPath(path || fallback),
+      });
+  }
+  const loaded: LoadedContract[] = [];
+  const errors: string[] = [];
+  let onlyMissing = true;
+  // Read primary authority after optional I/O, but keep canonical-first precedence.
+  for (const c of candidates.slice(1).concat(candidates.slice(0, 1))) {
+    try {
+      const row = await c.load();
+      if (c.sourceRole === "optional")
+        for (const model of row.contract.models) {
+          if (SOMA_ALIASES.has(model.pi_model_id ?? model.id ?? ""))
+            optionalCapacityModels.add(model);
+        }
+      const owned = { ...row, sourceRole: c.sourceRole };
+      if (c.sourceRole === "canonical") loaded.unshift(owned);
+      else loaded.push(owned);
+    } catch (error) {
+      onlyMissing &&= error instanceof Error && "code" in error && error.code === "ENOENT";
+      errors.push(`${c.source}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  sourceErrors = errors;
+  if (!loaded.length) {
+    const error = new Error(errors.join("; ") || "no workstation inference contracts loaded");
+    error.name = onlyMissing ? "WorkstationContractMissing" : "WorkstationContractInvalid";
+    throw error;
+  }
+  return loaded;
+}
+function mergeContracts(loaded: LoadedContract[]): LoadedContract {
+  const primary = loaded[0];
+  if (!primary) throw new Error("no workstation inference contracts loaded");
+  const seen = new Set<string>();
+  const models = loaded.flatMap(({ contract }) =>
+    contract.models.filter((m) => {
+      const id = m.pi_model_id ?? m.id;
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }),
+  );
+  return {
+    contract: { ...primary.contract, models },
+    source: loaded.map((c) => c.source).join(" + "),
+  };
+}
 
 type Status = "ok" | "missing" | "invalid" | "unhealthy";
 
@@ -109,6 +164,10 @@ export type ContractStatus = {
   contract?: WorkstationInferenceContract;
   generation?: ContractGenerationStatus;
   health?: EndpointHealthStatus[];
+  declaration?: "valid" | "invalid" | "missing";
+  capacity?: { id: string; admissible: boolean; reason?: string }[];
+  registeredModels?: string[];
+  withdrawal?: string;
 };
 
 export const DEFAULT_PROVIDER_ID = "workstation-inference";
@@ -130,19 +189,6 @@ const HEALTH_CACHE_TTL_ENV = "PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS";
 const CONTRACT_REFRESH_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_REFRESH_MS";
 const CONTRACT_REFRESH_RETRY_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_REFRESH_RETRY_MS";
 const DEFAULT_API_KEY = "workstation-local";
-export const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
-export const CANARY_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CANARY_CONTRACT";
-export const INKLING_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_INKLING_CONTRACT";
-export const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
-export const WORKSTATION_ROOT_ENV = "PI_WORKSTATION_ROOT";
-export const DEFAULT_WORKSTATION_ROOT = join(
-  homedir(),
-  "ai-society",
-  "softwareco",
-  "infra",
-  "workstation",
-);
-export const LANE_OP_SCRIPT = join("scripts", "phasee", "lane-op.py");
 
 let contractGenerations:
   | ContractGenerationCache<WorkstationInferenceContract, ContractModel>
@@ -167,173 +213,6 @@ export function clearWorkstationContractCache(): void {
 export function clearWorkstationProviderCaches(): void {
   clearWorkstationHealthCache();
   clearWorkstationContractCache();
-}
-
-export function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-const TRUSTED_AUTHORITIES = new Set([
-  "workstation/lane-op",
-  "workstation/runtime-ownership-scheduler",
-]);
-
-function loopbackUrl(value: string, label: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error(`${label} must be an absolute loopback URL`);
-  }
-  if (
-    parsed.protocol !== "http:" ||
-    !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash
-  ) {
-    throw new Error(`${label} must be credential-free loopback HTTP without query or fragment`);
-  }
-  return parsed.toString().replace(/\/$/, "");
-}
-
-function schemaErrorSummary(payload: unknown): string {
-  return (
-    [...Value.Errors(WorkstationInferenceContractSchema, payload)]
-      .slice(0, 5)
-      .map((error) => `${error.instancePath || "/"} ${error.message}`)
-      .join("; ") || "contract schema validation failed"
-  );
-}
-
-function normalizeModel(model: ContractModel, index: number): ContractModel {
-  const id = stringValue(model.id) ?? stringValue(model.pi_model_id);
-  if (!id) throw new Error(`models[${index}] needs id or pi_model_id`);
-  return {
-    ...model,
-    id,
-    pi_model_id: id,
-    name: stringValue(model.name) ?? id,
-    upstream_model: stringValue(model.upstream_model),
-    thinking_format: model.thinking_format,
-  };
-}
-
-function parseContract(payload: unknown): WorkstationInferenceContract {
-  if (!Value.Check(WorkstationInferenceContractSchema, payload)) {
-    throw new Error(`contract schema validation failed: ${schemaErrorSummary(payload)}`);
-  }
-
-  const contract = payload as WorkstationInferenceContract;
-  const baseUrl = stringValue(contract.base_url);
-  if (!baseUrl) throw new Error("base_url is required");
-  const authority = stringValue(contract.authority);
-  if (!authority || !TRUSTED_AUTHORITIES.has(authority)) {
-    throw new Error("contract authority is not a trusted workstation owner");
-  }
-  const healthUrl = stringValue(contract.health_url);
-  return {
-    ...contract,
-    authority,
-    family: stringValue(contract.family),
-    surface: stringValue(contract.surface),
-    generated_at: stringValue(contract.generated_at),
-    provider_id: stringValue(contract.provider_id),
-    provider_name: stringValue(contract.provider_name),
-    base_url: loopbackUrl(baseUrl, "base_url"),
-    health_url: healthUrl ? loopbackUrl(healthUrl, "health_url") : undefined,
-    api_key_env: stringValue(contract.api_key_env),
-    api_key: stringValue(contract.api_key),
-    recovery_hint: stringValue(contract.recovery_hint),
-    models: contract.models.map(normalizeModel),
-  };
-}
-
-export function workstationRoot(): string {
-  return process.env[WORKSTATION_ROOT_ENV]?.trim() || DEFAULT_WORKSTATION_ROOT;
-}
-
-export function defaultContractPath(surface: "canonical" | "canary" = "canonical"): string {
-  return join(
-    workstationRoot(),
-    "phasee",
-    "state",
-    surface === "canary"
-      ? "workstation-inference-provider.canary.json"
-      : "workstation-inference-provider.json",
-  );
-}
-
-export function defaultInklingContractPath(): string {
-  return join(
-    workstationRoot(),
-    "phasee",
-    "state",
-    "workstation-inference-provider.inkling-canary.json",
-  );
-}
-
-async function loadContractFromPath(path: string): Promise<LoadedContract> {
-  const text = await readFile(path, "utf8");
-  return { contract: parseContract(JSON.parse(text)), source: path };
-}
-
-async function loadPrimaryContract(): Promise<LoadedContract> {
-  const inline = process.env[CONTRACT_JSON_ENV];
-  if (inline?.trim()) {
-    return { contract: parseContract(JSON.parse(inline)), source: CONTRACT_JSON_ENV };
-  }
-
-  const path = process.env[CONTRACT_ENV]?.trim() || defaultContractPath("canonical");
-  return loadContractFromPath(path);
-}
-
-async function loadAvailableContracts(): Promise<LoadedContract[]> {
-  const primary = await loadPrimaryContract();
-  if (process.env[CONTRACT_JSON_ENV]?.trim() || process.env[CONTRACT_ENV]?.trim()) return [primary];
-
-  const loaded = [primary];
-  const optionalContracts = [
-    {
-      label: "baseline canary",
-      path: process.env[CANARY_CONTRACT_ENV]?.trim() || defaultContractPath("canary"),
-    },
-    {
-      label: "Inkling canary",
-      path: process.env[INKLING_CONTRACT_ENV]?.trim() || defaultInklingContractPath(),
-    },
-  ];
-  for (const candidate of optionalContracts) {
-    try {
-      loaded.push(await loadContractFromPath(candidate.path));
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      if (!detail.includes("ENOENT")) {
-        console.warn(`workstation inference ${candidate.label} contract ignored: ${detail}`);
-      }
-    }
-  }
-  return loaded;
-}
-
-function mergeContracts(loadedContracts: LoadedContract[]): LoadedContract {
-  const [primary] = loadedContracts;
-  if (!primary) throw new Error("no workstation inference contracts loaded");
-  const seen = new Set<string>();
-  const models: ContractModel[] = [];
-  for (const loaded of loadedContracts) {
-    for (const model of loaded.contract.models) {
-      const id = model.pi_model_id ?? model.id;
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      models.push(model);
-    }
-  }
-  return {
-    contract: { ...primary.contract, models },
-    source: loadedContracts.map((loaded) => loaded.source).join(" + "),
-  };
 }
 
 /** Test isolation hook: drops process-global caches so each scenario
@@ -367,6 +246,26 @@ function contractGenerationCache() {
 
 async function loadContract(): Promise<LoadedContract> {
   return contractGenerationCache().merged();
+}
+
+/** One independent source read after awaited work; registration must not reuse a prior health snapshot. */
+export async function readRegistrationSnapshot() {
+  const sources = await loadAvailableContracts();
+  const merged = mergeContracts(sources);
+  const seen = new Set<string>();
+  const bindings: ContractBinding[] = [];
+  for (const owner of sources)
+    for (const model of owner.contract.models) {
+      const id = model.pi_model_id ?? model.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      bindings.push({
+        ...owner,
+        model,
+        generationId: workstationContractGenerationStatus().generationId ?? 0,
+      });
+    }
+  return { ...merged, bindings };
 }
 
 export async function refreshWorkstationContractGeneration(): Promise<ContractGenerationStatus> {
@@ -505,13 +404,35 @@ export function staleDetail(contract: WorkstationInferenceContract): string | un
 export async function resolveContractForModel(
   modelId: string,
   options: { checkHealth?: boolean; healthMode?: HealthMode; signal?: AbortSignal } = {},
-): Promise<{
-  contract: WorkstationInferenceContract;
-  model: ContractModel;
-  source: string;
-  generationId: number;
-}> {
-  const selected = await contractGenerationCache().resolve(modelId);
+): Promise<ContractBinding> {
+  let selected: ContractBinding | undefined = await contractGenerationCache().resolve(modelId);
+  if (selected)
+    selected = {
+      ...selected,
+      sourceRole: (
+        contractGenerationCache()
+          .sourcesCurrent()
+          .find((s) => s.source === selected?.source) as LoadedContract | undefined
+      )?.sourceRole,
+    };
+  if (
+    SOMA_ALIASES.has(modelId) ||
+    selected?.contract.schema_version === 2 ||
+    (selected && "capacity" in selected.model)
+  ) {
+    // Canonical permission never uses the latency cache or a shared in-flight refresh.
+    const sources = await loadAvailableContracts();
+    const owner = sources.find((source) => source.sourceRole === "canonical");
+    const current = owner?.contract.models.find((m) => (m.pi_model_id ?? m.id) === modelId);
+    if (!owner || !current || owner.contract.schema_version !== 2)
+      throw new Error(`capacity binding unavailable for ${modelId}`);
+    assertCapacity(current);
+    selected = {
+      ...owner,
+      model: current,
+      generationId: workstationContractGenerationStatus().generationId ?? 0,
+    };
+  }
   if (!selected) {
     throw new Error(`model ${modelId} is not present in the current workstation contracts`);
   }
@@ -564,8 +485,10 @@ export async function resolveContractStatus(
     loaded = await loadContract();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    const missing = error instanceof Error && error.name === "WorkstationContractMissing";
     return {
-      status: detail.includes("ENOENT") ? "missing" : "invalid",
+      status: missing ? "missing" : "invalid",
+      declaration: missing ? "missing" : "invalid",
       summary: "workstation inference contract is not available",
       detail: refreshError ? `refresh failed: ${refreshError}; ${detail}` : detail,
       generation: workstationContractGenerationStatus(),
@@ -573,9 +496,20 @@ export async function resolveContractStatus(
     };
   }
 
+  if (refreshError && loaded.contract.models.some((m) => "capacity" in m)) {
+    return {
+      status: "invalid",
+      declaration: "invalid",
+      summary: "canonical capacity source refresh failed; previous generation is not permission",
+      detail: refreshError,
+      generation: workstationContractGenerationStatus(),
+      health: workstationHealthStatus(),
+    };
+  }
+  const capacity = contractCapacityStatus(loaded.contract);
   const stale = staleDetail(loaded.contract);
   const advisory =
-    [refreshError ? `contract refresh failed: ${refreshError}` : undefined, stale]
+    [refreshError ? `contract refresh failed: ${refreshError}` : undefined, stale, ...sourceErrors]
       .filter((detail): detail is string => Boolean(detail))
       .join("; ") || undefined;
 
@@ -584,6 +518,8 @@ export async function resolveContractStatus(
     if (unhealthy) {
       return {
         status: "unhealthy",
+        declaration: "valid",
+        capacity,
         source: loaded.source,
         summary: "workstation inference endpoint is not healthy",
         detail: unhealthy,
@@ -596,12 +532,16 @@ export async function resolveContractStatus(
 
   return {
     status: "ok",
+    declaration: "valid",
+    capacity,
     source: loaded.source,
-    summary: refreshError
-      ? "workstation inference contract remains usable from the previous generation"
-      : stale
-        ? "workstation inference contract is usable but should be refreshed"
-        : "workstation inference contract is usable",
+    summary: !capacity.some((m) => m.admissible)
+      ? "workstation declaration is valid; no capacity-admissible models"
+      : refreshError
+        ? "workstation inference contract remains usable from the previous generation"
+        : stale
+          ? "workstation inference contract is usable but should be refreshed"
+          : "workstation inference contract is usable",
     detail: advisory,
     contract: loaded.contract,
     generation: workstationContractGenerationStatus(),
@@ -609,7 +549,36 @@ export async function resolveContractStatus(
   };
 }
 
+function modelAdmission(model: ContractModel) {
+  return optionalCapacityModels.has(model)
+    ? { admissible: false as const, reason: "optional source is not canonical capacity authority" }
+    : capacityAdmission(model.capacity);
+}
+export function contractCapacityStatus(contract: WorkstationInferenceContract) {
+  return contract.models.map((m) => ({
+    id: m.pi_model_id ?? m.id ?? "",
+    ...("capacity" in m
+      ? modelAdmission(m)
+      : { admissible: true, reason: "legacy unrelated canary" }),
+  }));
+}
+export function assertCapacity(model: ContractModel) {
+  const admission = modelAdmission(model);
+  if (!admission.admissible) throw new Error(admission.reason);
+  return admission;
+}
+
+export function admissibleModels(contract: WorkstationInferenceContract): ContractModel[] {
+  return contract.models.filter(
+    (model) => !("capacity" in model) || modelAdmission(model).admissible,
+  );
+}
+
 export function providerModel(model: ContractModel) {
+  const capacity =
+    "capacity" in model || SOMA_ALIASES.has(model.pi_model_id ?? model.id ?? "")
+      ? assertCapacity(model)
+      : undefined;
   const supportsReasoning = model.reasoning ?? false;
   const compat =
     supportsReasoning && model.thinking_format
@@ -621,8 +590,8 @@ export function providerModel(model: ContractModel) {
     reasoning: supportsReasoning,
     thinkingLevelMap: supportsReasoning ? model.thinking_level_map : undefined,
     input: model.input ?? ["text"],
-    contextWindow: model.context_window ?? DEFAULT_CONTEXT_WINDOW,
-    maxTokens: model.max_tokens ?? DEFAULT_MAX_TOKENS,
+    contextWindow: capacity?.contextWindow ?? model.context_window ?? DEFAULT_CONTEXT_WINDOW,
+    maxTokens: capacity?.maxTokens ?? model.max_tokens ?? DEFAULT_MAX_TOKENS,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     compat,
   };

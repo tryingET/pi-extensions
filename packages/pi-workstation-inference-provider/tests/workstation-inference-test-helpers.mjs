@@ -21,9 +21,25 @@ export function withInlineContract(contract, fn) {
     });
 }
 
-export function contract(overrides = {}) {
+export function capacityProof() {
+  const now = Date.now() / 1000;
   return {
-    schema_version: 1,
+    schema: "soma.capacity/v1",
+    source_generated_at: now - 1,
+    expires_at: now + 590,
+    availability: "available",
+    guaranteed: {
+      state: "observed",
+      context_window: 32768,
+      max_output_tokens: 32767,
+      max_tokens: 32767,
+    },
+  };
+}
+
+export function contract(overrides = {}) {
+  const c = {
+    schema_version: 2,
     authority: "workstation/lane-op",
     family: "baseline-text",
     surface: "canonical",
@@ -47,10 +63,23 @@ export function contract(overrides = {}) {
     ],
     ...overrides,
   };
+  if (c.schema_version === 2)
+    c.models = c.models.map((m) => ({ ...m, capacity: m.capacity ?? capacityProof() }));
+  return c;
+}
+
+export function legacyContract(overrides = {}) {
+  return contract({
+    schema_version: 1,
+    surface: "canary",
+    models: [{ pi_model_id: "legacy-text-canary", name: "Visible", input: ["text"] }],
+    ...overrides,
+  });
 }
 
 export function inklingContract(overrides = {}) {
   return contract({
+    schema_version: 1,
     authority: "workstation/runtime-ownership-scheduler",
     family: "native-multimodal",
     surface: "canary",

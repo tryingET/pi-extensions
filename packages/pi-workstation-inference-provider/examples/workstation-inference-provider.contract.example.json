@@ -1,9 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "authority": "workstation/lane-op",
   "family": "baseline-text",
   "surface": "canonical",
-  "generated_at": "2026-05-10T00:00:00Z",
+  "generated_at": "2027-01-15T08:00:00Z",
   "refresh_after_seconds": 3600,
   "provider_id": "workstation-inference",
   "provider_name": "Workstation Inference",
@@ -15,8 +15,18 @@
       "pi_model_id": "baseline-text",
       "name": "Baseline text (lane-op canonical)",
       "upstream_model": "lane-op-routed-baseline-text",
-      "context_window": 131072,
-      "max_tokens": 16384,
+      "capacity": {
+        "schema": "soma.capacity/v1",
+        "source_generated_at": 1800000000,
+        "expires_at": 1800000590,
+        "availability": "available",
+        "guaranteed": {
+          "state": "observed",
+          "context_window": 32768,
+          "max_output_tokens": 32767,
+          "max_tokens": 32767
+        }
+      },
       "reasoning": true,
       "thinking_format": "qwen-chat-template",
       "thinking_level_map": {

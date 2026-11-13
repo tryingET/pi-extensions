@@ -20,9 +20,12 @@ import {
 } from "../extensions/workstation-inference-contract.ts";
 import { currentAudio, setCurrentAudio } from "../extensions/workstation-inference-stream.ts";
 
+import { capacityProof } from "./workstation-inference-test-helpers.mjs";
+
+const proof = capacityProof();
 const entry = new URL("../extensions/workstation-inference-provider-only.ts", import.meta.url);
 const provider = "workstation-inference";
-const ids = ["baseline-text", "baseline-text-visible", "baseline-text-canary"];
+const ids = ["baseline-text", "baseline-text-visible", "baseline-multimodal"];
 // Built rather than written out, so the base64 padding never reads as a comparison operator.
 const fakeAudioDataUrl = `data:audio/wav;base64,${Buffer.from("fake").toString("base64")}`;
 const imageData =
@@ -37,7 +40,7 @@ const context = {
 };
 function contract(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     authority: "workstation/lane-op",
     family: "baseline-text",
     surface: "canonical",
@@ -45,6 +48,7 @@ function contract(overrides = {}) {
     base_url: "http://127.0.0.1:1200/v1",
     models: ids.map((id) => ({
       pi_model_id: id,
+      capacity: proof,
       upstream_model: "raw-artifact",
       input: ["text", "image"],
       reasoning: id !== ids[1],
@@ -203,22 +207,39 @@ for (const id of ids) {
 
 test("Given ordinary non-baseline contracts When invoked Then existing upstream routing is retained", async (t) => {
   const { Given, When, Then } = steps(t);
-  await scenario(t, contract({ family: "native-multimodal" }), async (calls) => {
-    const [{ config }] = await Given(
-      "an ordinary non-baseline contract with a different upstream id",
-      bootstrap,
-    );
-    const outcome = await When("the unchanged shared stream is used", () => result(config));
-    await Then("upstream routing and its existing result-identity limitation are explicit", () => {
-      assert.equal(outcome.message.stopReason, "stop");
-      assert.equal(
-        JSON.parse(calls.find((call) => call.init?.body).init.body).model,
-        "raw-artifact",
+  await scenario(
+    t,
+    contract({
+      schema_version: 1,
+      surface: "canary",
+      family: "native-multimodal",
+      models: contract().models.map((m) => ({
+        ...m,
+        pi_model_id: `${m.pi_model_id}-legacy-canary`,
+      })),
+    }),
+    async (calls) => {
+      const [{ config }] = await Given(
+        "an ordinary non-baseline contract with a different upstream id",
+        bootstrap,
       );
-      assert.equal(outcome.message.model, "raw-artifact");
-      assert.notEqual(outcome.message.model, selected(config).id);
-    });
-  });
+      const outcome = await When("the unchanged shared stream is used", () =>
+        result(config, selected(config, `${ids[0]}-legacy-canary`)),
+      );
+      await Then(
+        "upstream routing and its existing result-identity limitation are explicit",
+        () => {
+          assert.equal(outcome.message.stopReason, "stop");
+          assert.equal(
+            JSON.parse(calls.find((call) => call.init?.body).init.body).model,
+            "raw-artifact",
+          );
+          assert.equal(outcome.message.model, "raw-artifact");
+          assert.notEqual(outcome.message.model, selected(config).id);
+        },
+      );
+    },
+  );
 });
 
 test("Given invalid exact identities When invoking the registration directly Then no fallback or dispatch occurs", async (t) => {
@@ -321,7 +342,7 @@ test("Given a later governed contract generation When an old registration invoke
     process.env[CONTRACT_JSON_ENV] = JSON.stringify(
       contract({ authority: "workstation/runtime-ownership-scheduler" }),
     );
-    await refreshWorkstationContractGeneration();
+    await assert.rejects(refreshWorkstationContractGeneration, /exact canonical Soma/);
     denied(await result(config));
     assert.deepEqual(calls, []);
   });
@@ -510,7 +531,7 @@ test("Given cold registration When deferred ticks pass Then bootstrap schedules 
 test("Given a text-only contract When user or tool-result images are supplied Then no image is silently discarded", async (t) => {
   await scenario(
     t,
-    contract({ models: [{ pi_model_id: ids[0], input: ["text"] }] }),
+    contract({ models: [{ pi_model_id: ids[0], input: ["text"], capacity: proof }] }),
     async (calls) => {
       const [{ config }] = await bootstrap();
       denied(await result(config));
@@ -645,30 +666,34 @@ for (const [label, input, block] of [
 ]) {
   test(`Scenario: final payload image admission — ${label}`, async (t) => {
     const { Given, When, Then } = steps(t);
-    await scenario(t, contract({ models: [{ pi_model_id: ids[0], input }] }), async (calls) => {
-      const [{ config }] = await Given("a model with the declared input capability", bootstrap);
-      const outcome = await When(
-        "an inherited hook replaces user content with the candidate image block",
-        () =>
-          result(
-            config,
-            selected(config),
-            {
-              messages: [{ role: "user", content: "Analyze evidence", timestamp: 1 }],
-            },
-            {
-              onPayload: (payload) => ({
-                ...payload,
-                messages: [{ role: "user", content: [block] }],
-              }),
-            },
-          ),
-      );
-      await Then("final admission returns an error and emits zero inference requests", () => {
-        denied(outcome);
-        assert.equal(calls.filter((call) => call.init?.body).length, 0);
-      });
-    });
+    await scenario(
+      t,
+      contract({ models: [{ pi_model_id: ids[0], input, capacity: proof }] }),
+      async (calls) => {
+        const [{ config }] = await Given("a model with the declared input capability", bootstrap);
+        const outcome = await When(
+          "an inherited hook replaces user content with the candidate image block",
+          () =>
+            result(
+              config,
+              selected(config),
+              {
+                messages: [{ role: "user", content: "Analyze evidence", timestamp: 1 }],
+              },
+              {
+                onPayload: (payload) => ({
+                  ...payload,
+                  messages: [{ role: "user", content: [block] }],
+                }),
+              },
+            ),
+        );
+        await Then("final admission returns an error and emits zero inference requests", () => {
+          denied(outcome);
+          assert.equal(calls.filter((call) => call.init?.body).length, 0);
+        });
+      },
+    );
   });
 }
 

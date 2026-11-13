@@ -11,11 +11,13 @@ import {
 } from "./workstation-authority-channel.ts";
 import { sendAudioTurn, sendWorkbenchAudioTurn } from "./workstation-inference-audio-turn.ts";
 import {
+  admissibleModels,
   CANARY_CONTRACT_ENV,
   CONTRACT_ENV,
   CONTRACT_JSON_ENV,
   type ContractStatus,
   contractApiKey,
+  contractCapacityStatus,
   DEFAULT_PROVIDER_ID,
   DEFAULT_PROVIDER_NAME,
   DEFAULT_WORKSTATION_ROOT,
@@ -28,6 +30,7 @@ import {
   notifyOrLog,
   primeWorkstationHealth,
   providerModel,
+  readRegistrationSnapshot,
   resolveContractStatus,
   WORKSTATION_API_ID,
   WORKSTATION_ROOT_ENV,
@@ -93,6 +96,10 @@ function statusText(status: ContractStatus): string {
   const unhealthy = status.health?.filter((entry) => entry.unhealthy).length ?? 0;
   const lines = [
     `status: ${status.status}`,
+    `declaration: ${status.declaration ?? "unknown"}`,
+    `capacity_admission: ${JSON.stringify(status.capacity ?? [])}`,
+    `registered_models: ${(status.registeredModels ?? []).join(", ") || "none"}`,
+    status.withdrawal ? `withdrawal: ${status.withdrawal}` : undefined,
     `summary: ${status.summary}`,
     status.source ? `source: ${status.source}` : undefined,
     status.detail ? `detail: ${status.detail}` : undefined,
@@ -142,7 +149,49 @@ export default async function (pi: ExtensionAPI) {
   } catch {
     // A failed disposition is indeterminate and never authorizes retry or release.
   }
-  const initial = await resolveContractStatus({ checkHealth: false });
+  const initial = await resolveContractStatus({ checkHealth: false, refreshContracts: true });
+  let registeredProviderId: string | undefined;
+  let registeredIds: string[] = [];
+  const reconcileRegistration = async (status: ContractStatus) => {
+    if (registeredProviderId) {
+      if (typeof pi.unregisterProvider === "function") {
+        pi.unregisterProvider(registeredProviderId);
+        registeredProviderId = undefined;
+        registeredIds = [];
+        status.withdrawal =
+          "provider registration removed; retained selected/UI objects are fenced at dispatch";
+      } else {
+        status.withdrawal =
+          "host cannot remove registration; retained selected/UI entries are fenced at dispatch";
+      }
+    }
+    // Health and other awaited work may have withdrawn the earlier declaration.
+    // Independent reader, not the cache's potentially earlier in-flight refresh.
+    try {
+      const current = await readRegistrationSnapshot();
+      status.contract = current.contract;
+      status.source = current.source;
+      status.declaration = "valid";
+      status.capacity = contractCapacityStatus(current.contract);
+      status.status = status.status === "unhealthy" ? "unhealthy" : "ok";
+      status.summary = "workstation declaration re-read for registration";
+    } catch (error) {
+      status.contract = undefined;
+      status.capacity = [];
+      status.declaration = "invalid";
+      status.status = "invalid";
+      status.summary = "current workstation registration source is unavailable";
+      status.detail = error instanceof Error ? error.message : String(error);
+    }
+    const models = status.contract ? admissibleModels(status.contract) : [];
+    status.registeredModels = [...registeredIds];
+    if (status.declaration === "valid" && status.contract && models.length) {
+      registeredProviderId = registerContractProvider(pi, { ...status.contract, models });
+      registeredIds = models.map((m) => m.pi_model_id ?? m.id ?? "");
+      status.registeredModels = [...registeredIds];
+      void primeWorkstationHealth().catch(() => {});
+    }
+  };
 
   if (typeof pi.on === "function") {
     const dispose = (reason: string) => async () => {
@@ -240,6 +289,7 @@ export default async function (pi: ExtensionAPI) {
           "--write",
         ]);
         if (!canonicalRefresh.ok) {
+          await reconcileRegistration(await resolveContractStatus({ refreshContracts: true }));
           notifyOrLog(
             ctx,
             `workstation inference canonical refresh failed\n${canonicalRefresh.detail}`,
@@ -255,6 +305,7 @@ export default async function (pi: ExtensionAPI) {
           "--write",
         ]);
         if (!canaryRefresh.ok) {
+          await reconcileRegistration(await resolveContractStatus({ refreshContracts: true }));
           notifyOrLog(
             ctx,
             `workstation inference canary refresh failed\n${canaryRefresh.detail}`,
@@ -277,10 +328,7 @@ export default async function (pi: ExtensionAPI) {
           checkHealth: true,
           refreshContracts: true,
         });
-        if (status.status === "ok" && status.contract) {
-          registerContractProvider(pi, status.contract);
-          void primeWorkstationHealth().catch(() => {});
-        }
+        await reconcileRegistration(status);
         notifyOrLog(
           ctx,
           ["refresh: ok", inklingWarning, statusText(status)]
@@ -307,16 +355,10 @@ export default async function (pi: ExtensionAPI) {
         checkHealth: true,
         refreshContracts: true,
       });
-      if (status.status === "ok" && status.contract) {
-        registerContractProvider(pi, status.contract);
-        void primeWorkstationHealth().catch(() => {});
-      }
+      await reconcileRegistration(status);
       notifyOrLog(ctx, statusText(status));
     },
   });
 
-  if (initial.status === "ok" && initial.contract) {
-    registerContractProvider(pi, initial.contract);
-    void primeWorkstationHealth().catch(() => {});
-  }
+  await reconcileRegistration(initial);
 }

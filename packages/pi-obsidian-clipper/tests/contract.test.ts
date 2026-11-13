@@ -32,18 +32,20 @@ test("exact alias and non-secret additive recipe; capability is not payload", ()
 });
 test("wrong authority/schema/scope, missing/raw/duplicate alias, malformed model fields", () => {
   for (const [field, value] of [
-    ["schema_version", 2],
+    ["schema_version", 1],
     ["authority", "browser"],
     ["family", "gpu"],
     ["surface", "candidate"],
   ]) {
     assert.throws(() => parse({ ...contract(), [field]: value }));
   }
-  for (const field of ["context_window", "max_tokens"]) {
+  for (const field of ["context_window", "max_output_tokens", "max_tokens"]) {
     for (const value of [-1, 0, 3.5, 2097153, "2000"]) {
       const c = contract();
-      c.models[0][field] = value;
-      assert.throws(() => parse(c));
+      c.models[0].capacity.guaranteed[field] = value;
+      const status = parse(c);
+      assert.equal(status.capacity.admissible, false);
+      assert.throws(() => recipe(status), /capacity/);
     }
   }
   for (const id of ["baseline-text", "raw-upstream", "bad alias", ""]) {

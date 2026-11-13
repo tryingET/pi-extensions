@@ -21,6 +21,7 @@ import {
   type TerminalProviderClass,
   WORKBENCH_PROFILE_ID,
 } from "./workstation-authority-channel.ts";
+import { capacityFetch } from "./workstation-capacity-dispatch.ts";
 import { createGovernedWorkbenchHttpFetch } from "./workstation-governed-http.ts";
 import {
   audioPolicy,
@@ -243,6 +244,11 @@ export function streamWorkstationInference(
         signal: (options as (SimpleStreamOptions & { signal?: AbortSignal }) | undefined)?.signal,
       });
       const providerId = selected.contract.provider_id ?? DEFAULT_PROVIDER_ID;
+      if (
+        "capacity" in selected.model &&
+        (model.provider !== providerId || model.api !== "workstation-inference")
+      )
+        throw new Error("capacity dispatch requires the exact registered provider/API identity");
       // baseline-text contracts export adapter aliases, not backend request ids.
       // Keep that route so workstation applies visible/off defaults and effort
       // budgets. upstream_model is provenance there; governed audio and other
@@ -281,11 +287,18 @@ export function streamWorkstationInference(
         id: payloadModel,
         api: "openai-completions",
         baseUrl: normalizeBaseUrl(selected.contract.base_url),
+        ...("capacity" in selected.model
+          ? {
+              contextWindow: providerModel(selected.model).contextWindow,
+              maxTokens: providerModel(selected.model).maxTokens,
+            }
+          : {}),
         compat: providerModel(selected.model).compat,
       } as Model<"openai-completions">;
       const inheritedOnPayload = options?.onPayload;
       const workbenchAuthority = attachment?.authority;
-      let governedFetch = options?.fetch;
+      let governedFetch =
+        "capacity" in selected.model ? capacityFetch(selected, options?.fetch) : options?.fetch;
       if (workbenchAuthority && attachment) {
         const governedAttachment = attachment;
         governedFetch = createGovernedWorkbenchHttpFetch({
@@ -313,7 +326,19 @@ export function streamWorkstationInference(
               }
               return transformed;
             }
-          : inheritedOnPayload,
+          : "capacity" in selected.model
+            ? async (payload, callbackModel) => {
+                const inherited = await inheritedOnPayload?.(payload, callbackModel);
+                if (
+                  callbackModel.id !== payloadModel ||
+                  callbackModel.baseUrl !== normalizeBaseUrl(selected.contract.base_url) ||
+                  callbackModel.api !== "openai-completions" ||
+                  callbackModel.provider !== providerId
+                )
+                  throw new Error("capacity payload hook mutated the contract route");
+                return inherited ?? payload;
+              }
+            : inheritedOnPayload,
       });
       let providerError = false;
       let providerTerminalClass: TerminalProviderClass = "ambiguous";

@@ -16,7 +16,10 @@ Pi provider adapter for workstation-owned inference endpoints. Ordinary text/pro
 
 ## Local-first hot path
 
-This package treats the workstation as the primary inference plane. Contract files are parsed into an immutable in-memory generation, ordinary text requests use cached nonblocking health, and governed audio retains blocking owner checks. Modal or another remote provider is an explicit overflow lane rather than a dependency.
+This package treats the workstation as the primary inference plane. Unrelated legacy canaries use immutable cached contract generations; canonical Soma capacity is read fresh at admission and final serialized dispatch, never stale-while-revalidate permission. Ordinary text health remains cached/nonblocking, and governed audio retains blocking owner checks. Modal or another remote provider is an explicit overflow lane rather than a dependency.
+
+**AK8605 is source/offline only; live landing/install/reload remains held.** See the
+[exact schema2 interface, dispatch limits and release ordering](docs/project/2026-11-13-soma-capacity-consumer.md).
 
 Design and rollout details:
 
@@ -51,7 +54,7 @@ The audio path is not globally read-only: it mutates only the externally owned s
 
 ## Contract source
 
-An explicit inline or path contract is loaded alone:
+An explicit inline or path contract selects the primary source (explicit optional canary/Inkling paths are still loaded independently):
 
 1. `PI_WORKSTATION_INFERENCE_CONTRACT_JSON` — inline JSON for tests/manual smoke.
 2. `PI_WORKSTATION_INFERENCE_CONTRACT` — path to one contract JSON.
@@ -72,28 +75,18 @@ Example contract:
 
 - [`examples/workstation-inference-provider.contract.example.json`](examples/workstation-inference-provider.contract.example.json)
 
-Minimal shape:
-
-```json
-{
-  "schema_version": 1,
-  "authority": "workstation/lane-op",
-  "family": "baseline-text",
-  "surface": "canonical",
-  "base_url": "http://127.0.0.1:1200/v1",
-  "health_url": "http://127.0.0.1:1200/health",
-  "models": [
-    {
-      "pi_model_id": "baseline-text",
-      "name": "Baseline text (lane-op canonical)",
-      "context_window": 131072,
-      "max_tokens": 16384,
-      "reasoning": true,
-      "thinking_format": "qwen-chat-template"
-    }
-  ]
-}
-```
+Exact synthetic schema2 fixture:
+[`workstation-inference-provider.capacity-v2.example.json`](examples/workstation-inference-provider.capacity-v2.example.json).
+Canonical Soma schema1 hints are rejected, even when positive. Schema2 registration
+and dispatch require available, observed, consistent safe-integer guaranteed bounds
+and fresh source proof, capped at 600 seconds. Unknown/unavailable aliases remain
+descriptive, never defaulted into usable models. Export clocks cannot extend proof.
+Only explicitly identified unrelated canary sources retain schema1 compatibility.
+Canonical aliases belong exclusively to the designated primary source: an optional
+schema2 copy cannot replace a missing/invalid primary or an omitted alias. Binding
+fingerprints include source identity/role. Both consumers reject contradictory
+`id`/`pi_model_id` declarations and ineligible runtime profiles; registration rereads
+and re-admits authoritative sources after awaited health work.
 
 Contracts must use credential-free loopback HTTP and a recognized workstation authority. If a contract has `generated_at` plus `refresh_after_seconds` (or the legacy `stale_after_seconds`), `/workstation-inference status` reports the refresh warning. Ordinary runtime requests fail closed on missing/invalid/unhealthy contracts through the package's custom stream handler; audio is stricter and rejects stale contract authority.
 
@@ -163,16 +156,15 @@ exact provider/model pair; the host must not substitute another model. No
 it is **not** added to `pi.extensions`, but is included in the publish file list.
 Do not co-load the full lifecycle entrypoint in that worker.
 
-Bootstrap reads the existing contract sources and only calls `registerProvider`:
+Bootstrap reads the existing contract sources and calls `registerProvider` (explicit rebootstrap on the same API removes its prior registration with `unregisterProvider`):
 no health priming/network, audio cleanup, timers, lifecycle handlers, tools,
-commands, session/UI APIs, or exec. Invalid/missing primary contracts and failed
-refreshes reject bootstrap. Existing optional-source parsing/merge rules remain:
-missing/invalid optional contracts contribute no models. Only lane-op models
+commands, session/UI APIs, or exec. Invalid/missing sources are isolated: another valid source can still contribute
+unrelated canaries; an all-unusable catalog rejects bootstrap. Only lane-op models
 without audio declarations, a runtime profile, or the reserved Inkling identity
 are registered; scheduler-owned models are excluded even for text-only requests.
 An all-excluded catalog is an error. Registration never grants audio permission.
 
-Invocation delegates to the **unchanged** workstation stream, preserving contract
+Invocation delegates to the shared capacity-fenced workstation stream, preserving contract
 model mapping, baseline aliases, other-family upstream routing, thinking controls,
 and inherited payload hooks. Admission inspects message content and actual wire
 fields, not arbitrary text, tool schemas, or tool-call arguments. Complete v1 audio
@@ -182,7 +174,8 @@ validation rejects route changes, native audio, and unsupported images, includin
 hook/sampling overrides. Shared
 armed audio is rejected without consuming or cleaning it. Contract changes detected
 after registration require a fresh bootstrap; detected refresh errors fail closed.
-Contract TTL observation is still cached, not instantaneous file revocation.
+Canonical dispatch rereads authoritative bindings after hooks and serialization;
+legacy canary TTL observation remains cached. Already-sent requests are not revoked.
 
 Ordinary invocation retains existing health behavior: a background probe for an
 unknown/stale endpoint, blocking bounded revalidation after a cached failure, and

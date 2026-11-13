@@ -12,7 +12,7 @@ import {
 } from "../extensions/workstation-inference-contract.ts";
 import {
   CONTRACT_JSON_ENV,
-  contract,
+  legacyContract as contract,
   withInlineContract,
 } from "./workstation-inference-test-helpers.mjs";
 
@@ -32,13 +32,13 @@ function delay(ms) {
 
 test("model resolution stays on one immutable generation until refresh", async () => {
   await withInlineContract(contract({ health_url: undefined }), async () => {
-    const first = await resolveContractForModel("baseline-text-visible");
+    const first = await resolveContractForModel("legacy-text-canary");
     process.env[CONTRACT_JSON_ENV] = JSON.stringify(
       contract({
         health_url: undefined,
         models: [
           {
-            pi_model_id: "baseline-text-visible",
+            pi_model_id: "legacy-text-canary",
             name: "Updated",
             reasoning: false,
             input: ["text"],
@@ -47,12 +47,12 @@ test("model resolution stays on one immutable generation until refresh", async (
       }),
     );
 
-    const beforeRefresh = await resolveContractForModel("baseline-text-visible");
+    const beforeRefresh = await resolveContractForModel("legacy-text-canary");
     assert.equal(beforeRefresh.generationId, first.generationId);
     assert.equal(beforeRefresh.model.name, "Visible");
 
     await refreshWorkstationContractGeneration();
-    const afterRefresh = await resolveContractForModel("baseline-text-visible");
+    const afterRefresh = await resolveContractForModel("legacy-text-canary");
     assert.notEqual(afterRefresh.generationId, first.generationId);
     assert.equal(afterRefresh.model.name, "Updated");
   });
@@ -70,7 +70,7 @@ test("background health returns before a slow probe and singleflights callers", 
     await withInlineContract(contract(), async () => {
       const requests = Promise.all(
         Array.from({ length: 100 }, () =>
-          resolveContractForModel("baseline-text-visible", { healthMode: "background" }),
+          resolveContractForModel("legacy-text-canary", { healthMode: "background" }),
         ),
       );
       const outcome = await Promise.race([
@@ -94,7 +94,7 @@ test("blocking health remains available for governed paths", async () => {
   globalThis.fetch = async () => gate.promise;
   try {
     await withInlineContract(contract(), async () => {
-      const request = resolveContractForModel("baseline-text-visible", {
+      const request = resolveContractForModel("legacy-text-canary", {
         healthMode: "blocking",
       });
       const outcome = await Promise.race([
@@ -103,7 +103,7 @@ test("blocking health remains available for governed paths", async () => {
       ]);
       assert.equal(outcome, "waiting");
       gate.resolve(Response.json({ status: "ok" }));
-      assert.equal((await request).model.pi_model_id, "baseline-text-visible");
+      assert.equal((await request).model.pi_model_id, "legacy-text-canary");
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -111,7 +111,7 @@ test("blocking health remains available for governed paths", async () => {
   }
 });
 
-test("failed explicit refresh reports the previous generation as usable", async () => {
+test("unrelated legacy canary failed refresh retains its previous generation; canonical capacity cannot", async () => {
   await withInlineContract(contract({ health_url: undefined }), async () => {
     await resolveContractStatus();
     process.env[CONTRACT_JSON_ENV] = "{not-json";
@@ -119,6 +119,6 @@ test("failed explicit refresh reports the previous generation as usable", async 
     assert.equal(status.status, "ok");
     assert.match(status.summary, /previous generation/);
     assert.match(status.detail, /contract refresh failed/);
-    assert.equal(status.contract?.models[0]?.pi_model_id, "baseline-text-visible");
+    assert.equal(status.contract?.models[0]?.pi_model_id, "legacy-text-canary");
   });
 });

@@ -6,7 +6,10 @@ read_when:
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeContext } from "@earendil-works/pi-ai";
-import { providerModel } from "../extensions/workstation-inference-contract.ts";
+import {
+  providerModel,
+  resolveContractStatus,
+} from "../extensions/workstation-inference-contract.ts";
 import { streamWorkstationInference } from "../extensions/workstation-inference-stream.ts";
 import { contract, withInlineContract } from "./workstation-inference-test-helpers.mjs";
 
@@ -93,7 +96,7 @@ async function capture(
     contract({ health_url: undefined, models: [selectedModel], ...contractOverrides }),
     async () => {
       const model = {
-        ...providerModel(selectedModel),
+        ...providerModel((await resolveContractStatus()).contract.models[0]),
         provider: "workstation-inference",
         api: "workstation-inference",
         baseUrl: "http://127.0.0.1:1200/v1",
@@ -145,17 +148,25 @@ test("visible alias reaches the adapter even with a remembered high effort", asy
 
 test("canary aliases and the id spelling retain their exact adapter route", async () => {
   const model = { ...baselineModel(), pi_model_id: undefined, id: "baseline-text-canary" };
-  const { payload } = await capture(model, {}, { surface: "canary" });
+  const { payload } = await capture(model, {}, { schema_version: 1, surface: "canary" });
   assert.equal(payload.model, "baseline-text-canary");
 });
 
 test("non-baseline contracts retain upstream model routing", async () => {
-  const { payload } = await capture(baselineModel(), {}, { family: "native-multimodal" });
+  const { payload } = await capture(
+    baselineModel("native-text-canary"),
+    {},
+    { schema_version: 1, surface: "canary", family: "native-multimodal" },
+  );
   assert.equal(payload.model, RAW_MODEL);
 });
 
-test("legacy contracts without a family retain upstream model routing", async () => {
-  const { payload } = await capture(baselineModel(), {}, { family: undefined });
+test("explicitly identified unrelated legacy canaries retain upstream model routing", async () => {
+  const { payload } = await capture(
+    baselineModel("legacy-text-canary"),
+    {},
+    { schema_version: 1, surface: "canary", family: "legacy-text" },
+  );
   assert.equal(payload.model, RAW_MODEL);
 });
 

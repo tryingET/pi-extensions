@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "authority": "workstation/lane-op",
-  "family": "baseline-text",
-  "surface": "canonical",
+  "family": "local-text",
+  "surface": "canary",
   "generated_at": "2026-08-20T00:00:00.000Z",
   "refresh_after_seconds": 300,
   "provider_id": "workstation-inference",
@@ -11,7 +11,7 @@
   "health_url": "http://127.0.0.1:8000/health",
   "models": [
     {
-      "pi_model_id": "local-realtime",
+      "pi_model_id": "local-realtime-canary",
       "name": "Local realtime",
       "upstream_model": "replace-with-the-server-model-id",
       "context_window": 65536,

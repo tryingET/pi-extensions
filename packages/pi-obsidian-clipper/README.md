@@ -74,16 +74,37 @@ retention policy; do not delete it merely because the installed source changed.
 Roll back package selection with the Pi owner commands and `/reload`; native
 `current` is separately managed. Neither action reverses browser changes.
 
+## Source-only capacity adoption (AK8605)
+
+This source requires the workstation's schema2 `soma.capacity/v1` projection.
+Unknown/unavailable/expired guarantees remain descriptive in status; setup emits
+no enabled provider/model recipe unless exact `baseline-multimodal` has a fresh,
+available, observed and consistent guarantee. Source proof expires within 600
+seconds; an export timestamp cannot extend it. Contradictory `id`/`pi_model_id`
+fields and nonempty/wrongly typed canonical runtime profiles are rejected, matching
+the provider's identity policy. Identical cross-consumer JSON cases cover these
+checks in both package suites. Schema1 positive hints and old
+`context_tokens` names do not confer permission. No later browser-dispatch bound
+or revocation of existing browser configuration is claimed.
+
+The [exact interface and held release ordering](../pi-workstation-inference-provider/docs/project/2026-11-13-soma-capacity-consumer.md)
+cover both consumers. The identical synthetic fixture lives in
+[`tests/fixtures/soma-capacity-v2.json`](tests/fixtures/soma-capacity-v2.json).
+These are source/offline changes only: canonical landing/install, reload,
+producer integration/publication, live inference and browser actions remain held.
+Old warm Pi consumers need explicit reload/rebootstrap before producer publication
+can be treated as an effective cutover; changing the JSON file alone is not proof.
+
 ## Trusted configuration
 
 - Contract: explicit absolute `PI_OBSIDIAN_CLIPPER_CONTRACT`, otherwise
   `~/ai-society/softwareco/infra/workstation/phasee/state/workstation-inference-provider.json`.
   Bounded regular owner/root-owned, non-symlink, non-group/world-writable file;
-  schema 1, `workstation/lane-op`, `baseline-text`, `canonical`; canonical
+  schema 2, provider `workstation-inference`, `workstation/lane-op`, `baseline-text`, `canonical`; canonical
   credential-free literal loopback URLs only. Credential fields are rejected.
-  `status` reports freshness; `setup` refuses stale declarations. Future clock
-  skew up to and including 60 seconds is tolerated; farther-future timestamps
-  are rejected.
+  `status` reports declaration freshness and capacity separately; `setup` refuses
+  stale declarations and nonadmissible capacity. Export clock skew up to 60 seconds
+  is tolerated; capacity source clocks may not be future-dated.
 - Native CLI: explicit absolute `PI_OBSIDIAN_CLIPPER_CLI`, otherwise
   `~/.local/libexec/obsidian-clipper/current/dist/cli.cjs`. Model arguments cannot
   supply executable paths or templates. Missing artifact fails closed. Provision
