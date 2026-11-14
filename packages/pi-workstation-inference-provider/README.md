@@ -18,7 +18,8 @@ Pi provider adapter for workstation-owned inference endpoints. Ordinary text/pro
 
 This package treats the workstation as the primary inference plane. Unrelated legacy canaries use immutable cached contract generations; canonical Soma capacity is read fresh at admission and final serialized dispatch, never stale-while-revalidate permission. Ordinary text health remains cached/nonblocking, and governed audio retains blocking owner checks. Modal or another remote provider is an explicit overflow lane rather than a dependency.
 
-**AK8605 is source/offline only; live landing/install/reload remains held.** See the
+**AK8605 consumer code was landed and locally installed on 2026-11-14. Operator
+generations and producer cutover remain pending; installation is not reload.** See the
 [exact schema2 interface, dispatch limits and release ordering](docs/project/2026-11-13-soma-capacity-consumer.md).
 
 Design and rollout details:

@@ -1,5 +1,5 @@
 ---
-summary: "AK8605 isolated source/offline Soma capacity consumer fence; all live activation held."
+summary: "AK8605 source fence and authorized consumer disk installation; operator migration/cutover pending."
 read_when:
   - "Inspecting AK8605 source evidence or planning separately authorized activation"
 system4d:
@@ -261,3 +261,62 @@ and SDK `session.reload()` now have authentic fixture revocation evidence, not
 actual operator-generation attestation. No restart/input injection or full task
 completion. Unreloaded processes, in-flight calls, hard interruption and module
 compilation failure remain unproved; parent must coordinate live activation.
+
+## 2026-11-14 — authorized canonical consumer installation
+
+The operator authorized consumer installation and workstation contract switch;
+this worker performed **only consumer adoption**, not the parent-owned producer.
+Corrected runtime source `0487537135d2528dd5d5348cfca24b0656febd9a` was independently
+accepted at21575 for completed, bound, quiescent reload. Its exposure checks prohibit
+claiming atomic cancellation or migration of already-started old direct requests.
+
+The parent relayed the operator's authenticated-terminal `doas fuser -v` result:
+only `exit=1`, with no PIDs/errors reported. We treat that as an **operator-supplied
+no-holder observation**, not an assistant-run root proof or raw transcript. Exact
+lock dev36/inode1036110821, uid/gid1000, zero bytes and November10 nanosecond
+mtime/ctime were unchanged. Two current accessible FD scans and an immediate scan
+found no holder or Git process; eight protected-process gaps remain covered only
+by that stated assumption. Under the standing quarantine rule and explicit dispatch,
+the exact inode was renamed to a unique directory beneath `.git/quarantine/`.
+It was never deleted: inode/dev/uid/gid/mode/atime/mtime/birthtime were preserved,
+original ctime archived, and rename's necessarily changed ctime recorded. Before/
+after records live beside the quarantined file and in AK21577 (preflight21576;
+its host-link count178 typo was explicitly corrected there to182).
+
+Official `land-canonical.sh` fast-forwarded canonical b61361850 to04875371,
+with fetch disabled, forced-offline npm and the documented scoped smoke override.
+Only the provider's changed manifest required npm ci (125 packages). Native npm's
+existing allowScripts policy blocked two vendor lifecycle scripts; no approval
+or policy override was added. Official host linking refreshed only five provider
+links to actual installed Pi1.1/TypeBox1.3.27; the other177 links retained inode,
+mtime and target. All39 existing install trees remain metadata-consistent.
+Both official Pi1.1 `install <absolute canonical package path> --no-approve`
+commands succeeded: provider0.7.1 and Clipper0.2.1. These are **local source paths**,
+not downloaded/copied tarballs. Global settings checksum and native package list
+are byte-identical before/after; unrelated installations and ten foreign diary
+files are preserved. Neither runtime source nor development pins were changed.
+
+Actual installed canonical source passes18 authentic Pi1.1 fresh/Clipper cases
+plus4 real bound AgentSession cases, no skips. Positive/clamped reservations and
+unrelated legacy B/B routing pass; unknown/expired/schema1/unavailable and async
+withdrawal deny with zero sends. Bound session prompts have positive and unknown
+zero-send controls; Clipper's real command/tool refuses invalid previews. SDK and
+OpenAI are genuine installed1.1, with private state, fake credentials and stubbed
+transport; guarded real sockets/subprocess/config reads are zero. The bound suite
+also guards outside-scratch writes. Runtime files and host/link/manifest hashes,
+logs, exact quarantine path and rollback plan are in AK21580's receipt under
+managed scratch `ak8605-evidence/adoption-final/`. This is installed fresh-host
+proof, **not** live backend fitness, browser migration or global-autoload testing.
+
+Current bounded metadata inventory finds22 Pi processes, four in canonical cwd;
+loaded code/selections and outstanding direct calls are **unattested**. No operator
+process was messaged, given input, killed, restarted or reloaded. Owners must quiesce
+agent/compaction **and** direct/nested requests, then complete a bound idle `/reload`
+(or properly bound SDK reload), verify generation/catalog and denial. Refusal,
+failure or unbound reload is not adoption. If quiescence is unavailable, arrange
+owner-controlled graceful retirement/fresh startup. Producer publication/real
+health and inference remain with AK8393's owner; all last-reported unknown alias
+guarantees remain unusable. No GPU, Soma, TTS, service, browser, push or publication
+action occurred. Automatic installer rollback was not needed; any later rollback
+must coordinate exports and loaded generations because old source can restore
+unsafe hint permission. Parent acceptance/full task closeout remains pending.

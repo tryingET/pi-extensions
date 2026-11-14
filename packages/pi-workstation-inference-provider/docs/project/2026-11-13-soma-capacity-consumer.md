@@ -12,11 +12,14 @@ system4d:
 
 # Soma capacity consumer boundary — AK8605
 
-**Source/offline only.** Operator assignment: evidence21382. No canonical landing,
-installation, reload, service action, browser change or live inference is proved
-by this change. Later operator authorization permits consumer installation, but
-the canonical lock remains unresolved (evidence21525/21526); no installation has
-occurred. Independent parent inspection of the reload correction is still required.
+**Consumer disk installation completed 2026-11-14; operator adoption is pending.**
+Source assignment: evidence21382; corrected source `04875371` independently accepted
+at evidence21575. Operator-authorized exact-lock quarantine (21577), official
+canonical landing and both local package installs succeeded (21580). Private
+installed-source checks pass **18 fresh provider/Clipper + 4 bound-session cases**.
+These read actual canonical files through Pi1.1, not source copies. No operator
+process was reloaded, producer changed, service operated, browser configured or
+real backend invoked. Installation alone is not cutover acceptance.
 
 ## Exact interface
 
@@ -128,8 +131,10 @@ transport is stubbed, credentials/settings are private, and guarded real socket,
 subprocess, config-read and outside-scratch-write attempts are zero.
 
 The supported interactive route is **`/reload` after installation, while idle**;
-Pi refuses it during streaming or compaction. SDK owners may call
-`await session.reload()` (or command-context `ctx.reload()`). There is no direct
+Pi refuses it during streaming or compaction. SDK owners must bind extensions with their real host bindings and serialize all
+requests around `await session.reload()` (or command-context `ctx.reload()`).
+An **unbound** AgentSession reload may resolve without running cleanup and is not
+adoption. There is no direct
 reload RPC command: do not send a literal `/reload` as a generic model prompt.
 In-process `pi.unregisterProvider(id)` is supported after binding, not a remote
 process-control interface. Model selection/UI objects may remain visible with old
@@ -137,9 +142,21 @@ limits after removal; they are not permission, and their real invocation is deni
 Provider-only hosts without session binding must use a new verified ModelRuntime,
 not reuse old registrations by copying the loader's pending queue.
 
-This is source migration proof, **not installed-package or operator-session proof**.
+Independent evidence21575 additionally verifies 22 denied migrations, while
+separately characterizing exposures: a trusted callback can dispatch before cleanup;
+failed reload can leave old registrations; and an old direct request suspended in
+an async payload hook can send **after** successful reload using its captured old
+closure. A false `session.isStreaming` flag does not exclude direct/nested calls.
+Only a completed, bound, quiescent reload protects **new** calls. Coordinate all
+agent/compaction/direct/nested requests; if quiescence cannot be established, the
+owner must arrange graceful retirement and fresh startup. Do not inject operator
+input, kill sessions or claim an atomic cancellation barrier.
+
+The 32-case source migration record above is **not operator-session proof**.
+Separate installed fresh-host proof is recorded at21580; no old operator process
+was migrated by that installation.
 No operator input/reload, service, GPU, producer, Soma or browser action occurred.
-The known canonical index lock is untouched. Actual loaded generations, all affected
+The old index lock is preserved in same-filesystem quarantine (21577). Actual loaded generations, all affected
 sessions/workers, busy/in-flight reload, hard crashes, module-load/compile failure
 before the handler exists, co-loading both entrypoints and live backend fitness
 remain outside this proof. Parent must coordinate each idle owner and verify the
@@ -187,7 +204,7 @@ remain. This does **not** revoke existing browser configuration or enforce a
 later browser request. Browser permissions, CORS, authentication and actual
 request/context fit remain separate checks; no browser action was performed.
 
-## Release ordering and rollback — all HELD
+## Release ordering and rollback — operator migration/cutover HELD
 
 1. Independently inspect the source, exact fixture and offline evidence; integrate
    the producer projection from workstation AK8393 using the owner decoder.
@@ -195,8 +212,9 @@ request/context fit remain separate checks; no browser action was performed.
    Clipper setup consumers and the currently exported schema. Old consumers reject
    schema2 but can keep warm schema1 generations: a producer file change alone is
    **not** a warm-cache revocation plan.
-3. Under separate authorization, land/install and reload/rebootstrap **all** affected
-   consumers before treating schema2 publication as effective. New consumers refuse
+3. Consumer disk landing/local installation is complete (21580). Coordinate and
+   verify reload/rebootstrap of **all** affected processes before treating schema2
+   publication as effective. New consumers refuse
    old schema1 canonical hints, so a temporary denied canonical lane is expected.
    Preserve unrelated canaries. An unreloaded old consumer is not fenced by this
    source commit; terminate/reload it through its owner before declaring cutover.
