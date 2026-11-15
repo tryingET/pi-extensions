@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.3.1...pi-prompt-template-execution-v0.3.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **prompt-template-execution:** fall back to the active model before effects ([cf78270](https://github.com/tryingET/pi-extensions/commit/cf78270caab295502c1e6b93ee3d7d87afec9590))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.3.0...pi-prompt-template-execution-v0.3.1) (2026-09-01)
 
 

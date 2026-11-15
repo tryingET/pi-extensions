@@ -18,6 +18,42 @@ function runFailure(args) {
   assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
   return `${result.stdout}\n${result.stderr}`;
 }
+function workflowPreflight() {
+  const workflow = readFileSync(path.join(ROOT, ".github/workflows/compatibility-canary.yml"), "utf8");
+  const start = workflow.indexOf("      - id: host\n");
+  assert.notEqual(start, -1, "host preflight step must exist");
+  const end = workflow.indexOf("\n      - ", start + 1);
+  const step = workflow.slice(start, end === -1 ? workflow.length : end);
+  const marker = "        run: |\n";
+  const runStart = step.indexOf(marker);
+  assert.notEqual(runStart, -1, "host preflight must have an executable run block");
+  return { workflow, step, start, run: step.slice(runStart + marker.length).replace(/^ {10}/gm, "") };
+}
+function runWorkflowPreflight(t, overrides = {}) {
+  const scratch = mkdtempSync(path.join(tmpdir(), "pi-host-workflow-preflight-"));
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const outputPath = path.join(scratch, "github-output");
+  writeFileSync(outputPath, "existing=sentinel\n");
+  const env = {
+    ...process.env,
+    PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}`,
+    GITHUB_OUTPUT: outputPath,
+    WORKFLOW_PROFILE: "current",
+  };
+  delete env.PI_HOST_COMPAT_HOST_VERSION;
+  delete env.PI_HOST_COMPAT_CHANGELOG_REF;
+  for (const [name, value] of Object.entries(overrides)) {
+    if (value === undefined) delete env[name];
+    else env[name] = value;
+  }
+  // Execute the workflow's actual shell block, with the same failure options as Actions.
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail"], {
+    cwd: ROOT, env, input: workflowPreflight().run, encoding: "utf8", timeout: 15000,
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.signal, null);
+  return { ...result, outputs: readFileSync(outputPath, "utf8") };
+}
 function minimalManifest(cwd, packages) {
   return {
     schemaVersion: 1,
@@ -449,14 +485,19 @@ test("compatibility canary dry-run can target a single scenario with package-set
   assert.equal(result.results[0].host.restoration.status, "not-run");
 });
 
-test("compatibility workflow prepares orchestrator siblings before baseline and validates profiles", () => {
+test("compatibility workflow resolves inputs before dependency effects and preserves scenario preparation", () => {
   // Source wiring only: no workflow, package manager or actual scenario runs.
-  const workflow = readFileSync(path.join(ROOT, ".github/workflows/compatibility-canary.yml"), "utf8");
-  const profileCheck = workflow.indexOf("name: Validate profile before dependency effects");
+  const { workflow, step, start } = workflowPreflight();
   const npmClient = workflow.indexOf("name: Install governed npm client");
-  assert.ok(profileCheck >= 0 && profileCheck < npmClient);
-  assert.ok(workflow.slice(profileCheck, npmClient).includes(
-    "if (!['current', 'upgrade'].includes(profile)) throw new Error('Unknown canary profile');"));
+  assert.ok(start < npmClient);
+  assert.match(step, /name: Validate canary inputs before dependency effects/);
+  assert.ok(step.includes("WORKFLOW_PROFILE: ${{ inputs.profile || 'current' }}"));
+  assert.ok(step.includes("PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version }}"));
+  assert.ok(step.includes("PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref }}"));
+  assert.ok(workflow.includes("profile: ${{ steps.host.outputs.profile }}"));
+  assert.ok(workflow.includes("PI_HOST_COMPAT_PROFILE: ${{ steps.host.outputs.profile }}"));
+  assert.ok(workflow.includes("host_version: ${{ steps.host.outputs.version }}"));
+  assert.ok(workflow.includes("review_anchor: ${{ steps.host.outputs.review_anchor }}"));
   assert.doesNotMatch(workflow, /requireUpgradeCompletionIntegration|sdk-plan/);
   const build = workflow.indexOf("name: Prepare linked ASC source runtime");
   const linked = workflow.indexOf("name: Install linked source dependencies before baseline");
@@ -485,6 +526,60 @@ test("compatibility workflow prepares orchestrator siblings before baseline and 
   assert.ok(binding.indexOf("else") < binding.indexOf("bind-prepared-asc-ci.mjs"));
   assert.doesNotMatch(binding, /npm install|symlink|realpathSync/);
 });
+
+for (const [label, overrides] of [
+  ["omitted inputs", { WORKFLOW_PROFILE: undefined }],
+  ["blank upgrade inputs", { PI_HOST_COMPAT_HOST_VERSION: "", PI_HOST_COMPAT_CHANGELOG_REF: "" }],
+  ["unused candidate inputs", { PI_HOST_COMPAT_HOST_VERSION: "9.9.9", PI_HOST_COMPAT_CHANGELOG_REF: "candidate" }],
+]) {
+  test(`compatibility workflow current profile resolves the pinned contract with ${label}`, (t) => {
+    const result = runWorkflowPreflight(t, overrides);
+    const { host } = JSON.parse(readFileSync(path.join(ROOT, "policy/pi-host-compatibility-canary.json"), "utf8")).profiles.current;
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.outputs,
+      `existing=sentinel\nprofile=current\nversion=${host.version}\nreview_anchor=${host.reviewAnchor}\n`);
+  });
+}
+
+for (const version of ["1.5.0", "1.5.0-rc.1"]) {
+  test(`compatibility workflow upgrade accepts exact ${version} and preserves its review anchor`, (t) => {
+    const anchor = `https://example.test/pi/compare/v1.4.0...v${version}?view=unified&source=ci`;
+    const result = runWorkflowPreflight(t, {
+      WORKFLOW_PROFILE: "upgrade", PI_HOST_COMPAT_HOST_VERSION: version, PI_HOST_COMPAT_CHANGELOG_REF: anchor,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.outputs, `existing=sentinel\nprofile=upgrade\nversion=${version}\nreview_anchor=${anchor}\n`);
+  });
+}
+
+for (const [label, inputs, expected] of [
+  ["both candidate inputs missing", {}, /requires workflow inputs: host_version, changelog_ref/],
+  ["blank candidate inputs", { PI_HOST_COMPAT_HOST_VERSION: " ", PI_HOST_COMPAT_CHANGELOG_REF: "\t" },
+    /requires workflow inputs: host_version, changelog_ref/],
+  ["missing host_version", { PI_HOST_COMPAT_CHANGELOG_REF: "https://example.test/pi/releases/v1.5.0" },
+    /requires workflow inputs: host_version$/m],
+  ["missing changelog_ref", { PI_HOST_COMPAT_HOST_VERSION: "1.5.0" },
+    /requires workflow inputs: changelog_ref$/m],
+  ...["latest", "^1.5.0", ">=1.4.0 <2"].map((version) => [
+    `non-exact version ${version}`,
+    { PI_HOST_COMPAT_HOST_VERSION: version, PI_HOST_COMPAT_CHANGELOG_REF: "https://example.test/pi/releases/v1.5.0" },
+    /must be an exact npm semantic version/,
+  ]),
+  ["unknown profile", { WORKFLOW_PROFILE: "unknown" }, /Unknown canary profile/],
+  ...["\n", "\r"].map((newline) => [
+    `output injection via ${JSON.stringify(newline)} in changelog_ref`,
+    { PI_HOST_COMPAT_HOST_VERSION: "1.5.0", PI_HOST_COMPAT_CHANGELOG_REF: `https://example.test/pi/v1.5.0${newline}profile=current` },
+    /review anchor must be a single line.*changelog_ref/,
+  ]),
+]) {
+  test(`compatibility workflow rejects ${label} without writing host outputs`, (t) => {
+    const result = runWorkflowPreflight(t, { WORKFLOW_PROFILE: "upgrade", ...inputs });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /^::error::/m);
+    assert.match(result.stderr, expected);
+    assert.equal(result.outputs, "existing=sentinel\n");
+  });
+}
 
 test("compatibility canary root validation executes bounded completion regressions", async (t) => {
   // SOURCE-REGRESSION only: trusted caller/source, not external fixture admission,

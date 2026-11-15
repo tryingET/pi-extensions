@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.5.1...pi-toolbox-discovery-v0.5.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **toolbox-discovery:** stop naming SCI as a context-packer provider (AK7951) ([56ea94c](https://github.com/tryingET/pi-extensions/commit/56ea94c281634e1361abb519d7ff117e69bd4bf0))
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.5.0...pi-toolbox-discovery-v0.5.1) (2026-10-10)
 
 

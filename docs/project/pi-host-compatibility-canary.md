@@ -474,6 +474,35 @@ It runs automatically on:
 
 and supports manual dispatch with a chosen profile.
 
+### GitHub dispatch inputs
+
+Run the pinned baseline without candidate inputs:
+
+```bash
+gh workflow run compatibility-canary.yml \
+  --repo tryingET/pi-extensions --ref main \
+  --field profile=current
+```
+
+An upgrade dispatch requires both `host_version` and `changelog_ref`. Replace
+the placeholders with an exact published npm version and its reviewed, immutable
+tag, commit, or diff URL:
+
+```bash
+gh workflow run compatibility-canary.yml \
+  --repo tryingET/pi-extensions --ref main \
+  --field profile=upgrade \
+  --field host_version='<exact-published-npm-version>' \
+  --field changelog_ref='<reviewed-tag-commit-or-diff-URL>'
+```
+
+Automated callers must pass the same fields explicitly; environment variables in
+the caller's shell do not become GitHub workflow inputs. The workflow validates
+the complete host contract before installing npm or preparing any scenario.
+Missing candidate fields, floating versions such as `latest` or ranges, and
+multiline review anchors fail that preflight. The `current` profile always uses
+the checked-in baseline contract.
+
 ### Local mirror commands
 
 List scenarios plus the exact resolved host contract:
