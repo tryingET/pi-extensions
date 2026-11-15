@@ -179,6 +179,12 @@ for (const field of ["optionalDependencies", "peerDependencies"]) {
   });
 }
 
+// Fixture git must never reach the repository running these tests: a pre-push hook in a linked
+// worktree exports GIT_DIR (and possibly GIT_WORK_TREE/GIT_INDEX_FILE), which would point the
+// fixture's init/config/commit at that repository.
+const fixtureGitEnv = () =>
+  Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
+
 // A throwaway repository: a link to output not built yet, an executable, and a newline in a name.
 function headRepo(t) {
   const repo = mkdtempSync(join(tmpdir(), "task-session-head-"));
@@ -187,7 +193,7 @@ function headRepo(t) {
     execFileSync(
       "git",
       ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
-      { cwd: repo, stdio: ["ignore", "pipe", "pipe"] },
+      { cwd: repo, stdio: ["ignore", "pipe", "pipe"], env: fixtureGitEnv() },
     );
   git("init", "-q");
   git("config", "core.autocrlf", "input");
@@ -197,6 +203,9 @@ function headRepo(t) {
   writeFileSync(join(repo, "pkg/b.js"), "b\n", { mode: 0o644 });
   writeFileSync(join(repo, "pkg/odd\nname.js"), "odd\n");
   symlinkSync("gen/out.js", join(repo, "pkg/link"));
+  // Explicit modes: a strict umask (heavy-job uses 0077) must not make a clean checkout differ.
+  chmodSync(join(repo, "pkg"), 0o755);
+  for (const name of ["a.js", "b.js", "odd\nname.js"]) chmodSync(join(repo, "pkg", name), 0o644);
   git("add", "-A");
   git("commit", "-qm", "base");
   return repo;
@@ -238,7 +247,7 @@ test("F2: Given a replacement ref for HEAD, then bytes still compare with the re
     execFileSync(
       "git",
       ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
-      { cwd: repo, encoding: "utf8" },
+      { cwd: repo, encoding: "utf8", env: fixtureGitEnv() },
     ).trim();
   const recorded = git("rev-parse", "HEAD");
   writeFileSync(join(repo, "pkg/a.js"), "not at the recorded commit\n");
@@ -256,7 +265,7 @@ test("Given a commit other than HEAD, then the comparison is against that commit
     execFileSync(
       "git",
       ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
-      { cwd: repo, encoding: "utf8" },
+      { cwd: repo, encoding: "utf8", env: fixtureGitEnv() },
     ).trim();
   const recorded = git("rev-parse", "HEAD");
   writeFileSync(join(repo, "pkg/a.js"), "after the recorded commit\n");
@@ -271,6 +280,7 @@ test("Given an inherited GIT_DIR naming another repository, then HEAD is still t
   writeFileSync(join(other, "pkg/a.js"), "another repository\n");
   execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "other"], {
     cwd: other,
+    env: fixtureGitEnv(),
   });
   const module = new URL("../task-session-runtime/closure.mjs", import.meta.url).href;
   const run = spawnSync(
@@ -281,7 +291,7 @@ test("Given an inherited GIT_DIR naming another repository, then HEAD is still t
       `import { headMismatches } from ${JSON.stringify(module)};
        process.stdout.write(JSON.stringify(headMismatches(${JSON.stringify(repo)}, ["pkg"])));`,
     ],
-    { encoding: "utf8", env: { ...process.env, GIT_DIR: join(other, ".git") } },
+    { encoding: "utf8", env: { ...fixtureGitEnv(), GIT_DIR: join(other, ".git") } },
   );
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(JSON.parse(run.stdout), []);
