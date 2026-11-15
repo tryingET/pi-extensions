@@ -9,6 +9,7 @@ import {
   commandToString,
   verifyAlignedTargetState,
   verifyScenarioCwdIdentity,
+  withExpectedIntegrity,
 } from "./host-state.mjs";
 import { resolveProfileHost, selectScenarios } from "./manifest.mjs";
 import {
@@ -187,7 +188,7 @@ async function spawnScenario(scenario, host, options, mutationSession) {
 
 export async function runPayload(manifest, options) {
   const selection = selectScenarios(manifest, options);
-  const host = resolveProfileHost(manifest, selection.profile);
+  const host = withExpectedIntegrity(resolveProfileHost(manifest, selection.profile));
   const results = [];
   let aborted = false;
   let abortReason;
@@ -259,6 +260,7 @@ export async function runPayload(manifest, options) {
     trackedChangelog: manifest.trackedChangelog,
     profile: selection.profile,
     host,
+    requestedScenarioIds: selection.scenarios.map((scenario) => scenario.id),
     dryRun: options.dryRun,
     aborted,
     ...(abortReason ? { abortReason } : {}),

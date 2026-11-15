@@ -16,6 +16,73 @@ import {
 import { CANONICAL_ROOT, resolveContainedRepoPath, ROOT } from "./paths.mjs";
 import { fsyncDirectory, fsyncFile } from "./state-files.mjs";
 
+// Registry integrity for the host package set lives here rather than in a new module:
+// the frozen completion-fixture closure pins this file set, and adding a file would
+// require re-admitting completion-fixture-inputs.json.
+export const EXPECTED_INTEGRITY_ENV = "PI_HOST_COMPAT_EXPECTED_INTEGRITY";
+export const PUBLIC_REGISTRY_TARBALL_PREFIX = "https://registry.npmjs.org/";
+const SRI_SHA512 = /^sha512-[A-Za-z0-9+/]{86}==$/u;
+const INTEGRITY_SHAPE = `env:${EXPECTED_INTEGRITY_ENV} must be a JSON object of package name to sha512 integrity`;
+
+// Optional: absent or blank keeps the version-only contract. When present it must
+// name exactly the host package set, each with one sha512 SRI.
+export function parseExpectedIntegrity(raw, packageNames) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return undefined;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(INTEGRITY_SHAPE);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(INTEGRITY_SHAPE);
+  const keys = Object.keys(parsed).sort();
+  const expected = [...packageNames].sort();
+  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
+    throw new Error(`env:${EXPECTED_INTEGRITY_ENV} must name exactly: ${expected.join(", ")}`);
+  }
+  const result = {};
+  for (const name of packageNames) {
+    if (typeof parsed[name] !== "string" || !SRI_SHA512.test(parsed[name])) {
+      throw new Error(`env:${EXPECTED_INTEGRITY_ENV} has no single sha512 integrity for ${name}`);
+    }
+    result[name] = parsed[name];
+  }
+  return Object.freeze(result);
+}
+
+export function withExpectedIntegrity(host, env = process.env) {
+  const expectedIntegrity = parseExpectedIntegrity(env[EXPECTED_INTEGRITY_ENV], hostPackageNames(host));
+  return expectedIntegrity ? { ...host, expectedIntegrity } : host;
+}
+
+// npm writes node_modules/.package-lock.json after every install, including
+// `npm install --no-save --package-lock=false`, with the resolved tarball and integrity.
+export function readInstalledIntegrity(cwd, packageName) {
+  const hiddenLockPath = path.join(cwd, "node_modules", ".package-lock.json");
+  if (!existsSync(hiddenLockPath)) return { integrity: null, resolved: null };
+  let entry;
+  try {
+    entry = JSON.parse(readFileSync(hiddenLockPath, "utf8"))?.packages?.[`node_modules/${packageName}`];
+  } catch {
+    return { integrity: null, resolved: null };
+  }
+  return {
+    integrity: typeof entry?.integrity === "string" ? entry.integrity : null,
+    resolved: typeof entry?.resolved === "string" ? entry.resolved : null,
+  };
+}
+
+function integrityFields(expectedIntegrity, installed) {
+  const fromPublicRegistry = typeof installed.resolved === "string" &&
+    installed.resolved.startsWith(PUBLIC_REGISTRY_TARBALL_PREFIX);
+  return {
+    expectedIntegrity,
+    installedIntegrity: installed.integrity,
+    resolved: installed.resolved,
+    integrityAligned: installed.integrity === expectedIntegrity && fromPublicRegistry,
+  };
+}
+
 export function nodeModulesState(packageAbs) {
   const nodeModulesPath = path.join(packageAbs, "node_modules");
   const stats = lstatSync(nodeModulesPath, { bigint: true, throwIfNoEntry: false });
@@ -112,7 +179,10 @@ export function captureAlignedTargetState(entry, host) {
   }
   const alignment = describeHostAlignment(host, packageAbs);
   if (!alignment.aligned) {
-    throw new IntegrityError(`aligned host package versions changed: ${entry.packagePath}`);
+    const mismatched = alignment.packages.filter((state) => !state.aligned).map((state) => state.packageName);
+    throw new IntegrityError(
+      `aligned host package versions or registry integrity do not match: ${entry.packagePath} (${mismatched.join(", ")})`,
+    );
   }
   return { packageAbs, nodeModulesIdentity: current.identity, alignment };
 }
@@ -158,7 +228,7 @@ export function commandToString(command) {
   return command.map((part) => (part.includes(" ") ? JSON.stringify(part) : part)).join(" ");
 }
 
-function hostPackageNames(host) {
+export function hostPackageNames(host) {
   return [host.packageName, ...host.companionPackages];
 }
 
@@ -213,11 +283,18 @@ function readLockedPackageVersion(cwd, packageName) {
 export function describeHostAlignment(host, cwd) {
   const packageStates = hostPackageNames(host).map((packageName) => {
     const installedVersion = readInstalledPackageVersion(cwd, packageName);
+    const versionAligned = installedVersion === host.version;
+    const expectedIntegrity = host.expectedIntegrity?.[packageName];
+    if (!expectedIntegrity) {
+      return { packageName, expectedVersion: host.version, installedVersion, aligned: versionAligned };
+    }
+    const integrity = integrityFields(expectedIntegrity, readInstalledIntegrity(cwd, packageName));
     return {
       packageName,
       expectedVersion: host.version,
       installedVersion,
-      aligned: installedVersion === host.version,
+      ...integrity,
+      aligned: versionAligned && integrity.integrityAligned,
     };
   });
 

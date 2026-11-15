@@ -71,7 +71,8 @@ node --test ./scripts/pi-host-compatibility-canary/check-dev-pin-drift.test.mjs 
   ./scripts/pi-host-compatibility-canary/check-dev-pin-drift-scoped.test.mjs \
   ./scripts/pi-host-compatibility-canary/check-dev-pin-drift-snapshot.test.mjs \
   ./scripts/pi-host-compatibility-canary/check-dev-pin-drift-retirement.test.mjs \
-  ./scripts/pi-host-compatibility-canary/manifest-definition.test.mjs
+  ./scripts/pi-host-compatibility-canary/manifest-definition.test.mjs \
+  ./scripts/pi-host-compatibility-canary/host-integrity-evidence.test.mjs
 
 if [ -f "./scripts/validate-package-release-contracts.mjs" ]; then
   if [ "${PI_SKIP_PACKAGE_RELEASE_CONTRACTS:-0}" = "1" ]; then

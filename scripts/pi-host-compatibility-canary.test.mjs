@@ -494,6 +494,7 @@ test("compatibility workflow resolves inputs before dependency effects and prese
   assert.ok(step.includes("WORKFLOW_PROFILE: ${{ inputs.profile || 'current' }}"));
   assert.ok(step.includes("PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version }}"));
   assert.ok(step.includes("PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref }}"));
+  assert.ok(step.includes("WORKFLOW_REQUEST_ID: ${{ inputs.request_id }}"));
   assert.ok(workflow.includes("profile: ${{ steps.host.outputs.profile }}"));
   assert.ok(workflow.includes("PI_HOST_COMPAT_PROFILE: ${{ steps.host.outputs.profile }}"));
   assert.ok(workflow.includes("host_version: ${{ steps.host.outputs.version }}"));
@@ -537,7 +538,7 @@ for (const [label, overrides] of [
     const { host } = JSON.parse(readFileSync(path.join(ROOT, "policy/pi-host-compatibility-canary.json"), "utf8")).profiles.current;
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.outputs,
-      `existing=sentinel\nprofile=current\nversion=${host.version}\nreview_anchor=${host.reviewAnchor}\n`);
+      `existing=sentinel\nprofile=current\nversion=${host.version}\nreview_anchor=${host.reviewAnchor}\nrequest_id=\n`);
   });
 }
 
@@ -548,9 +549,83 @@ for (const version of ["1.5.0", "1.5.0-rc.1"]) {
       WORKFLOW_PROFILE: "upgrade", PI_HOST_COMPAT_HOST_VERSION: version, PI_HOST_COMPAT_CHANGELOG_REF: anchor,
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.outputs, `existing=sentinel\nprofile=upgrade\nversion=${version}\nreview_anchor=${anchor}\n`);
+    assert.equal(result.outputs, `existing=sentinel\nprofile=upgrade\nversion=${version}\nreview_anchor=${anchor}\nrequest_id=\n`);
   });
 }
+
+test("compatibility workflow echoes a valid request_id and rejects an unsafe one without outputs", (t) => {
+  const ok = runWorkflowPreflight(t, { WORKFLOW_REQUEST_ID: "AK8727.pilot-1" });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.outputs, /\nrequest_id=AK8727\.pilot-1\n$/);
+  for (const bad of ["a b", "x\nprofile=upgrade", "y".repeat(65)]) {
+    const result = runWorkflowPreflight(t, { WORKFLOW_REQUEST_ID: bad });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /^::error::request_id must match/m);
+    assert.equal(result.outputs, "existing=sentinel\n");
+  }
+});
+
+function workflowStepRun(workflow, id) {
+  const start = workflow.indexOf(`      - id: ${id}\n`);
+  assert.notEqual(start, -1, `${id} step must exist`);
+  const end = workflow.indexOf("\n      - ", start + 1);
+  const step = workflow.slice(start, end === -1 ? workflow.length : end);
+  const marker = "        run: |\n";
+  return { start, step, run: step.slice(step.indexOf(marker) + marker.length).replace(/^ {10}/gm, "") };
+}
+
+test("compatibility workflow resolves expected integrity from the public registry for every host package", (t) => {
+  const workflow = readFileSync(path.join(ROOT, ".github/workflows/compatibility-canary.yml"), "utf8");
+  const { run } = workflowStepRun(workflow, "integrity");
+  const scratch = mkdtempSync(path.join(tmpdir(), "pi-host-workflow-integrity-"));
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const bin = path.join(scratch, "bin");
+  mkdirSync(bin);
+  const calls = path.join(scratch, "calls");
+  // Fake npm: records argv, answers one deterministic sha512 per package.
+  writeFileSync(path.join(bin, "npm"), `#!/usr/bin/env node
+const fs = require("node:fs");
+fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + "\\n");
+console.log(JSON.stringify("sha512-" + Buffer.alloc(64, process.argv[3].length).toString("base64")));
+`, { mode: 0o755 });
+  const outputPath = path.join(scratch, "github-output");
+  writeFileSync(outputPath, "");
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail"], {
+    cwd: ROOT, input: run, encoding: "utf8", timeout: 15000,
+    env: { ...process.env, PATH: `${bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}`,
+      GITHUB_OUTPUT: outputPath, PI_HOST_COMPAT_PROFILE: "current" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const { host } = JSON.parse(readFileSync(path.join(ROOT, "policy/pi-host-compatibility-canary.json"), "utf8")).profiles.current;
+  const owners = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai", "@earendil-works/pi-tui", "@earendil-works/pi-agent-core"];
+  const argvs = readFileSync(calls, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(argvs.map((argv) => argv[1]), owners.map((name) => `${name}@${host.version}`));
+  for (const argv of argvs) {
+    assert.ok(argv.includes("--registry=https://registry.npmjs.org/"));
+    assert.ok(argv.includes("--@earendil-works:registry=https://registry.npmjs.org/"));
+  }
+  const line = readFileSync(outputPath, "utf8");
+  assert.match(line, /^expected_integrity=\{.*\}\n$/);
+  assert.deepEqual(Object.keys(JSON.parse(line.slice("expected_integrity=".length))), owners);
+});
+
+test("compatibility workflow binds evidence, request identity and dispatch concurrency", () => {
+  const workflow = readFileSync(path.join(ROOT, ".github/workflows/compatibility-canary.yml"), "utf8");
+  assert.match(workflow, /^run-name: compatibility-canary \$\{\{ inputs\.profile \|\| 'current' \}\} \$\{\{ inputs\.request_id \|\| github\.event_name \}\}$/m);
+  assert.ok(workflow.includes("format('dispatch-{0}', github.run_id)"));
+  assert.ok(workflow.includes("cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}"));
+  assert.ok(workflow.indexOf("name: Install governed npm client") < workflow.indexOf("      - id: integrity\n"));
+  assert.ok(workflow.indexOf("      - id: integrity\n") < workflow.indexOf("      - id: matrix\n"));
+  assert.ok(workflow.includes("PI_HOST_COMPAT_EXPECTED_INTEGRITY: ${{ needs.discover.outputs.expected_integrity }}"));
+  assert.ok(workflow.includes("PI_HOST_COMPAT_REQUEST_ID: ${{ needs.discover.outputs.request_id }}"));
+  assert.ok(workflow.includes('--evidence-out "$RUNNER_TEMP/canary-evidence/$PI_HOST_COMPAT_SCENARIO.json"'));
+  const upload = workflow.slice(workflow.indexOf("name: Upload canary scenario evidence"));
+  assert.match(upload, /^name: Upload canary scenario evidence\n\s+if: always\(\)\n\s+uses: actions\/upload-artifact@[0-9a-f]{40} # v7\n/);
+  assert.match(upload, /name: canary-evidence-\$\{\{ matrix\.id \}\}-\$\{\{ github\.run_attempt \}\}/);
+  assert.match(upload, /if-no-files-found: error/);
+  const request = workflow.slice(workflow.indexOf("name: Upload canary request"), workflow.indexOf("run-scenario:"));
+  assert.match(request, /if-no-files-found: error/);
+});
 
 for (const [label, inputs, expected] of [
   ["both candidate inputs missing", {}, /requires workflow inputs: host_version, changelog_ref/],

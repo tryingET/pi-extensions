@@ -24,6 +24,12 @@ import {
   recoverInterruptedRun,
   recoveryStatus,
 } from "./pi-host-compatibility-canary/recovery.mjs";
+import {
+  buildRunEvidence,
+  REQUEST_ID_ENV,
+  resolveRequestId,
+  writeRunEvidence,
+} from "./pi-host-compatibility-canary/evidence.mjs";
 
 function usage() {
   console.error(`Usage:
@@ -32,7 +38,7 @@ function usage() {
   node ./scripts/pi-host-compatibility-canary.mjs list [--manifest <path>] [--profile <name>] [--json]
   node ./scripts/pi-host-compatibility-canary.mjs status [--manifest <path>] [--json]
   node ./scripts/pi-host-compatibility-canary.mjs recover [--manifest <path>] [--apply] [--json]
-  node ./scripts/pi-host-compatibility-canary.mjs run [--manifest <path>] [--profile <name>] [--scenario <id>] [--fail-fast] [--dry-run] [--json]`);
+  node ./scripts/pi-host-compatibility-canary.mjs run [--manifest <path>] [--profile <name>] [--scenario <id>] [--fail-fast] [--dry-run] [--json] [--evidence-out <path>]`);
 }
 
 function parseArgs(argv) {
@@ -46,15 +52,17 @@ function parseArgs(argv) {
     dryRun: false,
     apply: false,
     json: false,
+    evidenceOut: undefined,
   };
 
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
-    if (["--manifest", "--profile", "--scenario"].includes(arg)) {
+    if (["--manifest", "--profile", "--scenario", "--evidence-out"].includes(arg)) {
       const value = rest[++index];
       if (!value) throw new Error(`${arg} requires a value`);
       if (arg === "--manifest") options.manifestPath = path.resolve(ROOT, value);
       else if (arg === "--profile") options.profile = value;
+      else if (arg === "--evidence-out") options.evidenceOut = path.resolve(value);
       else options.scenarioIds.push(value);
       continue;
     }
@@ -70,6 +78,7 @@ function parseArgs(argv) {
   }
 
   if (options.apply && options.command !== "recover") throw new Error("--apply is only valid with recover");
+  if (options.evidenceOut && options.command !== "run") throw new Error("--evidence-out is only valid with run");
   return options;
 }
 
@@ -170,13 +179,29 @@ async function main(argv) {
       return 0;
     }
     case "run": {
-      const payload = await runPayload(manifest, options);
+      // Validate correlation input before any host effect.
+      const requestId = resolveRequestId(process.env[REQUEST_ID_ENV]);
+      let payload;
+      let failure;
+      try {
+        payload = await runPayload(manifest, options);
+      } catch (error) {
+        failure = error;
+      }
+      let evidence;
+      if (options.evidenceOut) {
+        evidence = buildRunEvidence({ payload, error: failure, requestId, options });
+        writeRunEvidence(options.evidenceOut, evidence);
+      }
+      if (failure) throw failure;
       if (options.json) {
         console.log(JSON.stringify(payload, null, 2));
       } else {
         printRunSummary(payload);
+        if (evidence) console.log(`- evidence: ${options.evidenceOut} (${evidence.outcome})`);
       }
-      return payload.summary.failed > 0 ? 1 : 0;
+      if (payload.summary.failed > 0) return 1;
+      return evidence && !["passed", "dry-run"].includes(evidence.outcome) ? 1 : 0;
     }
     default:
       throw new Error(`Unknown command: ${options.command}`);

@@ -757,7 +757,7 @@ if (operation === "install") {
       );
       assert.equal(cleanupResult.results[0].exitCode, 0, "successful command still requires integrity verification");
       assert.match(cleanupResult.results[0].lifecycleErrors.scenario.error,
-        replacementKind === "symlink" ? /symlink/ : /aligned host package versions changed/);
+        replacementKind === "symlink" ? /symlink/ : /aligned host package versions or registry integrity do not match/);
       assert.equal(readFileSync(path.join(cleanupNodeModules, "sentinel.txt"), "utf8"), "safe\n");
     }
 

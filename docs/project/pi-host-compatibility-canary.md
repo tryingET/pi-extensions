@@ -131,7 +131,8 @@ AK-4714 retired the temporary runner size exception by decomposing the implement
 - `paths.mjs` — repository-root paths and canonical containment checks
 - `integrity.mjs` — identity/effective-UID barriers, integrity errors, and handle-safe removal
 - `manifest.mjs` — manifest validation, profile resolution, and scenario selection
-- `host-state.mjs` — target ledgers, host snapshots, identity barriers, and npm command construction
+- `host-state.mjs` — target ledgers, host snapshots, identity barriers, registry-integrity alignment, and npm command construction
+- `evidence.mjs` — run-bound evidence file, request id validation, and evidence pass criteria (CLI only, outside the completion-fixture closure)
 - `process.mjs` — subprocess capture and isolated npm environment handling
 - `command-wrapper.mjs` — process-group effect gate that waits until child identity is durably journaled
 - `completion.mjs` / `completion-boundary.mjs` — wrapper receipt/group checks and target/metadata verification on both zero and nonzero completion
@@ -502,6 +503,34 @@ the complete host contract before installing npm or preparing any scenario.
 Missing candidate fields, floating versions such as `latest` or ranges, and
 multiline review anchors fail that preflight. The `current` profile always uses
 the checked-in baseline contract.
+
+### Run identity, registry integrity and evidence (AK8727)
+
+- `request_id` (optional, `[A-Za-z0-9._-]`, at most 64) is validated in the same
+  preflight, shown in the run name and recorded in every evidence file. Use it to
+  find the run a dispatch created; never bind a dispatch to the latest run instead.
+- Dispatched runs each get their own concurrency group and are never cancelled by a
+  later run. Push and pull-request runs still supersede older runs on the same ref.
+- `discover` reads `dist.integrity` for the exact host package set from
+  `https://registry.npmjs.org/` (default and package scope) and passes it as
+  `PI_HOST_COMPAT_EXPECTED_INTEGRITY`. With that set, host alignment also requires
+  each installed package's integrity, from npm's `node_modules/.package-lock.json`,
+  to match and its tarball to come from the public registry. A missing record fails
+  closed. Without the variable, alignment stays version-only (local runs).
+- `discover` uploads `canary-request-<attempt>` (requested scenarios, host version,
+  review anchor, expected integrity, GitHub run identity). Each scenario job runs
+  `run --evidence-out` and uploads `canary-evidence-<scenario>-<attempt>` with
+  `if: always()` and `if-no-files-found: error`: a scenario that leaves no
+  evidence fails visibly.
+- Evidence schema `pi-host-compat-canary-evidence/v1` records request id, run
+  identity, host contract and expected integrity, requested/executed/not-run
+  scenarios, per-result alignment and restoration, and sha256 digests in place of
+  captured output. Its `outcome` is `passed` only when every requested scenario ran
+  and passed with no abort; zero executed scenarios never pass. With
+  `--evidence-out`, a non-passing outcome also makes the command exit 1. The file
+  is never overwritten.
+- Evidence is GitHub run/artifact records plus AK evidence references; it is not a
+  separate authority store, and passing qualification is not adoption.
 
 ### Local mirror commands
 

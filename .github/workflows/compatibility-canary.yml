@@ -1,4 +1,5 @@
 name: compatibility-canary
+run-name: compatibility-canary ${{ inputs.profile || 'current' }} ${{ inputs.request_id || github.event_name }}
 
 on:
   pull_request:
@@ -23,13 +24,19 @@ on:
         description: "Exact reviewed changelog anchor (tag/commit/diff URL) for upgrade runs"
         required: false
         type: string
+      request_id:
+        description: "Caller correlation id echoed in run name and evidence ([A-Za-z0-9._-], max 64)"
+        required: false
+        type: string
 
 permissions:
   contents: read
 
+# Dispatched qualification runs each get their own group and are never cancelled by a
+# later run; push and pull_request runs still supersede older runs on the same ref.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.profile || 'current' }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || github.event.pull_request.number || github.ref }}-${{ inputs.profile || 'current' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   discover:
@@ -39,6 +46,8 @@ jobs:
       profile: ${{ steps.host.outputs.profile }}
       host_version: ${{ steps.host.outputs.version }}
       review_anchor: ${{ steps.host.outputs.review_anchor }}
+      request_id: ${{ steps.host.outputs.request_id }}
+      expected_integrity: ${{ steps.integrity.outputs.expected_integrity }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - name: Checkout
@@ -56,6 +65,7 @@ jobs:
           WORKFLOW_PROFILE: ${{ inputs.profile || 'current' }}
           PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version }}
           PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref }}
+          WORKFLOW_REQUEST_ID: ${{ inputs.request_id }}
         run: |
           node --input-type=module <<'NODE'
           import { appendFileSync } from "node:fs";
@@ -80,9 +90,13 @@ jobs:
             if (/[\r\n]/u.test(host.reviewAnchor)) {
               throw new Error("Resolved review anchor must be a single line (workflow input: changelog_ref)");
             }
+            const requestId = process.env.WORKFLOW_REQUEST_ID ?? "";
+            if (requestId !== "" && !/^[A-Za-z0-9._-]{1,64}$/u.test(requestId)) {
+              throw new Error("request_id must match ^[A-Za-z0-9._-]{1,64}$");
+            }
             // Validate every value before writing any GitHub outputs.
             appendFileSync(process.env.GITHUB_OUTPUT,
-              `profile=${profile}\nversion=${host.version}\nreview_anchor=${host.reviewAnchor}\n`);
+              `profile=${profile}\nversion=${host.version}\nreview_anchor=${host.reviewAnchor}\nrequest_id=${requestId}\n`);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             console.error(`::error::${message.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}`);
@@ -95,6 +109,37 @@ jobs:
           mkdir -p "$RUNNER_TEMP/npm-global"
           npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
           echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
+
+      - id: integrity
+        name: Resolve expected registry integrity for the host package set
+        env:
+          PI_HOST_COMPAT_PROFILE: ${{ steps.host.outputs.profile }}
+          PI_HOST_COMPAT_HOST_VERSION: ${{ steps.host.outputs.version }}
+          PI_HOST_COMPAT_CHANGELOG_REF: ${{ steps.host.outputs.review_anchor }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          import { appendFileSync } from "node:fs";
+
+          const registry = "https://registry.npmjs.org/";
+          const { host } = JSON.parse(execFileSync(process.execPath, [
+            "./scripts/pi-host-compatibility-canary.mjs", "resolve-host",
+            "--profile", process.env.PI_HOST_COMPAT_PROFILE, "--json",
+          ], { encoding: "utf8" }));
+          const expected = {};
+          for (const name of [host.packageName, ...host.companionPackages]) {
+            // Public registry only, for the default and the package scope alike.
+            const scope = name.startsWith("@") ? [`--${name.split("/")[0]}:registry=${registry}`] : [];
+            const integrity = JSON.parse(execFileSync("npm", [
+              "view", `${name}@${host.version}`, "dist.integrity", "--json", `--registry=${registry}`, ...scope,
+            ], { encoding: "utf8" }));
+            if (typeof integrity !== "string" || !integrity.startsWith("sha512-")) {
+              throw new Error(`No sha512 registry integrity for ${name}@${host.version}`);
+            }
+            expected[name] = integrity;
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `expected_integrity=${JSON.stringify(expected)}\n`);
+          NODE
 
       - id: matrix
         name: Build scenario matrix
@@ -136,6 +181,40 @@ jobs:
           console.log("EOF");
           NODE
 
+      - name: Record canary request
+        env:
+          REQUEST_ID: ${{ steps.host.outputs.request_id }}
+          PROFILE: ${{ steps.host.outputs.profile }}
+          HOST_VERSION: ${{ steps.host.outputs.version }}
+          REVIEW_ANCHOR: ${{ steps.host.outputs.review_anchor }}
+          EXPECTED_INTEGRITY: ${{ steps.integrity.outputs.expected_integrity }}
+          MATRIX: ${{ steps.matrix.outputs.matrix }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/canary-request"
+          node <<'NODE' > "$RUNNER_TEMP/canary-request/request.json"
+          const env = process.env;
+          console.log(JSON.stringify({
+            schema: "pi-host-compat-canary-request/v1",
+            requestId: env.REQUEST_ID || null,
+            github: {
+              repository: env.GITHUB_REPOSITORY, runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT,
+              sha: env.GITHUB_SHA, ref: env.GITHUB_REF, eventName: env.GITHUB_EVENT_NAME,
+            },
+            profile: env.PROFILE,
+            hostVersion: env.HOST_VERSION,
+            reviewAnchor: env.REVIEW_ANCHOR,
+            expectedIntegrity: JSON.parse(env.EXPECTED_INTEGRITY),
+            requestedScenarios: JSON.parse(env.MATRIX).include.map((entry) => entry.id),
+          }, null, 2));
+          NODE
+
+      - name: Upload canary request
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: canary-request-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/canary-request/request.json
+          if-no-files-found: error
+
   run-scenario:
     needs: discover
     runs-on: ubuntu-latest
@@ -150,6 +229,8 @@ jobs:
       PI_HOST_COMPAT_HOST_VERSION: ${{ needs.discover.outputs.host_version }}
       PI_HOST_COMPAT_CHANGELOG_REF: ${{ needs.discover.outputs.review_anchor }}
       PI_HOST_VERSION: ${{ needs.discover.outputs.host_version }}
+      PI_HOST_COMPAT_REQUEST_ID: ${{ needs.discover.outputs.request_id }}
+      PI_HOST_COMPAT_EXPECTED_INTEGRITY: ${{ needs.discover.outputs.expected_integrity }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -219,4 +300,14 @@ jobs:
           node ./scripts/pi-host-compatibility-canary.mjs run \
             --profile "$PI_HOST_COMPAT_PROFILE" \
             --scenario "$PI_HOST_COMPAT_SCENARIO" \
-            --fail-fast
+            --fail-fast \
+            --evidence-out "$RUNNER_TEMP/canary-evidence/$PI_HOST_COMPAT_SCENARIO.json"
+
+      # Always upload: a scenario that ends without evidence must fail visibly, never pass silently.
+      - name: Upload canary scenario evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: canary-evidence-${{ matrix.id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/canary-evidence/${{ matrix.id }}.json
+          if-no-files-found: error
