@@ -18,7 +18,7 @@
   "packages/pi-little-helpers": "0.13.0",
   "packages/pi-model-selection": "0.3.1",
   "packages/pi-modes": "0.6.0",
-  "packages/pi-obsidian-clipper": "0.2.1",
+  "packages/pi-obsidian-clipper": "0.2.2",
   "packages/pi-ontology-workflows": "0.5.4",
   "packages/pi-peer-messaging": "0.4.3",
   "packages/pi-prompt-template-accelerator": "0.3.1",
@@ -31,5 +31,5 @@
   "packages/pi-telemetry": "0.4.2",
   "packages/pi-toolbox-discovery": "0.5.2",
   "packages/pi-vault-client": "0.7.2",
-  "packages/pi-workstation-inference-provider": "0.7.1"
+  "packages/pi-workstation-inference-provider": "0.7.2"
 }
