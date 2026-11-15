@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.2](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.7.1...pi-workstation-inference-provider-v0.7.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **inference:** close reviewed capacity boundaries (AK8605 source-only) ([0c56eae](https://github.com/tryingET/pi-extensions/commit/0c56eae6abb9761d61080f5db5bcd5e29f5047d0))
+* **inference:** publish coherent registration generations (AK8605 source-only) ([083b9c0](https://github.com/tryingET/pi-extensions/commit/083b9c0d37afda589fc2efb5e63f84d266f1f0a5))
+* **inference:** revoke inherited providers after reload binding (AK8605) ([0487537](https://github.com/tryingET/pi-extensions/commit/0487537135d2528dd5d5348cfca24b0656febd9a))
+
 ## [0.7.1](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.7.0...pi-workstation-inference-provider-v0.7.1) (2026-10-09)
 
 
