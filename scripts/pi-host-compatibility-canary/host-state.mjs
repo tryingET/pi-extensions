@@ -59,27 +59,30 @@ export function withExpectedIntegrity(host, env = process.env) {
 // `npm install --no-save --package-lock=false`, with the resolved tarball and integrity.
 export function readInstalledIntegrity(cwd, packageName) {
   const hiddenLockPath = path.join(cwd, "node_modules", ".package-lock.json");
-  if (!existsSync(hiddenLockPath)) return { integrity: null, resolved: null };
+  const none = { version: null, integrity: null, resolved: null };
+  if (!existsSync(hiddenLockPath)) return none;
   let entry;
   try {
     entry = JSON.parse(readFileSync(hiddenLockPath, "utf8"))?.packages?.[`node_modules/${packageName}`];
   } catch {
-    return { integrity: null, resolved: null };
+    return none;
   }
-  return {
-    integrity: typeof entry?.integrity === "string" ? entry.integrity : null,
-    resolved: typeof entry?.resolved === "string" ? entry.resolved : null,
-  };
+  const field = (name) => (typeof entry?.[name] === "string" ? entry[name] : null);
+  return { version: field("version"), integrity: field("integrity"), resolved: field("resolved") };
 }
 
-function integrityFields(expectedIntegrity, installed) {
+// The hidden lockfile is npm's install record, not a hash of the installed bytes, and
+// it can go stale; its entry must name the version actually installed to count.
+function integrityFields(expectedIntegrity, installed, installedVersion) {
   const fromPublicRegistry = typeof installed.resolved === "string" &&
     installed.resolved.startsWith(PUBLIC_REGISTRY_TARBALL_PREFIX);
   return {
     expectedIntegrity,
     installedIntegrity: installed.integrity,
+    recordedVersion: installed.version,
     resolved: installed.resolved,
-    integrityAligned: installed.integrity === expectedIntegrity && fromPublicRegistry,
+    integrityAligned: installed.integrity === expectedIntegrity && fromPublicRegistry &&
+      installedVersion !== null && installed.version === installedVersion,
   };
 }
 
@@ -288,7 +291,7 @@ export function describeHostAlignment(host, cwd) {
     if (!expectedIntegrity) {
       return { packageName, expectedVersion: host.version, installedVersion, aligned: versionAligned };
     }
-    const integrity = integrityFields(expectedIntegrity, readInstalledIntegrity(cwd, packageName));
+    const integrity = integrityFields(expectedIntegrity, readInstalledIntegrity(cwd, packageName), installedVersion);
     return {
       packageName,
       expectedVersion: host.version,

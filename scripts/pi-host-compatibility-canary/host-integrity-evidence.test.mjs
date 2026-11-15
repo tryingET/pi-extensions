@@ -39,14 +39,14 @@ function scratch(t, prefix) {
 }
 
 // Synthetic installed tree: package.json versions plus npm's hidden lockfile.
-function installedTree(t, { integrity = EXPECTED, resolved = tarball, hiddenLock = true } = {}) {
+function installedTree(t, { integrity = EXPECTED, resolved = tarball, hiddenLock = true, recorded = VERSION } = {}) {
   const cwd = scratch(t, "pi-host-integrity-");
   const packages = {};
   for (const name of OWNERS) {
     const dir = path.join(cwd, "node_modules", ...name.split("/"));
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name, version: VERSION }));
-    packages[`node_modules/${name}`] = { version: VERSION, resolved: resolved(name), integrity: integrity[name] };
+    packages[`node_modules/${name}`] = { version: recorded, resolved: resolved(name), integrity: integrity[name] };
   }
   if (hiddenLock) {
     writeFileSync(path.join(cwd, "node_modules", ".package-lock.json"),
@@ -54,6 +54,15 @@ function installedTree(t, { integrity = EXPECTED, resolved = tarball, hiddenLock
   }
   return cwd;
 }
+
+test("a stale hidden lockfile entry for another version never vouches for the installed package", (t) => {
+  // Observed on a workstation tree: lockfile recorded 1.4.0 while 1.1.0 was installed.
+  const cwd = installedTree(t, { recorded: "1.5.0" });
+  const alignment = describeHostAlignment(host(EXPECTED), cwd);
+  assert.equal(alignment.aligned, false);
+  assert.ok(alignment.packages.every((state) => state.installedVersion === VERSION && state.recordedVersion === "1.5.0"
+    && state.installedIntegrity === EXPECTED[state.packageName] && state.integrityAligned === false));
+});
 
 test("expected integrity is optional and must name exactly the host package set with sha512", () => {
   assert.equal(parseExpectedIntegrity(undefined, OWNERS), undefined);

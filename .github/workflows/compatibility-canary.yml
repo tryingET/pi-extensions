@@ -130,9 +130,12 @@ jobs:
           for (const name of [host.packageName, ...host.companionPackages]) {
             // Public registry only, for the default and the package scope alike.
             const scope = name.startsWith("@") ? [`--${name.split("/")[0]}:registry=${registry}`] : [];
-            const integrity = JSON.parse(execFileSync("npm", [
+            const viewed = JSON.parse(execFileSync("npm", [
               "view", `${name}@${host.version}`, "dist.integrity", "--json", `--registry=${registry}`, ...scope,
             ], { encoding: "utf8" }));
+            // npm 12 prints a one-element array for one field; anything else is ambiguous.
+            const values = Array.isArray(viewed) ? viewed : [viewed];
+            const integrity = values.length === 1 ? values[0] : undefined;
             if (typeof integrity !== "string" || !integrity.startsWith("sha512-")) {
               throw new Error(`No sha512 registry integrity for ${name}@${host.version}`);
             }

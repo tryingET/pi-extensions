@@ -515,8 +515,10 @@ the checked-in baseline contract.
   `https://registry.npmjs.org/` (default and package scope) and passes it as
   `PI_HOST_COMPAT_EXPECTED_INTEGRITY`. With that set, host alignment also requires
   each installed package's integrity, from npm's `node_modules/.package-lock.json`,
-  to match and its tarball to come from the public registry. A missing record fails
-  closed. Without the variable, alignment stays version-only (local runs).
+  to match, its tarball to come from the public registry, and the record to name the
+  version actually installed. A missing or stale record fails closed. This is npm's
+  install record cross-checked with the installed version, not a recomputed hash of
+  the installed bytes. Without the variable, alignment stays version-only (local runs).
 - `discover` uploads `canary-request-<attempt>` (requested scenarios, host version,
   review anchor, expected integrity, GitHub run identity). Each scenario job runs
   `run --evidence-out` and uploads `canary-evidence-<scenario>-<attempt>` with

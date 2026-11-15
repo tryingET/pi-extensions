@@ -582,11 +582,12 @@ test("compatibility workflow resolves expected integrity from the public registr
   const bin = path.join(scratch, "bin");
   mkdirSync(bin);
   const calls = path.join(scratch, "calls");
-  // Fake npm: records argv, answers one deterministic sha512 per package.
+  // Fake npm: records argv and answers in npm 12.0.2's real `view <field> --json`
+  // shape, a one-element array, with one deterministic sha512 per package.
   writeFileSync(path.join(bin, "npm"), `#!/usr/bin/env node
 const fs = require("node:fs");
 fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + "\\n");
-console.log(JSON.stringify("sha512-" + Buffer.alloc(64, process.argv[3].length).toString("base64")));
+console.log(JSON.stringify(["sha512-" + Buffer.alloc(64, process.argv[3].length).toString("base64")], null, 2));
 `, { mode: 0o755 });
   const outputPath = path.join(scratch, "github-output");
   writeFileSync(outputPath, "");
