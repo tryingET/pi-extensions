@@ -523,9 +523,10 @@ test("snapshot-edit and pi-modes retain, verify, upload, and publish one exact t
   assert.match(workflow, /RELEASE_TARBALL_PATH=\$tarball_path/);
   assert.match(workflow, /RELEASE_TARBALL_BASENAME=\$tarball_basename/);
   assert.match(workflow, /RELEASE_TARBALL_SHA256=\$tarball_sha256/);
-  const upload = workflow.indexOf(
-    "uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-  );
+  // The reviewed pin lives in the CI toolchain lock; never restate the SHA here.
+  const uploadSha = JSON.parse(fs.readFileSync(path.join(path.dirname(WORKFLOW_PATH), "../../policy/ci-toolchain-lock.json"), "utf8"))
+    .actions["actions/upload-artifact"].sha;
+  const upload = workflow.indexOf(`uses: actions/upload-artifact@${uploadSha}`);
   const publish = workflow.indexOf('npm publish "$RELEASE_TARBALL_PATH" --provenance');
   assert.ok(upload >= 0 && publish > upload, "upload must precede exact-path publication");
   assert.ok((workflow.match(/sha256sum --check --status/g) ?? []).length >= 2);
