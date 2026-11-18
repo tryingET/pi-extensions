@@ -5,7 +5,7 @@ import { registerPickerInteraction, splitQueryAndContext } from "./triggerAdapte
 import { toVaultCandidates } from "./vaultCandidateAdapter.js";
 import { createPreparedExecutionToken, withPreparedExecutionMarker } from "./vaultReceipts.js";
 import { LIVE_TRIGGER_TELEMETRY_LIMIT, LIVE_VAULT_MIN_QUERY, LIVE_VAULT_TRIGGER_DEBOUNCE_MS, LIVE_VAULT_TRIGGER_ID, } from "./vaultTypes.js";
-const PICKER_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
+const PICKER_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.";
 function createLiveTriggerTelemetryState() {
     return {
         registrations: 0,

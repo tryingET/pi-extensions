@@ -15,6 +15,7 @@ test("logRetrievalBatch writes retrieval_events rows to the SQLite sidecar and s
       "src/generatedPromptVaultContract.ts",
       "src/vaultTypes.ts",
       "src/companyContext.ts",
+      "src/companyRegister.ts",
       "src/vaultSchema.ts",
       "src/vaultMutations.ts",
       "src/vaultFeedback.ts",

@@ -2,6 +2,7 @@
 // read_when:
 //   - implementing vault dispatch checks or diagnosing blocked template lookups.
 import * as crypto from "node:crypto";
+import { isContextCompany } from "./companyRegister.js";
 import {
   canonicalJcsBytes,
   classifyDispatchPosture,
@@ -13,7 +14,7 @@ import {
 import { createVaultRuntime } from "./vaultDb.js";
 
 const DISPATCH_CONTEXT_ERROR =
-  "Explicit company context is required for vault dispatch checks. Set PI_COMPANY or run from a company-scoped cwd.";
+  "Explicit company context is required for vault dispatch checks. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.";
 const VALID_ARTIFACT_KINDS = new Set(["cognitive", "procedure"]);
 const VALID_CONTROL_MODES = new Set(["one_shot", "router", "loop"]);
 const VALID_FORMALIZATION_LEVELS = new Set(["napkin", "bounded", "structured", "workflow"]);
@@ -27,6 +28,7 @@ const VALID_EXECUTION_SURFACES = new Set([
   "orchestrator_adapter",
   "projected_prompt",
 ]);
+// Stored names rows may hold; a context company is checked by isContextCompany.
 const VALID_COMPANIES = new Set([
   "core",
   "software",
@@ -219,7 +221,7 @@ function authorizeRequest(request, policy) {
   const company = String(request.currentCompany || "").trim();
   if (!VALID_EXECUTION_SURFACES.has(request.surface))
     return blocked("unsupported_surface", "The requested execution surface is not governed.");
-  if (!VALID_COMPANIES.has(company))
+  if (!isContextCompany(company))
     return blocked("company_context_conflict", "A valid explicit company context is required.");
   if (!Array.isArray(request.templates) || request.templates.length === 0)
     return blocked("missing_template", "At least one template is required.");

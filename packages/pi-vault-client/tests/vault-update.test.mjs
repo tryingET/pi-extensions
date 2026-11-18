@@ -128,6 +128,7 @@ async function withVaultModules(run) {
       files: [
         "src/vaultTypes.ts",
         "src/companyContext.ts",
+        "src/companyRegister.ts",
         "src/vaultSchema.ts",
         "src/vaultMutations.ts",
         "src/vaultFeedback.ts",
@@ -862,7 +863,7 @@ test("resolveMutationActorContext fails closed without explicit company context"
       assert.deepEqual(resolveMutationActorContext(), {
         status: "error",
         message:
-          "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+          "Explicit company context is required for vault mutations. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
       });
     } finally {
       process.chdir(originalCwd);
@@ -887,7 +888,7 @@ test("resolveMutationActorContext can disable ambient process cwd fallback", asy
       assert.deepEqual(resolveMutationActorContext({ allowAmbientCwdFallback: false }), {
         status: "error",
         message:
-          "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+          "Explicit company context is required for vault mutations. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
       });
     } finally {
       if (originalPiCompany === undefined) delete process.env.PI_COMPANY;

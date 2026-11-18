@@ -8,6 +8,7 @@ import { withTranspiledModuleHarness } from "./helpers/transpiled-module-harness
 const VAULT_FEEDBACK_FILES = [
   "src/vaultTypes.ts",
   "src/companyContext.ts",
+  "src/companyRegister.ts",
   "src/templateRenderer.js",
   "src/vaultMutations.ts",
   "src/vaultReceipts.ts",

@@ -46,7 +46,7 @@ function createRuntime(options = {}) {
       return (
         options.companyContext || {
           company: cwd?.includes("finance") ? "finance" : "software",
-          source: cwd ? `cwd:${cwd}` : "env:PI_COMPANY",
+          source: cwd ? `cwd:${cwd}` : "env:VAULT_CURRENT_COMPANY",
         }
       );
     },
@@ -251,7 +251,7 @@ test("prompt-plane seam rejects explicit company context that conflicts with amb
       resolveCurrentCompanyContext(cwd) {
         return cwd
           ? { company: "core", source: "contract-default" }
-          : { company: "software", source: "env:PI_COMPANY" };
+          : { company: "software", source: "env:VAULT_CURRENT_COMPANY" };
       },
       getTemplateDetailed(name) {
         return ok(template({ name }));
@@ -269,7 +269,7 @@ test("prompt-plane seam rejects explicit company context that conflicts with amb
 
   assert.equal(result.ok, false);
   assert.equal(result.status, "blocked");
-  assert.match(result.blocking_reason || "", /env:PI_COMPANY/);
+  assert.match(result.blocking_reason || "", /env:VAULT_CURRENT_COMPANY/);
   assert.match(result.blocking_reason || "", /software/);
 });
 
@@ -279,7 +279,7 @@ test("prompt-plane seam does not fall back to ambient company context when an ex
       resolveCurrentCompanyContext(cwd) {
         return cwd
           ? { company: "core", source: "contract-default" }
-          : { company: "software", source: "env:PI_COMPANY" };
+          : { company: "software", source: "env:VAULT_CURRENT_COMPANY" };
       },
       getTemplateDetailed(name) {
         return ok(template({ name }));

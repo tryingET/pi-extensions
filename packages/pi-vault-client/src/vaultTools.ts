@@ -119,7 +119,7 @@ function normalizeToolCwd(ctx: unknown): string | undefined {
 }
 
 const TOOL_READ_CONTEXT_ERROR =
-  "Explicit company context is required for visibility-sensitive vault reads on the tool surface. Set PI_COMPANY or invoke the tool from a company-scoped cwd.";
+  "Explicit company context is required for visibility-sensitive vault reads on the tool surface. Set VAULT_CURRENT_COMPANY or invoke the tool from a company-scoped cwd.";
 
 function resolveToolExecutionContext(
   runtime: VaultRuntime,
@@ -435,7 +435,7 @@ Examples:
         filters.visibility_company !== executionContext.currentCompany
       ) {
         const error =
-          "Cross-company visibility overrides are rejected on the tool surface. Set PI_COMPANY or invoke from the target company-scoped cwd instead.";
+          "Cross-company visibility overrides are rejected on the tool surface. Set VAULT_CURRENT_COMPANY or invoke from the target company-scoped cwd instead.";
         return {
           content: [{ type: "text", text: error }],
           details: {

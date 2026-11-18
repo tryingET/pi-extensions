@@ -103,6 +103,7 @@ async function withCommandModules(run) {
         "src/dispatchGuard.ts",
         "src/dispatchPosture.ts",
         "src/dispatchRuntime.ts",
+        "src/companyRegister.ts",
         "src/vaultCommands.ts",
         "src/vaultReceipts.ts",
         "src/vaultReplay.ts",

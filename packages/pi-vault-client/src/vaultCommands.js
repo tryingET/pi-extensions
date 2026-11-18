@@ -7,7 +7,7 @@ import { runFzfProbe } from "./fuzzySelector.js";
 import { createPreparedExecutionToken, formatVaultReceipt, receiptVisibleToCompany, stripPreparedExecutionMarkers, withPreparedExecutionMarker, } from "./vaultReceipts.js";
 import { formatVaultReplayReport, replayVaultExecutionById } from "./vaultReplay.js";
 import { buildRoutePrompt, getRoutePromptShapeForChannel } from "./vaultRoute.js";
-const COMMAND_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
+const COMMAND_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.";
 function notifyPrepared(runtime, template, contextSuffix, selectionMessage, ctx) {
     if (!ctx.hasUI)
         return;

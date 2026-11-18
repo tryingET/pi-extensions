@@ -15,6 +15,7 @@ import os from "node:os";
 import path, { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveCompanyContext } from "./companyContext.js";
+import { internalCompany, loadRegister, NO_COMPANY, visibilitySql } from "./companyRegister.js";
 import { ANALYTICS_SCHEMA_SQL, ANALYTICS_SCHEMA_VERSION } from "./generatedPromptVaultContract.js";
 import { rateTemplate as executeFeedbackRating } from "./vaultFeedback.js";
 import {
@@ -903,11 +904,9 @@ function resolveReadCompanyContext(
   context?: VaultExecutionContext,
 ): { ok: true; company: string; source: string } | { ok: false; error: string } {
   if (context?.currentCompany?.trim()) {
-    return {
-      ok: true,
-      company: context.currentCompany.trim(),
-      source: "explicit:currentCompany",
-    };
+    const company = internalCompany(context.currentCompany);
+    if (company === null) return unknownCompany(context.currentCompany);
+    return { ok: true, company, source: "explicit:currentCompany" };
   }
 
   const resolved = resolveCurrentCompanyContext(context?.cwd);
@@ -915,11 +914,21 @@ function resolveReadCompanyContext(
     return {
       ok: false,
       error:
-        "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.",
+        "Explicit company context is required for visibility-sensitive vault reads. Set VAULT_CURRENT_COMPANY (a company, or none) or run from a company-scoped cwd.",
     };
+  }
+  if (resolved.company !== NO_COMPANY && internalCompany(resolved.company) === null) {
+    return unknownCompany(resolved.company);
   }
 
   return { ok: true, company: resolved.company, source: resolved.source };
+}
+
+function unknownCompany(name: string): { ok: false; error: string } {
+  return {
+    ok: false,
+    error: `Unknown or retired company ${JSON.stringify(name.trim())}; known: ${loadRegister().companies.join(", ")}, or none.`,
+  };
 }
 
 function qualifyTemplateColumn(column: string, alias?: string): string {
@@ -927,7 +936,11 @@ function qualifyTemplateColumn(column: string, alias?: string): string {
 }
 
 function buildVisibilityPredicate(company = getCurrentCompany(), alias?: string): string {
-  return `JSON_SEARCH(${qualifyTemplateColumn("visibility_companies", alias)}, 'one', '${escapeSql(company)}') IS NOT NULL`;
+  return visibilitySql(
+    company,
+    qualifyTemplateColumn("visibility_companies", alias),
+    qualifyTemplateColumn("owner_company", alias),
+  );
 }
 
 function buildActiveVisibleTemplatePredicate(

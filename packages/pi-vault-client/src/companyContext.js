@@ -1,23 +1,9 @@
 // summary: infer and resolve the active company from environment variables and workspace paths.
 // read_when:
 //   - debugging company-scoped visibility context or cwd inference precedence.
+import { internalCompany } from "./companyRegister.js";
 const COMPANY_CONTEXT_ANCHOR_SEGMENTS = new Set(["ai-society", "work", "workspace"]);
 const COMPANY_LANE_SEGMENTS = new Set(["owned", "infra", "contrib", "agents", "fork"]);
-const COMPANY_PATH_SEGMENT_ALIASES = {
-    core: "core",
-    software: "software",
-    softwareco: "software",
-    finance: "finance",
-    financeco: "finance",
-    house: "house",
-    houseco: "house",
-    health: "health",
-    healthco: "health",
-    teaching: "teaching",
-    teachingco: "teaching",
-    holding: "holding",
-    holdingco: "holding",
-};
 function normalizePathSegments(cwd) {
     return cwd
         .split(/[\\/]+/)
@@ -25,9 +11,9 @@ function normalizePathSegments(cwd) {
         .filter(Boolean);
 }
 function detectCompanyFromSegment(segment) {
-    if (!segment)
+    if (!segment || segment === "none")
         return null;
-    return COMPANY_PATH_SEGMENT_ALIASES[segment] || null;
+    return internalCompany(segment);
 }
 export function inferCompanyFromCwd(cwd) {
     const effectiveCwd = String(cwd || "").trim();
@@ -55,14 +41,13 @@ export function inferCompanyFromCwd(cwd) {
 }
 export function resolveCompanyContext(options) {
     const env = options?.env || process.env;
-    const explicitPiCompany = env.PI_COMPANY?.trim();
-    if (explicitPiCompany) {
-        return { company: explicitPiCompany, source: "env:PI_COMPANY" };
-    }
+    // One name for every harness: VAULT_CURRENT_COMPANY. PI_COMPANY is not read.
+    // A register name or old alias maps to the client's internal name; "none" is no company;
+    // a retired or unknown name is passed on unchanged so callers refuse it.
     const explicitVaultCompany = env.VAULT_CURRENT_COMPANY?.trim();
     if (explicitVaultCompany) {
         return {
-            company: explicitVaultCompany,
+            company: internalCompany(explicitVaultCompany) ?? explicitVaultCompany,
             source: "env:VAULT_CURRENT_COMPANY",
         };
     }

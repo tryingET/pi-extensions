@@ -22,7 +22,7 @@ import {
 } from "./vaultTypes.js";
 
 const PICKER_READ_CONTEXT_ERROR =
-  "Explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.";
+  "Explicit company context is required for visibility-sensitive vault reads. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.";
 
 function createLiveTriggerTelemetryState() {
   return {

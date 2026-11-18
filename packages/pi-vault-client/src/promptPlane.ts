@@ -21,7 +21,7 @@ import {
 } from "./vaultTypes.js";
 
 const PROMPT_PLANE_CONTEXT_ERROR =
-  "Explicit company context is required for visibility-sensitive prompt-plane preparation. Set PI_COMPANY or run from a company-scoped cwd.";
+  "Explicit company context is required for visibility-sensitive prompt-plane preparation. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.";
 const MAX_AMBIGUOUS_TEMPLATE_NAMES = 5;
 
 export interface PromptPlaneExecutionContext {

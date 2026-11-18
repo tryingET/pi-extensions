@@ -158,7 +158,7 @@ test("vault_query uses centralized active + company-visible filtering with expli
   );
   assert.match(
     DB_SOURCE,
-    /JSON_SEARCH\(\$\{qualifyTemplateColumn\("visibility_companies", alias\)\}, 'one', '\$\{escapeSql\(company\)\}'\) IS NOT NULL/,
+    /visibilitySql\(\s*company,\s*qualifyTemplateColumn\("visibility_companies", alias\),\s*qualifyTemplateColumn\("owner_company", alias\),?\s*\)/,
   );
   assert.match(DB_SOURCE, /function\s+buildActiveVisibleTemplatePredicate\(/);
   assert.match(DB_SOURCE, /\$\{qualifyTemplateColumn\("export_to_pi", alias\)\} = true/);
@@ -438,8 +438,9 @@ test("vault check command reports detailed schema diagnostics plus company conte
   assert.match(COMPANY_CONTEXT_SOURCE, /export function inferCompanyFromCwd\(/);
   assert.match(COMPANY_CONTEXT_SOURCE, /COMPANY_CONTEXT_ANCHOR_SEGMENTS/);
   assert.match(COMPANY_CONTEXT_SOURCE, /COMPANY_LANE_SEGMENTS/);
-  assert.match(COMPANY_CONTEXT_SOURCE, /softwareco: "software"/);
-  assert.match(COMPANY_CONTEXT_SOURCE, /source: "env:PI_COMPANY"/);
+  assert.match(COMPANY_CONTEXT_SOURCE, /internalCompany\(segment\)/);
+  assert.doesNotMatch(COMPANY_CONTEXT_SOURCE, /env\.PI_COMPANY/);
+  assert.match(COMPANY_CONTEXT_SOURCE, /source: "env:VAULT_CURRENT_COMPANY"/);
   assert.match(COMPANY_CONTEXT_SOURCE, /source: `cwd:\$\{effectiveCwd\}`/);
   assert.doesNotMatch(COMPANY_CONTEXT_SOURCE, /includes\("\/softwareco\/"\)/);
   assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-check"/);

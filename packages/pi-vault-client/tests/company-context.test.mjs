@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { withTranspiledModuleHarness } from "./helpers/transpiled-module-harness.mjs";
 
-const COMPANY_CONTEXT_FILES = ["src/companyContext.ts", "src/vaultTypes.ts"];
+const COMPANY_CONTEXT_FILES = [
+  "src/companyContext.ts",
+  "src/companyRegister.ts",
+  "src/vaultTypes.ts",
+  "src/generatedPromptVaultContract.ts",
+];
 
-test("resolveCompanyContext prefers PI_COMPANY over VAULT_CURRENT_COMPANY and cwd", async () => {
+test("resolveCompanyContext ignores PI_COMPANY; VAULT_CURRENT_COMPANY beats cwd", async () => {
   await withTranspiledModuleHarness(
     {
       prefix: "company-context-",
@@ -22,14 +27,53 @@ test("resolveCompanyContext prefers PI_COMPANY over VAULT_CURRENT_COMPANY and cw
       });
 
       assert.deepEqual(result, {
-        company: "finance",
-        source: "env:PI_COMPANY",
+        company: "software",
+        source: "env:VAULT_CURRENT_COMPANY",
       });
+      const onlyPi = resolveCompanyContext({
+        cwd: "/home/tryinget/.config/espanso",
+        defaultCompany: "core",
+        env: { PI_COMPANY: "holding" },
+      });
+      assert.equal(onlyPi.source, "contract-default");
     },
   );
 });
 
-test("resolveCompanyContext falls back to VAULT_CURRENT_COMPANY when PI_COMPANY is absent", async () => {
+test("register names, aliases, no company, retired and unknown names", async () => {
+  await withTranspiledModuleHarness(
+    { prefix: "company-context-", files: COMPANY_CONTEXT_FILES },
+    async ({ importModule }) => {
+      const { resolveCompanyContext, inferCompanyFromCwd } =
+        await importModule("src/companyContext.js");
+      const { internalCompany, storedNamesFor, visibilitySql, isContextCompany } =
+        await importModule("src/companyRegister.js");
+      const env = (value) =>
+        resolveCompanyContext({ cwd: "/tmp", env: { VAULT_CURRENT_COMPANY: value } });
+      assert.equal(env("softwareco").company, "software");
+      assert.equal(env("familyco").company, "familyco");
+      assert.equal(env("none").company, "none");
+      assert.equal(env("house").company, "house");
+      assert.equal(internalCompany("house"), null);
+      assert.equal(internalCompany("houseco"), null);
+      assert.equal(internalCompany("tradingco"), "tradingco");
+      assert.equal(isContextCompany("none"), false);
+      assert.equal(isContextCompany("familyco"), true);
+      assert.equal(inferCompanyFromCwd("/home/x/ai-society/familyco/owned/haus"), "familyco");
+      assert.equal(inferCompanyFromCwd("/home/x/ai-society/houseco/owned/haus"), null);
+      assert.equal(inferCompanyFromCwd("/home/x/ai-society/notacompany/owned/x"), null);
+      assert.deepEqual(storedNamesFor("software").sort(), ["software", "softwareco"]);
+      const none = visibilitySql("none", "v", "o");
+      assert.match(none, /^\(o = 'core' AND JSON_CONTAINS\(v, /);
+      assert.doesNotMatch(none, /JSON_SEARCH/);
+      const family = visibilitySql("familyco", "v", "o");
+      assert.match(family, /JSON_SEARCH\(v, 'one', 'familyco'\)/);
+      assert.match(family, /o = 'core'/);
+    },
+  );
+});
+
+test("resolveCompanyContext reads VAULT_CURRENT_COMPANY when it is the only setting", async () => {
   await withTranspiledModuleHarness(
     {
       prefix: "company-context-",
@@ -127,6 +171,7 @@ test("resolveCompanyContext avoids substring false positives and falls back clea
         company: "core",
         source: "contract-default",
       });
+      assert.equal(inferCompanyFromCwd("/home/tryinget/ai-society/houseco/projects/x"), null);
     },
   );
 });

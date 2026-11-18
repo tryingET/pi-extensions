@@ -16,7 +16,8 @@ import path from "node:path";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveCompanyContext } from "./companyContext.js";
-const PROMPT_EVAL_CONTEXT_ERROR = "Explicit company context is required for prompt_eval variants. Set PI_COMPANY or invoke the tool from a company-scoped cwd.";
+import { internalCompany, NO_COMPANY } from "./companyRegister.js";
+const PROMPT_EVAL_CONTEXT_ERROR = "Explicit company context is required for prompt_eval variants. Set VAULT_CURRENT_COMPANY or invoke the tool from a company-scoped cwd.";
 function formatEvaluatorError(error) {
     return error instanceof Error ? error.message : String(error);
 }
@@ -159,15 +160,11 @@ function normalizeEvaluatorCwd(ctx) {
 }
 function resolvePromptEvaluatorCompanyContext(ctx, options) {
     const env = options?.env || process.env;
-    if (env.PI_COMPANY?.trim()) {
-        return { ok: true, company: env.PI_COMPANY.trim(), source: "env:PI_COMPANY" };
-    }
     if (env.VAULT_CURRENT_COMPANY?.trim()) {
-        return {
-            ok: true,
-            company: env.VAULT_CURRENT_COMPANY.trim(),
-            source: "env:VAULT_CURRENT_COMPANY",
-        };
+        const company = internalCompany(env.VAULT_CURRENT_COMPANY);
+        if (company === null || company === NO_COMPANY)
+            return { ok: false, error: PROMPT_EVAL_CONTEXT_ERROR };
+        return { ok: true, company, source: "env:VAULT_CURRENT_COMPANY" };
     }
     const cwd = normalizeEvaluatorCwd(ctx) || options?.processCwd?.trim();
     if (!cwd) {

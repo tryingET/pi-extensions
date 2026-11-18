@@ -5,6 +5,7 @@ import { withTranspiledModuleHarness } from "./helpers/transpiled-module-harness
 const VAULT_MUTATION_FILES = [
   "src/vaultTypes.ts",
   "src/companyContext.ts",
+  "src/companyRegister.ts",
   "src/templateRenderer.js",
   "src/vaultMutations.ts",
 ];
@@ -109,9 +110,24 @@ test("resolveMutationActorContext preserves explicit -> env -> cwd precedence", 
         }),
         {
           status: "ok",
-          actorCompany: "finance",
-          source: "env:PI_COMPANY",
+          actorCompany: "core",
+          source: "env:VAULT_CURRENT_COMPANY",
         },
+      );
+
+      assert.equal(
+        resolveMutationActorContext(undefined, {
+          env: { VAULT_CURRENT_COMPANY: "none" },
+          processCwd: "/tmp/not-a-company/project",
+        }).status,
+        "error",
+      );
+      assert.deepEqual(
+        resolveMutationActorContext(undefined, {
+          env: { VAULT_CURRENT_COMPANY: "softwareco" },
+          processCwd: "/tmp/not-a-company/project",
+        }),
+        { status: "ok", actorCompany: "software", source: "env:VAULT_CURRENT_COMPANY" },
       );
 
       assert.deepEqual(
@@ -152,7 +168,7 @@ test("resolveMutationActorContext fails closed when ambient cwd fallback is disa
         {
           status: "error",
           message:
-            "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+            "Explicit company context is required for vault mutations. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
         },
       );
     },

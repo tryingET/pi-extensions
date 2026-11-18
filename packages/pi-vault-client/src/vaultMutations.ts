@@ -1,4 +1,5 @@
 import { resolveCompanyContext } from "./companyContext.js";
+import { internalCompany, NO_COMPANY } from "./companyRegister.js";
 import { detectTemplateRenderEngine, stripFrontmatter } from "./templateRenderer.js";
 import type {
   DoltJsonResult,
@@ -189,17 +190,17 @@ export function resolveMutationActorContext(
   }
 
   const env = options?.env || process.env;
-  if (env.PI_COMPANY?.trim()) {
-    return {
-      status: "ok",
-      actorCompany: env.PI_COMPANY.trim(),
-      source: "env:PI_COMPANY",
-    };
-  }
   if (env.VAULT_CURRENT_COMPANY?.trim()) {
+    const actorCompany = internalCompany(env.VAULT_CURRENT_COMPANY);
+    if (actorCompany === null || actorCompany === NO_COMPANY) {
+      return {
+        status: "error",
+        message: `Vault mutations need a company; VAULT_CURRENT_COMPANY=${JSON.stringify(env.VAULT_CURRENT_COMPANY.trim())} is no company, retired or unknown.`,
+      };
+    }
     return {
       status: "ok",
-      actorCompany: env.VAULT_CURRENT_COMPANY.trim(),
+      actorCompany,
       source: "env:VAULT_CURRENT_COMPANY",
     };
   }
@@ -215,7 +216,7 @@ export function resolveMutationActorContext(
       return {
         status: "error",
         message:
-          "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+          "Explicit company context is required for vault mutations. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
       };
     }
 
@@ -230,7 +231,7 @@ export function resolveMutationActorContext(
     return {
       status: "error",
       message:
-        "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+        "Explicit company context is required for vault mutations. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
     };
   }
 
@@ -243,7 +244,7 @@ export function resolveMutationActorContext(
     return {
       status: "error",
       message:
-        "Explicit company context is required for vault mutations. Set PI_COMPANY or run from a company-scoped cwd.",
+        "Explicit company context is required for vault mutations. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
     };
   }
 

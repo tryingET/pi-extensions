@@ -66,6 +66,7 @@ async function withTempVaultRuntime(runTest) {
     files: [
       "src/vaultTypes.ts",
       "src/companyContext.ts",
+      "src/companyRegister.ts",
       "src/vaultSchema.ts",
       "src/vaultMutations.ts",
       "src/vaultFeedback.ts",

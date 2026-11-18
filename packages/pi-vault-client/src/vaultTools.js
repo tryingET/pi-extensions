@@ -88,7 +88,7 @@ function normalizeToolCwd(ctx) {
     const cwd = ctx?.cwd;
     return typeof cwd === "string" && cwd.trim() ? cwd.trim() : undefined;
 }
-const TOOL_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads on the tool surface. Set PI_COMPANY or invoke the tool from a company-scoped cwd.";
+const TOOL_READ_CONTEXT_ERROR = "Explicit company context is required for visibility-sensitive vault reads on the tool surface. Set VAULT_CURRENT_COMPANY or invoke the tool from a company-scoped cwd.";
 function resolveToolExecutionContext(runtime, ctx) {
     const cwd = normalizeToolCwd(ctx);
     const companyContext = runtime.resolveCurrentCompanyContext(cwd);
@@ -339,7 +339,7 @@ Examples:
             };
             if (filters.visibility_company &&
                 filters.visibility_company !== executionContext.currentCompany) {
-                const error = "Cross-company visibility overrides are rejected on the tool surface. Set PI_COMPANY or invoke from the target company-scoped cwd instead.";
+                const error = "Cross-company visibility overrides are rejected on the tool surface. Set VAULT_CURRENT_COMPANY or invoke from the target company-scoped cwd instead.";
                 return {
                     content: [{ type: "text", text: error }],
                     details: {

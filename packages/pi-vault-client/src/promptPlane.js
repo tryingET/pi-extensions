@@ -10,7 +10,7 @@ import { createVaultRuntime } from "./vaultDb.js";
 import { MAX_VAULT_QUERY_LIMIT } from "./vaultTypes.js";
 
 const PROMPT_PLANE_CONTEXT_ERROR =
-  "Explicit company context is required for visibility-sensitive prompt-plane preparation. Set PI_COMPANY or run from a company-scoped cwd.";
+  "Explicit company context is required for visibility-sensitive prompt-plane preparation. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.";
 const MAX_AMBIGUOUS_TEMPLATE_NAMES = 5;
 function asNonEmptyString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;

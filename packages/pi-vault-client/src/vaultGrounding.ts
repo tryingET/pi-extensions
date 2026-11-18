@@ -311,7 +311,7 @@ function buildGroundedNext10Prompt(
     return {
       ok: false,
       reason:
-        "BLOCKED: explicit company context is required for visibility-sensitive vault reads. Set PI_COMPANY or run from a company-scoped cwd.",
+        "BLOCKED: explicit company context is required for visibility-sensitive vault reads. Set VAULT_CURRENT_COMPANY or run from a company-scoped cwd.",
     };
   }
   const currentCompany = companyResolution.company;
