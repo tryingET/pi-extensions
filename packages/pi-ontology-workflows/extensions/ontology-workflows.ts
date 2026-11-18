@@ -2,7 +2,6 @@
 // read_when:
 //   - "changing ontology tools, commands, schemas, mutation confirmation, or session hints."
 
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { createFilesystemPort } from "../src/adapters/filesystem.ts";
@@ -34,6 +33,20 @@ import {
   type RuntimeContext as SemanticRuntimeContext,
 } from "../src/semantic/preflight-runtime.ts";
 import { registerOntologyPromptGuidance } from "../src/semantic/prompt-guidance.ts";
+
+// pi-ai >= 1.5 StringEnum returns a pi-schema Schema, which typebox's Type.Object cannot
+// infer (the field becomes unknown). Same JSON schema, { type: "string", enum }, typed for typebox.
+function StringEnum<T extends readonly string[]>(
+  values: T,
+  options?: { description?: string; default?: T[number] },
+) {
+  return Type.Unsafe<T[number]>({
+    type: "string",
+    enum: values,
+    ...(options?.description && { description: options.description }),
+    ...(options?.default && { default: options.default }),
+  });
+}
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 
