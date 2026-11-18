@@ -178,8 +178,8 @@ test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);
   assert.equal(result.profile, "current");
   assert.equal(result.host.packageName, "@earendil-works/pi-coding-agent");
-  assert.equal(result.host.version, "1.4.0");
-  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@1.4.0");
+  assert.equal(result.host.version, "1.5.2");
+  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@1.5.2");
   assert.ok(result.host.companionPackages.includes("@earendil-works/pi-tui"));
 });
 
@@ -457,7 +457,7 @@ test("compatibility canary dry-run can target a single scenario with package-set
   ]);
 
   assert.equal(result.profile, "current");
-  assert.equal(result.host.version, "1.4.0");
+  assert.equal(result.host.version, "1.5.2");
   assert.equal(result.summary.selected, 1);
   assert.equal(result.summary.failed, 0);
   assert.equal(result.results[0].id, "vault-live-trigger-contract");
@@ -475,10 +475,10 @@ test("compatibility canary dry-run can target a single scenario with package-set
       "install",
       "--no-save",
       "--package-lock=false",
-      "@earendil-works/pi-coding-agent@1.4.0",
-      "@earendil-works/pi-ai@1.4.0",
-      "@earendil-works/pi-tui@1.4.0",
-      "@earendil-works/pi-agent-core@1.4.0",
+      "@earendil-works/pi-coding-agent@1.5.2",
+      "@earendil-works/pi-ai@1.5.2",
+      "@earendil-works/pi-tui@1.5.2",
+      "@earendil-works/pi-agent-core@1.5.2",
     ]);
   }
   assert.ok(["dry-run", "ready"].includes(result.results[0].host.preparation.status));

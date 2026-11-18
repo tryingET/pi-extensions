@@ -39,7 +39,7 @@ for (const entry of ["workstation-inference.ts", "workstation-inference-provider
           "utf8",
         ),
       );
-      assert.equal(sdkPackage.version, "1.4.0");
+      assert.equal(sdkPackage.version, "1.5.2");
       for (const variable of variables) delete process.env[variable];
       const path = join(root, "source.json");
       const source = JSON.parse(

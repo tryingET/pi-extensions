@@ -48,7 +48,7 @@ assert.equal(
       "utf8",
     ),
   ).version,
-  "1.4.0",
+  "1.5.2",
 );
 const { buildSystemPrompt, buildSystemPromptSections } = (await import(
   new URL("./core/system-prompt.js", import.meta.resolve("@earendil-works/pi-coding-agent")).href
