@@ -47,19 +47,19 @@ let armedAudio: ArmedAudio | undefined;
 /**
  * The audio lane takes no tools. Pi >= 0.86 hands a provider a transcript whose system
  * messages declare the tools, so they are removed from the outgoing payload, the boundary
- * this provider owns, not from the host's context. An empty list replaces them (what
- * pi-ai itself sends when the history holds tool calls), for servers that require the field.
+ * this provider owns, not from the host's context. The fields are omitted, not emptied:
+ * pi-ai >= 1.5.1 sends no `tools` field either, since vLLM >= 0.20 rejects `tools: []`.
  */
 export function withoutAudioTools(payload: unknown): unknown {
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return payload;
   const {
     tools,
-    tool_choice: _choice,
-    parallel_tool_calls: _parallel,
+    tool_choice: choice,
+    parallel_tool_calls: parallel,
     ...rest
   } = payload as Record<string, unknown>;
-  if (!Array.isArray(tools) || tools.length === 0) return payload;
-  return { ...rest, tools: [] };
+  if (tools === undefined && choice === undefined && parallel === undefined) return payload;
+  return rest;
 }
 
 export function setCurrentAudio(attachment: ArmedAudio): void {

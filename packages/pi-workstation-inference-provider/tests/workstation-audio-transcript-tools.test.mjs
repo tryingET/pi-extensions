@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import extension from "../extensions/workstation-inference.ts";
 import { clearWorkstationHealthCache } from "../extensions/workstation-inference-contract.ts";
+import { withoutAudioTools } from "../extensions/workstation-inference-stream.ts";
 import {
   inklingContract,
   inklingModel,
@@ -16,6 +17,23 @@ import {
   schedulerHandoffPayload,
   withInlineContract,
 } from "./workstation-inference-test-helpers.mjs";
+
+test("withoutAudioTools omits the tool fields instead of sending an empty list (vLLM >= 0.20 rejects tools: [])", () => {
+  const tool = { type: "function", function: { name: "read", parameters: { type: "object" } } };
+  const payload = {
+    model: "m",
+    messages: [],
+    tools: [tool],
+    tool_choice: "auto",
+    parallel_tool_calls: true,
+  };
+  assert.deepEqual(withoutAudioTools(payload), { model: "m", messages: [] });
+  assert.deepEqual(withoutAudioTools({ model: "m", tools: [] }), { model: "m" });
+  // Nothing to strip: the payload passes through unchanged, by identity.
+  const plain = { model: "m", messages: [] };
+  assert.equal(withoutAudioTools(plain), plain);
+  assert.equal(withoutAudioTools(null), null);
+});
 
 test("an audio dispatch strips the tools a Pi >= 0.86 transcript declares in its system message", async () => {
   const oldFetch = globalThis.fetch;
@@ -106,11 +124,14 @@ test("an audio dispatch strips the tools a Pi >= 0.86 transcript declares in its
       const error = events.find((event) => event.type === "error");
       assert.equal(error, undefined, error?.error?.errorMessage);
       assert.equal(posts.length, 1);
-      assert.ok(
-        !Array.isArray(posts[0].tools) || posts[0].tools.length === 0,
-        "the audio request carries tools",
+      // pi-ai >= 1.5.1 omits an empty tool list (vLLM >= 0.20 rejects `tools: []`); so does the audio lane.
+      assert.equal(
+        Object.hasOwn(posts[0], "tools"),
+        false,
+        "the audio request carries a tools field",
       );
-      assert.equal(posts[0].tool_choice, undefined);
+      assert.equal(Object.hasOwn(posts[0], "tool_choice"), false);
+      assert.equal(Object.hasOwn(posts[0], "parallel_tool_calls"), false);
       assert.ok(JSON.stringify(posts[0].messages).includes("input_audio"));
     });
   } finally {
