@@ -118,8 +118,10 @@ but one distinct harness-qualified identity.
   attributes to the same pid is `presence-lock-held`; an open lock without that flock is
   `open-descriptor-associated`. Neither is current-display proof. The descriptor is rechecked
   after the capture (same target, inode and, for a flock, still held), else `source-changed`.
-  The conversation store `conversations/<id>.db` is named and stat-ed, never opened. AK publishes
-  no agy claimant prefix, so agy identities join no claim.
+  The conversation store `conversations/<id>.db` is named and stat-ed, never opened. A waiter
+  (`->` in `/proc/locks`) is never a holder, and locks are matched by device and inode. AK accepts
+  `agy-session-<conversation id>` from agent-kernel `0e861920` (AK8812); agy identities join a
+  claim only once the published ak runtime pin carries it.
 - Reused PIDs and source changes cannot suppress an independent process-only observation.
 - `boot-mismatch`, `source-changed`, `not-observed`, `harness-mismatch` and `process-only` retain
   their literal meaning. Unsupported process kinds never acquire a guessed session ID.

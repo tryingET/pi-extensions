@@ -21,7 +21,12 @@ import {
   normalizeGhosttySurfaceId,
   readProcessStartTime,
 } from "../common/terminal-identity.mjs";
-import { readAgyTelemetry, resolveAgySession } from "./agy-discovery.mjs";
+import {
+  agyTelemetryForProcess,
+  devInodeKey,
+  readAgyTelemetry,
+  resolveAgySession,
+} from "./agy-discovery.mjs";
 import { resolveClaudeRegistrySession } from "./claude-registry.mjs";
 import {
   bindCodexThread,
@@ -46,7 +51,7 @@ const TELEMETRY_CACHE_LIMIT = 64;
 /** Parsed transcripts keyed by path and modification time, so an idle session is parsed once. */
 const telemetryCache = new Map();
 
-/** @typedef {{readFile: (filePath: string) => string; readLink: (filePath: string) => string; readDir: (filePath: string) => string[]; statMtimeMs: (filePath: string) => number; readTail: (filePath: string, bytes: number) => string; inodeOf?: (filePath: string) => string}} Procfs */
+/** @typedef {{readFile: (filePath: string) => string; readLink: (filePath: string) => string; readDir: (filePath: string) => string[]; statMtimeMs: (filePath: string) => number; readTail: (filePath: string, bytes: number) => string; lockKeyOf?: (filePath: string) => string}} Procfs */
 
 /** @type {Procfs} */
 export const nodeProcfs = {
@@ -78,9 +83,10 @@ export const nodeProcfs = {
       return 0;
     }
   },
-  inodeOf(filePath) {
+  lockKeyOf(filePath) {
     try {
-      return String(fs.statSync(filePath).ino);
+      const stat = fs.statSync(filePath, { bigint: true });
+      return devInodeKey(stat.dev, stat.ino);
     } catch {
       return "";
     }
@@ -223,13 +229,17 @@ function parentPidOf(processId, procfs) {
  *   surfaceId: string; family: string; hostPid: number}} AgentCandidate
  */
 
+/** Harnesses whose npm entry is only a Node launcher that spawns the native binary as its direct
+ * child (Codex). Any other same-kind parent is a real agent that started a second one. */
+export const LAUNCHER_HARNESSES = new Set(["codex"]);
+
 /**
  * One tab is one agent. An agent can start others inside its own tab — Claude Code its daemon,
  * Nodecode its gateway or a headless `claude`/`agy` turn, Codex's Node launcher its native binary —
- * and those inherit the tab's surface. A candidate with another candidate between it and the tab's
- * Ghostty process is that agent's child and is not a tab of its own, except when the outer one is
- * only a runtime launcher of the same agent: then the native process is the agent and the launcher
- * steps aside.
+ * and those inherit the tab's surface. The tab's owner is the outermost agent below the tab's
+ * Ghostty process; every candidate with another candidate above it is a child, not a tab. One
+ * exception: a Node launcher of a {@link LAUNCHER_HARNESSES} harness whose direct child is that
+ * harness's native binary steps aside for it, and the walk goes on above the launcher.
  * @param {AgentCandidate[]} candidates
  * @param {Procfs} procfs
  */
@@ -237,16 +247,24 @@ export function tabOwners(candidates, procfs) {
   const byPid = new Map(candidates.map((candidate) => [candidate.processId, candidate]));
   const dropped = new Set();
   for (const candidate of candidates) {
+    /** @type {AgentCandidate[]} */
+    const above = [];
     let pid = parentPidOf(candidate.processId, procfs);
     for (let depth = 0; depth < 12 && pid > 0 && pid !== candidate.hostPid; depth += 1) {
       const outer = byPid.get(pid);
-      if (outer) {
-        if (outer.agent.kind === candidate.agent.kind && outer.viaRuntime) dropped.add(outer);
-        else dropped.add(candidate);
-        break;
-      }
+      if (outer) above.push(outer);
       pid = parentPidOf(pid, procfs);
     }
+    const [nearest] = above;
+    const launcher =
+      nearest !== undefined &&
+      !candidate.viaRuntime &&
+      nearest.viaRuntime &&
+      nearest.agent.kind === candidate.agent.kind &&
+      LAUNCHER_HARNESSES.has(candidate.agent.kind) &&
+      parentPidOf(candidate.processId, procfs) === nearest.processId;
+    if (launcher) dropped.add(nearest);
+    if (above.length > (launcher ? 1 : 0)) dropped.add(candidate);
   }
   return candidates.filter((candidate) => !dropped.has(candidate));
 }
@@ -254,7 +272,7 @@ export function tabOwners(candidates, procfs) {
 /**
  * Discover every Ghostty tab running a recognized agent. A tab is admitted only with a bounded
  * Ghostty surface id, a live Ghostty ancestor of a known build family, and a recognized executable.
- * @param {{procfs?: Procfs; env?: NodeJS.ProcessEnv; homeDir?: string; now?: () => number; telemetryCache?: Map<string, any>; readNodecode?: typeof readNodecodeSessions; readAgySteps?: (databasePath: string) => import("../common/agy-conversation.mjs").AgyStepRow[]}} [options]
+ * @param {{procfs?: Procfs; env?: NodeJS.ProcessEnv; homeDir?: string; now?: () => number; telemetryCache?: Map<string, any>; readNodecode?: typeof readNodecodeSessions; readAgySteps?: (databasePath: string) => import("../common/agy-conversation.mjs").AgyStepRow[] | null}} [options]
  */
 export function discoverAgentTabs(options = {}) {
   const {
@@ -355,11 +373,14 @@ export function discoverAgentTabs(options = {}) {
       if (locks === undefined) locks = procfs.readFile("/proc/locks");
       const session = resolveAgySession(processId, procfs, {
         locks,
-        inodeOf: procfs.inodeOf?.bind(procfs),
+        lockKeyOf: procfs.lockKeyOf?.bind(procfs),
       });
       if (session) {
         sessionKey = session.conversationId;
-        const agy = readAgyTelemetry(session, procfs, cache, readAgySteps);
+        const agy = agyTelemetryForProcess(
+          readAgyTelemetry(session, procfs, cache, readAgySteps),
+          boot > 0 && Number(startTicks) > 0 ? startedAt : 0,
+        );
         telemetry = agy;
         lastEventAt = agy.lastEventAt;
       }
@@ -400,7 +421,7 @@ export function discoverAgentTabs(options = {}) {
     if (shell) {
       const row = nodecodeRows.get(shell.home)?.get(shell.sessionId);
       if (row) {
-        const nodecode = nodecodeTelemetry(row);
+        const nodecode = nodecodeTelemetry(row, now());
         telemetry = nodecode;
         lastEventAt = nodecode.lastEventAt;
       }

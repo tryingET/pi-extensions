@@ -69,17 +69,22 @@ export function recoveryHarness(p) {
 
 const RUNTIME_EXECUTABLE = /^(node|bun|python)/;
 
+/** Harnesses whose npm entry is only a launcher of their native binary. */
+const LAUNCHER_HARNESSES = new Set(["codex"]);
+
 /**
  * Codex's npm entry is a Node script that spawns the native `codex` binary, so both classify as
- * Codex. The script is a launcher, not a second session: a runtime-hosted process whose own child
- * is a native process of the same harness gives up its harness, and the child keeps it. Returns how
- * many launchers were folded.
+ * Codex. The script is a launcher, not a second session: a runtime-hosted Codex process whose own
+ * child is a native Codex gives up its harness, and the child keeps it. Other harnesses are never
+ * folded: a node-hosted Claude or Pi that starts a native one of its kind is two sessions. Returns
+ * how many launchers were folded.
  * @param {import('../common/recovery-types.ts').ProcessObservation[]} processes
  */
 export function foldRuntimeLaunchers(processes) {
   let folded = 0;
   for (const launcher of processes) {
-    if (!launcher.harness || !RUNTIME_EXECUTABLE.test(path.basename(launcher.executable))) continue;
+    if (!LAUNCHER_HARNESSES.has(launcher.harness)) continue;
+    if (!RUNTIME_EXECUTABLE.test(path.basename(launcher.executable))) continue;
     const native = processes.some(
       (child) =>
         child.ppid === launcher.pid &&

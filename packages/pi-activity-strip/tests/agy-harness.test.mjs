@@ -15,11 +15,7 @@ import {
 } from "../src/common/agy-conversation.mjs";
 import { protoString, protoTimestampsMs } from "../src/common/protobuf-wire.mjs";
 import { discoverAgentTabs } from "../src/native/agent-discovery.mjs";
-import {
-  heldLockInodes,
-  readAgyTelemetry,
-  resolveAgySession,
-} from "../src/native/agy-discovery.mjs";
+import { heldLockKeys, readAgyTelemetry, resolveAgySession } from "../src/native/agy-discovery.mjs";
 import {
   claudeProjectDirectoryName,
   resolveClaudeRegistrySession,
@@ -103,7 +99,7 @@ test("agy step status decides the card: tool, waiting, error, generating and the
   );
   assert.equal(
     parseAgySteps([step(3, AGY_STEP_TYPE.GENERIC, AGY_STEP_STATUS.ERROR)]).state,
-    "error",
+    "thinking",
   );
   const answer = msg(pb(20, msg(pb(3, "1, 2, 3"))));
   const ended = parseAgySteps([
@@ -159,15 +155,20 @@ test("an agy process binds to the conversation whose presence lock it holds unde
     "/proc/700/fd/4": `${HOME}/presence/${ID_B}.lock`,
     "/proc/700/fd/5": `${HOME}/conversations/${ID_A}.db`,
   };
-  const inodeOf = (fd) => ({ "/proc/700/fd/3": "111", "/proc/700/fd/4": "222" })[fd] ?? "";
+  const lockKeyOf = (fd) =>
+    ({ "/proc/700/fd/3": "0:35:111", "/proc/700/fd/4": "0:35:222" })[fd] ?? "";
   const locks =
     "1: FLOCK  ADVISORY  WRITE 700 00:23:222 0 EOF\n2: FLOCK  ADVISORY  WRITE 9 00:23:111 0 EOF\n";
-  assert.deepEqual([...heldLockInodes(locks, 700)], ["222"]);
-  const held = resolveAgySession(700, fdProcfs(links), { locks, inodeOf });
+  assert.deepEqual([...heldLockKeys(locks, 700)], ["0:35:222"]);
+  const held = resolveAgySession(700, fdProcfs(links), { locks, lockKeyOf });
   assert.equal(held?.conversationId, ID_B, "the flock decides between two open locks");
   assert.equal(held?.evidence, "presence-lock-held");
   assert.equal(held?.databasePath, `${HOME}/conversations/${ID_B}.db`);
-  assert.equal(resolveAgySession(700, fdProcfs(links), { locks: "", inodeOf }), null, "ambiguous");
+  assert.equal(
+    resolveAgySession(700, fdProcfs(links), { locks: "", lockKeyOf }),
+    null,
+    "ambiguous",
+  );
   const single = resolveAgySession(700, fdProcfs({ "/proc/700/fd/3": links["/proc/700/fd/3"] }));
   assert.equal(single?.conversationId, ID_A);
   assert.equal(single?.evidence, "presence-lock-open");
@@ -269,7 +270,8 @@ test("Nodecode telemetry: an open turn is current work, a question on the latest
     open_turn: "t2",
     last_event_at: "2026-11-18T12:00:05Z",
   };
-  const busy = nodecodeTelemetry(row);
+  const NOW = Date.parse("2026-11-18T12:01:00Z");
+  const busy = nodecodeTelemetry(row, NOW);
   assert.equal(busy.state, "thinking");
   assert.equal(busy.stateIsCurrent, true);
   assert.equal(busy.title, "Add agy");
@@ -358,6 +360,13 @@ test("one tab is one card: agents an agent starts in its own tab are not cards",
   add(520, 400, "node", "node /home/x/.npm-global/bin/codex", "0x12");
   add(521, 520, "codex", "/home/x/vendor/codex/codex", "0x12");
   add(530, 400, "agy", "agy", "0x13");
+  // Review S2: a Codex launcher inside a Nodecode tab folds, and the walk goes on to Nodecode.
+  add(540, 400, "nodecode", "nodecode -p main", "0x14");
+  add(541, 540, "node", "node /home/x/.npm-global/bin/codex", "0x14");
+  add(542, 541, "codex", "/home/x/vendor/codex/codex", "0x14");
+  // Review S2: a Node-hosted Claude that starts a native Claude of its own is the owner.
+  add(550, 400, "node", "node /home/x/.npm-global/bin/claude", "0x15");
+  add(551, 550, "claude", "claude -p sub", "0x15");
   // The resumed Claude Code tab holds no scratchpad; its registry record names it.
   files["/home/x/.claude/sessions/500.json"] = JSON.stringify({
     pid: 500,
@@ -371,7 +380,7 @@ test("one tab is one card: agents an agent starts in its own tab are not cards",
     readDir: (p) => (p === "/proc" ? [...procs, "400"] : []),
     statMtimeMs: () => 0,
     readTail: () => "",
-    inodeOf: () => "",
+    lockKeyOf: () => "",
   };
   const tabs = discoverAgentTabs({
     procfs,
@@ -381,7 +390,14 @@ test("one tab is one card: agents an agent starts in its own tab are not cards",
     readNodecode: () => new Map(),
   });
   const owners = tabs.map((tab) => `${tab.processId}:${tab.agentKind}`).sort();
-  assert.deepEqual(owners, ["500:claude", "510:nodecode", "521:codex", "530:agy"]);
+  assert.deepEqual(owners, [
+    "500:claude",
+    "510:nodecode",
+    "521:codex",
+    "530:agy",
+    "540:nodecode",
+    "550:claude",
+  ]);
   assert.equal(
     new Set(tabs.map((tab) => tab.terminalKey)).size,
     tabs.length,

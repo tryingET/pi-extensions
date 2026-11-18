@@ -189,10 +189,18 @@ export function parseAgySteps(steps) {
   const tool = toolCallOf(latest);
   // agy rewrites a step's status as it moves, so a busy status is the process's own current state.
   telemetry.stateIsCurrent = BUSY.has(status);
+  // A failed tool step is ordinary work the model recovers from (26 of 2 756 stored steps here),
+  // so only agy's own error message or a failed model step stops the session in `error`.
+  const failedTurn =
+    latest.stepType === AGY_STEP_TYPE.ERROR_MESSAGE ||
+    (status === AGY_STEP_STATUS.ERROR && latest.stepType === AGY_STEP_TYPE.PLANNER_RESPONSE);
   if (status === AGY_STEP_STATUS.WAITING) {
     telemetry.state = "waiting";
-  } else if (status === AGY_STEP_STATUS.ERROR || latest.stepType === AGY_STEP_TYPE.ERROR_MESSAGE) {
+  } else if (failedTurn) {
     telemetry.state = "error";
+  } else if (status === AGY_STEP_STATUS.ERROR) {
+    // Not current: it decays to idle through the liveness window when no next step lands.
+    telemetry.state = "thinking";
   } else if (BUSY.has(status)) {
     telemetry.state = tool ? "tool" : "thinking";
   } else if (status === AGY_STEP_STATUS.DONE) {

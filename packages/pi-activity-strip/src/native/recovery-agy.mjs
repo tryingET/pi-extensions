@@ -5,7 +5,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { heldLockInodes } from "./agy-discovery.mjs";
+import { devInodeKey, heldLockKeys } from "./agy-discovery.mjs";
+
+/** `dev:ino` of {@link fileIdentity} as the `/proc/locks` key. @param {string} identity */
+const lockKeyOfIdentity = (identity) => {
+  const [dev, ino] = identity.split(":");
+  return dev && ino ? devInodeKey(BigInt(dev), ino) : "";
+};
+
 import { fileIdentity, textFile } from "./recovery-proc.mjs";
 
 /** @typedef {import('../common/recovery-types.ts').SessionObservation} SessionObservation */
@@ -47,7 +54,7 @@ export function agyPresenceLocks(processes) {
     rejected: 0,
     limitations: [
       "flock proves which conversation a process holds, not which one its TUI displays",
-      "conversation store content not read; AK has no agy claimant prefix",
+      "conversation store content not read; AK claimant agy-session-<id> is live only once the ak runtime pin carries AK8812",
     ],
   };
   lockTargets.clear();
@@ -63,7 +70,7 @@ export function agyPresenceLocks(processes) {
       coverage.rejected++;
       continue;
     }
-    const held = heldLockInodes(locks, p.pid);
+    const held = heldLockKeys(locks, p.pid);
     for (const name of names) {
       const descriptor = path.join(fdDir, name);
       try {
@@ -72,7 +79,7 @@ export function agyPresenceLocks(processes) {
         if (!match) continue;
         coverage.observed++;
         const identity = fileIdentity(descriptor).identity;
-        const inode = identity.split(":")[1] ?? "";
+        const lockKey = lockKeyOfIdentity(identity);
         const id = match[2] ?? "";
         const store = path.join(match[1] ?? "", "conversations", `${id}.db`);
         let storeIdentity;
@@ -85,7 +92,7 @@ export function agyPresenceLocks(processes) {
           harness: "agy",
           sessionId: id,
           pid: p.pid,
-          source: held.has(inode) ? AGY_FLOCK_SOURCE : AGY_OPEN_SOURCE,
+          source: held.has(lockKey) ? AGY_FLOCK_SOURCE : AGY_OPEN_SOURCE,
           sourceRef: descriptor,
           cwd: "",
           startedAt: p.birthMs,
@@ -129,7 +136,7 @@ export function agyObservationChanged(session) {
     if (fs.readlinkSync(session.sourceRef) !== before.target || identity !== before.identity)
       return true;
     if (session.source !== AGY_FLOCK_SOURCE) return false;
-    return !heldLockInodes(readLocks(), session.pid).has(identity.split(":")[1] ?? "");
+    return !heldLockKeys(readLocks(), session.pid).has(lockKeyOfIdentity(identity));
   } catch {
     return true;
   }

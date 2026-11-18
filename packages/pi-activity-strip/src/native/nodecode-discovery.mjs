@@ -99,6 +99,10 @@ export function readNodecodeSessions(home, sessionIds) {
   return rows;
 }
 
+/** An open turn with no event for this long is a leftover, not work (a long shell call stays quiet
+ * for minutes, so the bound is generous). */
+export const NODECODE_OPEN_TURN_QUIET_MS = 30 * 60 * 1000;
+
 /** @param {unknown} value */
 function preview(value) {
   const text = String(value ?? "")
@@ -120,8 +124,13 @@ function timestampMs(value) {
  * @param {NodecodeSessionRow | undefined} row
  * @returns {Omit<import("../common/claude-transcript.mjs").ClaudeTelemetry, "state"> & {state: "idle" | "thinking" | "waiting"}}
  */
-export function nodecodeTelemetry(row) {
-  const open = Boolean(row?.open_turn);
+export function nodecodeTelemetry(row, now = Date.now()) {
+  const lastEventAt = Math.max(timestampMs(row?.last_event_at), timestampMs(row?.updated_at));
+  // A gateway that died mid-turn leaves its open_turns row behind. One quiet past the bound is not
+  // current work: the card falls back to recency (idle).
+  const open =
+    Boolean(row?.open_turn) &&
+    !(lastEventAt > 0 && now - lastEventAt > NODECODE_OPEN_TURN_QUIET_MS);
   const waiting =
     !open && Boolean(String(row?.waits ?? "").trim()) && row?.waits_turn === row?.turn_id;
   return {
@@ -132,7 +141,7 @@ export function nodecodeTelemetry(row) {
     toolName: "",
     toolTarget: "",
     turnIndex: 0,
-    lastEventAt: Math.max(timestampMs(row?.last_event_at), timestampMs(row?.updated_at)),
+    lastEventAt,
     mode: "",
     permissionMode: "",
     sessionId: String(row?.session_id ?? ""),

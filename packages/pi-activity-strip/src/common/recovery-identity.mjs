@@ -52,6 +52,9 @@ const HARNESSES =
     pi: { prefix: "session-", spell: lowercaseUuid },
     claude: { prefix: "claude-session-", spell: lowercaseUuid },
     codex: { prefix: "codex-session-", spell: lowercaseUuid },
+    // agent-kernel AK8812 (0e861920): agy-session-<ANTIGRAVITY_CONVERSATION_ID>. Older published
+    // ak runtimes refuse it, so no agy claim exists before the pin carries AK8812.
+    agy: { prefix: "agy-session-", spell: lowercaseUuid },
     nodecode: { prefix: "nodecode-session-", spell: exactNodecodeId },
   });
 

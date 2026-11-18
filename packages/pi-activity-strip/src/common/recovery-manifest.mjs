@@ -80,9 +80,9 @@ export const RECOVERY_CAPABILITIES = [
     session: "presence-flock-pid",
     transcript: "store-named-by-lock",
     currentDisplay: "unproved",
-    claimantPrefix: null,
+    claimantPrefix: "agy-session-",
     limitation:
-      "flock proves the held conversation, not the displayed one; AK publishes no agy claimant prefix",
+      "flock proves the held conversation, not the displayed one; AK accepts agy-session-<id> from agent-kernel 0e861920 (AK8812), live once the ak runtime pin carries it",
   },
   {
     harness: "angelx",

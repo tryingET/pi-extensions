@@ -24,26 +24,52 @@ const CONVERSATION_DB =
 export const AGY_STEP_WINDOW = 24;
 const CACHE_LIMIT = 64;
 
+/** A step payload larger than this is not parsed: real payloads stay under 200 KB, and the wire
+ * reader runs on the panel's main thread. */
+export const AGY_PAYLOAD_LIMIT = 1024 * 1024;
+
 /** @typedef {{readFile: (filePath: string) => string; readLink: (filePath: string) => string; readDir: (filePath: string) => string[]; statMtimeMs: (filePath: string) => number}} AgyProcfs */
 /** @typedef {{conversationId: string; home: string; databasePath: string; evidence: "presence-lock-held" | "presence-lock-open" | "conversation-open"}} AgySession */
 
 /**
- * Inodes of every flock /proc/locks attributes to one process.
+ * One file's identity as `/proc/locks` names it, normalised to decimal `major:minor:inode`. An inode
+ * number is unique per filesystem only, so the device is part of the key.
+ * @param {number | bigint} dev  `stat.dev`, glibc's userspace encoding
+ * @param {number | bigint | string} ino
+ */
+export function devInodeKey(dev, ino) {
+  const d = BigInt(dev);
+  const major = ((d >> 8n) & 0xfffn) | ((d >> 32n) & ~0xfffn);
+  const minor = (d & 0xffn) | ((d >> 12n) & ~0xffn);
+  return `${major}:${minor}:${BigInt(ino)}`;
+}
+
+/**
+ * The `major:minor:inode` keys of every flock /proc/locks says one process HOLDS. A line marked
+ * `->` is a process blocked waiting for that lock, not its holder, and is skipped.
  * @param {string} locks
  * @param {number} processId
  */
-export function heldLockInodes(locks, processId) {
-  const inodes = new Set();
+export function heldLockKeys(locks, processId) {
+  const keys = new Set();
   for (const line of String(locks ?? "").split("\n")) {
-    // "41: FLOCK  ADVISORY  WRITE 1282735 00:23:1050664902 0 EOF"
+    // holder: "41: FLOCK  ADVISORY  WRITE 1282735 00:23:1050664902 0 EOF"
+    // waiter: "41: -> FLOCK  ADVISORY  WRITE 1446865 00:23:1050664902 0 EOF"
     const fields = line.trim().split(/\s+/);
     const at = fields.indexOf("FLOCK");
-    if (at < 0) continue;
+    if (at < 0 || fields[at - 1] === "->") continue;
     if (Number(fields[at + 3]) !== processId) continue;
-    const inode = String(fields[at + 4] ?? "").split(":")[2];
-    if (inode && /^\d+$/.test(inode)) inodes.add(inode);
+    const parts = String(fields[at + 4] ?? "").split(":");
+    if (
+      parts.length !== 3 ||
+      !parts.every((part, i) => (i < 2 ? /^[0-9a-f]+$/i : /^\d+$/).test(part))
+    )
+      continue;
+    keys.add(
+      `${parseInt(parts[0] ?? "", 16)}:${parseInt(parts[1] ?? "", 16)}:${BigInt(parts[2] ?? "0")}`,
+    );
   }
-  return inodes;
+  return keys;
 }
 
 /**
@@ -52,7 +78,8 @@ export function heldLockInodes(locks, processId) {
  * when it names one conversation. Anything ambiguous binds nothing.
  * @param {number} processId
  * @param {AgyProcfs} procfs
- * @param {{locks?: string; inodeOf?: (filePath: string) => string}} [options]
+ * @param {{locks?: string; lockKeyOf?: (filePath: string) => string}} [options]  `lockKeyOf` answers
+ *   {@link devInodeKey} of a descriptor's target
  * @returns {AgySession | null}
  */
 export function resolveAgySession(processId, procfs, options = {}) {
@@ -75,9 +102,9 @@ export function resolveAgySession(processId, procfs, options = {}) {
     databasePath: path.join(home, "conversations", `${conversationId}.db`),
     evidence,
   });
-  if (presence.size > 0 && options.locks !== undefined && options.inodeOf) {
-    const held = heldLockInodes(options.locks, processId);
-    const locked = [...presence].filter(([, { fd }]) => held.has(options.inodeOf?.(fd) ?? ""));
+  if (presence.size > 0 && options.locks !== undefined && options.lockKeyOf) {
+    const held = heldLockKeys(options.locks, processId);
+    const locked = [...presence].filter(([, { fd }]) => held.has(options.lockKeyOf?.(fd) ?? ""));
     const [only] = locked;
     if (locked.length === 1 && only) return session(only[0], only[1].home, "presence-lock-held");
     if (locked.length > 1) return null;
@@ -93,39 +120,66 @@ export function resolveAgySession(processId, procfs, options = {}) {
   return null;
 }
 
+/** @param {any} row */
+function stepRow(row) {
+  const payload = row.step_payload instanceof Uint8Array ? row.step_payload : null;
+  return {
+    idx: Number(row.idx),
+    stepType: Number(row.step_type),
+    status: Number(row.status),
+    metadata: row.metadata instanceof Uint8Array ? row.metadata : null,
+    payload: payload && payload.length <= AGY_PAYLOAD_LIMIT ? payload : null,
+  };
+}
+
 /**
- * The newest steps of one conversation. The store belongs to a running agy, so it is opened
- * read-only and every failure — a missing file, a locked store, or a runtime without `node:sqlite` —
- * yields no steps rather than an error.
+ * The newest steps of one conversation, plus the newest operator prompt when it lies outside that
+ * window (real turns run hundreds of steps). The store belongs to a running agy, so it is opened
+ * read-only with a short busy timeout. A failed read — a missing file, a store locked past the
+ * timeout, or a runtime without `node:sqlite` — answers null, never an empty conversation, so the
+ * caller does not cache it.
  * @param {string} databasePath
- * @returns {import("../common/agy-conversation.mjs").AgyStepRow[]}
+ * @returns {import("../common/agy-conversation.mjs").AgyStepRow[] | null}
  */
 export function readAgySteps(databasePath) {
-  if (!databasePath) return [];
+  if (!databasePath) return null;
   try {
     const { DatabaseSync } = requireBuiltin("node:sqlite");
-    const db = new DatabaseSync(databasePath, { readOnly: true });
+    const db = new DatabaseSync(databasePath, { readOnly: true, timeout: 250 });
     try {
-      return db
-        .prepare(
-          "SELECT idx, step_type, status, metadata, step_payload FROM steps ORDER BY idx DESC LIMIT ?",
-        )
+      const select = "SELECT idx, step_type, status, metadata, step_payload FROM steps";
+      const rows = db
+        .prepare(`${select} ORDER BY idx DESC LIMIT ?`)
         .all(AGY_STEP_WINDOW)
-        .map(
-          /** @param {any} row */ (row) => ({
-            idx: Number(row.idx),
-            stepType: Number(row.step_type),
-            status: Number(row.status),
-            metadata: row.metadata instanceof Uint8Array ? row.metadata : null,
-            payload: row.step_payload instanceof Uint8Array ? row.step_payload : null,
-          }),
-        );
+        .map(stepRow);
+      const oldest = rows.at(-1);
+      if (oldest && !rows.some((/** @type {{stepType: number}} */ row) => row.stepType === 14)) {
+        const prompt = db
+          .prepare(`${select} WHERE step_type = 14 AND idx < ? ORDER BY idx DESC LIMIT 1`)
+          .get(oldest.idx);
+        if (prompt) rows.push(stepRow(prompt));
+      }
+      return rows;
     } finally {
       db.close();
     }
   } catch {
-    return [];
+    return null;
   }
+}
+
+/**
+ * A step row agy left before this process started was written by an earlier process (a resumed
+ * conversation, or a killed one): its RUNNING, WAITING or ERROR status says nothing about now.
+ * @param {import("../common/claude-transcript.mjs").ClaudeTelemetry & {stateIsCurrent?: boolean}} telemetry
+ * @param {number} processStartedAtMs
+ */
+export function agyTelemetryForProcess(telemetry, processStartedAtMs) {
+  const stepAt = Number(telemetry?.lastEventAt) || 0;
+  // The process start is known to about a second (boot time has whole seconds), hence the margin.
+  if (stepAt <= 0 || !(processStartedAtMs > 0) || stepAt >= processStartedAtMs - 2000)
+    return telemetry;
+  return { ...telemetry, stateIsCurrent: false, state: "idle", toolName: "", toolTarget: "" };
 }
 
 /**
@@ -156,7 +210,7 @@ export function readAgyTitle(home, conversationId, procfs) {
  * @param {AgySession} session
  * @param {AgyProcfs} procfs
  * @param {Map<string, any>} cache
- * @param {(databasePath: string) => import("../common/agy-conversation.mjs").AgyStepRow[]} [readSteps]
+ * @param {(databasePath: string) => import("../common/agy-conversation.mjs").AgyStepRow[] | null} [readSteps]
  */
 export function readAgyTelemetry(session, procfs, cache, readSteps = readAgySteps) {
   const { databasePath } = session;
@@ -168,8 +222,9 @@ export function readAgyTelemetry(session, procfs, cache, readSteps = readAgyStep
   const cached = cache.get(key);
   let telemetry = cached && cached.mtime === mtime ? cached.telemetry : null;
   if (!telemetry) {
-    telemetry = parseAgySteps(readSteps(databasePath));
-    if (mtime > 0) {
+    const steps = readSteps(databasePath);
+    telemetry = parseAgySteps(steps ?? []);
+    if (steps && mtime > 0) {
       if (cache.size >= CACHE_LIMIT) cache.clear();
       cache.set(key, { mtime, telemetry });
     }

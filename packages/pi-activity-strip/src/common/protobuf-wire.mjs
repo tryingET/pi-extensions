@@ -94,13 +94,18 @@ export function protoValues(bytes, path) {
 
 /** @param {Uint8Array | null | undefined} bytes @param {readonly number[]} path */
 export function protoString(bytes, path) {
-  const value = protoValues(bytes, path).find((entry) => entry instanceof Uint8Array);
+  // Protobuf: the last occurrence of a singular field wins.
+  const value = protoValues(bytes, path)
+    .filter((entry) => entry instanceof Uint8Array)
+    .at(-1);
   return value instanceof Uint8Array ? decoder.decode(value) : "";
 }
 
 /** @param {Uint8Array | null | undefined} bytes @param {readonly number[]} path */
 export function protoNumber(bytes, path) {
-  const value = protoValues(bytes, path).find((entry) => typeof entry === "number");
+  const value = protoValues(bytes, path)
+    .filter((entry) => typeof entry === "number")
+    .at(-1);
   return typeof value === "number" ? value : 0;
 }
 

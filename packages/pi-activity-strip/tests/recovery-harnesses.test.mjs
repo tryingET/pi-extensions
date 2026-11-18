@@ -22,7 +22,9 @@ test("AGNT is its Electron browser process, never its zygote, renderer, GPU or u
 test("agy is recognized as its own harness, apart from the Gemini CLI", () => {
   const agy = { comm: "agy", executable: "/home/x/.local/bin/agy", argv0: "agy", argv1: "" };
   assert.equal(recoveryHarness(agy), "agy");
-  assert.ok(RECOVERY_CAPABILITIES.some((c) => c.harness === "agy" && c.claimantPrefix === null));
+  assert.ok(
+    RECOVERY_CAPABILITIES.some((c) => c.harness === "agy" && c.claimantPrefix === "agy-session-"),
+  );
 });
 
 const base = {
