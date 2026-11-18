@@ -3,7 +3,7 @@
 //   - implementing vault dispatch checks or diagnosing blocked template lookups.
 
 import * as crypto from "node:crypto";
-import { isContextCompany } from "./companyRegister.js";
+import { isContextCompany, NO_COMPANY, rowVisibleTo } from "./companyRegister.js";
 import {
   canonicalJcsBytes,
   classifyDispatchPosture,
@@ -402,7 +402,8 @@ function authorizeRequest(
   const company = String(request.currentCompany || "").trim();
   if (!VALID_EXECUTION_SURFACES.has(request.surface))
     return blocked("unsupported_surface", "The requested execution surface is not governed.");
-  if (!isContextCompany(company))
+  // A company or none (no company); which rows it may use is rowVisibleTo's answer below.
+  if (company !== NO_COMPANY && !isContextCompany(company))
     return blocked("company_context_conflict", "A valid explicit company context is required.");
   if (!Array.isArray(request.templates) || request.templates.length === 0)
     return blocked("missing_template", "At least one template is required.");
@@ -431,7 +432,7 @@ function authorizeRequest(
       !VALID_FORMALIZATION_LEVELS.has(String(template.formalization_level)) ||
       !VALID_COMPANIES.has(String(template.owner_company)) ||
       !Array.isArray(template.visibility_companies) ||
-      !template.visibility_companies.includes(company) ||
+      !rowVisibleTo(template.owner_company, template.visibility_companies, company) ||
       !hasValidControlledVocabulary(String(template.control_mode), template.controlled_vocabulary)
     ) {
       return blocked(

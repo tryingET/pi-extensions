@@ -78,6 +78,14 @@ export function storedNamesFor(company, register = loadRegister()) {
   }
   return [...names];
 }
+/** JS twin of visibilitySql: may COMPANY (internal, register name or none) read a row with OWNER and VISIBILITY? */
+export function rowVisibleTo(owner, visibility, company, register = loadRegister()) {
+  if (!Array.isArray(visibility)) return false;
+  const stored = visibility.map(String);
+  if (owner === "core" && register.stored.every((name) => stored.includes(name))) return true;
+  const names = storedNamesFor(String(company ?? ""), register);
+  return names.some((name) => stored.includes(name));
+}
 export function isContextCompany(company, register = loadRegister()) {
   const canonical = canonicalCompany(company, register);
   return canonical !== null && canonical !== NO_COMPANY;

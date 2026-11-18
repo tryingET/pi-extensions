@@ -69,6 +69,15 @@ test("register names, aliases, no company, retired and unknown names", async () 
       const family = visibilitySql("familyco", "v", "o");
       assert.match(family, /JSON_SEARCH\(v, 'one', 'familyco'\)/);
       assert.match(family, /o = 'core'/);
+      const { rowVisibleTo } = await importModule("src/companyRegister.js");
+      const all = ["core", "software", "finance", "house", "health", "teaching", "holding"];
+      assert.equal(rowVisibleTo("core", all, "none"), true);
+      assert.equal(rowVisibleTo("core", all, "familyco"), true);
+      assert.equal(rowVisibleTo("software", all, "familyco"), false);
+      assert.equal(rowVisibleTo("software", all, "none"), false);
+      assert.equal(rowVisibleTo("software", all, "teaching"), true);
+      assert.equal(rowVisibleTo("core", ["core", "holding"], "holdingco"), true);
+      assert.equal(rowVisibleTo("core", ["core", "holding"], "none"), false);
     },
   );
 });
