@@ -15,7 +15,11 @@ import {
 } from "../src/common/agy-conversation.mjs";
 import { protoString, protoTimestampsMs } from "../src/common/protobuf-wire.mjs";
 import { discoverAgentTabs } from "../src/native/agent-discovery.mjs";
-import { heldLockKeys, readAgyTelemetry, resolveAgySession } from "../src/native/agy-discovery.mjs";
+import {
+  heldLockInodes,
+  readAgyTelemetry,
+  resolveAgySession,
+} from "../src/native/agy-discovery.mjs";
 import {
   claudeProjectDirectoryName,
   resolveClaudeRegistrySession,
@@ -155,17 +159,16 @@ test("an agy process binds to the conversation whose presence lock it holds unde
     "/proc/700/fd/4": `${HOME}/presence/${ID_B}.lock`,
     "/proc/700/fd/5": `${HOME}/conversations/${ID_A}.db`,
   };
-  const lockKeyOf = (fd) =>
-    ({ "/proc/700/fd/3": "0:35:111", "/proc/700/fd/4": "0:35:222" })[fd] ?? "";
+  const lockInodeOf = (fd) => ({ "/proc/700/fd/3": "111", "/proc/700/fd/4": "222" })[fd] ?? "";
   const locks =
     "1: FLOCK  ADVISORY  WRITE 700 00:23:222 0 EOF\n2: FLOCK  ADVISORY  WRITE 9 00:23:111 0 EOF\n";
-  assert.deepEqual([...heldLockKeys(locks, 700)], ["0:35:222"]);
-  const held = resolveAgySession(700, fdProcfs(links), { locks, lockKeyOf });
+  assert.deepEqual([...heldLockInodes(locks, 700)], ["222"]);
+  const held = resolveAgySession(700, fdProcfs(links), { locks, lockInodeOf });
   assert.equal(held?.conversationId, ID_B, "the flock decides between two open locks");
   assert.equal(held?.evidence, "presence-lock-held");
   assert.equal(held?.databasePath, `${HOME}/conversations/${ID_B}.db`);
   assert.equal(
-    resolveAgySession(700, fdProcfs(links), { locks: "", lockKeyOf }),
+    resolveAgySession(700, fdProcfs(links), { locks: "", lockInodeOf }),
     null,
     "ambiguous",
   );
@@ -380,7 +383,7 @@ test("one tab is one card: agents an agent starts in its own tab are not cards",
     readDir: (p) => (p === "/proc" ? [...procs, "400"] : []),
     statMtimeMs: () => 0,
     readTail: () => "",
-    lockKeyOf: () => "",
+    lockInodeOf: () => "",
   };
   const tabs = discoverAgentTabs({
     procfs,

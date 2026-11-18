@@ -32,25 +32,25 @@ export const AGY_PAYLOAD_LIMIT = 1024 * 1024;
 /** @typedef {{conversationId: string; home: string; databasePath: string; evidence: "presence-lock-held" | "presence-lock-open" | "conversation-open"}} AgySession */
 
 /**
- * One file's identity as `/proc/locks` names it, normalised to decimal `major:minor:inode`. An inode
- * number is unique per filesystem only, so the device is part of the key.
- * @param {number | bigint} dev  `stat.dev`, glibc's userspace encoding
+ * A file's inode as the decimal string {@link heldLockInodes} answers. The device is not part of
+ * the match: on btrfs `stat` reports the subvolume's anonymous device (0:36) while `/proc/locks`
+ * names the superblock's (00:23), so a `major:minor:inode` key never matches there. The inode is
+ * compared only with files the lock-holding process itself has open, which the kernel ties to
+ * that process; that binding, not the device, is what makes the match exact.
  * @param {number | bigint | string} ino
  */
-export function devInodeKey(dev, ino) {
-  const d = BigInt(dev);
-  const major = ((d >> 8n) & 0xfffn) | ((d >> 32n) & ~0xfffn);
-  const minor = (d & 0xffn) | ((d >> 12n) & ~0xffn);
-  return `${major}:${minor}:${BigInt(ino)}`;
+export function lockInode(ino) {
+  return String(BigInt(ino));
 }
 
 /**
- * The `major:minor:inode` keys of every flock /proc/locks says one process HOLDS. A line marked
- * `->` is a process blocked waiting for that lock, not its holder, and is skipped.
+ * The inodes of every flock /proc/locks says one process HOLDS. A line marked `->` is a process
+ * blocked waiting for that lock, not its holder, and is skipped. The line's device is checked for
+ * shape only (see {@link lockInode}).
  * @param {string} locks
  * @param {number} processId
  */
-export function heldLockKeys(locks, processId) {
+export function heldLockInodes(locks, processId) {
   const keys = new Set();
   for (const line of String(locks ?? "").split("\n")) {
     // holder: "41: FLOCK  ADVISORY  WRITE 1282735 00:23:1050664902 0 EOF"
@@ -65,9 +65,7 @@ export function heldLockKeys(locks, processId) {
       !parts.every((part, i) => (i < 2 ? /^[0-9a-f]+$/i : /^\d+$/).test(part))
     )
       continue;
-    keys.add(
-      `${parseInt(parts[0] ?? "", 16)}:${parseInt(parts[1] ?? "", 16)}:${BigInt(parts[2] ?? "0")}`,
-    );
+    keys.add(lockInode(parts[2] ?? "0"));
   }
   return keys;
 }
@@ -78,8 +76,8 @@ export function heldLockKeys(locks, processId) {
  * when it names one conversation. Anything ambiguous binds nothing.
  * @param {number} processId
  * @param {AgyProcfs} procfs
- * @param {{locks?: string; lockKeyOf?: (filePath: string) => string}} [options]  `lockKeyOf` answers
- *   {@link devInodeKey} of a descriptor's target
+ * @param {{locks?: string; lockInodeOf?: (filePath: string) => string}} [options]  `lockInodeOf` answers
+ *   {@link lockInode} of a descriptor's target
  * @returns {AgySession | null}
  */
 export function resolveAgySession(processId, procfs, options = {}) {
@@ -102,9 +100,9 @@ export function resolveAgySession(processId, procfs, options = {}) {
     databasePath: path.join(home, "conversations", `${conversationId}.db`),
     evidence,
   });
-  if (presence.size > 0 && options.locks !== undefined && options.lockKeyOf) {
-    const held = heldLockKeys(options.locks, processId);
-    const locked = [...presence].filter(([, { fd }]) => held.has(options.lockKeyOf?.(fd) ?? ""));
+  if (presence.size > 0 && options.locks !== undefined && options.lockInodeOf) {
+    const held = heldLockInodes(options.locks, processId);
+    const locked = [...presence].filter(([, { fd }]) => held.has(options.lockInodeOf?.(fd) ?? ""));
     const [only] = locked;
     if (locked.length === 1 && only) return session(only[0], only[1].home, "presence-lock-held");
     if (locked.length > 1) return null;

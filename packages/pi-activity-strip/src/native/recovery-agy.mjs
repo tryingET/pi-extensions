@@ -5,12 +5,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { devInodeKey, heldLockKeys } from "./agy-discovery.mjs";
+import { heldLockInodes, lockInode } from "./agy-discovery.mjs";
 
-/** `dev:ino` of {@link fileIdentity} as the `/proc/locks` key. @param {string} identity */
-const lockKeyOfIdentity = (identity) => {
+/** The inode of {@link fileIdentity} (`dev:ino`) as {@link heldLockInodes} answers it; the device
+ * is left out because btrfs reports another one in `/proc/locks` (see {@link lockInode}).
+ * @param {string} identity */
+const lockInodeOfIdentity = (identity) => {
   const [dev, ino] = identity.split(":");
-  return dev && ino ? devInodeKey(BigInt(dev), ino) : "";
+  return dev && ino ? lockInode(ino) : "";
 };
 
 import { fileIdentity, textFile } from "./recovery-proc.mjs";
@@ -70,7 +72,7 @@ export function agyPresenceLocks(processes) {
       coverage.rejected++;
       continue;
     }
-    const held = heldLockKeys(locks, p.pid);
+    const held = heldLockInodes(locks, p.pid);
     for (const name of names) {
       const descriptor = path.join(fdDir, name);
       try {
@@ -79,7 +81,7 @@ export function agyPresenceLocks(processes) {
         if (!match) continue;
         coverage.observed++;
         const identity = fileIdentity(descriptor).identity;
-        const lockKey = lockKeyOfIdentity(identity);
+        const lockInodeKey = lockInodeOfIdentity(identity);
         const id = match[2] ?? "";
         const store = path.join(match[1] ?? "", "conversations", `${id}.db`);
         let storeIdentity;
@@ -92,7 +94,7 @@ export function agyPresenceLocks(processes) {
           harness: "agy",
           sessionId: id,
           pid: p.pid,
-          source: held.has(lockKey) ? AGY_FLOCK_SOURCE : AGY_OPEN_SOURCE,
+          source: held.has(lockInodeKey) ? AGY_FLOCK_SOURCE : AGY_OPEN_SOURCE,
           sourceRef: descriptor,
           cwd: "",
           startedAt: p.birthMs,
@@ -136,7 +138,7 @@ export function agyObservationChanged(session) {
     if (fs.readlinkSync(session.sourceRef) !== before.target || identity !== before.identity)
       return true;
     if (session.source !== AGY_FLOCK_SOURCE) return false;
-    return !heldLockKeys(readLocks(), session.pid).has(lockKeyOfIdentity(identity));
+    return !heldLockInodes(readLocks(), session.pid).has(lockInodeOfIdentity(identity));
   } catch {
     return true;
   }

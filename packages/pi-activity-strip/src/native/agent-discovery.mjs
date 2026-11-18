@@ -23,7 +23,7 @@ import {
 } from "../common/terminal-identity.mjs";
 import {
   agyTelemetryForProcess,
-  devInodeKey,
+  lockInode,
   readAgyTelemetry,
   resolveAgySession,
 } from "./agy-discovery.mjs";
@@ -51,7 +51,7 @@ const TELEMETRY_CACHE_LIMIT = 64;
 /** Parsed transcripts keyed by path and modification time, so an idle session is parsed once. */
 const telemetryCache = new Map();
 
-/** @typedef {{readFile: (filePath: string) => string; readLink: (filePath: string) => string; readDir: (filePath: string) => string[]; statMtimeMs: (filePath: string) => number; readTail: (filePath: string, bytes: number) => string; lockKeyOf?: (filePath: string) => string}} Procfs */
+/** @typedef {{readFile: (filePath: string) => string; readLink: (filePath: string) => string; readDir: (filePath: string) => string[]; statMtimeMs: (filePath: string) => number; readTail: (filePath: string, bytes: number) => string; lockInodeOf?: (filePath: string) => string}} Procfs */
 
 /** @type {Procfs} */
 export const nodeProcfs = {
@@ -83,10 +83,10 @@ export const nodeProcfs = {
       return 0;
     }
   },
-  lockKeyOf(filePath) {
+  lockInodeOf(filePath) {
     try {
       const stat = fs.statSync(filePath, { bigint: true });
-      return devInodeKey(stat.dev, stat.ino);
+      return lockInode(stat.ino);
     } catch {
       return "";
     }
@@ -373,7 +373,7 @@ export function discoverAgentTabs(options = {}) {
       if (locks === undefined) locks = procfs.readFile("/proc/locks");
       const session = resolveAgySession(processId, procfs, {
         locks,
-        lockKeyOf: procfs.lockKeyOf?.bind(procfs),
+        lockInodeOf: procfs.lockInodeOf?.bind(procfs),
       });
       if (session) {
         sessionKey = session.conversationId;

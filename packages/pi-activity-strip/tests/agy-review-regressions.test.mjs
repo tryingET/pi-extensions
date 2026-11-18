@@ -9,10 +9,11 @@ import { AGY_STEP_STATUS, AGY_STEP_TYPE, parseAgySteps } from "../src/common/agy
 import { protoNumber, protoString } from "../src/common/protobuf-wire.mjs";
 import {
   agyTelemetryForProcess,
-  devInodeKey,
-  heldLockKeys,
+  heldLockInodes,
+  lockInode,
   readAgySteps,
   readAgyTelemetry,
+  resolveAgySession,
 } from "../src/native/agy-discovery.mjs";
 import {
   NODECODE_OPEN_TURN_QUIET_MS,
@@ -24,19 +25,46 @@ const T0 = 1_795_005_184_000;
 /** @param {number} idx @param {number} stepType @param {number} status */
 const step = (idx, stepType, status) => ({ idx, stepType, status, metadata: null, payload: null });
 
-test("M1: a process waiting for a presence lock is not its holder, and the device is part of the key", () => {
+test("M1: a process waiting for a presence lock is not its holder; a holder is matched by inode", () => {
   const locks = [
     "1: FLOCK  ADVISORY  WRITE 700 00:23:222 0 EOF",
-    "1: -> FLOCK  ADVISORY  WRITE 800 00:23:222 0 EOF",
-    "2: FLOCK  ADVISORY  WRITE 800 fd:01:222 0 EOF",
+    "1: -> FLOCK  ADVISORY  WRITE 800 00:23:333 0 EOF",
+    "2: FLOCK  ADVISORY  WRITE 800 fd:01:444 0 EOF",
     "3: FLOCK  ADVISORY  WRITE 800 garbage 0 EOF",
   ].join("\n");
-  assert.deepEqual([...heldLockKeys(locks, 700)], ["0:35:222"]);
-  assert.deepEqual([...heldLockKeys(locks, 800)], ["253:1:222"], "the waiter line is skipped");
-  // glibc's userspace encoding of 00:23 and fd:01, as stat.dev reports them
-  assert.equal(devInodeKey(35, 222), "0:35:222");
-  assert.equal(devInodeKey(0xfd01, 222n), "253:1:222");
-  assert.notEqual(devInodeKey(0xfd01, 222), devInodeKey(35, 222), "same inode, other filesystem");
+  assert.deepEqual([...heldLockInodes(locks, 700)], ["222"]);
+  assert.deepEqual([...heldLockInodes(locks, 800)], ["444"], "the waiter line is skipped");
+  assert.equal(lockInode(222n), "222");
+  assert.equal(lockInode("1046903017"), "1046903017");
+});
+
+test("M1 regression: on btrfs /proc/locks names another device than stat, and the flock still binds", () => {
+  // live 2026-11-18 on this host: agy pid 3698859 holds presence/d2365b17-….lock; stat dev is
+  // 36 (0:36, the subvolume) while /proc/locks says 00:23 (the superblock), inode 1046903017
+  const ID = "d2365b17-2ab6-4b23-8d88-2cd00c7324f8";
+  const OTHER = "e2373407-0000-4000-8000-000000000000";
+  const home = "/home/u/.gemini/antigravity-cli";
+  const links = {
+    "/proc/3698859/fd/48": `${home}/presence/${ID}.lock`,
+    "/proc/3698859/fd/49": `${home}/presence/${OTHER}.lock`,
+  };
+  const procfs = {
+    readFile: () => "",
+    readLink: (/** @type {string} */ p) => links[/** @type {keyof typeof links} */ (p)] ?? "",
+    readDir: () => ["48", "49"],
+    statMtimeMs: () => 0,
+  };
+  // what fs.statSync(fd, {bigint: true}).ino answers for each descriptor's target
+  const inodes = { "/proc/3698859/fd/48": 1046903017n, "/proc/3698859/fd/49": 1046903018n };
+  const lockInodeOf = (/** @type {string} */ fd) =>
+    lockInode(inodes[/** @type {keyof typeof inodes} */ (fd)] ?? 0n);
+  const locks = "161: FLOCK  ADVISORY  WRITE 3698859 00:23:1046903017 0 EOF\n";
+  const session = resolveAgySession(3698859, procfs, { locks, lockInodeOf });
+  assert.equal(session?.conversationId, ID);
+  assert.equal(session?.evidence, "presence-lock-held");
+  // a flock on the same inode held by another process does not bind this one
+  const foreign = "161: FLOCK  ADVISORY  WRITE 42 00:23:1046903017 0 EOF\n";
+  assert.equal(resolveAgySession(3698859, procfs, { locks: foreign, lockInodeOf }), null);
 });
 
 test("M2: a failed tool step is ordinary work; agy's error message or a failed model step is an error", () => {
