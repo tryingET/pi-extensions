@@ -20,6 +20,7 @@ const DETAIL_LIMIT = 100;
  *   title: string; lastPrompt: string; assistantPreview: string; state: ClaudeState;
  *   toolName: string; toolTarget: string; turnIndex: number; lastEventAt: number;
  *   mode: string; permissionMode: string; sessionId: string; cwd: string; gitBranch: string;
+ *   stateIsCurrent?: boolean;
  * }} ClaudeTelemetry
  */
 

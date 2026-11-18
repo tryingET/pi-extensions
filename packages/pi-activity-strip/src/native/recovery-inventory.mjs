@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildRecoveryManifest } from "../common/recovery-manifest.mjs";
+import { agyObservationChanged, agyPresenceLocks } from "./recovery-agy.mjs";
 import { fileIdentity, processClock, record, scanProcesses, string } from "./recovery-proc.mjs";
 import {
   claudeRegistry,
@@ -96,7 +97,8 @@ export async function collectRecoveryManifest({
   );
   const shellRoot = nodecodeShellRoot(process.env);
   const nodecode = nodecodeShells(shellRoot);
-  sources.push(claude.coverage, pi.coverage, codex.coverage, nodecode.coverage);
+  const agy = agyPresenceLocks(before.processes);
+  sources.push(claude.coverage, pi.coverage, codex.coverage, nodecode.coverage, agy.coverage);
   const claudeFiles = transcriptIndex(path.join(home, ".claude", "projects"));
   const piFiles = transcriptIndex(
     piSessionRoot ||
@@ -104,7 +106,13 @@ export async function collectRecoveryManifest({
       path.join(process.env.PI_CODING_AGENT_DIR || path.join(home, ".pi", "agent"), "sessions"),
   );
   sources.push(claudeFiles.coverage, piFiles.coverage);
-  const sessions = [...claude.sessions, ...pi.sessions, ...codex.sessions, ...nodecode.sessions];
+  const sessions = [
+    ...claude.sessions,
+    ...pi.sessions,
+    ...codex.sessions,
+    ...nodecode.sessions,
+    ...agy.sessions,
+  ];
   for (const s of sessions) {
     if (s.harness !== "claude" && s.harness !== "pi") continue;
     const index = s.harness === "claude" ? claudeFiles : piFiles;
@@ -153,6 +161,7 @@ export async function collectRecoveryManifest({
     ]),
   );
   for (const s of sessions) {
+    if (s.harness === "agy") s.changed ||= agyObservationChanged(s);
     if (s.source === "codex-open-rollout") {
       try {
         s.changed ||=

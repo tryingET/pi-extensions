@@ -76,6 +76,15 @@ export const RECOVERY_CAPABILITIES = [
       "presence record lacks pid domain and boot id, so links stay unconfirmed; ids unique per home",
   },
   {
+    harness: "agy",
+    session: "presence-flock-pid",
+    transcript: "store-named-by-lock",
+    currentDisplay: "unproved",
+    claimantPrefix: null,
+    limitation:
+      "flock proves the held conversation, not the displayed one; AK publishes no agy claimant prefix",
+  },
+  {
     harness: "angelx",
     session: "unsupported",
     transcript: "unsupported",
@@ -156,6 +165,14 @@ export function processLink(session, input) {
   if (before.harness !== session.harness) return result("harness-mismatch");
   if (session.procStart && session.procStart !== before.startTicks) return result("birth-mismatch");
   if (session.source === "process-scan") return result("process-only", before);
+  if (session.source === "agy-presence-flock") {
+    uncertainties.push("flock-is-held-conversation-not-current-display");
+    return result("presence-lock-held", before);
+  }
+  if (session.source === "agy-presence-open") {
+    uncertainties.push("open-descriptor-is-not-lock-holder-or-current-display");
+    return result("open-descriptor-associated", before);
+  }
   if (session.source === "codex-open-rollout") {
     uncertainties.push("open-descriptor-is-not-writer-or-current-display");
     return result("open-descriptor-associated", before);

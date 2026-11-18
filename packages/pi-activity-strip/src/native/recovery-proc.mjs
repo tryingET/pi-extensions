@@ -52,7 +52,10 @@ export function recoveryHarness(p) {
   )
     return "pi";
   if (exe === "angel" && p.executable.includes("/angelx-pi/")) return "angelx";
-  if (exe === "electron" && p.executable.includes("/agnt/")) return "agnt";
+  // Chromium starts its zygote, renderer, GPU and utility helpers from the same executable with
+  // `--type=` as the first argument; only the browser process is the AGNT application.
+  if (exe === "electron" && p.executable.includes("/agnt/"))
+    return p.argv1.startsWith("--type=") ? "" : "agnt";
   if (exe === "omp" || first === "omp") return "omp";
   // Only the actual executable or runtime's script slot participates, never prompt arguments.
   return (
@@ -62,6 +65,33 @@ export function recoveryHarness(p) {
       argv1: /^(node|bun|python)/.test(exe) ? p.argv1 : "",
     })?.kind ?? ""
   );
+}
+
+const RUNTIME_EXECUTABLE = /^(node|bun|python)/;
+
+/**
+ * Codex's npm entry is a Node script that spawns the native `codex` binary, so both classify as
+ * Codex. The script is a launcher, not a second session: a runtime-hosted process whose own child
+ * is a native process of the same harness gives up its harness, and the child keeps it. Returns how
+ * many launchers were folded.
+ * @param {import('../common/recovery-types.ts').ProcessObservation[]} processes
+ */
+export function foldRuntimeLaunchers(processes) {
+  let folded = 0;
+  for (const launcher of processes) {
+    if (!launcher.harness || !RUNTIME_EXECUTABLE.test(path.basename(launcher.executable))) continue;
+    const native = processes.some(
+      (child) =>
+        child.ppid === launcher.pid &&
+        child.harness === launcher.harness &&
+        !RUNTIME_EXECUTABLE.test(path.basename(child.executable)),
+    );
+    if (native) {
+      launcher.harness = "";
+      folded++;
+    }
+  }
+  return folded;
 }
 
 export function processClock() {
@@ -140,6 +170,11 @@ export function scanProcesses(clock) {
       rejected++;
     }
   }
+  const launchers = foldRuntimeLaunchers(processes);
+  const helpers = processes.filter(
+    (p) =>
+      !p.harness && path.basename(p.executable) === "electron" && p.executable.includes("/agnt/"),
+  ).length;
   return {
     processes,
     coverage: {
@@ -151,6 +186,8 @@ export function scanProcesses(clock) {
         `other-user-pids-excluded:${excluded}`,
         "exec/script recognition is local evidence, not authentication",
         "processes may exit or appear during scan",
+        `runtime-launchers-folded:${launchers}`,
+        `agnt-electron-helpers-unattributed:${helpers}`,
       ],
     },
   };

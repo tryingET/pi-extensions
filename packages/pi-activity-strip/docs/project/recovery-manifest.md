@@ -72,9 +72,14 @@ identity links, authority reminder). Process metadata includes PID, PPID, birth 
 PID domain, approximate wall-clock birth, executable/inode identity, selector digest and cwd.
 Window entries distinguish internal `workspaceId` from user-visible `workspaceIndex`.
 
-Counts deliberately distinguish eleven AGNT Electron processes from **zero established AGNT
-session identities**. No helper process is silently collapsed into a conversation. One session
-resumed twice remains two observation rows but one distinct harness-qualified identity.
+Counts deliberately distinguish AGNT Electron processes from **zero established AGNT
+session identities**. No helper process is silently collapsed into a conversation. Since AK8809
+only AGNT's Electron browser process is attributed to AGNT: Chromium's zygote, renderer, GPU and
+utility helpers (first argument `--type=`) carry no harness, and the process coverage counts them
+in `agnt-electron-helpers-unattributed:N`. Likewise Codex's npm entry, a Node script whose child
+is the native `codex`, is folded into that child (`runtime-launchers-folded:N`) instead of
+appearing as a second, process-only Codex. One session resumed twice remains two observation rows
+but one distinct harness-qualified identity.
 
 ### Process and session associations
 
@@ -108,6 +113,13 @@ resumed twice remains two observation rows but one distinct harness-qualified id
   stay process-only and their claims read `session-not-observed`. `resume_argv`, `home` and
   `profile` are never read into the manifest; Nodecode history is not read, so there is no
   transcript.
+- agy (Antigravity CLI, AK8809) holds `<home>/presence/<conversation>.lock` open under an
+  exclusive flock for the conversation it runs. A lock descriptor whose inode `/proc/locks`
+  attributes to the same pid is `presence-lock-held`; an open lock without that flock is
+  `open-descriptor-associated`. Neither is current-display proof. The descriptor is rechecked
+  after the capture (same target, inode and, for a flock, still held), else `source-changed`.
+  The conversation store `conversations/<id>.db` is named and stat-ed, never opened. AK publishes
+  no agy claimant prefix, so agy identities join no claim.
 - Reused PIDs and source changes cannot suppress an independent process-only observation.
 - `boot-mismatch`, `source-changed`, `not-observed`, `harness-mismatch` and `process-only` retain
   their literal meaning. Unsupported process kinds never acquire a guessed session ID.

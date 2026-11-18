@@ -24,10 +24,12 @@ export const AGENT_CATALOG = Object.freeze([
   // Cursor's CLI installs both names; `agent` is the one its docs now lead with.
   { kind: "cursor", label: "Cursor Agent", commands: Object.freeze(["cursor-agent", "agent"]) },
   { kind: "zcode", label: "zcode", commands: Object.freeze(["zcode"]) },
-  // The nodecode TUI; its gateway runs outside any terminal, so tab admission never sees it.
+  // The nodecode TUI. A gateway it starts inherits its tab and is not a card of its own (tabOwners).
   { kind: "nodecode", label: "Nodecode", commands: Object.freeze(["nodecode"]) },
   // angelx is a Python launcher; the cockpit binary it starts, `angel`, is what holds the tab.
   { kind: "angel", label: "angelx", commands: Object.freeze(["angel"]) },
+  // Google's Antigravity CLI: one native process per tab, distinct from the Gemini CLI above.
+  { kind: "agy", label: "agy", commands: Object.freeze(["agy"]) },
 ]);
 
 /** Pi publishes its own telemetry, so its processes are never discovered this way. */
@@ -97,7 +99,7 @@ export function repoLabelFor(cwd) {
  *   startedAt: number;
  *   lastEventAt?: number;
  *   now?: number;
- *   telemetry?: Partial<import("./claude-transcript.mjs").ClaudeTelemetry> | null;
+ *   telemetry?: Partial<Omit<import("./claude-transcript.mjs").ClaudeTelemetry, "state"> & {state: string}> | null;
  * }} tab
  */
 export function agentSessionRecord({
@@ -124,12 +126,15 @@ export function agentSessionRecord({
   // Reported activity decides liveness. A published state only counts while the transcript is
   // still moving; a stale "tool" record is not evidence that a tool is running right now.
   const recent = lastEventMs > 0 && nowMs - lastEventMs <= AGENT_ACTIVE_WINDOW_MS;
+  // A state the running agent keeps current itself (agy's step status, Nodecode's open turn) is
+  // true for as long as the process lives; only states inferred from a file tail need recency.
+  const current = telemetry?.stateIsCurrent === true;
   const reported = String(telemetry?.state ?? "");
   // "waiting" and "error" describe a session that is stopped on purpose, so they survive the
   // liveness window: a permission prompt can sit unanswered for a long time and is still true.
   const sticky = reported === "waiting" || reported === "error";
   const busy = reported === "tool" || reported === "thinking";
-  const active = sticky || (recent && (busy || !reported));
+  const active = sticky || (busy && current) || (recent && (busy || !reported));
   const state = sticky ? reported : active ? (busy ? reported : "thinking") : "idle";
   const toolName = active ? String(telemetry?.toolName ?? "") : "";
   const toolTarget = active ? String(telemetry?.toolTarget ?? "") : "";
