@@ -18,7 +18,6 @@
   "packages/pi-little-helpers": "0.13.0",
   "packages/pi-model-selection": "0.3.1",
   "packages/pi-modes": "0.6.0",
-  "packages/pi-obsidian-clipper": "0.2.2",
   "packages/pi-ontology-workflows": "0.5.4",
   "packages/pi-peer-messaging": "0.4.3",
   "packages/pi-prompt-template-accelerator": "0.3.1",
