@@ -519,6 +519,11 @@ the checked-in baseline contract.
   version actually installed. A missing or stale record fails closed. This is npm's
   install record cross-checked with the installed version, not a recomputed hash of
   the installed bytes. Without the variable, alignment stays version-only (local runs).
+  Re-hashing installed files was considered and not built (AK8895): npm already checks
+  each fetched tarball against its sha512 before extracting it, hosted jobs start from
+  an empty `node_modules`, and a change after installation would need code running in
+  that same job, which could equally change the check. Local runs on long-lived trees
+  (where records go stale) remain version and record checks only.
 - `discover` uploads `canary-request-<attempt>` (requested scenarios, host version,
   review anchor, expected integrity, GitHub run identity). Each scenario job runs
   `run --evidence-out` and uploads `canary-evidence-<scenario>-<attempt>` with

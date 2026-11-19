@@ -203,7 +203,8 @@ test("session_start footer composes selected lightweight extension statuses when
 
 test("session_start footer refreshes vault health after startup drift", async () => {
   const previousVaultDir = process.env.VAULT_DIR;
-  const previousPiCompany = process.env.VAULT_CURRENT_COMPANY;
+  const previousPiCompany = process.env.PI_COMPANY;
+  const previousVaultCompany = process.env.VAULT_CURRENT_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-health-"));
   execFileSync(
@@ -216,6 +217,8 @@ test("session_start footer refreshes vault health after startup drift", async ()
     { cwd: tempVaultDir, stdio: "ignore" },
   );
   process.env.VAULT_DIR = tempVaultDir;
+  process.env.PI_COMPANY = "software";
+  // pi-vault-client reads only VAULT_CURRENT_COMPANY.
   process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "0";
 
@@ -306,9 +309,14 @@ test("session_start footer refreshes vault health after startup drift", async ()
       process.env.VAULT_DIR = previousVaultDir;
     }
     if (previousPiCompany === undefined) {
+      delete process.env.PI_COMPANY;
+    } else {
+      process.env.PI_COMPANY = previousPiCompany;
+    }
+    if (previousVaultCompany === undefined) {
       delete process.env.VAULT_CURRENT_COMPANY;
     } else {
-      process.env.VAULT_CURRENT_COMPANY = previousPiCompany;
+      process.env.VAULT_CURRENT_COMPANY = previousVaultCompany;
     }
     if (previousRefreshMs === undefined) {
       delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
@@ -321,7 +329,8 @@ test("session_start footer refreshes vault health after startup drift", async ()
 
 test("session_start footer health retries respect the refresh interval", async (t) => {
   const previousVaultDir = process.env.VAULT_DIR;
-  const previousPiCompany = process.env.VAULT_CURRENT_COMPANY;
+  const previousPiCompany = process.env.PI_COMPANY;
+  const previousVaultCompany = process.env.VAULT_CURRENT_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-throttle-"));
   execFileSync(
@@ -334,6 +343,8 @@ test("session_start footer health retries respect the refresh interval", async (
     { cwd: tempVaultDir, stdio: "ignore" },
   );
   process.env.VAULT_DIR = tempVaultDir;
+  process.env.PI_COMPANY = "software";
+  // pi-vault-client reads only VAULT_CURRENT_COMPANY.
   process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "1000";
 
@@ -459,9 +470,14 @@ test("session_start footer health retries respect the refresh interval", async (
       process.env.VAULT_DIR = previousVaultDir;
     }
     if (previousPiCompany === undefined) {
+      delete process.env.PI_COMPANY;
+    } else {
+      process.env.PI_COMPANY = previousPiCompany;
+    }
+    if (previousVaultCompany === undefined) {
       delete process.env.VAULT_CURRENT_COMPANY;
     } else {
-      process.env.VAULT_CURRENT_COMPANY = previousPiCompany;
+      process.env.VAULT_CURRENT_COMPANY = previousVaultCompany;
     }
     if (previousRefreshMs === undefined) {
       delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;

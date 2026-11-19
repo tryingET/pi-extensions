@@ -49,6 +49,7 @@ const savedEnv = Object.fromEntries(
     "VAULT_DIR",
     "SOCIETY_DB",
     "AGENT_KERNEL",
+    "PI_COMPANY",
     "VAULT_CURRENT_COMPANY",
     "PI_ORCH_AK_CLEARANCE_STATE",
     "PI_ORCH_AK_INCIDENT_FENCE",
@@ -73,6 +74,7 @@ try {
   process.env.VAULT_DIR = vaultDir;
   process.env.SOCIETY_DB = societyDb;
   process.env.AGENT_KERNEL = fakeAk;
+  process.env.PI_COMPANY = "software";
   process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_AK_CLEARANCE_STATE = "unknown";
   process.env.PI_ORCH_AK_INCIDENT_FENCE = "active";

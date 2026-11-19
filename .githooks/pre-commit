@@ -3,6 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# git exports GIT_INDEX_FILE (and may export GIT_DIR) to hooks; test fixtures must not inherit them.
+git_local_env_vars="$(git rev-parse --local-env-vars)"
+while IFS= read -r git_local_env_var; do
+  # GIT_CONFIG_* is configuration, not location; it stays.
+  [[ -n "$git_local_env_var" && "$git_local_env_var" != GIT_CONFIG* ]] && unset "$git_local_env_var"
+done <<< "$git_local_env_vars"
+
 cd "$ROOT_DIR"
 # The canonical checkout is the live Pi runtime: refuse a manifest change its installs do not satisfy.
 node scripts/commit-install-guard.mjs

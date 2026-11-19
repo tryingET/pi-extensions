@@ -60,7 +60,8 @@ test("loop_execute reports loop/team mismatches before execution starts", async 
 test("vault_execute_template dispatches known loop and D2E workflow bindings through exact gates", async () => {
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-dispatch-"));
   const previousVaultDir = process.env.VAULT_DIR;
-  const previousPiCompany = process.env.VAULT_CURRENT_COMPANY;
+  const previousPiCompany = process.env.PI_COMPANY;
+  const previousVaultCompany = process.env.VAULT_CURRENT_COMPANY;
   const previousD2eMode = process.env.PI_ORCH_D2E_TRANSFER_MODE;
   const previousExecutionMemoryMode = process.env.PI_ORCH_D2E_EXECUTION_MEMORY_MODE;
   const previousExecutionMemoryBin = process.env.PI_ORCH_D2E_AK_BIN;
@@ -113,6 +114,8 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       { cwd: tempVaultDir, stdio: "ignore" },
     );
     process.env.VAULT_DIR = tempVaultDir;
+    process.env.PI_COMPANY = "software";
+    // pi-vault-client reads only VAULT_CURRENT_COMPANY.
     process.env.VAULT_CURRENT_COMPANY = "software";
     process.env.PI_ORCH_D2E_TRANSFER_MODE = "enabled";
 
@@ -697,9 +700,14 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       process.env.VAULT_DIR = previousVaultDir;
     }
     if (previousPiCompany === undefined) {
+      delete process.env.PI_COMPANY;
+    } else {
+      process.env.PI_COMPANY = previousPiCompany;
+    }
+    if (previousVaultCompany === undefined) {
       delete process.env.VAULT_CURRENT_COMPANY;
     } else {
-      process.env.VAULT_CURRENT_COMPANY = previousPiCompany;
+      process.env.VAULT_CURRENT_COMPANY = previousVaultCompany;
     }
     if (previousD2eMode === undefined) {
       delete process.env.PI_ORCH_D2E_TRANSFER_MODE;

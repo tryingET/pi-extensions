@@ -13,6 +13,7 @@
 
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { withoutGitLocalEnv } from "./git-local-env.mjs";
 
 const GRACE_MS = 1_000;
 // After the file's process exits, how long its output may still arrive from a subprocess that
@@ -91,6 +92,8 @@ function runFile(file, options) {
       ];
       // fd 3 is the lifeline the hook watches; no test subprocess inherits it.
       run.child = spawn(process.execPath, args, {
+        // A test's git fixtures must never act on a repository inherited from a hook or shell.
+        env: withoutGitLocalEnv(process.env),
         detached: POSIX,
         stdio: POSIX ? ["ignore", "pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
       });

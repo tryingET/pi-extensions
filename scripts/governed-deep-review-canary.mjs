@@ -1020,7 +1020,7 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
   try {
     createVaultFixture(vaultDir);
     process.env.VAULT_DIR = vaultDir;
-    // pi-vault-client reads only VAULT_CURRENT_COMPANY (5f10f64c8); PI_COMPANY is ignored.
+    // pi-vault-client reads only VAULT_CURRENT_COMPANY (PI_COMPANY is no longer read).
     process.env.VAULT_CURRENT_COMPANY = "software";
     process.env.XDG_STATE_HOME = stateHome;
 
