@@ -78,11 +78,22 @@ export function storedNamesFor(company, register = loadRegister()) {
   }
   return [...names];
 }
+/** The stored names that stand for register company NAME: the name itself and its old spellings. */
+function spellingsOf(name, register) {
+  return [name, ...Object.keys(register.aliases).filter((old) => register.aliases[old] === name)];
+}
+/** Does a stored list name every register company (in any accepted spelling; retired names count for none)? */
+export function namesEveryCompany(visibility, register = loadRegister()) {
+  return register.companies.every((name) =>
+    spellingsOf(name, register).some((spelling) => visibility.includes(spelling)),
+  );
+}
 /** JS twin of visibilitySql: may COMPANY (internal, register name or none) read a row with OWNER and VISIBILITY? */
 export function rowVisibleTo(owner, visibility, company, register = loadRegister()) {
   if (!Array.isArray(visibility)) return false;
   const stored = visibility.map(String);
   if (owner === "core" && register.stored.every((name) => stored.includes(name))) return true;
+  if (namesEveryCompany(stored, register)) return true;
   const names = storedNamesFor(String(company ?? ""), register);
   return names.some((name) => stored.includes(name));
 }
@@ -94,11 +105,24 @@ function sqlString(value) {
   return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''")}'`;
 }
 /**
- * SQL true when the row may be read by COMPANY. Core rows listing every stored name reach every
- * company and no company; any other row reaches only the companies it names (fail closed).
+ * SQL true when the row may be read by COMPANY. Core rows listing every stored name, and any row naming
+ * every register company, reach every company and no company; any other row reaches only the companies
+ * it names (fail closed).
  */
 export function visibilitySql(company, visibilityColumn, ownerColumn, register = loadRegister()) {
-  const everyone = `(${ownerColumn} = 'core' AND JSON_CONTAINS(${visibilityColumn}, ${sqlString(JSON.stringify(register.stored))}))`;
+  const coreForAll = `(${ownerColumn} = 'core' AND JSON_CONTAINS(${visibilityColumn}, ${sqlString(JSON.stringify(register.stored))}))`;
+  const namesAll = register.companies
+    .map(
+      (name) =>
+        `(${spellingsOf(name, register)
+          .map(
+            (spelling) =>
+              `JSON_SEARCH(${visibilityColumn}, 'one', ${sqlString(spelling)}) IS NOT NULL`,
+          )
+          .join(" OR ")})`,
+    )
+    .join(" AND ");
+  const everyone = `(${coreForAll} OR (${namesAll}))`;
   const names = storedNamesFor(company, register);
   if (names.length === 0) return everyone;
   const named = names
