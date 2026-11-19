@@ -232,14 +232,6 @@ fn status_line_and_subtitles_reflect_match_kind_and_query_bounds() {
         "zzz▏ no match"
     );
 
-    let ak_sub = row_subtitle(match_entry(&windows[0], "ak5701").as_ref(), "ak5701").unwrap();
-    assert_eq!(ak_sub.css_class, "ak-active");
-    assert!(ak_sub.text.starts_with("AK5701 · Show clickable"));
-
-    let sid_sub = row_subtitle(match_entry(&windows[0], "cfa4c21d").as_ref(), "cfa4c21d").unwrap();
-    assert_eq!(sid_sub.css_class, "session-match");
-    assert!(sid_sub.text.contains("cfa4c21d"));
-
     let mut query = String::new();
     assert!(push_query_char(&mut query, '#'));
     assert!(push_query_char(&mut query, ':'));
@@ -249,4 +241,55 @@ fn status_line_and_subtitles_reflect_match_kind_and_query_bounds() {
         push_query_char(&mut query, 'x');
     }
     assert_eq!(query.chars().count(), MAX_QUERY_CHARS);
+}
+
+#[test]
+fn up_and_down_step_through_filtered_matches_with_wraparound_and_enter_opens_selection() {
+    let windows = vec![
+        entry("pi-extensions", 43, 2),
+        entry("pi-activity", 432, 3),
+        entry("pi-modes", 500, 4),
+    ];
+    // Start at default first match ("card-43"); Down advances, Up wraps cleanly.
+    let second = step_selection(&windows, "pi", true, None, 1);
+    assert_eq!(second.as_deref(), Some("card-432"));
+    assert_eq!(
+        jump_choice_with_selection(&windows, "pi", true, second.as_deref()),
+        Some(JumpChoice::Card("card-432".into()))
+    );
+    assert_eq!(
+        status_text_with_selection(&windows, "pi", true, true, None, second.as_deref()),
+        "pi▏ ⏎ pi-activity"
+    );
+    let third = step_selection(&windows, "pi", true, second.as_deref(), 1);
+    assert_eq!(third.as_deref(), Some("card-500"));
+    let wrapped_first = step_selection(&windows, "pi", true, third.as_deref(), 1);
+    assert_eq!(wrapped_first.as_deref(), Some("card-43"));
+    let wrapped_last = step_selection(&windows, "pi", true, None, -1);
+    assert_eq!(wrapped_last.as_deref(), Some("card-500"));
+
+    // Numeric query: default is exact window #43; Down selects prefix match #432 as a Card.
+    let from_exact = step_selection(&windows, "43", true, None, 1);
+    assert_eq!(from_exact.as_deref(), Some("card-432"));
+    assert_eq!(
+        jump_choice_with_selection(&windows, "43", true, from_exact.as_deref()),
+        Some(JumpChoice::Card("card-432".into()))
+    );
+
+    // Numeric prefix with no exact window (#43 unlisted, #432 listed): Down picks #432.
+    let only_prefix = vec![entry("pi-activity", 432, 3)];
+    let from_unlisted = step_selection(&only_prefix, "43", true, None, 1);
+    assert_eq!(from_unlisted.as_deref(), Some("card-432"));
+    assert_eq!(
+        jump_choice_with_selection(&only_prefix, "43", true, from_unlisted.as_deref()),
+        Some(JumpChoice::Card("card-432".into()))
+    );
+
+    // Stale selection falls back cleanly; empty results return None.
+    assert_eq!(
+        jump_choice_with_selection(&windows, "pi", true, Some("gone-card")),
+        Some(JumpChoice::Card("card-43".into()))
+    );
+    assert_eq!(step_selection(&windows, "zzz", true, None, 1), None);
+    assert_eq!(step_selection(&windows, "", true, None, 1), None);
 }

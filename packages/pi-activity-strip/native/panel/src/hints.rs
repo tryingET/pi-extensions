@@ -4,7 +4,7 @@
 //! the whole key map where the folder path normally is.
 
 /// The whole key map, for the brand tooltip and the docs.
-pub const KEY_MAP: &str = "←/→ move · Shift+←/→ reorder · Enter open\nType name, window #, AK task, or session id · Esc leaves";
+pub const KEY_MAP: &str = "←/→ move · Shift+←/→ reorder · Enter open\nType name, #, AK, or session id · ↑/↓ select · Esc leaves";
 
 /// Brand lines while keyboard mode is on: the key map replaces the folder path.
 pub const KEYBOARD_EYEBROW: &str = "⌨ KEYBOARD MODE";

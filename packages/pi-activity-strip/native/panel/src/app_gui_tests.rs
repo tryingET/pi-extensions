@@ -50,6 +50,7 @@ fn assert_clean(app: &App) {
     assert!(app.open_card_id.is_none());
     assert!(app.pending_request.is_none());
     assert!(app.query.is_empty());
+    assert!(app.directory_selected.is_none());
     assert_eq!(app.key_capture.get(), KeyCapture::None);
     assert!(!app.hover_keyboard.active);
     assert!(!app.hover_keyboard.captured);
@@ -581,7 +582,7 @@ fn isolated_gtk_directory_focus_only_preserves_rows_and_scroll() {
             ak_tasks: Vec::new(),
         })
         .collect();
-    directory.render(&windows, "", false, false, None);
+    directory.render(&windows, "", false, false, None, None);
     directory.set_visible(true);
     let fixture = gtk::Window::new();
     fixture.set_title(Some("AK8077 isolated directory focus-only fixture"));
@@ -617,7 +618,7 @@ fn isolated_gtk_directory_focus_only_preserves_rows_and_scroll() {
     // set_prompt or a projection/reconciliation helper. Everything else is identical.
     windows[0].current = false;
     windows[1].current = true;
-    directory.render(&windows, "", false, false, None);
+    directory.render(&windows, "", false, false, None, None);
     let after = directory.row_widgets();
     // Allow GTK layout/frame work to expose a delayed scroll reset too.
     pump();

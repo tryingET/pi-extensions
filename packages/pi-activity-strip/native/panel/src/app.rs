@@ -1,6 +1,7 @@
 use crate::card_view::CardView;
 use crate::directory_view::{
-    DirectoryView, JumpChoice, is_query_char, jump_choice, push_query_char,
+    DirectoryView, JumpChoice, is_query_char, jump_choice_with_selection, push_query_char,
+    step_selection,
 };
 use crate::hints;
 use crate::hover_keyboard::{HoverKeyboard, monotonic_ms};
@@ -80,6 +81,8 @@ pub struct App {
     /// GTK activity alone is never permission to expand or capture keys.
     window_active: bool,
     query: String,
+    /// Card chosen via ↑/↓ after typing a query; cleared whenever the query changes or closes.
+    directory_selected: Option<String>,
     /// Read by the window's key controller: which keys belong to the window list right now.
     key_capture: Rc<Cell<KeyCapture>>,
 }
@@ -113,8 +116,10 @@ pub enum RequestTarget {
 
 #[derive(Debug)]
 pub enum DirectoryKey {
-    /// A letter, digit, `-`, `_` or `.` of a name or window number.
+    /// A letter, digit, `-`, `_`, `.`, `#` or `:` of a name, window #, AK ref or session id.
     Char(char),
+    /// Move selection up (`-1`) or down (`+1`) through filtered matches after searching.
+    Move(i32),
     Backspace,
     Enter,
     Escape,
@@ -304,6 +309,7 @@ impl Component for App {
             keyboard_request: 0,
             window_active: false,
             query: String::new(),
+            directory_selected: None,
             key_capture: Rc::clone(&key_capture),
         };
         let widgets = view_output!();
@@ -800,6 +806,12 @@ fn directory_key(capture: KeyCapture, key: gdk::Key, chord: bool) -> Option<Dire
             gdk::Key::Return | gdk::Key::KP_Enter if capture == KeyCapture::ListTyped => {
                 Some(DirectoryKey::Enter)
             }
+            gdk::Key::Up | gdk::Key::KP_Up if capture == KeyCapture::ListTyped => {
+                Some(DirectoryKey::Move(-1))
+            }
+            gdk::Key::Down | gdk::Key::KP_Down if capture == KeyCapture::ListTyped => {
+                Some(DirectoryKey::Move(1))
+            }
             gdk::Key::Escape => Some(DirectoryKey::Escape),
             _ => typed.map(DirectoryKey::Char),
         },
@@ -946,6 +958,7 @@ impl App {
         self.window_active = false;
         self.pending_request = None;
         self.query.clear();
+        self.directory_selected = None;
         self.sync_key_capture();
         self.collapse_generation += 1;
         self.brand_generation += 1;
@@ -1389,21 +1402,39 @@ impl App {
             DirectoryKey::Char(digit) => {
                 self.open_directory(widgets, root);
                 if push_query_char(&mut self.query, digit) {
+                    self.directory_selected = None;
                     self.render_directory();
                     self.sync_key_capture();
                     self.resize(root);
                     self.sync_directory_layout(widgets);
                 }
             }
+            DirectoryKey::Move(direction) => {
+                self.directory_selected = step_selection(
+                    &self.windows,
+                    &self.query,
+                    self.allow_unlisted(),
+                    self.directory_selected.as_deref(),
+                    direction,
+                );
+                self.render_directory();
+                self.directory.scroll_chosen_into_view();
+            }
             DirectoryKey::Backspace => {
                 self.query.pop();
+                self.directory_selected = None;
                 self.render_directory();
                 self.sync_key_capture();
                 self.resize(root);
                 self.sync_directory_layout(widgets);
             }
             DirectoryKey::Enter => {
-                match jump_choice(&self.windows, &self.query, self.allow_unlisted()) {
+                match jump_choice_with_selection(
+                    &self.windows,
+                    &self.query,
+                    self.allow_unlisted(),
+                    self.directory_selected.as_deref(),
+                ) {
                     Some(JumpChoice::Window(window_id)) => {
                         self.pending_request = Some(PendingRequest {
                             session: self.directory_session,
@@ -1457,6 +1488,7 @@ impl App {
                 self.owns_keyboard(),
                 self.allow_unlisted(),
                 self.hotkey.as_deref(),
+                self.directory_selected.as_deref(),
             );
         }
     }
@@ -1469,6 +1501,7 @@ impl App {
                 self.owns_keyboard(),
                 self.allow_unlisted(),
                 self.hotkey.as_deref(),
+                self.directory_selected.as_deref(),
             );
         }
     }
@@ -1484,6 +1517,7 @@ impl App {
         self.directory_open = true;
         self.directory_session += 1;
         self.query.clear();
+        self.directory_selected = None;
         self.render_directory();
         self.sync_key_capture();
         self.resize(root);
@@ -1545,6 +1579,7 @@ impl App {
         self.cancel_pending_hover();
         self.hover_keyboard.clear();
         self.query.clear();
+        self.directory_selected = None;
         self.sync_key_capture();
         root.set_keyboard_mode(KeyboardMode::None);
         GtkWindowExt::set_focus(root, None::<&gtk::Widget>);
@@ -1573,6 +1608,7 @@ impl App {
         self.directory_open = false;
         self.pending_request = None;
         self.query.clear();
+        self.directory_selected = None;
         self.sync_key_capture();
         self.resize(root);
         self.sync_directory_layout(widgets);
@@ -1694,7 +1730,17 @@ mod tests {
             "None",
             "with nothing typed, Enter still reaches the focused card"
         );
+        assert_eq!(
+            key(KeyCapture::List, gdk::Key::Down),
+            "None",
+            "with nothing typed, arrows stay outside the directory list"
+        );
+        assert_eq!(key(KeyCapture::List, gdk::Key::Up), "None");
         assert_eq!(key(KeyCapture::ListTyped, gdk::Key::Return), "Some(Enter)");
+        assert_eq!(key(KeyCapture::ListTyped, gdk::Key::Down), "Some(Move(1))");
+        assert_eq!(key(KeyCapture::ListTyped, gdk::Key::Up), "Some(Move(-1))");
+        assert_eq!(key(KeyCapture::ListTyped, gdk::Key::Left), "None");
+        assert_eq!(key(KeyCapture::ListTyped, gdk::Key::Right), "None");
         assert_eq!(
             key(KeyCapture::List, gdk::Key::BackSpace),
             "Some(Backspace)"

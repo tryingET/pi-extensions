@@ -1,13 +1,21 @@
 use crate::app::AppMsg;
 pub use crate::directory_search::{
-    JumpChoice, RowSubtitle, filter_entries_with_matches, is_query_char, jump_choice,
-    push_query_char, row_subtitle, status_text,
+    JumpChoice, is_query_char, jump_choice_with_selection, push_query_char, step_selection,
+};
+use crate::directory_search::{
+    MatchKind, filter_entries_with_matches, status_text_with_selection, strip_session_prefix,
 };
 use crate::protocol::WindowEntry;
 use relm4::Sender;
 use relm4::gtk;
 use relm4::gtk::prelude::*;
 use std::cell::RefCell;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RowSubtitle {
+    pub text: String,
+    pub css_class: &'static str,
+}
 
 #[derive(Clone, PartialEq, Eq)]
 struct RenderedRowKey {
@@ -21,6 +29,7 @@ struct RenderedRowKey {
 pub struct DirectoryView {
     pub root: gtk::Box,
     status: gtk::Label,
+    scroller: gtk::ScrolledWindow,
     rows: gtk::Box,
     // Every material field (including activation target and match subtitle), not current styling.
     rendered_rows: RefCell<Vec<RenderedRowKey>>,
@@ -56,6 +65,7 @@ impl DirectoryView {
         Self {
             root,
             status,
+            scroller,
             rows,
             rendered_rows: RefCell::new(Vec::new()),
             sender: sender.clone(),
@@ -87,6 +97,7 @@ impl DirectoryView {
         can_type: bool,
         allow_unlisted: bool,
         hotkey: Option<&str>,
+        selected_card_id: Option<&str>,
     ) {
         let shown = filter_entries_with_matches(windows, query);
         let subtitles: Vec<Option<RowSubtitle>> = shown
@@ -113,7 +124,7 @@ impl DirectoryView {
             }
         }
         let mut retained = self.rows.first_child();
-        let choice = jump_choice(windows, query, allow_unlisted);
+        let choice = jump_choice_with_selection(windows, query, allow_unlisted, selected_card_id);
         for (item, subtitle) in shown.iter().zip(&subtitles) {
             let entry = item.entry;
             let chosen = match &choice {
@@ -147,13 +158,44 @@ impl DirectoryView {
             empty.set_xalign(0.0);
             self.rows.append(&empty);
         }
-        self.status.set_text(&status_text(
+        self.status.set_text(&status_text_with_selection(
             windows,
             query,
             can_type,
             allow_unlisted,
             hotkey,
+            selected_card_id,
         ));
+    }
+
+    /// Bring the currently `.chosen` row into view after ↑/↓ selection movement.
+    pub fn scroll_chosen_into_view(&self) {
+        let mut child = self.rows.first_child();
+        while let Some(row) = child {
+            if row.has_css_class("chosen") {
+                if let Some(origin) =
+                    row.compute_point(&self.rows, &gtk::graphene::Point::new(0.0, 0.0))
+                {
+                    let start = f64::from(origin.y());
+                    let end = start + f64::from(row.height());
+                    let adjustment = self.scroller.vadjustment();
+                    let page = adjustment.page_size();
+                    if page > 0.0 {
+                        let value = adjustment.value();
+                        let next = if start < value {
+                            start
+                        } else if end > value + page {
+                            (end - page).min(start)
+                        } else {
+                            value
+                        };
+                        adjustment.set_value(next);
+                    }
+                }
+                break;
+            }
+            child = row.next_sibling();
+        }
     }
 
     /// The typing hint alone, leaving the rows (and any click in progress on them) untouched.
@@ -164,13 +206,15 @@ impl DirectoryView {
         can_type: bool,
         allow_unlisted: bool,
         hotkey: Option<&str>,
+        selected_card_id: Option<&str>,
     ) {
-        self.status.set_text(&status_text(
+        self.status.set_text(&status_text_with_selection(
             windows,
             query,
             can_type,
             allow_unlisted,
             hotkey,
+            selected_card_id,
         ));
     }
 
@@ -236,6 +280,62 @@ impl DirectoryView {
         });
         row
     }
+}
+
+/// Optional second line on a directory row showing why an AK task or session-id query matched.
+fn row_subtitle(match_kind: Option<&MatchKind>, query: &str) -> Option<RowSubtitle> {
+    match match_kind? {
+        MatchKind::AkTaskExactActive(task)
+        | MatchKind::AkTaskPrefixActive(task)
+        | MatchKind::AkTaskTitleActive(task) => Some(RowSubtitle {
+            text: format!("AK{} · {}", task.id, task.title),
+            css_class: "ak-active",
+        }),
+        MatchKind::AkTaskExactBadge(task)
+        | MatchKind::AkTaskPrefixBadge(task)
+        | MatchKind::AkTaskTitleBadge(task) => {
+            let tag = match task.state.as_str() {
+                "orphaned" => " [orphaned]",
+                "deferred" => " [deferred]",
+                _ => "",
+            };
+            Some(RowSubtitle {
+                text: format!("AK{}{tag} · {}", task.id, task.title),
+                css_class: match task.state.as_str() {
+                    "orphaned" => "ak-orphaned",
+                    "deferred" => "ak-deferred",
+                    _ => "ak-unknown",
+                },
+            })
+        }
+        MatchKind::SessionId(sid) => Some(RowSubtitle {
+            text: format!("id {}", compact_session_preview(sid, query)),
+            css_class: "session-match",
+        }),
+        MatchKind::WindowExact | MatchKind::Label | MatchKind::WindowPrefix => None,
+    }
+}
+
+/// Show the matched region of a session id cleanly inside the 196px brand column.
+fn compact_session_preview(session_id: &str, query: &str) -> String {
+    let lower = session_id.to_lowercase();
+    let needle_lower = query.to_lowercase();
+    let (stripped, _) = strip_session_prefix(&needle_lower);
+    if session_id.chars().count() <= 18 {
+        return session_id.to_owned();
+    }
+    if !stripped.is_empty()
+        && let Some(byte_pos) = lower.find(stripped)
+        && byte_pos > 8
+    {
+        let char_pos = lower[..byte_pos].chars().count();
+        let total = session_id.chars().count();
+        let start = char_pos.saturating_sub(2).min(total.saturating_sub(14));
+        let slice: String = session_id.chars().skip(start).take(16).collect();
+        return format!("…{slice}");
+    }
+    let head: String = session_id.chars().take(16).collect();
+    format!("{head}…")
 }
 
 /// The short workspace marker on each row: the number the operator sees in Niri.
@@ -324,5 +424,21 @@ mod tests {
         let tip = row_tooltip(&named);
         assert!(tip.contains("AK5701 [live claim] Show clickable AK-task references"));
         assert!(tip.contains("session 01a0993a-d336-739f-a308-cfa4c21d6332"));
+
+        let ak_sub = row_subtitle(
+            crate::directory_search::match_entry(&named, "ak5701").as_ref(),
+            "ak5701",
+        )
+        .unwrap();
+        assert_eq!(ak_sub.css_class, "ak-active");
+        assert!(ak_sub.text.starts_with("AK5701 · Show clickable"));
+
+        let sid_sub = row_subtitle(
+            crate::directory_search::match_entry(&named, "cfa4c21d").as_ref(),
+            "cfa4c21d",
+        )
+        .unwrap();
+        assert_eq!(sid_sub.css_class, "session-match");
+        assert!(sid_sub.text.contains("cfa4c21d"));
     }
 }

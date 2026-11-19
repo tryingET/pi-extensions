@@ -58,12 +58,6 @@ pub struct FilteredEntry<'a> {
     pub match_kind: Option<MatchKind>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RowSubtitle {
-    pub text: String,
-    pub css_class: &'static str,
-}
-
 /// Append a typed character: letters, digits, and separators of project names, AK refs, and ids.
 pub fn push_query_char(query: &mut String, character: char) -> bool {
     if !is_query_char(character) || query.chars().count() >= MAX_QUERY_CHARS {
@@ -119,6 +113,60 @@ pub fn filter_entries<'a>(windows: &'a [WindowEntry], query: &str) -> Vec<&'a Wi
         .into_iter()
         .map(|item| item.entry)
         .collect()
+}
+
+/// What Enter does when the operator may also have stepped through filtered matches with ↑/↓.
+/// A selected card still in the filtered list wins; otherwise the default `jump_choice` stands.
+pub fn jump_choice_with_selection(
+    windows: &[WindowEntry],
+    query: &str,
+    allow_unlisted: bool,
+    selected_card_id: Option<&str>,
+) -> Option<JumpChoice> {
+    if query.is_empty() {
+        return None;
+    }
+    if let Some(selected) = selected_card_id
+        && filter_entries_with_matches(windows, query)
+            .iter()
+            .any(|item| item.entry.card_id == selected)
+    {
+        return Some(JumpChoice::Card(selected.to_owned()));
+    }
+    jump_choice(windows, query, allow_unlisted)
+}
+
+/// Move selection up (`-1`) or down (`+1`) through the filtered list with wraparound.
+pub fn step_selection(
+    windows: &[WindowEntry],
+    query: &str,
+    allow_unlisted: bool,
+    current_selected: Option<&str>,
+    direction: i32,
+) -> Option<String> {
+    if query.is_empty() {
+        return None;
+    }
+    let shown = filter_entries_with_matches(windows, query);
+    if shown.is_empty() {
+        return None;
+    }
+    let current = match jump_choice_with_selection(windows, query, allow_unlisted, current_selected)
+    {
+        Some(JumpChoice::Card(card_id)) => {
+            shown.iter().position(|item| item.entry.card_id == card_id)
+        }
+        Some(JumpChoice::Window(id)) => shown.iter().position(|item| item.entry.window_id == id),
+        None => None,
+    };
+    let next = match current {
+        Some(index) => {
+            (index as i64 + i64::from(direction)).rem_euclid(shown.len() as i64) as usize
+        }
+        None if direction >= 0 => 0,
+        None => shown.len() - 1,
+    };
+    Some(shown[next].entry.card_id.clone())
 }
 
 /// What Enter does. For a window-number query (bare digits or `#<digits>`): exact listed window
@@ -199,46 +247,24 @@ pub fn match_entry(entry: &WindowEntry, query: &str) -> Option<MatchKind> {
     None
 }
 
-/// Optional second line on a directory row showing why an AK task or session-id query matched.
-pub fn row_subtitle(match_kind: Option<&MatchKind>, query: &str) -> Option<RowSubtitle> {
-    match match_kind? {
-        MatchKind::AkTaskExactActive(task)
-        | MatchKind::AkTaskPrefixActive(task)
-        | MatchKind::AkTaskTitleActive(task) => Some(RowSubtitle {
-            text: format!("AK{} · {}", task.id, task.title),
-            css_class: "ak-active",
-        }),
-        MatchKind::AkTaskExactBadge(task)
-        | MatchKind::AkTaskPrefixBadge(task)
-        | MatchKind::AkTaskTitleBadge(task) => {
-            let tag = match task.state.as_str() {
-                "orphaned" => " [orphaned]",
-                "deferred" => " [deferred]",
-                _ => "",
-            };
-            Some(RowSubtitle {
-                text: format!("AK{}{tag} · {}", task.id, task.title),
-                css_class: match task.state.as_str() {
-                    "orphaned" => "ak-orphaned",
-                    "deferred" => "ak-deferred",
-                    _ => "ak-unknown",
-                },
-            })
-        }
-        MatchKind::SessionId(sid) => Some(RowSubtitle {
-            text: format!("id {}", compact_session_preview(sid, query)),
-            css_class: "session-match",
-        }),
-        MatchKind::WindowExact | MatchKind::Label | MatchKind::WindowPrefix => None,
-    }
-}
-
+#[cfg(test)]
 pub fn status_text(
     windows: &[WindowEntry],
     query: &str,
     can_type: bool,
     allow_unlisted: bool,
     hotkey: Option<&str>,
+) -> String {
+    status_text_with_selection(windows, query, can_type, allow_unlisted, hotkey, None)
+}
+
+pub fn status_text_with_selection(
+    windows: &[WindowEntry],
+    query: &str,
+    can_type: bool,
+    allow_unlisted: bool,
+    hotkey: Option<&str>,
+    selected_card_id: Option<&str>,
 ) -> String {
     if !can_type {
         // The keyboard was handed back (hover timeout); a click or the shortcut takes it again.
@@ -248,7 +274,7 @@ pub fn status_text(
         return "Type name, #, AK, or id · ⏎".to_owned();
     }
     let display_query = compact_query_tail(query, 14);
-    match jump_choice(windows, query, allow_unlisted) {
+    match jump_choice_with_selection(windows, query, allow_unlisted, selected_card_id) {
         Some(JumpChoice::Window(_)) => {
             let shown = query.strip_prefix('#').unwrap_or(query);
             format!("#{shown}▏ ⏎ jump · ⌫ edit")
@@ -365,7 +391,7 @@ fn match_ak_task_title(tasks: &[AkTask], needle: &str) -> Option<MatchKind> {
         })
 }
 
-fn strip_session_prefix(needle: &str) -> (&str, bool) {
+pub(crate) fn strip_session_prefix(needle: &str) -> (&str, bool) {
     let trimmed = needle.strip_prefix('#').unwrap_or(needle);
     for prefix in [
         "session-",
@@ -431,29 +457,6 @@ fn match_session_id<'a>(session_ids: &'a [String], needle: &str) -> Option<&'a s
         }
     }
     substring_hit
-}
-
-/// Show the matched region of a session id cleanly inside the 196px brand column.
-fn compact_session_preview(session_id: &str, query: &str) -> String {
-    let lower = session_id.to_lowercase();
-    let needle_lower = query.to_lowercase();
-    let (stripped, _) = strip_session_prefix(&needle_lower);
-    let max_chars = 18;
-    if session_id.chars().count() <= max_chars {
-        return session_id.to_owned();
-    }
-    if !stripped.is_empty()
-        && let Some(byte_pos) = lower.find(stripped)
-        && byte_pos > 8
-    {
-        let char_pos = lower[..byte_pos].chars().count();
-        let total = session_id.chars().count();
-        let start = char_pos.saturating_sub(2).min(total.saturating_sub(14));
-        let slice: String = session_id.chars().skip(start).take(16).collect();
-        return format!("…{slice}");
-    }
-    let head: String = session_id.chars().take(16).collect();
-    format!("{head}…")
 }
 
 fn compact_query_tail(query: &str, max_chars: usize) -> String {
