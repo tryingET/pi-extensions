@@ -13,6 +13,7 @@ import { buildGhosttyArgs } from "../extensions/sidequestGhostty.ts";
 import {
   assertLaunchWhileAlive,
   ownLaunchProcesses,
+  POSITIVE_STARTUP_TIMEOUT_MS,
   withDeadman,
 } from "./launch-oracle-harness.mjs";
 
@@ -41,6 +42,8 @@ test("detached window launch settles only after the exact private command handsh
            else if (message.challenge) process.send(message.challenge);
          });
          process.send("ready");`,
+        // A positive launch: the window must not expire before a loaded host starts node.
+        POSITIVE_STARTUP_TIMEOUT_MS,
       ),
       spawnProcess(command, args, options) {
         assert.equal(options.stdio[0], "ignore");
@@ -121,7 +124,8 @@ test("only pre-spawn rejection confirms no effects; post-spawn nonzero exit is i
         ...nodeLaunchRequest(
           scratchRoot,
           'console.error("display rejected"); process.exit(7)',
-          200,
+          // The exit must be observed before the window closes; it exits at once anyway.
+          POSITIVE_STARTUP_TIMEOUT_MS,
         ),
         spawnProcess: owned.spawnProcess,
       }),

@@ -9,6 +9,7 @@ import {
   assertLaunchWhileAlive,
   createObserverContext,
   ownLaunchProcesses,
+  POSITIVE_STARTUP_TIMEOUT_MS,
   withDeadman,
 } from "./launch-oracle-harness.mjs";
 
@@ -21,7 +22,8 @@ test("liveness oracle rejects a valid handshake inspected only after child exit"
         command: process.execPath,
         cwd: process.cwd(),
         scratchRoot,
-        startupTimeoutMs: 500,
+        // Positive launch: allow a loaded host to start node; the test asserts order, not speed.
+        startupTimeoutMs: POSITIVE_STARTUP_TIMEOUT_MS,
         buildArgs: ({ path, token }) => [
           "-e",
           'require("node:fs").writeFileSync(process.argv[1], process.argv[2] + "\\n")',

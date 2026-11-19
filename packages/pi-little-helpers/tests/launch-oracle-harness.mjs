@@ -5,7 +5,15 @@ import { randomUUID } from "node:crypto";
 import { watch } from "node:fs";
 import { createContext } from "./sidequest-harness.mjs";
 
-export async function withDeadman(promise, label, timeoutMs = 10_000) {
+// Hang detection only. Under parallel gate load (load average ~16) node children took
+// over 10 s to start, so the old 10 s default failed healthy runs. Negative controls pass
+// their own short timeouts explicitly.
+export const DEFAULT_DEADMAN_MS = 60_000;
+// Startup window for launches a test expects to succeed; tests of the timeout path pass
+// their own short values.
+export const POSITIVE_STARTUP_TIMEOUT_MS = 30_000;
+
+export async function withDeadman(promise, label, timeoutMs = DEFAULT_DEADMAN_MS) {
   let timer;
   try {
     return await Promise.race([
