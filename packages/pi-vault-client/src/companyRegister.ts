@@ -112,6 +112,28 @@ export function namesEveryCompany(visibility: string[], register = loadRegister(
   );
 }
 
+/**
+ * Is a stored owner/visibility pair well formed? Every name is a stored name (house included, for
+ * old rows), a register name or an old spelling; the list is non-empty; the owner is in it in any
+ * spelling (a software-owned row naming softwareco is fine).
+ */
+export function storedVisibilityValid(
+  owner: unknown,
+  visibility: unknown,
+  register = loadRegister(),
+): boolean {
+  const known = new Set([
+    ...register.stored,
+    ...register.companies,
+    ...Object.keys(register.aliases),
+  ]);
+  const canon = (name: string) => register.aliases[name] ?? name;
+  if (typeof owner !== "string" || !known.has(owner)) return false;
+  if (!Array.isArray(visibility) || visibility.length === 0) return false;
+  if (visibility.some((name) => typeof name !== "string" || !known.has(name))) return false;
+  return visibility.some((name) => canon(name) === canon(owner));
+}
+
 /** JS twin of visibilitySql: may COMPANY (internal, register name or none) read a row with OWNER and VISIBILITY? */
 export function rowVisibleTo(
   owner: unknown,

@@ -3,7 +3,12 @@
 //   - implementing vault dispatch checks or diagnosing blocked template lookups.
 
 import * as crypto from "node:crypto";
-import { isContextCompany, NO_COMPANY, rowVisibleTo } from "./companyRegister.js";
+import {
+  isContextCompany,
+  NO_COMPANY,
+  rowVisibleTo,
+  storedVisibilityValid,
+} from "./companyRegister.js";
 import {
   canonicalJcsBytes,
   classifyDispatchPosture,
@@ -33,16 +38,7 @@ const VALID_EXECUTION_SURFACES = new Set<ExecutionSurface>([
   "orchestrator_adapter",
   "projected_prompt",
 ]);
-// Stored names rows may hold; a context company is checked by isContextCompany.
-const VALID_COMPANIES = new Set([
-  "core",
-  "software",
-  "finance",
-  "house",
-  "health",
-  "teaching",
-  "holding",
-]);
+// Stored names are checked by storedVisibilityValid; a context company by isContextCompany.
 const CONTROLLED_VOCABULARY = {
   routing_context: new Set(["analysis_followup", "review_followup", "review_closeout"]),
   activity_phase: new Set(["post_analysis", "post_review", "closeout"]),
@@ -336,9 +332,8 @@ function strictTemplate(raw: Record<string, unknown>): Template | null {
     typeof raw.formalization_level !== "string" ||
     !VALID_FORMALIZATION_LEVELS.has(raw.formalization_level) ||
     typeof raw.owner_company !== "string" ||
-    !VALID_COMPANIES.has(raw.owner_company) ||
     !Array.isArray(visibility) ||
-    visibility.some((company) => typeof company !== "string" || !VALID_COMPANIES.has(company)) ||
+    !storedVisibilityValid(raw.owner_company, visibility) ||
     !hasValidControlledVocabulary(raw.control_mode, vocabulary)
   )
     return null;
@@ -430,8 +425,8 @@ function authorizeRequest(
       !VALID_ARTIFACT_KINDS.has(String(template.artifact_kind)) ||
       !VALID_CONTROL_MODES.has(String(template.control_mode)) ||
       !VALID_FORMALIZATION_LEVELS.has(String(template.formalization_level)) ||
-      !VALID_COMPANIES.has(String(template.owner_company)) ||
       !Array.isArray(template.visibility_companies) ||
+      !storedVisibilityValid(template.owner_company, template.visibility_companies) ||
       !rowVisibleTo(template.owner_company, template.visibility_companies, company) ||
       !hasValidControlledVocabulary(String(template.control_mode), template.controlled_vocabulary)
     ) {

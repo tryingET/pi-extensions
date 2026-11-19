@@ -221,3 +221,30 @@ test("resolveCompanyContext avoids substring false positives and falls back clea
     },
   );
 });
+
+test("stored visibility: old names, register names and house are valid; the owner counts in any spelling", async () => {
+  await withTranspiledModuleHarness(
+    { prefix: "company-context-", files: COMPANY_CONTEXT_FILES },
+    async ({ importModule }) => {
+      const { storedVisibilityValid } = await importModule("src/companyRegister.js");
+      const old = ["core", "software", "finance", "house", "health", "teaching", "holding"];
+      const widened = [
+        "core",
+        "softwareco",
+        "financeco",
+        "healthco",
+        "teachingco",
+        "holdingco",
+        "familyco",
+        "tradingco",
+      ];
+      assert.equal(storedVisibilityValid("core", old), true);
+      assert.equal(storedVisibilityValid("software", widened), true);
+      assert.equal(storedVisibilityValid("software", ["software"]), true);
+      assert.equal(storedVisibilityValid("software", ["core", "familyco"]), false); // owner missing
+      assert.equal(storedVisibilityValid("software", ["software", "acme"]), false); // unknown name
+      assert.equal(storedVisibilityValid("acme", ["acme"]), false); // unknown owner
+      assert.equal(storedVisibilityValid("software", []), false);
+    },
+  );
+});

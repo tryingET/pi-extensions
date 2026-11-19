@@ -460,6 +460,47 @@ describe("createVaultDispatchRuntime", () => {
     assert.equal(result.templates[0].owner_company, "core");
   });
 
+  it("accepts a row widened with register names while its owner keeps the stored name", async () => {
+    // Given a software-owned method whose visibility names every register company
+    const widened = [
+      "core",
+      "softwareco",
+      "financeco",
+      "healthco",
+      "teachingco",
+      "holdingco",
+      "familyco",
+      "tradingco",
+    ];
+    const runtime = createVaultDispatchRuntime({
+      runtime: createFakeRuntime([
+        {
+          id: 7,
+          name: "root-cause",
+          description: "Root cause",
+          content: "Root cause content",
+          render_engine: "none",
+          artifact_kind: "cognitive",
+          control_mode: "one_shot",
+          formalization_level: "bounded",
+          owner_company: "software",
+          visibility_companies: widened,
+          controlled_vocabulary: null,
+          status: "active",
+          export_to_pi: true,
+          version: 1,
+        },
+      ]),
+    });
+    // When it is checked
+    const result = await runtime.checkTemplates(["root-cause"], { currentCompany: "software" });
+    // Then it is a valid, found template, not an unknown or missing one
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.missing, []);
+    assert.equal(result.templates.length, 1);
+    assert.equal(result.templates[0].owner_company, "software");
+  });
+
   it("fails closed without explicit company context", async () => {
     const runtime = createVaultDispatchRuntime({
       runtime: {

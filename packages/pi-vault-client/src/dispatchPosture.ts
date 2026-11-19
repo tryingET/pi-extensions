@@ -9,6 +9,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { storedVisibilityValid } from "./companyRegister.js";
 
 export type DispatchPosture =
   | "text_ok"
@@ -58,15 +59,6 @@ const VALID_FORMALIZATION_LEVELS = new Set(["napkin", "bounded", "structured", "
 const VALID_EXECUTION_SURFACES = new Set(["loop_execute", "workflow_execute"]);
 const SAFE_PROJECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 const VALID_ARTIFACT_KINDS = new Set(["cognitive", "procedure"]);
-const VALID_COMPANIES = new Set([
-  "core",
-  "software",
-  "finance",
-  "house",
-  "health",
-  "teaching",
-  "holding",
-]);
 const PROJECTION_VOCABULARY = {
   routing_context: new Set(["analysis_followup", "review_followup", "review_closeout"]),
   activity_phase: new Set(["post_analysis", "post_review", "closeout"]),
@@ -131,10 +123,7 @@ function projectionQuarantineReason(template: {
     !VALID_ARTIFACT_KINDS.has(template.artifact_kind as string) ||
     !VALID_CONTROL_MODES.has(template.control_mode as string) ||
     !VALID_FORMALIZATION_LEVELS.has(template.formalization_level as string) ||
-    !VALID_COMPANIES.has(template.owner_company as string) ||
-    visibility.length === 0 ||
-    !visibility.includes(template.owner_company as string) ||
-    visibility.some((company) => !VALID_COMPANIES.has(company)) ||
+    !storedVisibilityValid(template.owner_company, visibility) ||
     !projectionVocabularyValid(template.control_mode, template.controlled_vocabulary)
   ) {
     return "unknown";
