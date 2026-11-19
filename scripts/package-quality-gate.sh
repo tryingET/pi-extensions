@@ -5,6 +5,14 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Test fixtures run git; never let them inherit GIT_DIR, GIT_INDEX_FILE, ... from a hook or shell.
+git_local_env_vars="$(git rev-parse --local-env-vars)"
+while IFS= read -r git_local_env_var; do
+  # GIT_CONFIG_* is configuration, not location; it stays.
+  [[ -n "$git_local_env_var" && "$git_local_env_var" != GIT_CONFIG* ]] && unset "$git_local_env_var"
+done <<< "$git_local_env_vars"
+
 if [[ -n "${PI_EXTENSIONS_TMPDIR:-}" ]]; then
   TMP_ROOT="$PI_EXTENSIONS_TMPDIR"
 elif [[ -n "${TMPDIR:-}" ]]; then

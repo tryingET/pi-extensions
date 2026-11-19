@@ -6,6 +6,15 @@ set -eu
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 
+# Inherited Git local env (GIT_DIR, GIT_INDEX_FILE, ...) would point test fixtures' git at
+# another repository; resolve this checkout and run everything without it.
+for git_local_env_var in $(git rev-parse --local-env-vars); do
+  case "$git_local_env_var" in
+    GIT_CONFIG*) ;; # configuration, not location
+    *) unset "$git_local_env_var" ;;
+  esac
+done
+
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "error: not a git repo" >&2; exit 1; }
 cd "$repo_root"
 
@@ -122,7 +131,7 @@ else
 fi
 
 if [ -f "./scripts/package-quality-gate.test.mjs" ]; then
-  node --test ./scripts/package-quality-gate.test.mjs ./scripts/package-test-timeout.test.mjs ./scripts/run-package-tests.test.mjs ./scripts/validate-test-source-dependencies.test.mjs
+  node --test ./scripts/package-quality-gate.test.mjs ./scripts/package-test-timeout.test.mjs ./scripts/run-package-tests.test.mjs ./scripts/git-local-env.test.mjs ./scripts/validate-test-source-dependencies.test.mjs
 fi
 
 if [ -f "./scripts/validate-local-package-links.test.mjs" ]; then
