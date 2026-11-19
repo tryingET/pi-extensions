@@ -4,6 +4,7 @@
 //   - changing user-visible peer labels or intercom message formatting
 // ---
 import type { PeerAttachment, PeerMessage, PeerPresence } from "./contracts.ts";
+import { formatAttachmentFreshnessTag, formatReplyContract } from "./mycel-hygiene.ts";
 
 const PENDING_PREVIEW_LENGTH = 80;
 
@@ -16,11 +17,12 @@ export function escapeToolString(value: string): string {
 }
 
 function formatAttachment(attachment: PeerAttachment): string {
+  const freshness = formatAttachmentFreshnessTag(attachment);
   if (attachment.language) {
-    return `\n\n---\n📎 ${attachment.name}\n\`\`\`${attachment.language}\n${attachment.content}\n\`\`\``;
+    return `\n\n---\n📎 ${attachment.name}${freshness}\n\`\`\`${attachment.language}\n${attachment.content}\n\`\`\``;
   }
 
-  return `\n\n---\n📎 ${attachment.name}\n${attachment.content}`;
+  return `\n\n---\n📎 ${attachment.name}${freshness}\n${attachment.content}`;
 }
 
 export function formatAttachments(attachments: PeerAttachment[] | undefined): string {
@@ -123,5 +125,7 @@ export function truncatePreview(value: string, maxLength: number = PENDING_PREVI
 }
 
 export function formatMessageBody(message: PeerMessage): string {
-  return `${message.content.text}${formatAttachments(message.content.attachments)}`;
+  const contractText = formatReplyContract(message.replyContract);
+  const contractNote = contractText ? `\n\n[reply contract: ${contractText}]` : "";
+  return `${message.content.text}${formatAttachments(message.content.attachments)}${contractNote}`;
 }

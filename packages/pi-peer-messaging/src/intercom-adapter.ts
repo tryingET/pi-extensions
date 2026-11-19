@@ -12,6 +12,7 @@ import {
   type PeerMessage,
   type PeerMessagingRuntime,
   type PeerPresence,
+  type PeerReplyContract,
   peerAskOutcome,
 } from "./contracts.ts";
 import {
@@ -34,6 +35,12 @@ import {
   formatIntercomSessionList,
   formatIntercomStatus,
 } from "./intercom-status-format.ts";
+import {
+  checkHopLimit,
+  formatReplyContract,
+  pinFileAttachments,
+  validateReplyContract,
+} from "./mycel-hygiene.ts";
 
 export const INTERCOM_TOOL_NAME = "intercom";
 export interface IntercomToolRequest {
@@ -42,6 +49,9 @@ export interface IntercomToolRequest {
   message?: string;
   attachments?: PeerAttachment[];
   replyTo?: string;
+  hops?: number;
+  maxHops?: number;
+  replyContract?: PeerReplyContract;
   timeoutMs?: number;
   peerRunId?: string;
   questId?: string;
@@ -71,6 +81,9 @@ function createPeerMessage(
   options: {
     attachments?: PeerAttachment[];
     replyTo?: string;
+    hops?: number;
+    maxHops?: number;
+    replyContract?: PeerReplyContract;
     now: () => number;
   },
 ): PeerMessage {
@@ -78,9 +91,12 @@ function createPeerMessage(
     id: randomUUID(),
     timestamp: options.now(),
     replyTo: options.replyTo,
+    ...(options.hops !== undefined ? { hops: options.hops } : {}),
+    ...(options.maxHops !== undefined ? { maxHops: options.maxHops } : {}),
+    ...(options.replyContract !== undefined ? { replyContract: options.replyContract } : {}),
     content: {
       text,
-      attachments: options.attachments,
+      attachments: pinFileAttachments(options.attachments),
     },
   } satisfies PeerMessage;
 }
@@ -329,12 +345,23 @@ export class IntercomCompatibleAdapter {
       return textResult("Missing 'to' or 'message' parameter", { isError: true });
     }
 
+    const hopCheck = checkHopLimit(request.hops, request.maxHops);
+    if (!hopCheck.ok) {
+      return textResult(`Message to "${request.to}" was not delivered: ${hopCheck.reason}`, {
+        isError: true,
+        details: { delivered: false, reason: hopCheck.reason },
+      });
+    }
+
     try {
       const delivery = await runtime.send({
         to: request.to,
         message: createPeerMessage(request.message, {
           attachments: request.attachments,
           replyTo: request.replyTo,
+          hops: request.hops,
+          maxHops: request.maxHops,
+          replyContract: request.replyContract,
           now: this.now,
         }),
       });
@@ -376,11 +403,22 @@ export class IntercomCompatibleAdapter {
       return textResult("Missing 'to' or 'message' parameter", { isError: true });
     }
 
+    const hopCheck = checkHopLimit(request.hops, request.maxHops);
+    if (!hopCheck.ok) {
+      return textResult(`Ask to "${request.to}" refused: ${hopCheck.reason}`, {
+        isError: true,
+        details: { outcome: "hop_limit", reason: hopCheck.reason, to: request.to },
+      });
+    }
+
     let questionId: string | undefined;
     try {
       const outboundMessage = createPeerMessage(request.message, {
         attachments: request.attachments,
         replyTo: request.replyTo,
+        hops: request.hops,
+        maxHops: request.maxHops,
+        replyContract: request.replyContract,
         now: this.now,
       });
       questionId = outboundMessage.id;
@@ -450,9 +488,24 @@ export class IntercomCompatibleAdapter {
         to: request.to,
         replyTo: request.replyTo,
       });
+      const contractCheck = validateReplyContract(target.message.replyContract, request.message);
+      if (!contractCheck.ok) {
+        const expected = formatReplyContract(target.message.replyContract) ?? "valid reply";
+        return textResult(
+          `Reply refused before sending: ${contractCheck.reason} (contract: ${expected})`,
+          {
+            isError: true,
+            details: {
+              delivered: false,
+              replyTo: target.message.id,
+              reason: contractCheck.reason,
+            },
+          },
+        );
+      }
       const delivery = await runtime.send({
         to: target.from.id,
-        message: createPeerMessage(request.message, {
+        message: createPeerMessage(contractCheck.normalized, {
           replyTo: target.message.id,
           now: this.now,
         }),

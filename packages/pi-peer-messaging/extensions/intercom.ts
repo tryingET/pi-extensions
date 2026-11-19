@@ -115,12 +115,33 @@ const INTERCOM_TOOL_PARAMETERS = {
           language: {
             type: "string",
           },
+          path: {
+            type: "string",
+            description: "Optional file path for sha256 freshness pinning on file attachments",
+          },
+          sha256: {
+            type: "string",
+            description: "Optional sha256 digest checked on delivery for file freshness",
+          },
         },
       },
     },
     replyTo: {
       type: "string",
       description: "Exact message id to reply to or thread under",
+    },
+    hops: {
+      type: "number",
+      description: "Current relay hop depth (0 for operator-initiated turns)",
+    },
+    maxHops: {
+      type: "number",
+      description: "Maximum allowed relay hops before failing closed (defaults to 4)",
+    },
+    replyContract: {
+      type: "object",
+      description:
+        "Optional replier-side reply contract ({ type: 'any' | 'yes_no' | 'one_of' | 'json_keys', values?, required? })",
     },
     timeoutMs: {
       type: "number",

@@ -104,12 +104,23 @@ export interface PeerAttachment {
   name: string;
   content: string;
   language?: string;
+  path?: string;
+  sha256?: string;
 }
+
+export type PeerReplyContract =
+  | { type: "any" }
+  | { type: "yes_no" }
+  | { type: "one_of"; values: string[] }
+  | { type: "json_keys"; required: string[] };
 
 export interface PeerMessage {
   id: string;
   timestamp: number;
   replyTo?: string;
+  hops?: number;
+  maxHops?: number;
+  replyContract?: PeerReplyContract;
   content: {
     text: string;
     attachments?: PeerAttachment[];
@@ -249,6 +260,38 @@ export function assertPeerAttachment(value: unknown): asserts value is PeerAttac
   assertNonEmptyString(record.name, "PeerAttachment.name");
   assertString(record.content, "PeerAttachment.content");
   assertOptionalString(record.language, "PeerAttachment.language");
+  assertOptionalString(record.path, "PeerAttachment.path");
+  assertOptionalString(record.sha256, "PeerAttachment.sha256");
+}
+
+function assertOptionalReplyContract(value: unknown, label: string): PeerReplyContract | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const record = assertRecord(value, label);
+  const type = assertString(record.type, `${label}.type`);
+  if (type === "any" || type === "yes_no") {
+    return { type };
+  }
+  if (type === "one_of") {
+    if (!Array.isArray(record.values) || record.values.length === 0) {
+      throw new TypeError(`${label}.values must be a non-empty string array.`);
+    }
+    const values = record.values.map((entry, idx) =>
+      assertNonEmptyString(entry, `${label}.values[${idx}]`),
+    );
+    return { type, values };
+  }
+  if (type === "json_keys") {
+    if (!Array.isArray(record.required)) {
+      throw new TypeError(`${label}.required must be a string array.`);
+    }
+    const required = record.required.map((entry, idx) =>
+      assertNonEmptyString(entry, `${label}.required[${idx}]`),
+    );
+    return { type, required };
+  }
+  throw new TypeError(`${label}.type must be one of any, yes_no, one_of, json_keys.`);
 }
 
 export function assertPeerMessage(value: unknown): asserts value is PeerMessage {
@@ -257,6 +300,16 @@ export function assertPeerMessage(value: unknown): asserts value is PeerMessage 
   assertNonEmptyString(record.id, "PeerMessage.id");
   assertFiniteNumber(record.timestamp, "PeerMessage.timestamp");
   assertOptionalString(record.replyTo, "PeerMessage.replyTo");
+  if (record.hops !== undefined) {
+    assertNonNegativeInteger(record.hops, "PeerMessage.hops");
+  }
+  if (record.maxHops !== undefined) {
+    const maxHops = assertNonNegativeInteger(record.maxHops, "PeerMessage.maxHops");
+    if (maxHops < 1) {
+      throw new TypeError("PeerMessage.maxHops must be at least 1.");
+    }
+  }
+  assertOptionalReplyContract(record.replyContract, "PeerMessage.replyContract");
 
   const content = assertRecord(record.content, "PeerMessage.content");
   assertString(content.text, "PeerMessage.content.text");

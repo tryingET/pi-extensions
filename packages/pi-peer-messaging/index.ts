@@ -12,6 +12,7 @@ export type {
   PeerMessagingBoundary,
   PeerMessagingRuntime,
   PeerPresence,
+  PeerReplyContract,
   PeerRuntimeStatus,
 } from "./src/contracts.ts";
 export {
@@ -32,6 +33,17 @@ export {
   PeerAskNoReplyError,
   peerAskOutcome,
 } from "./src/contracts.ts";
+export type { FileFreshnessStatus } from "./src/mycel-hygiene.ts";
+export {
+  checkAttachmentFreshness,
+  checkHopLimit,
+  computeFileSha256,
+  DEFAULT_MAX_HOPS,
+  formatAttachmentFreshnessTag,
+  formatReplyContract,
+  pinFileAttachments,
+  validateReplyContract,
+} from "./src/mycel-hygiene.ts";
 export type { PeerMessagingPaths } from "./src/paths.ts";
 export {
   getDefaultPeerMessagingRuntimeDir,
