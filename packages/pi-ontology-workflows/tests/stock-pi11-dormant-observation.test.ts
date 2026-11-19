@@ -45,7 +45,7 @@ type Message = { role: string; content?: unknown; customType?: string };
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
 test("stock Pi keeps the Decision 89/98 development observers inactive with a stable SYSTEM", async (t) => {
-  assert.equal(hostVersion, "1.4.0");
+  assert.equal(hostVersion, "1.5.2");
   const scratch = mkdtempSync(path.join(tmpdir(), "ak6847-stock-pi11-"));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const cwd = scratch;

@@ -7,9 +7,22 @@ import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+
+// pi-ai >= 1.5 StringEnum returns a pi-schema Schema, which typebox's Type.Object cannot
+// infer (the field becomes unknown). Same JSON schema, { type: "string", enum }, typed for typebox.
+function StringEnum<T extends readonly string[]>(
+  values: T,
+  options?: { description?: string; default?: T[number] },
+) {
+  return Type.Unsafe<T[number]>({
+    type: "string",
+    enum: values,
+    ...(options?.description && { description: options.description }),
+    ...(options?.default && { default: options.default }),
+  });
+}
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 type ToolResult = Awaited<ReturnType<Parameters<ExtensionAPI["registerTool"]>[0]["execute"]>>;

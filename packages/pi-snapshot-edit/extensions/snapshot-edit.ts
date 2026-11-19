@@ -4,7 +4,6 @@
 //   - "changing extension tool schemas, lifecycle hooks, clipboard image lift, or standard tool overrides"
 //   - "changing how a session's earlier revisions are recognized after a reload"
 // ---
-import { StringEnum } from "@earendil-works/pi-ai";
 import {
   type ExtensionAPI,
   type ExtensionContext,
@@ -18,6 +17,20 @@ import { normalizeEditArguments as normalizeSharedEditArguments } from "../src/e
 import { runPackedReleaseSmoke } from "../src/release-smoke.js";
 import { revisionsFromEntries } from "../src/session-revisions.js";
 import { SnapshotEditService } from "../src/snapshot-service.js";
+
+// pi-ai >= 1.5 StringEnum returns a pi-schema Schema, which typebox's Type.Object cannot
+// infer (the field becomes unknown). Same JSON schema, { type: "string", enum }, typed for typebox.
+function StringEnum<T extends readonly string[]>(
+  values: T,
+  options?: { description?: string; default?: T[number] },
+) {
+  return Type.Unsafe<T[number]>({
+    type: "string",
+    enum: values,
+    ...(options?.description && { description: options.description }),
+    ...(options?.default && { default: options.default }),
+  });
+}
 
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
 const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";

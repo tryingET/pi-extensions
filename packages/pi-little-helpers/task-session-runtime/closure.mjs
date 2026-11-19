@@ -18,7 +18,7 @@ import {
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const SDK_VERSION = "1.4.0";
+export const SDK_VERSION = "1.5.2";
 export const SDK_PACKAGES = ["pi-agent-core", "pi-ai", "pi-coding-agent", "pi-tui"].map(
   (name) => `@earendil-works/${name}`,
 );

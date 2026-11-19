@@ -32,7 +32,7 @@ test("governed runtime pins match the host lock identities", () => {
   );
   const lockedPackages = lock.packages ?? {};
 
-  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "1.4.0");
+  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "1.5.2");
   for (const [name, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
     const direct = lockedPackages[`node_modules/${name}`];
     const nested = Object.entries(lockedPackages).find(([packagePath]) =>
@@ -59,6 +59,7 @@ test("cache-backed host closure pins the coding agent and every companion", () =
     "@earendil-works/pi-telemetry",
     "@earendil-works/pi-mcp",
     "@earendil-works/pi-codemode",
+    "@earendil-works/pi-schema",
   ]);
   assert.deepEqual(
     [...GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES].sort(),

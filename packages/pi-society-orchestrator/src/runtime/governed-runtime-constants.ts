@@ -24,7 +24,7 @@ export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.3.7";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
 
-export const GOVERNED_RUNTIME_HOST_VERSION = "1.4.0";
+export const GOVERNED_RUNTIME_HOST_VERSION = "1.5.2";
 
 // Every package the coding agent depends on from its own release line. Pi ships
 // no shrinkwrap, so the peer layer pins each one to the host version (dependency
@@ -35,6 +35,7 @@ export const GOVERNED_RUNTIME_HOST_COMPANION_PACKAGES = [
   "@earendil-works/pi-ai",
   "@earendil-works/pi-codemode",
   "@earendil-works/pi-mcp",
+  "@earendil-works/pi-schema",
   "@earendil-works/pi-telemetry",
   "@earendil-works/pi-tui",
 ] as const;
@@ -72,7 +73,7 @@ export const GOVERNED_RUNTIME_ASC_COMPILER = {
 export const GOVERNED_RUNTIME_HOST_PEERS = {
   "@earendil-works/pi-ai": {
     integrity:
-      "sha512-hQM/C4+1w8rHYACzDDf+0vQMnEnpzIop1tptIERVgR3ZeT/hHSzBNG8PaWPgxWQjqSeKCyBZSyp8uTT6eKK1pQ==",
+      "sha512-2tWPSnV3qzfiDIY3aWluBag3vC++Vs+VsXt/UquSU5onPMohPih72FUhIhaqmDdMYubOgB3Byl9uF4Vk40JLvQ==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -88,12 +89,12 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-agent-core": {
     integrity:
-      "sha512-PoKY84SKUwnt7S5QBZaGUqfNO1kjP3KHpHUA9QpFTj4cOjaVWMYIcBPJ6FDRCdE8Zen9OSECQUd0uUfVgtSmgA==",
+      "sha512-ie5mejS7mGfXt//9As7i3LfxVXdktZvF1JP4EQsUXTp4mU437h23MNGx7wXZ5VYs3YiG/Qnj3e7OZ2HC069OMw==",
     consumers: [],
   },
   "@earendil-works/pi-coding-agent": {
     integrity:
-      "sha512-Z41LpZ3yYHSC/UUps6Mr39UMFPwH8elhJBG9DY1P7kuzsE5qSK/6eMj2EHzO5evJRQWLbKSqUMw+4nCNtIyiQg==",
+      "sha512-mUWI04rqF1Vd/m1q+Ps1XeWsTXEVvRUnsmRa83I3Dzua0Tx5bYS93imeqtIfrXf7PkkaR6ERz+AuQhIJlom5yA==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -110,7 +111,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-tui": {
     integrity:
-      "sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg==",
+      "sha512-WK8ih+c88GWizaB79y7Pq3PV7ySf5VI1pZ1i/6aBBjDOAiG2EE3ojKjl+pxQqLfyQGnzHYu4VfakOBJgumuoyw==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-society-orchestrator",
@@ -126,45 +127,51 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
 export const GOVERNED_RUNTIME_HOST_CACHE_TARBALLS = {
   "@earendil-works/pi-ai": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.2.tgz",
     integrity:
-      "sha512-hQM/C4+1w8rHYACzDDf+0vQMnEnpzIop1tptIERVgR3ZeT/hHSzBNG8PaWPgxWQjqSeKCyBZSyp8uTT6eKK1pQ==",
+      "sha512-2tWPSnV3qzfiDIY3aWluBag3vC++Vs+VsXt/UquSU5onPMohPih72FUhIhaqmDdMYubOgB3Byl9uF4Vk40JLvQ==",
   },
   "@earendil-works/pi-agent-core": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.2.tgz",
     integrity:
-      "sha512-PoKY84SKUwnt7S5QBZaGUqfNO1kjP3KHpHUA9QpFTj4cOjaVWMYIcBPJ6FDRCdE8Zen9OSECQUd0uUfVgtSmgA==",
+      "sha512-ie5mejS7mGfXt//9As7i3LfxVXdktZvF1JP4EQsUXTp4mU437h23MNGx7wXZ5VYs3YiG/Qnj3e7OZ2HC069OMw==",
   },
   "@earendil-works/pi-coding-agent": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.2.tgz",
     integrity:
-      "sha512-Z41LpZ3yYHSC/UUps6Mr39UMFPwH8elhJBG9DY1P7kuzsE5qSK/6eMj2EHzO5evJRQWLbKSqUMw+4nCNtIyiQg==",
+      "sha512-mUWI04rqF1Vd/m1q+Ps1XeWsTXEVvRUnsmRa83I3Dzua0Tx5bYS93imeqtIfrXf7PkkaR6ERz+AuQhIJlom5yA==",
   },
   "@earendil-works/pi-tui": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.2.tgz",
     integrity:
-      "sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg==",
+      "sha512-WK8ih+c88GWizaB79y7Pq3PV7ySf5VI1pZ1i/6aBBjDOAiG2EE3ojKjl+pxQqLfyQGnzHYu4VfakOBJgumuoyw==",
   },
   "@earendil-works/pi-telemetry": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.5.2.tgz",
     integrity:
-      "sha512-MLIfowwUYIY65jSjMX82paZOrX/NTvLk6D08h+3Jq42a99RzUOewzuCR0zOlPul3D6UBfddat76VT6LvsHEs1w==",
+      "sha512-m+cumjIqNh1aMISi/9ttcG3ZOwIdriPbz/eMyWmRMJCGa/WcgY1RX4lrb7HvsHhSfI/JUeBESA4nOCr8C3y5ow==",
   },
   "@earendil-works/pi-mcp": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.2.tgz",
     integrity:
-      "sha512-92aZmmGsUpHHknYuKXZHRINQfahntw5hU9If0I0ZM49GojOaFHpkl5/GF3/aatqpt7v7GjZbBfpfSygGKW+pnw==",
+      "sha512-zU1UgeXDlbixPqGEWD7Ql0brEMIpYr7aEWjoEE5h5enJbM/kQ2jIr7lN8JoR80oUnq1fJSU7SC8kLx2Fx/IZYg==",
   },
   "@earendil-works/pi-codemode": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.4.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.2.tgz",
     integrity:
-      "sha512-23CNAXpS9DuLzPMyYuvrXVVio46x4YhffCgCqaWmF7F5H8PooqjrQvX4ucF6M0BhUd+x2tV6r1J0dv8cCME4Cg==",
+      "sha512-HoZQ40a9RgdZ1VgmrX6x8887cNXedaRJT1l+Ie5YRIMK4gY7v0EpsiNqf6dmixrKylZlTgUSyR+vE8xhjfkr+w==",
+  },
+  "@earendil-works/pi-schema": {
+    version: GOVERNED_RUNTIME_HOST_VERSION,
+    url: "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.5.2.tgz",
+    integrity:
+      "sha512-hJoyCXWUhsSrXY5wJo2Q4kHXUsR51pNhkJHAMkWRwVMLDRtMDPkKNaa+JlVRVqTw1hjdSxcVVaFLSDbKlaTXEQ==",
   },
 } as const;
 

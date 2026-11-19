@@ -6,7 +6,7 @@
 //
 // Lays out <root>/runtime/<host build digest>-<closure digest>/ in two layers: third-party and SDK
 // packages from the committed task-session-runtime/runtime.lock, then own tarballs packed at this
-// commit (SDK 1.4.0, --omit=dev, --ignore-scripts). One locked fetch fills a private npm cache;
+// commit (SDK 1.5.2, --omit=dev, --ignore-scripts). One locked fetch fills a private npm cache;
 // packing and installing then run with the network unshared. Finally it replaces the fixed launchers
 // <root>/host-v1 and <root>/view-v1 and <bin-dir>/pi-task-session. Defaults: ~/.local/libexec/pi-task-sessions
 // and ~/.local/bin. Replacing the default host is an AK D151 rebinding: pass both directories otherwise.
