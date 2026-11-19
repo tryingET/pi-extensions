@@ -12,6 +12,7 @@ import {
   AK_TASK_CHIP_ORPHANED,
   claimIsLive,
   cwdIsInsideRepo,
+  enrichDirectoryAkTasks,
   joinAkTaskChips,
   parseAkClaimList,
   parseAkDeferredList,
@@ -315,4 +316,64 @@ test("summarizeAkTasks counts live, orphaned, and deferred state", () => {
     nowMs: NOW,
   });
   assert.deepEqual(summary, { liveClaimCount: 2, orphanedClaimCount: 1, deferredCount: 1 });
+});
+
+test("directory AK enrichment carries tasks beyond card chip overflow across workspaces and fails closed", () => {
+  const claims = parseAkClaimList(
+    JSON.stringify([
+      claimRow({ id: 101, claimed_at: "2026-09-13T05:01:00Z" }),
+      claimRow({ id: 102, claimed_at: "2026-09-13T05:02:00Z" }),
+      claimRow({ id: 103, claimed_at: "2026-09-13T05:03:00Z" }),
+    ]),
+  );
+  assert.equal(claims.ok, true);
+  if (!claims.ok) return;
+  const cardA = card();
+  const entries = [
+    {
+      cardId: cardA.cardId,
+      label: "pi-extensions",
+      windowId: 43,
+      workspaceId: 101,
+      workspaceIdx: 2,
+      workspaceName: null,
+      hiddenTab: false,
+      current: false,
+    },
+  ];
+  const cards = new Map([[cardA.cardId, cardA]]);
+  const enriched = enrichDirectoryAkTasks({
+    entries,
+    cards,
+    akTasks: {
+      claims: claims.claims,
+      deferred: [{ id: 4220, title: "Deferred", repo: REPO }],
+    },
+    rawSessions: [{ sessionId: SESSION_A }],
+    nowMs: NOW,
+  });
+  assert.deepEqual(
+    enriched[0].akTasks?.map((t) => [t.id, t.state]),
+    [
+      [103, AK_TASK_CHIP_ACTIVE],
+      [102, AK_TASK_CHIP_ACTIVE],
+      [101, AK_TASK_CHIP_ACTIVE],
+      [4220, AK_TASK_CHIP_DEFERRED],
+    ],
+  );
+  assert.equal(
+    enrichDirectoryAkTasks({ entries, cards, akTasks: null, rawSessions: [], nowMs: NOW })[0]
+      .akTasks,
+    undefined,
+  );
+  assert.equal(
+    enrichDirectoryAkTasks({
+      entries,
+      cards,
+      akTasks: { claims: [], deferred: [] },
+      rawSessions: [],
+      nowMs: NOW,
+    })[0].akTasks,
+    undefined,
+  );
 });

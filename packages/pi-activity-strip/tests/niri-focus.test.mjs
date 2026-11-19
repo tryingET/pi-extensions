@@ -446,6 +446,11 @@ test("the window list names every agent window on every workspace, alphabeticall
     [76, 102, 102],
     "each entry carries its workspace",
   );
+  assert.deepEqual(
+    entries.map((entry) => entry.sessionIds),
+    [[sessionId], [otherSessionId], [thirdSessionId]],
+    "each entry carries its searchable session ids",
+  );
   assert.deepEqual(resolveWindowDirectory(windows, [], sessions).entries, []);
 });
 

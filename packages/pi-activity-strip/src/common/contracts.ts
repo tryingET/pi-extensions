@@ -20,6 +20,7 @@ export interface SessionSnapshot {
   publisherIds?: string[];
   publisherRecordKeys?: string[];
   publisherSessionIds?: string[];
+  sessionIds?: string[];
   akTasks?: AkTaskChip[];
   akTaskOverflow?: number;
   /** Niri window id; for a hidden tab, the window hosting it. */

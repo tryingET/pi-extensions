@@ -4,8 +4,7 @@
 //! the whole key map where the folder path normally is.
 
 /// The whole key map, for the brand tooltip and the docs.
-pub const KEY_MAP: &str =
-    "←/→ move · Shift+←/→ reorder · Enter open\nType a name or window # to jump · Esc leaves";
+pub const KEY_MAP: &str = "←/→ move · Shift+←/→ reorder · Enter open\nType name, window #, AK task, or session id · Esc leaves";
 
 /// Brand lines while keyboard mode is on: the key map replaces the folder path.
 pub const KEYBOARD_EYEBROW: &str = "⌨ KEYBOARD MODE";
@@ -32,7 +31,7 @@ pub fn brand_tooltip(cwd: Option<&str>, hotkey: Option<&str>) -> String {
 pub fn pointer_prompt(hotkey: Option<&str>) -> String {
     match hotkey {
         Some(key) => format!("Click or {key} to type"),
-        None => "Click, then type a name or number".to_owned(),
+        None => "Click, then type to search".to_owned(),
     }
 }
 
@@ -49,7 +48,7 @@ mod tests {
                 .starts_with("Super+Shift+A")
         );
         assert!(pointer_prompt(Some("Super+Shift+A")).contains("Super+Shift+A"));
-        assert_eq!(pointer_prompt(None), "Click, then type a name or number");
+        assert_eq!(pointer_prompt(None), "Click, then type to search");
         let tooltip = brand_tooltip(Some("/home/me/repo"), Some("Super+Shift+A"));
         assert!(tooltip.starts_with("/home/me/repo\n\nSuper+Shift+A"));
         assert!(tooltip.contains("Esc leaves"));

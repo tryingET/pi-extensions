@@ -6,7 +6,7 @@
 
 import { canVerifyTabVisibility, placeSessionWindow } from "./niri-focus.mjs";
 import { isPresenceApp } from "./presence-apps.mjs";
-import { projectSessionCards, sessionCardId } from "./session-cards.mjs";
+import { extractCardSessionIds, projectSessionCards, sessionCardId } from "./session-cards.mjs";
 import { parseTerminalTitleBinding } from "./surface-bindings.mjs";
 import { canonicalGhosttyTerminalKey } from "./terminal-identity.mjs";
 
@@ -213,6 +213,8 @@ export function resolveFocusedWorkspaceView(windows, workspaces, sessions, optio
  *   workspaceName: string | null;
  *   hiddenTab: boolean;
  *   current: boolean;
+ *   sessionIds?: string[];
+ *   akTasks?: import("./contracts.ts").AkTaskChip[];
  * }} WindowDirectoryEntry
  */
 
@@ -248,6 +250,9 @@ export function resolveWindowDirectory(windows, workspaces, sessions, options = 
       const cardId = String(card.cardId ?? "");
       if (!cardId || cards.has(cardId)) continue;
       cards.set(cardId, card);
+      const sessionIds = Array.isArray(card.sessionIds)
+        ? card.sessionIds.map(String).filter(Boolean)
+        : extractCardSessionIds([card]);
       entries.push({
         cardId,
         label: String(card.repoLabel || "session"),
@@ -257,6 +262,7 @@ export function resolveWindowDirectory(windows, workspaces, sessions, options = 
         workspaceName: typeof workspace.name === "string" ? workspace.name : null,
         hiddenTab: card.surfaceVisible === false,
         current: cardId === view.focusedCardId,
+        ...(sessionIds.length > 0 ? { sessionIds } : {}),
       });
     }
   }

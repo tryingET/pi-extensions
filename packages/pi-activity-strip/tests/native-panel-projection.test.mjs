@@ -195,3 +195,63 @@ test("native projection joins AK task chips onto cards and clears them fail-clos
   projection.setAkTasks({ claims: [], deferred: [] });
   assert.equal(published.at(-1).sessions[0].akTasks, undefined);
 });
+
+test("native projection enriches cross-workspace directory entries with AK tasks and clears fail-closed", () => {
+  const published = [];
+  const otherSession = "01a0993a-d336-739f-a308-cfa4c21d6332";
+  const otherCard = {
+    cardId: "terminal:ghostty:main:22",
+    sessionId: otherSession,
+    publisherSessionIds: [otherSession],
+    sessionIds: [otherSession],
+    cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+    repoLabel: "pi-extensions",
+    windowId: 88,
+  };
+  const projection = createNativePanelProjection({
+    isNiriSession: () => true,
+    publish: (view) => published.push(view),
+    env: { PI_ACTIVITY_STRIP_VISIBILITY: "focus" },
+  });
+  projection.updateSnapshot({ generatedAt: 100, sessions: [session({ sessionId: otherSession })] });
+  projection.setDirectory({
+    entries: [
+      {
+        cardId: otherCard.cardId,
+        label: "pi-extensions",
+        windowId: 88,
+        workspaceId: 9,
+        workspaceIdx: 4,
+        workspaceName: "other",
+        hiddenTab: false,
+        current: false,
+        sessionIds: [otherSession],
+      },
+    ],
+    cards: new Map([[otherCard.cardId, otherCard]]),
+  });
+  projection.send();
+  assert.equal(published.at(-1).windows[0].akTasks, undefined);
+  assert.deepEqual(published.at(-1).windows[0].sessionIds, [otherSession]);
+
+  const now = Date.now();
+  projection.setAkTasks({
+    claims: [
+      {
+        id: 8848,
+        title: "Search AK tasks across workspaces",
+        repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+        sessionId: otherSession,
+        leaseExpiresAt: now + 3_600_000,
+        claimedAt: now - 10_000,
+      },
+    ],
+    deferred: [],
+  });
+  assert.deepEqual(published.at(-1).windows[0].akTasks, [
+    { id: 8848, title: "Search AK tasks across workspaces", state: "active" },
+  ]);
+
+  projection.setAkTasks({ claims: [], deferred: [] });
+  assert.equal(published.at(-1).windows[0].akTasks, undefined);
+});

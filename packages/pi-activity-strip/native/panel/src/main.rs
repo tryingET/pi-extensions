@@ -1,5 +1,6 @@
 mod app;
 mod card_view;
+mod directory_search;
 mod directory_view;
 mod hints;
 mod hover_keyboard;

@@ -346,7 +346,30 @@ window {
   font-size: 9px;
 }
 
-/* The row Enter would open: a typed name always shows where it leads. */
+/* The row Enter would open: a typed query always shows where it leads. */
 .directory-row.chosen {
   background: alpha(@pi_accent, 0.16);
+}
+
+/* Quiet match sub-line shown only when a row matched via an AK task or session id. */
+.directory-match {
+  color: alpha(@pi_foreground, 0.64);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 9px;
+}
+
+.directory-match.ak-active {
+  color: @pi_accent;
+}
+
+.directory-match.ak-orphaned {
+  color: alpha(@pi_error, 0.9);
+}
+
+.directory-match.ak-deferred {
+  color: alpha(@pi_tool, 0.9);
+}
+
+.directory-match.session-match {
+  color: alpha(@pi_accent, 0.85);
 }

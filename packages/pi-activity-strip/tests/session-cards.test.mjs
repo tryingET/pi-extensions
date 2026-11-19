@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  extractCardSessionIds,
   haveSameCardMembership,
   haveSameRecordMembership,
   projectSessionCards,
@@ -114,4 +115,29 @@ test("cards carry the distinct session ids of every aggregated publisher", () =>
   ]);
   assert.equal(card.publisherCount, 3);
   assert.deepEqual(card.publisherSessionIds, [logicalSessionId, resumedSessionId]);
+  assert.deepEqual(card.sessionIds, [logicalSessionId, resumedSessionId]);
+});
+
+test("searchable session ids expose real agent session keys and exclude process-only fallbacks", () => {
+  assert.deepEqual(
+    extractCardSessionIds([
+      {
+        sessionId: "agent:agy:386c9894-bf72-4e6c-809c-a86913e8adfc",
+        agentKind: "agy",
+        agentSessionKey: "386c9894-bf72-4e6c-809c-a86913e8adfc",
+      },
+      {
+        sessionId: "agent:gemini:12345",
+        agentKind: "gemini",
+        agentSessionKey: "",
+      },
+      {
+        sessionId: "agent:claude:99999",
+      },
+      {
+        sessionId: "01a0993a-d336-739f-a308-cfa4c21d6332",
+      },
+    ]),
+    ["386c9894-bf72-4e6c-809c-a86913e8adfc", "01a0993a-d336-739f-a308-cfa4c21d6332"],
+  );
 });

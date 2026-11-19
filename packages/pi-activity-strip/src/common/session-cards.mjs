@@ -10,6 +10,34 @@ import { canonicalGhosttyTerminalKey } from "./terminal-identity.mjs";
 /** @typedef {import("./contracts.ts").SessionSnapshot} SessionSnapshot */
 /** @typedef {Partial<SessionSnapshot> & Record<string, unknown>} SessionLike */
 
+const MAX_SEARCHABLE_SESSION_IDS = 8;
+const MAX_SESSION_ID_LENGTH = 128;
+
+/**
+ * Real session identifiers carried by one card's publishers, excluding synthetic process-only
+ * `agent:<kind>:<pid>` fallbacks so typing a random PID cannot masquerade as a session id.
+ * @param {Array<Record<string, unknown>>} [sessions]
+ * @returns {string[]}
+ */
+export function extractCardSessionIds(sessions = []) {
+  /** @type {string[]} */
+  const result = [];
+  /** @type {Set<string>} */
+  const seen = new Set();
+  for (const session of sessions) {
+    const rawSessionId = String(session?.sessionId ?? "").trim();
+    const isDiscoveredAgent = Boolean(session?.agentKind) || rawSessionId.startsWith("agent:");
+    const candidate = (
+      isDiscoveredAgent ? String(session?.agentSessionKey ?? "").trim() : rawSessionId
+    ).slice(0, MAX_SESSION_ID_LENGTH);
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    result.push(candidate);
+    if (result.length >= MAX_SEARCHABLE_SESSION_IDS) break;
+  }
+  return result;
+}
+
 /** @param {SessionLike} session */
 export function sessionRecordKey(session) {
   const sessionId = String(session?.sessionId ?? "");
@@ -54,7 +82,7 @@ export function comparePublisherRepresentatives(left, right) {
 /**
  * @param {SessionLike[]} [sessions]
  * @param {Set<string> | null} [allowedCardIds]
- * @returns {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]; publisherSessionIds: string[]}>}
+ * @returns {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]; publisherSessionIds: string[]; sessionIds: string[]}>}
  */
 export function projectSessionCards(sessions = [], allowedCardIds = null) {
   /** @type {Map<string, SessionLike[]>} */
@@ -67,7 +95,7 @@ export function projectSessionCards(sessions = [], allowedCardIds = null) {
     groups.set(cardId, group);
   }
 
-  /** @type {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]; publisherSessionIds: string[]}>} */
+  /** @type {Array<SessionLike & {cardId: string; publisherCount: number; publisherIds: string[]; publisherRecordKeys: string[]; publisherSessionIds: string[]; sessionIds: string[]}>} */
   const cards = [];
   for (const [cardId, group] of groups) {
     const ordered = [...group].sort(comparePublisherRepresentatives);
@@ -82,6 +110,7 @@ export function projectSessionCards(sessions = [], allowedCardIds = null) {
       publisherSessionIds: [
         ...new Set(group.map((session) => String(session.sessionId ?? "")).filter(Boolean)),
       ],
+      sessionIds: extractCardSessionIds(ordered),
     });
   }
   return cards;

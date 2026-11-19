@@ -23,6 +23,9 @@ const MAX_TITLE_LENGTH = 96;
 /** A card shows at most two live-claim buttons and two state badges; the rest fold into overflow. */
 const MAX_ACTIVE_CHIPS = 2;
 const MAX_BADGE_CHIPS = 2;
+/** Directory search carries more joined tasks per window so overflow items stay searchable. */
+export const DIRECTORY_MAX_ACTIVE_TASKS = 16;
+export const DIRECTORY_MAX_BADGE_TASKS = 16;
 
 /**
  * @param {unknown} value
@@ -256,6 +259,8 @@ function compareOrphansSoonestVacantFirst(left, right) {
  *   deferred?: import("./contracts.ts").AkTaskDeferred[];
  *   liveSessionIds?: Set<string> | string[];
  *   nowMs: number;
+ *   maxActiveChips?: number;
+ *   maxBadgeChips?: number;
  * }} options
  * @returns {{cards: Array<Record<string, unknown>>; orphanedClaimCount: number; renderedCounts: {active: number; orphaned: number; deferred: number}}}
  */
@@ -265,6 +270,8 @@ export function joinAkTaskChips({
   deferred = [],
   liveSessionIds = new Set(),
   nowMs,
+  maxActiveChips = MAX_ACTIVE_CHIPS,
+  maxBadgeChips = MAX_BADGE_CHIPS,
 }) {
   const liveIds =
     liveSessionIds instanceof Set ? liveSessionIds : new Set([...liveSessionIds].map(String));
@@ -284,7 +291,7 @@ export function joinAkTaskChips({
 
   const joined = cards.map((card) => {
     const cardActive = byCardId.get(String(card.cardId ?? "")) ?? [];
-    const active = cardActive.slice(0, MAX_ACTIVE_CHIPS);
+    const active = cardActive.slice(0, maxActiveChips);
     const activeOverflow = Math.max(0, cardActive.length - active.length);
     const activeIds = new Set(cardActive.map((claim) => claim.id));
     const cwd = String(card.cwd ?? "");
@@ -296,7 +303,7 @@ export function joinAkTaskChips({
       .filter((task) => cwdIsInsideRepo(cwd, task.repo) && !orphanedIds.has(task.id))
       .filter((task) => !activeIds.has(task.id))
       .sort((left, right) => left.id - right.id);
-    const badges = [...orphaned, ...deferredForCard].slice(0, MAX_BADGE_CHIPS);
+    const badges = [...orphaned, ...deferredForCard].slice(0, maxBadgeChips);
     const badgeOverflow = Math.max(0, orphaned.length + deferredForCard.length - badges.length);
 
     const chips = [
@@ -351,4 +358,57 @@ export function summarizeAkTasks({
     orphanedClaimCount: liveClaims.filter((claim) => !liveIds.has(claim.sessionId)).length,
     deferredCount: deferred.length,
   };
+}
+
+/**
+ * Enrich cross-workspace directory entries with their cards' joined AK tasks under the exact
+ * AK5700 join semantics, using generous search bounds so overflow references remain searchable.
+ * Returns `entries` unchanged when AK data has not been read yet (`akTasks === null`).
+ * @param {{
+ *   entries: import("./workspace-view.mjs").WindowDirectoryEntry[];
+ *   cards: Map<string, Record<string, unknown>>;
+ *   akTasks: {claims?: import("./contracts.ts").AkTaskClaim[]; deferred?: import("./contracts.ts").AkTaskDeferred[]} | null;
+ *   rawSessions?: Array<Record<string, unknown>>;
+ *   liveSessionIds?: Set<string> | string[];
+ *   nowMs?: number;
+ * }} options
+ * @returns {import("./workspace-view.mjs").WindowDirectoryEntry[]}
+ */
+export function enrichDirectoryAkTasks({
+  entries,
+  cards,
+  akTasks,
+  rawSessions = [],
+  liveSessionIds,
+  nowMs = Date.now(),
+}) {
+  if (!akTasks || entries.length === 0) return entries;
+  const liveIds =
+    liveSessionIds ??
+    new Set(rawSessions.map((session) => String(session.sessionId ?? "")).filter(Boolean));
+  const joinedCards = joinAkTaskChips({
+    cards: [...cards.values()],
+    claims: akTasks.claims ?? [],
+    deferred: akTasks.deferred ?? [],
+    liveSessionIds: liveIds,
+    nowMs,
+    maxActiveChips: DIRECTORY_MAX_ACTIVE_TASKS,
+    maxBadgeChips: DIRECTORY_MAX_BADGE_TASKS,
+  }).cards;
+  /** @type {Map<string, import("./contracts.ts").AkTaskChip[]>} */
+  const tasksByCardId = new Map();
+  for (const card of joinedCards) {
+    if (Array.isArray(card.akTasks) && card.akTasks.length > 0) {
+      tasksByCardId.set(
+        String(card.cardId ?? ""),
+        /** @type {import("./contracts.ts").AkTaskChip[]} */ (card.akTasks),
+      );
+    }
+  }
+  return entries.map((entry) => {
+    const akTasksForEntry = tasksByCardId.get(entry.cardId);
+    return akTasksForEntry && akTasksForEntry.length > 0
+      ? { ...entry, akTasks: akTasksForEntry }
+      : entry;
+  });
 }

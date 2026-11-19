@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AkTask {
     #[serde(default)]
@@ -152,7 +152,7 @@ pub struct ViewMessage {
 }
 
 /// One entry of the window list: the card's first line and the Niri window number to jump to.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowEntry {
     #[serde(default)]
@@ -171,6 +171,12 @@ pub struct WindowEntry {
     pub hidden_tab: bool,
     #[serde(default)]
     pub current: bool,
+    /// Real session identifiers carried by this card (Pi UUIDs, Claude/Codex/agy/Nodecode ids).
+    #[serde(default)]
+    pub session_ids: Vec<String>,
+    /// Read-only AK task references joined onto this window across all workspaces.
+    #[serde(default)]
+    pub ak_tasks: Vec<AkTask>,
 }
 
 fn protocol_version() -> u8 {
@@ -292,15 +298,16 @@ pub fn demo_view() -> ViewMessage {
             },
         ],
         windows: vec![
-            demo_window("demo-monitor", "activity-strip", 36, 2, false, false),
-            demo_window("demo-tool", "native-dogfood", 43, 2, false, true),
-            demo_window("demo-hidden", "pi-extensions", 43, 2, true, false),
-            demo_window("demo-other", "dep-surgeon", 344, 3, false, false),
-            demo_window("demo-far", "niri-desktop-continuity", 1048, 5, false, false),
+            demo_window("demo-monitor", "activity-strip", 36, 2, false, false, &["01a0993a-d336-739f-a308-cfa4c21d6332"], vec![]),
+            demo_window("demo-tool", "native-dogfood", 43, 2, false, true, &["019fa4d0-7142-7fb4-8d30-f98e951f0513"], vec![AkTask { id: 5701, title: "Show clickable AK-task references on the activity ribbon".into(), state: "active".into() }]),
+            demo_window("demo-hidden", "pi-extensions", 43, 2, true, false, &["386c9894-bf72-4e6c-809c-a86913e8adfc"], vec![]),
+            demo_window("demo-other", "dep-surgeon", 344, 3, false, false, &[], vec![AkTask { id: 4220, title: "Control Decision 77 epoch admissions".into(), state: "deferred".into() }]),
+            demo_window("demo-far", "niri-desktop-continuity", 1048, 5, false, false, &[], vec![]),
         ],
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn demo_window(
     card_id: &str,
     label: &str,
@@ -308,6 +315,8 @@ fn demo_window(
     workspace_idx: i64,
     hidden_tab: bool,
     current: bool,
+    session_ids: &[&str],
+    ak_tasks: Vec<AkTask>,
 ) -> WindowEntry {
     WindowEntry {
         card_id: card_id.into(),
@@ -318,6 +327,8 @@ fn demo_window(
         workspace_name: None,
         hidden_tab,
         current,
+        session_ids: session_ids.iter().map(|id| (*id).into()).collect(),
+        ak_tasks,
     }
 }
 
@@ -375,7 +386,7 @@ mod tests {
     #[test]
     fn view_messages_carry_the_window_list() {
         let view: ViewMessage = serde_json::from_str(
-            r#"{"type":"view","revision":1,"windows":[{"cardId":"terminal:a","label":"pi-extensions","windowId":432,"workspaceIdx":"x","workspaceName":null,"hiddenTab":true,"current":false}]}"#,
+            r#"{"type":"view","revision":1,"windows":[{"cardId":"terminal:a","label":"pi-extensions","windowId":432,"workspaceIdx":"x","workspaceName":null,"hiddenTab":true,"current":false,"sessionIds":["01a0993a-d336-739f-a308-cfa4c21d6332"],"akTasks":[{"id":5701,"title":"Search AK tasks","state":"active"}]}]}"#,
         )
         .expect("view should parse");
         assert_eq!(view.windows.len(), 1);
@@ -385,6 +396,12 @@ mod tests {
             "a malformed workspace number drops only that field"
         );
         assert!(view.windows[0].hidden_tab);
+        assert_eq!(
+            view.windows[0].session_ids,
+            ["01a0993a-d336-739f-a308-cfa4c21d6332"]
+        );
+        assert_eq!(view.windows[0].ak_tasks.len(), 1);
+        assert_eq!(view.windows[0].ak_tasks[0].id, 5701);
     }
 
     #[test]

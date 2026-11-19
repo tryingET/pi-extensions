@@ -577,6 +577,8 @@ fn isolated_gtk_directory_focus_only_preserves_rows_and_scroll() {
             workspace_name: Some("fixture".into()),
             hidden_tab: false,
             current: i == 0,
+            session_ids: Vec::new(),
+            ak_tasks: Vec::new(),
         })
         .collect();
     directory.render(&windows, "", false, false, None);

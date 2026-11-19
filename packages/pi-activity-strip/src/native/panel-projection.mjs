@@ -3,7 +3,7 @@
 // read_when:
 //   - "changing native panel card membership, focus, or transport revisions"
 // ---
-import { joinAkTaskChips } from "../common/ak-tasks.mjs";
+import { enrichDirectoryAkTasks, joinAkTaskChips } from "../common/ak-tasks.mjs";
 import { resolveSnapshotSession } from "../common/niri-focus.mjs";
 import { projectSessionCards, sessionRecordKey } from "../common/session-cards.mjs";
 import { classifyAdmittedWindowFocus } from "../common/workspace-view.mjs";
@@ -51,10 +51,8 @@ export function createNativePanelProjection({
   let workspacePlacements = new Map();
   /** Read-only AK data; absent until first read. @type {{claims: import("../common/contracts.ts").AkTaskClaim[]; deferred: import("../common/contracts.ts").AkTaskDeferred[]} | null} */
   let akTasks = null;
-  /** All-workspace window list. @type {import("../common/workspace-view.mjs").WindowDirectoryEntry[]} */
-  let directory = [];
-  /** @type {Map<string, SessionRecord>} */
-  let directoryCards = new Map();
+  /** All-workspace window list. @type {{entries: import("../common/workspace-view.mjs").WindowDirectoryEntry[]; cards: Map<string, SessionRecord>}} */
+  let directory = { entries: [], cards: new Map() };
   let revision = 0;
   let nextKeyboardRequest = 0;
   let interactionEpoch = 0;
@@ -216,7 +214,7 @@ export function createNativePanelProjection({
       focusedCardId,
       generatedAt: snapshot.generatedAt,
       sessions,
-      windows: directory,
+      windows: enrichDirectoryAkTasks({ ...directory, akTasks, rawSessions: allSessions() }),
       hotkey,
     };
   }
@@ -406,23 +404,23 @@ export function createNativePanelProjection({
      * @param {string} targetId */
     resolveTarget: (targetId) =>
       resolveSnapshotSession(getDisplaySessions(), targetId) ??
-      directoryCards.get(targetId) ??
+      directory.cards.get(targetId) ??
       null,
     /** @param {number} windowId */
-    hasDirectoryWindow: (windowId) => directory.some((entry) => entry.windowId === windowId),
+    hasDirectoryWindow: (windowId) =>
+      directory.entries.some((entry) => entry.windowId === windowId),
     /** @param {number} windowId */
     getDirectoryWindowIdentities: (windowId) =>
-      directory
+      directory.entries
         .filter((entry) => entry.windowId === windowId)
         .map((entry) =>
-          sourceIdentity(entry.workspaceId, windowId, directoryCards.get(entry.cardId)),
+          sourceIdentity(entry.workspaceId, windowId, directory.cards.get(entry.cardId)),
         ),
     /** Replace the window list, published with the next view.
      * @param {{entries: import("../common/workspace-view.mjs").WindowDirectoryEntry[]; cards: Map<string, SessionRecord>}} next
      */
     setDirectory(next) {
-      directory = next.entries;
-      directoryCards = next.cards;
+      directory = next;
     },
     /** @param {WorkspaceView} view */
     publishWorkspaceView(view) {

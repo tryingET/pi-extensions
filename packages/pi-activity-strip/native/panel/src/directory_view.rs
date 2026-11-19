@@ -1,33 +1,29 @@
 use crate::app::AppMsg;
+pub use crate::directory_search::{
+    JumpChoice, RowSubtitle, filter_entries_with_matches, is_query_char, jump_choice,
+    push_query_char, row_subtitle, status_text,
+};
 use crate::protocol::WindowEntry;
 use relm4::Sender;
 use relm4::gtk;
 use relm4::gtk::prelude::*;
 use std::cell::RefCell;
 
-/// Enough digits for any Niri window id; a longer number is a typo, not a window.
-const MAX_WINDOW_DIGITS: usize = 9;
-/// A search is a few letters of a project name, never a sentence.
-const MAX_QUERY_CHARS: usize = 32;
-
-/// What Enter does with the typed query.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum JumpChoice {
-    /// A number: exactly that Niri window, listed or not.
-    Window(i64),
-    /// A name: the first listed match, opened like clicking its row.
-    Card(String),
+#[derive(Clone, PartialEq, Eq)]
+struct RenderedRowKey {
+    entry: WindowEntry,
+    subtitle: Option<RowSubtitle>,
 }
 
 /// The brand block's window list: every agent window on every workspace, as its card's first line
-/// and its Niri window number. The typed query narrows it by name or number; Enter goes to the
-/// typed window number, or to the first match of a name.
+/// and its Niri window number. The typed query narrows it by project name, window number, AK task
+/// (id or title), or session id; Enter jumps to the typed window number or activates the top match.
 pub struct DirectoryView {
     pub root: gtk::Box,
     status: gtk::Label,
     rows: gtk::Box,
-    // Every material field (including the activation target), but not current styling.
-    rendered_rows: RefCell<Vec<WindowEntry>>,
+    // Every material field (including activation target and match subtitle), not current styling.
+    rendered_rows: RefCell<Vec<RenderedRowKey>>,
     sender: Sender<AppMsg>,
 }
 
@@ -43,6 +39,9 @@ impl DirectoryView {
         status.add_css_class("jump-line");
         status.set_halign(gtk::Align::Fill);
         status.set_xalign(0.0);
+        // Never let a long UUID query widen the fixed brand column and push cards aside.
+        status.set_ellipsize(relm4::gtk::pango::EllipsizeMode::End);
+        status.set_max_width_chars(1);
 
         let rows = gtk::Box::new(gtk::Orientation::Vertical, 1);
         let scroller = gtk::ScrolledWindow::new();
@@ -79,9 +78,8 @@ impl DirectoryView {
         rows
     }
 
-    /// Retain rows when their material data and order match; update focus/choice styling in
-    /// place. Clicking a row activates its card, including hidden tabs. The row Enter opens is
-    /// marked, so a typed name always shows where it leads.
+    /// Retain rows when their material data, order, and match subtitle are unchanged; update
+    /// focus/choice styling in place. Clicking a row activates its card, including hidden tabs.
     pub fn render(
         &self,
         windows: &[WindowEntry],
@@ -90,13 +88,21 @@ impl DirectoryView {
         allow_unlisted: bool,
         hotkey: Option<&str>,
     ) {
-        let shown = filter_entries(windows, query);
-        let key: Vec<WindowEntry> = shown
+        let shown = filter_entries_with_matches(windows, query);
+        let subtitles: Vec<Option<RowSubtitle>> = shown
             .iter()
-            .map(|entry| {
-                let mut key = (**entry).clone();
-                key.current = false;
-                key
+            .map(|item| row_subtitle(item.match_kind.as_ref(), query))
+            .collect();
+        let key: Vec<RenderedRowKey> = shown
+            .iter()
+            .zip(&subtitles)
+            .map(|(item, subtitle)| {
+                let mut entry = item.entry.clone();
+                entry.current = false;
+                RenderedRowKey {
+                    entry,
+                    subtitle: subtitle.clone(),
+                }
             })
             .collect();
         // Empty states have different messages; rebuild them rather than caching a label.
@@ -108,9 +114,8 @@ impl DirectoryView {
         }
         let mut retained = self.rows.first_child();
         let choice = jump_choice(windows, query, allow_unlisted);
-        // Alphabetical from the controller, so workspace headings would repeat; each row names
-        // its workspace instead.
-        for entry in &shown {
+        for (item, subtitle) in shown.iter().zip(&subtitles) {
+            let entry = item.entry;
             let chosen = match &choice {
                 Some(JumpChoice::Window(id)) => entry.window_id == *id,
                 Some(JumpChoice::Card(card_id)) => &entry.card_id == card_id,
@@ -127,7 +132,8 @@ impl DirectoryView {
                     }
                 }
             } else {
-                self.rows.append(&self.row(entry, chosen));
+                self.rows
+                    .append(&self.row(entry, subtitle.as_ref(), chosen));
             }
         }
         *self.rendered_rows.borrow_mut() = key;
@@ -173,7 +179,12 @@ impl DirectoryView {
         self.status.set_text(message);
     }
 
-    fn row(&self, entry: &WindowEntry, chosen: bool) -> gtk::Button {
+    fn row(
+        &self,
+        entry: &WindowEntry,
+        subtitle: Option<&RowSubtitle>,
+        chosen: bool,
+    ) -> gtk::Button {
         let row = gtk::Button::new();
         row.add_css_class("directory-row");
         if entry.current {
@@ -200,14 +211,24 @@ impl DirectoryView {
         line.append(&label);
         line.append(&workspace);
         line.append(&id);
-        row.set_child(Some(&line));
-        row.set_tooltip_text(Some(&format!(
-            "{} — window #{}, {}{}",
-            entry.label,
-            entry.window_id,
-            workspace_title(entry),
-            if entry.hidden_tab { ", hidden tab" } else { "" }
-        )));
+
+        if let Some(sub) = subtitle {
+            let stack = gtk::Box::new(gtk::Orientation::Vertical, 1);
+            stack.append(&line);
+            let match_label = gtk::Label::new(Some(&sub.text));
+            match_label.add_css_class("directory-match");
+            match_label.add_css_class(sub.css_class);
+            match_label.set_xalign(0.0);
+            match_label.set_hexpand(true);
+            match_label.set_ellipsize(relm4::gtk::pango::EllipsizeMode::End);
+            match_label.set_max_width_chars(1);
+            stack.append(&match_label);
+            row.set_child(Some(&stack));
+        } else {
+            row.set_child(Some(&line));
+        }
+
+        row.set_tooltip_text(Some(&row_tooltip(entry)));
         let tx = self.sender.clone();
         let card_id = entry.card_id.clone();
         row.connect_clicked(move |_| {
@@ -215,71 +236,6 @@ impl DirectoryView {
         });
         row
     }
-}
-
-/// Entries whose project name contains the query (ignoring case) or whose window number starts
-/// with it; all of them when nothing is typed.
-pub fn filter_entries<'a>(windows: &'a [WindowEntry], query: &str) -> Vec<&'a WindowEntry> {
-    let needle = query.to_lowercase();
-    windows
-        .iter()
-        .filter(|entry| {
-            entry.window_id.to_string().starts_with(&needle)
-                || entry.label.to_lowercase().contains(&needle)
-        })
-        .collect()
-}
-
-fn is_window_number(query: &str) -> bool {
-    !query.is_empty() && query.chars().all(|character| character.is_ascii_digit())
-}
-
-/// What Enter does. Digits go to the listed window with exactly that number; failing that, to a
-/// project whose name contains them (`0844` finds `pi-0844-…`); failing that, when
-/// `allow_unlisted`, to exactly that number, listed or not, never a guessed completion. Anything
-/// else goes to the first project whose name contains it. Nothing typed, or nothing matching,
-/// does nothing. Typing held only by hover passes `allow_unlisted = false`, so a digit typed at a
-/// terminal prompt cannot reach an arbitrary window.
-pub fn jump_choice(
-    windows: &[WindowEntry],
-    query: &str,
-    allow_unlisted: bool,
-) -> Option<JumpChoice> {
-    if query.is_empty() {
-        return None;
-    }
-    let needle = query.to_lowercase();
-    let named = || {
-        windows
-            .iter()
-            .find(|entry| entry.label.to_lowercase().contains(&needle))
-            .map(|entry| JumpChoice::Card(entry.card_id.clone()))
-    };
-    if !is_window_number(query) {
-        return named();
-    }
-    let number = (query.len() <= MAX_WINDOW_DIGITS)
-        .then(|| query.parse::<i64>().ok())
-        .flatten();
-    if let Some(id) = number
-        && windows.iter().any(|entry| entry.window_id == id)
-    {
-        return Some(JumpChoice::Window(id));
-    }
-    named().or(number.filter(|_| allow_unlisted).map(JumpChoice::Window))
-}
-
-/// Append a typed character: letters and digits, and the `-`, `_` and `.` of project names.
-pub fn push_query_char(query: &mut String, character: char) -> bool {
-    if !is_query_char(character) || query.chars().count() >= MAX_QUERY_CHARS {
-        return false;
-    }
-    query.push(character);
-    true
-}
-
-pub fn is_query_char(character: char) -> bool {
-    character.is_alphanumeric() || matches!(character, '-' | '_' | '.')
 }
 
 /// The short workspace marker on each row: the number the operator sees in Niri.
@@ -306,39 +262,36 @@ fn workspace_title(entry: &WindowEntry) -> String {
     }
 }
 
-fn status_text(
-    windows: &[WindowEntry],
-    query: &str,
-    can_type: bool,
-    allow_unlisted: bool,
-    hotkey: Option<&str>,
-) -> String {
-    if !can_type {
-        // The keyboard was handed back (hover timeout); a click or the shortcut takes it again.
-        return crate::hints::pointer_prompt(hotkey);
+fn row_tooltip(entry: &WindowEntry) -> String {
+    let mut lines = vec![format!(
+        "{} — window #{}, {}{}",
+        entry.label,
+        entry.window_id,
+        workspace_title(entry),
+        if entry.hidden_tab { ", hidden tab" } else { "" }
+    )];
+    for task in entry.ak_tasks.iter().take(4) {
+        let state = match task.state.as_str() {
+            "active" => "live claim",
+            "orphaned" => "claim outlives session",
+            "deferred" => "deferred",
+            other => other,
+        };
+        lines.push(format!("AK{} [{state}] {}", task.id, task.title));
     }
-    match jump_choice(windows, query, allow_unlisted) {
-        _ if query.is_empty() => "Type a name or number · ⏎ go".to_owned(),
-        Some(JumpChoice::Window(_)) => format!("#{query}▏ ⏎ jump · ⌫ edit"),
-        Some(JumpChoice::Card(card_id)) => {
-            let label = windows
-                .iter()
-                .find(|entry| entry.card_id == card_id)
-                .map(|entry| entry.label.as_str())
-                .unwrap_or("match");
-            format!("{query}▏ ⏎ {label}")
-        }
-        None => format!("{query}▏ no match"),
+    if entry.ak_tasks.len() > 4 {
+        lines.push(format!("+{} more AK tasks", entry.ak_tasks.len() - 4));
     }
+    for sid in entry.session_ids.iter().take(2) {
+        lines.push(format!("session {sid}"));
+    }
+    lines.join("\n")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn jump_choice_open(windows: &[WindowEntry], query: &str) -> Option<JumpChoice> {
-        jump_choice(windows, query, true)
-    }
+    use crate::protocol::AkTask;
 
     fn entry(label: &str, window_id: i64, workspace_idx: i64) -> WindowEntry {
         WindowEntry {
@@ -350,122 +303,26 @@ mod tests {
             workspace_name: None,
             hidden_tab: false,
             current: false,
+            session_ids: Vec::new(),
+            ak_tasks: Vec::new(),
         }
     }
 
     #[test]
-    fn the_status_line_says_what_enter_will_do() {
-        let windows = vec![entry("pi-extensions", 432, 2)];
-        assert_eq!(
-            status_text(&windows, "", false, true, None),
-            "Click, then type a name or number"
-        );
-        assert_eq!(
-            status_text(&windows, "", false, true, Some("Super+Shift+A")),
-            "Click or Super+Shift+A to type"
-        );
-        assert_eq!(
-            status_text(&windows, "", true, true, None),
-            "Type a name or number · ⏎ go"
-        );
-        assert!(status_text(&windows, "43", true, true, None).starts_with("#43"));
-        assert_eq!(
-            status_text(&windows, "ext", true, true, None),
-            "ext▏ ⏎ pi-extensions"
-        );
-        assert_eq!(
-            status_text(&windows, "zzz", true, true, None),
-            "zzz▏ no match"
-        );
-    }
-
-    #[test]
-    fn the_query_matches_names_anywhere_and_numbers_from_the_start() {
-        let windows = vec![
-            entry("pi-extensions", 43, 2),
-            entry("dep-diet", 432, 2),
-            entry("Text-Tools", 344, 3),
-        ];
-        let labels = |query: &str| -> Vec<String> {
-            filter_entries(&windows, query)
-                .iter()
-                .map(|entry| entry.label.clone())
-                .collect()
-        };
-        assert_eq!(labels("").len(), 3);
-        assert_eq!(
-            labels("ext"),
-            ["pi-extensions", "Text-Tools"],
-            "any case, anywhere"
-        );
-        assert_eq!(labels("43"), ["pi-extensions", "dep-diet"]);
-        assert_eq!(labels("432"), ["dep-diet"]);
-        assert!(labels("9").is_empty());
-    }
-
-    #[test]
-    fn enter_goes_to_the_typed_number_or_the_first_named_match() {
-        let windows = vec![entry("dep-diet", 432, 2), entry("pi-extensions", 43, 2)];
-        assert_eq!(
-            jump_choice_open(&windows, "43"),
-            Some(JumpChoice::Window(43))
-        );
-        assert_eq!(
-            jump_choice_open(&windows, "007"),
-            Some(JumpChoice::Window(7)),
-            "a number need not be listed"
-        );
-        assert_eq!(jump_choice_open(&windows, "1234567890"), None);
-        assert_eq!(
-            jump_choice_open(&windows, "d"),
-            Some(JumpChoice::Card("card-432".into())),
-            "the first listed match"
-        );
-        assert_eq!(jump_choice_open(&windows, "nothing"), None);
-        let numbered = vec![entry("pi-0844-qualification", 12, 2), entry("x", 844, 2)];
-        assert_eq!(
-            jump_choice_open(&numbered, "844"),
-            Some(JumpChoice::Window(844)),
-            "a listed window number wins"
-        );
-        assert_eq!(
-            jump_choice_open(&numbered[..1], "0844"),
-            Some(JumpChoice::Card("card-12".into())),
-            "digits inside a name, with no such window listed, go to that project"
-        );
-        assert_eq!(jump_choice_open(&windows, ""), None);
-        assert_eq!(
-            jump_choice(&windows, "1", false),
-            None,
-            "held only by hover, an unlisted number goes nowhere"
-        );
-        assert_eq!(
-            jump_choice(&windows, "43", false),
-            Some(JumpChoice::Window(43)),
-            "a listed number still jumps"
-        );
-    }
-
-    #[test]
-    fn the_query_takes_name_characters_up_to_a_bound() {
-        let mut query = String::new();
-        assert!(push_query_char(&mut query, 'e'));
-        assert!(push_query_char(&mut query, '-'));
-        assert!(push_query_char(&mut query, '4'));
-        assert!(!push_query_char(&mut query, ' '));
-        assert!(!push_query_char(&mut query, '/'));
-        for _ in 0..50 {
-            push_query_char(&mut query, 'x');
-        }
-        assert_eq!(query.chars().count(), MAX_QUERY_CHARS);
-    }
-
-    #[test]
-    fn each_row_names_its_workspace() {
-        let mut named = entry("a", 1, 3);
+    fn each_row_names_its_workspace_and_tooltip_includes_ak_tasks_and_session_ids() {
+        let mut named = entry("pi-extensions", 43, 3);
         named.workspace_name = Some("claude-recovery".into());
+        named.ak_tasks = vec![AkTask {
+            id: 5701,
+            title: "Show clickable AK-task references".into(),
+            state: "active".into(),
+        }];
+        named.session_ids = vec!["01a0993a-d336-739f-a308-cfa4c21d6332".into()];
         assert_eq!(workspace_tag(&named), "ws3");
         assert_eq!(workspace_title(&named), "workspace 3 · claude-recovery");
         assert_eq!(workspace_title(&entry("a", 1, 2)), "workspace 2");
+        let tip = row_tooltip(&named);
+        assert!(tip.contains("AK5701 [live claim] Show clickable AK-task references"));
+        assert!(tip.contains("session 01a0993a-d336-739f-a308-cfa4c21d6332"));
     }
 }
