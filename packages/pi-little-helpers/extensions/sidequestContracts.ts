@@ -8,7 +8,7 @@ import { CandidateAdmissionPrerequisiteError } from "../src/candidatePeerAdmissi
 
 export type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 export const CHILD_SESSION_CWD_DESCRIPTION =
-  "Child session cwd. Defaults to ctx.cwd. Unscoped paths receive controller company provenance automatically; company-scoped paths self-recover. Do not set PI_COMPANY; session mode is not a company switch.";
+  "Child session cwd. Defaults to ctx.cwd. Unscoped paths receive controller company provenance automatically; company-scoped paths self-recover. Do not set VAULT_CURRENT_COMPANY; session mode is not a company switch.";
 export type PiToolContext = Parameters<Parameters<ExtensionAPI["registerTool"]>[0]["execute"]>[4];
 export type SidequestRole = "scout" | "reviewer";
 export type SidequestReportBack = "intercom" | "manual" | "none";
@@ -287,7 +287,7 @@ export const candidatePeerSpawnParameters = asPiToolParameters(
     cwd: Type.Optional(
       Type.String({
         description:
-          "Parent/controller cwd. Defaults to ctx.cwd. Used as company-provenance parent when the isolated worktree path is unscoped; do not set PI_COMPANY.",
+          "Parent/controller cwd. Defaults to ctx.cwd. Used as company-provenance parent when the isolated worktree path is unscoped; do not set VAULT_CURRENT_COMPANY.",
       }),
     ),
     baseRef: Type.Optional(Type.String({ description: "Git base ref. Defaults to HEAD." })),

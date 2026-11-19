@@ -203,7 +203,7 @@ test("session_start footer composes selected lightweight extension statuses when
 
 test("session_start footer refreshes vault health after startup drift", async () => {
   const previousVaultDir = process.env.VAULT_DIR;
-  const previousPiCompany = process.env.PI_COMPANY;
+  const previousPiCompany = process.env.VAULT_CURRENT_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-health-"));
   execFileSync(
@@ -216,7 +216,7 @@ test("session_start footer refreshes vault health after startup drift", async ()
     { cwd: tempVaultDir, stdio: "ignore" },
   );
   process.env.VAULT_DIR = tempVaultDir;
-  process.env.PI_COMPANY = "software";
+  process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "0";
 
   try {
@@ -306,9 +306,9 @@ test("session_start footer refreshes vault health after startup drift", async ()
       process.env.VAULT_DIR = previousVaultDir;
     }
     if (previousPiCompany === undefined) {
-      delete process.env.PI_COMPANY;
+      delete process.env.VAULT_CURRENT_COMPANY;
     } else {
-      process.env.PI_COMPANY = previousPiCompany;
+      process.env.VAULT_CURRENT_COMPANY = previousPiCompany;
     }
     if (previousRefreshMs === undefined) {
       delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
@@ -321,7 +321,7 @@ test("session_start footer refreshes vault health after startup drift", async ()
 
 test("session_start footer health retries respect the refresh interval", async (t) => {
   const previousVaultDir = process.env.VAULT_DIR;
-  const previousPiCompany = process.env.PI_COMPANY;
+  const previousPiCompany = process.env.VAULT_CURRENT_COMPANY;
   const previousRefreshMs = process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-footer-throttle-"));
   execFileSync(
@@ -334,7 +334,7 @@ test("session_start footer health retries respect the refresh interval", async (
     { cwd: tempVaultDir, stdio: "ignore" },
   );
   process.env.VAULT_DIR = tempVaultDir;
-  process.env.PI_COMPANY = "software";
+  process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS = "1000";
 
   // Real SQL and event-loop delays must not advance the retry schedule.
@@ -459,9 +459,9 @@ test("session_start footer health retries respect the refresh interval", async (
       process.env.VAULT_DIR = previousVaultDir;
     }
     if (previousPiCompany === undefined) {
-      delete process.env.PI_COMPANY;
+      delete process.env.VAULT_CURRENT_COMPANY;
     } else {
-      process.env.PI_COMPANY = previousPiCompany;
+      process.env.VAULT_CURRENT_COMPANY = previousPiCompany;
     }
     if (previousRefreshMs === undefined) {
       delete process.env.PI_ORCH_FOOTER_HEALTH_REFRESH_MS;

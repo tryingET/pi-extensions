@@ -45,7 +45,7 @@ export function resolveChildCompanyContext(options: {
   targetCwd: string;
   parentCwd?: string;
 }): CompanyContextProvenance | undefined {
-  const explicit = options.env.PI_COMPANY?.trim().toLowerCase();
+  const explicit = options.env.VAULT_CURRENT_COMPANY?.trim().toLowerCase();
   if (explicit) {
     if (!SAFE_COMPANY.test(explicit)) return undefined;
     return { company: explicit, source: "environment" };
@@ -68,7 +68,7 @@ export function prefixPiArgsWithCompanyContext(
   if (!provenance) return piArgs;
   return [
     "env",
-    `PI_COMPANY=${provenance.company}`,
+    `VAULT_CURRENT_COMPANY=${provenance.company}`,
     `PI_COMPANY_PROVENANCE=${provenance.source}`,
     ...(provenance.sourceCwd ? [`PI_COMPANY_SOURCE_CWD=${provenance.sourceCwd}`] : []),
     ...piArgs,

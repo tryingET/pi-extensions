@@ -36,7 +36,7 @@ function lastWindowLaunchCall(execStub) {
   return call;
 }
 
-test("sidequest carries explicit PI_COMPANY environment provenance into the visible child", async () => {
+test("sidequest carries explicit VAULT_CURRENT_COMPANY environment provenance into the visible child", async () => {
   const execStub = createWindowExecStub();
 
   const extension = createSidequestExtension({
@@ -45,7 +45,7 @@ test("sidequest carries explicit PI_COMPANY environment provenance into the visi
       TERM_PROGRAM: "xterm",
       GHOSTTY_BIN_DIR: "/usr/bin",
       PI_SIDEQUEST_PI_BIN: "pi",
-      PI_COMPANY: "core",
+      VAULT_CURRENT_COMPANY: "core",
     },
     currentSessionGhosttyBin: "/usr/bin/ghostty",
     exec: execStub.exec,
@@ -60,7 +60,7 @@ test("sidequest carries explicit PI_COMPANY environment provenance into the visi
 
   assert.deepEqual(extractPiArgs(lastWindowLaunchCall(execStub).args), [
     "env",
-    "PI_COMPANY=core",
+    "VAULT_CURRENT_COMPANY=core",
     "PI_COMPANY_PROVENANCE=environment",
     "pi",
     "--fork",
@@ -104,7 +104,7 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
   assert.equal(unscoped.ok, true);
   assert.deepEqual(extractPiArgs(lastWindowLaunchCall(execStub).args), [
     "env",
-    "PI_COMPANY=software",
+    "VAULT_CURRENT_COMPANY=software",
     "PI_COMPANY_PROVENANCE=parent_cwd",
     "PI_COMPANY_SOURCE_CWD=/home/u/ai-society/softwareco/owned/pi-extensions",
     "pi",
@@ -124,7 +124,7 @@ test("launchPiQuestSession carries parent-cwd company provenance into unscoped c
   const scopedPiArgs = extractPiArgs(lastWindowLaunchCall(execStub).args);
   assert.equal(scopedPiArgs[0], "pi");
   assert.equal(
-    scopedPiArgs.some((arg) => arg.startsWith("PI_COMPANY=")),
+    scopedPiArgs.some((arg) => arg.startsWith("VAULT_CURRENT_COMPANY=")),
     false,
     "scoped target cwd must self-recover company without an env prefix",
   );
@@ -159,7 +159,7 @@ test("spawn tool ads tell harnessed models provenance is automatic and session m
   );
   assert.match(
     tools.get("fork_peer_spawn").parameters.properties.cwd.description,
-    /Do not set PI_COMPANY/,
+    /Do not set VAULT_CURRENT_COMPANY/,
   );
   for (const name of ["sidequest", "scoutpeer", "fresh-handoff", "parallelquest"]) {
     const command = commands.get(name);

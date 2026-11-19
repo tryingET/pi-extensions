@@ -31,7 +31,7 @@ function createLaunchHarness({ targetCwd, parentCwd, company } = {}) {
     TERM_PROGRAM: "ghostty",
     GHOSTTY_BIN_DIR: "/usr/bin",
     PI_SIDEQUEST_PI_BIN: "pi",
-    ...(company ? { PI_COMPANY: company } : {}),
+    ...(company ? { VAULT_CURRENT_COMPANY: company } : {}),
   };
   return { execStub, pi, env, targetCwd, parentCwd };
 }
@@ -86,7 +86,7 @@ test("standing-agent provenance is child-only and additive to company provenance
   assert.equal(outcome.ok, true);
   const piArgs = extractPiArgs(harness.execStub.calls.at(-1).args);
   assert.equal(piArgs[0], "env");
-  assert.ok(piArgs.includes("PI_COMPANY=software"));
+  assert.ok(piArgs.includes("VAULT_CURRENT_COMPANY=software"));
   assert.ok(piArgs.includes("PI_COMPANY_PROVENANCE=parent_cwd"));
   assert.ok(
     piArgs.includes(
@@ -113,7 +113,7 @@ test("unscoped child cwds still receive controller company provenance by default
   assert.equal(outcome.ok, true);
   const piArgs = extractPiArgs(harness.execStub.calls.at(-1).args);
   assert.equal(piArgs[0], "env");
-  assert.ok(piArgs.includes("PI_COMPANY=software"));
+  assert.ok(piArgs.includes("VAULT_CURRENT_COMPANY=software"));
 });
 
 test("extraPiArgs are not injected into fork sessions", async () => {
@@ -163,7 +163,7 @@ test("transport exports exact reviewed standing-agent capability version", () =>
 test("child environment cannot replace PATH/company or accept malformed provenance entries", async () => {
   for (const childProvenanceEnv of [
     { PATH: "/untrusted" },
-    { PI_COMPANY: "holding" },
+    { VAULT_CURRENT_COMPANY: "holding" },
     { "PI_PROVENANCE_A=B": "SECRET" },
     { PI_PROVENANCE_A: null },
     { PI_PROVENANCE_A: "SECRET\0" },
@@ -259,7 +259,7 @@ test("detached transport receives validated complete final argv and both provena
   );
   assert.equal(result.ok, true);
   const piArgs = extractPiArgs(captured);
-  assert.ok(piArgs.includes("PI_COMPANY=software"));
+  assert.ok(piArgs.includes("VAULT_CURRENT_COMPANY=software"));
   assert.ok(piArgs.some((arg) => arg.startsWith("PI_PROVENANCE_STANDING_AGENT_VISIBLE_LAUNCH=")));
 });
 

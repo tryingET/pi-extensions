@@ -115,17 +115,17 @@ export async function withFixture(run) {
   const vaultDir = resolve(scratch, "vault");
   mkdirSync(vaultDir, { recursive: true });
   const previousVaultDir = process.env.VAULT_DIR;
-  const previousCompany = process.env.PI_COMPANY;
+  const previousCompany = process.env.VAULT_CURRENT_COMPANY;
   try {
     createVaultFixture(vaultDir);
     process.env.VAULT_DIR = vaultDir;
-    process.env.PI_COMPANY = "software";
+    process.env.VAULT_CURRENT_COMPANY = "software";
     await run(scratch);
   } finally {
     if (previousVaultDir === undefined) delete process.env.VAULT_DIR;
     else process.env.VAULT_DIR = previousVaultDir;
-    if (previousCompany === undefined) delete process.env.PI_COMPANY;
-    else process.env.PI_COMPANY = previousCompany;
+    if (previousCompany === undefined) delete process.env.VAULT_CURRENT_COMPANY;
+    else process.env.VAULT_CURRENT_COMPANY = previousCompany;
     rmSync(scratch, { recursive: true, force: true });
   }
 }

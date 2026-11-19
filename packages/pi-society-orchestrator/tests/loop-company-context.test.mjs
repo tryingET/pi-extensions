@@ -26,15 +26,15 @@ test("resolveAmbientCompanyContext: explicit lookup context wins", () => {
   assert.equal(company, "core");
 });
 
-test("resolveAmbientCompanyContext: PI_COMPANY env beats ambient inference", () => {
-  const previous = process.env.PI_COMPANY;
+test("resolveAmbientCompanyContext: VAULT_CURRENT_COMPANY env beats ambient inference", () => {
+  const previous = process.env.VAULT_CURRENT_COMPANY;
   try {
-    process.env.PI_COMPANY = "holdingco";
+    process.env.VAULT_CURRENT_COMPANY = "holdingco";
     const company = resolveAmbientCompanyContext(fakeRuntime("cwd:/x"));
     assert.equal(company, "holdingco");
   } finally {
-    if (previous === undefined) delete process.env.PI_COMPANY;
-    else process.env.PI_COMPANY = previous;
+    if (previous === undefined) delete process.env.VAULT_CURRENT_COMPANY;
+    else process.env.VAULT_CURRENT_COMPANY = previous;
   }
 });
 

@@ -82,7 +82,7 @@ function isCognitiveTemplate(candidate: PreparedPromptPlaneCandidate): boolean {
  * company-less cwd (e.g. a loop-tool scratch dir): a synthetic cwd asserts
  * nothing about company, so it must not silently erase the company context
  * the surrounding session already resolved. Resolution order: explicit
- * currentCompany on the lookup context, then PI_COMPANY, then ambient
+ * currentCompany on the lookup context, then VAULT_CURRENT_COMPANY, then ambient
  * inference from the process cwd. Returns undefined when nothing resolves —
  * the prompt plane then fails closed, preserving the visibility boundary.
  */
@@ -93,7 +93,7 @@ export function resolveAmbientCompanyContext(
   const explicit = context.currentCompany?.trim();
   if (explicit) return explicit;
 
-  const fromEnv = process.env.PI_COMPANY?.trim();
+  const fromEnv = process.env.VAULT_CURRENT_COMPANY?.trim();
   if (fromEnv) return fromEnv;
 
   const resolve = runtime.resolveCurrentCompanyContext;

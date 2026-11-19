@@ -34,7 +34,7 @@ export function createWorkspacePort(): WorkspacePort {
       const currentCompany =
         inferCompany(cwd) ??
         inferCompany(currentRepoPath) ??
-        normalizeCompanyAlias(process.env.PI_COMPANY?.trim()) ??
+        normalizeCompanyAlias(process.env.VAULT_CURRENT_COMPANY?.trim()) ??
         undefined;
       const currentRepoKind = classifyRepo(currentRepoPath, workspaceRoot, currentCompany);
       return {
@@ -253,7 +253,7 @@ function resolveOntologyTarget(
 
 function resolveCompanyOntologyRepo(context: WorkspaceContext): string {
   if (!context.currentCompany) {
-    throw new Error("company scope requires PI_COMPANY or a company-scoped cwd");
+    throw new Error("company scope requires VAULT_CURRENT_COMPANY or a company-scoped cwd");
   }
   const repoPath = path.resolve(context.workspaceRoot, context.currentCompany, "ontology");
   ensureOntologyTarget(repoPath, "company", "company", context.currentCompany);
@@ -291,7 +291,7 @@ function ensureOntologyTarget(
     throw new Error(`scope=core resolved to a non-core ontology repo: ${repoPath}`);
   }
   if (requestedScope === "company" && !currentCompany) {
-    throw new Error("company scope requires PI_COMPANY or a company-scoped cwd");
+    throw new Error("company scope requires VAULT_CURRENT_COMPANY or a company-scoped cwd");
   }
 }
 

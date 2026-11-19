@@ -19,7 +19,7 @@ test("isolated state worktrees inherit explicit known parent company provenance"
   });
   assert.deepEqual(prefixPiArgsWithCompanyContext(["pi", "prompt"], provenance), [
     "env",
-    "PI_COMPANY=software",
+    "VAULT_CURRENT_COMPANY=software",
     "PI_COMPANY_PROVENANCE=parent_cwd",
     "PI_COMPANY_SOURCE_CWD=/home/user/ai-society/softwareco/owned/pi-extensions",
     "pi",
@@ -53,14 +53,14 @@ test("target company provenance wins over a different parent and unknown ancestr
 test("explicit environment provenance is preserved but malformed values are not injected", () => {
   assert.deepEqual(
     resolveChildCompanyContext({
-      env: { PI_COMPANY: "software" },
+      env: { VAULT_CURRENT_COMPANY: "software" },
       targetCwd: "/srv/ai-society/financeco/owned/book",
     }),
     { company: "software", source: "environment" },
   );
   assert.equal(
     resolveChildCompanyContext({
-      env: { PI_COMPANY: "software;unsafe" },
+      env: { VAULT_CURRENT_COMPANY: "software;unsafe" },
       targetCwd: "/unscoped",
     }),
     undefined,

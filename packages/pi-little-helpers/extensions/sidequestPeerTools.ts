@@ -318,7 +318,7 @@ export function registerSidequestPeerTools({
     description:
       "Launch a visible forked-context peer Pi session. Unscoped child cwd receives company provenance automatically.",
     promptSnippet:
-      "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use. Unscoped child cwd receives company provenance automatically; do not pick this tool to set PI_COMPANY.",
+      "Use to launch a visible peer that inherits the current Pi conversation context. This is the tool equivalent of /sidequest for controller-spawned use. Unscoped child cwd receives company provenance automatically; do not pick this tool to set VAULT_CURRENT_COMPANY.",
     parameters: forkPeerSpawnParameters,
     execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
       executeForkPeerSpawn(FORK_PEER_SPAWN_TOOL, params, ctx),

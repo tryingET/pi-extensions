@@ -69,7 +69,7 @@ test("pinned owner ROCS covers nested, bootstrap, manifest, root, search, and pa
   const previous = {
     workspaceRoot: process.env.PI_ONTOLOGY_WORKSPACE_ROOT,
     rocsWorkspaceRoot: process.env.ROCS_WORKSPACE_ROOT,
-    company: process.env.PI_COMPANY,
+    company: process.env.VAULT_CURRENT_COMPANY,
     piRocsBin: process.env.PI_ONTOLOGY_ROCS_BIN,
     rocsBin: process.env.ROCS_BIN,
     rocsProject: process.env.ROCS_OWNER_PROJECT,
@@ -77,7 +77,7 @@ test("pinned owner ROCS covers nested, bootstrap, manifest, root, search, and pa
   };
   process.env.PI_ONTOLOGY_WORKSPACE_ROOT = workspaceRoot;
   process.env.ROCS_WORKSPACE_ROOT = workspaceRoot;
-  process.env.PI_COMPANY = "softwareco";
+  process.env.VAULT_CURRENT_COMPANY = "softwareco";
   process.env.PI_ONTOLOGY_ROCS_BIN = wrapper;
   delete process.env.ROCS_BIN;
   process.env.ROCS_OWNER_PROJECT = rocsProject;
@@ -195,7 +195,7 @@ test("pinned owner ROCS covers nested, bootstrap, manifest, root, search, and pa
   } finally {
     restoreEnv("PI_ONTOLOGY_WORKSPACE_ROOT", previous.workspaceRoot);
     restoreEnv("ROCS_WORKSPACE_ROOT", previous.rocsWorkspaceRoot);
-    restoreEnv("PI_COMPANY", previous.company);
+    restoreEnv("VAULT_CURRENT_COMPANY", previous.company);
     restoreEnv("PI_ONTOLOGY_ROCS_BIN", previous.piRocsBin);
     restoreEnv("ROCS_BIN", previous.rocsBin);
     restoreEnv("ROCS_OWNER_PROJECT", previous.rocsProject);
