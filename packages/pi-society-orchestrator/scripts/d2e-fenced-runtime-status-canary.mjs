@@ -50,6 +50,7 @@ const savedEnv = Object.fromEntries(
     "SOCIETY_DB",
     "AGENT_KERNEL",
     "PI_COMPANY",
+    "VAULT_CURRENT_COMPANY",
     "PI_ORCH_AK_CLEARANCE_STATE",
     "PI_ORCH_AK_INCIDENT_FENCE",
     "D2E_CANARY_AK_LOG",
@@ -74,6 +75,7 @@ try {
   process.env.SOCIETY_DB = societyDb;
   process.env.AGENT_KERNEL = fakeAk;
   process.env.PI_COMPANY = "software";
+  process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_AK_CLEARANCE_STATE = "unknown";
   process.env.PI_ORCH_AK_INCIDENT_FENCE = "active";
   process.env.D2E_CANARY_AK_LOG = akLogPath;

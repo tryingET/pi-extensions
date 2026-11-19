@@ -767,6 +767,7 @@ const previousEnv = {
   HOME: process.env.HOME,
   PATH: process.env.PATH,
   PI_COMPANY: process.env.PI_COMPANY,
+  VAULT_CURRENT_COMPANY: process.env.VAULT_CURRENT_COMPANY,
   PI_ORCH_SUBAGENT_OUTPUT_CHARS: process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS,
   PI_ORCH_SUBAGENT_TIMEOUT_MS: process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS,
   PI_ORCH_LOOP_TIMEOUT_MS: process.env.PI_ORCH_LOOP_TIMEOUT_MS,
@@ -783,6 +784,8 @@ try {
   process.env.SOCIETY_DB = societyDbPath;
   process.env.AGENT_KERNEL = fakeAkPath;
   process.env.PI_COMPANY = "software";
+  // pi-vault-client reads only VAULT_CURRENT_COMPANY.
+  process.env.VAULT_CURRENT_COMPANY = "software";
   process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "4000";
   process.env.PI_ORCH_LOOP_TIMEOUT_MS = "30000";
   process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "256";
@@ -1463,6 +1466,12 @@ try {
     delete process.env.PI_COMPANY;
   } else {
     process.env.PI_COMPANY = previousEnv.PI_COMPANY;
+  }
+
+  if (previousEnv.VAULT_CURRENT_COMPANY === undefined) {
+    delete process.env.VAULT_CURRENT_COMPANY;
+  } else {
+    process.env.VAULT_CURRENT_COMPANY = previousEnv.VAULT_CURRENT_COMPANY;
   }
 
   if (previousEnv.PI_ORCH_DEFAULT_AGENT_TEAM === undefined) {

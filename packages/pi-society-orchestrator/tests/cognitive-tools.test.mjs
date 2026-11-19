@@ -55,11 +55,14 @@ test("cognitive tool helpers use the prompt-plane seam for both listing and exac
   const vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-"));
   const previousVaultDir = process.env.VAULT_DIR;
   const previousPiCompany = process.env.PI_COMPANY;
+  const previousVaultCompany = process.env.VAULT_CURRENT_COMPANY;
 
   try {
     seedVault(vaultDir);
     process.env.VAULT_DIR = vaultDir;
     delete process.env.PI_COMPANY;
+    // The missing-context case below must not inherit a caller's company.
+    delete process.env.VAULT_CURRENT_COMPANY;
 
     const listed = await listCognitiveTools({ currentCompany: "software" });
     assert.equal(listed.ok, true);
@@ -103,6 +106,11 @@ test("cognitive tool helpers use the prompt-plane seam for both listing and exac
       delete process.env.PI_COMPANY;
     } else {
       process.env.PI_COMPANY = previousPiCompany;
+    }
+    if (previousVaultCompany === undefined) {
+      delete process.env.VAULT_CURRENT_COMPANY;
+    } else {
+      process.env.VAULT_CURRENT_COMPANY = previousVaultCompany;
     }
     fs.rmSync(vaultDir, { recursive: true, force: true });
   }
