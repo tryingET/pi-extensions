@@ -1,16 +1,19 @@
 // ---
-// summary: provides mycel-inspired peer message hygiene (explicit-path sha256 freshness, hop guards, own-key reply contracts)
+// summary: provides mycel-inspired peer message hygiene (bounded explicit-path sha256 freshness, hop ceiling, non-valid reply placeholders, own-key reply contracts)
 // read_when:
 //   - changing file attachment freshness checks, hop-limit loop guards, or reply contract validation
 // ---
 import { createHash } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 
 import type { PeerAttachment, PeerReplyContract } from "./contracts.ts";
 
 export const DEFAULT_MAX_HOPS = 4;
+export const MAX_ALLOWED_HOPS_CEILING = 16;
 export const MAX_HASH_BYTES = 10 * 1024 * 1024;
+const SHA256_HEX_RE = /^[0-9a-f]{64}$/i;
+const READ_CHUNK_BYTES = 65_536;
 
 export type FileFreshnessStatus =
   | "unchanged"
@@ -20,11 +23,19 @@ export type FileFreshnessStatus =
   | "too_large"
   | "not_checked";
 
-export function inspectFileSha256(filePath: string): {
+export function isValidSha256Hex(value: unknown): value is string {
+  return typeof value === "string" && SHA256_HEX_RE.test(value);
+}
+
+/**
+ * Bounded chunked fd read stopping at MAX_HASH_BYTES + 1 so pseudo-files
+ * (e.g. /proc/self/pagemap reporting st_size=0) cannot hang the event loop.
+ */
+export function inspectFileSha256(filePath: unknown): {
   status: Exclude<FileFreshnessStatus, "changed">;
   sha256?: string;
 } {
-  if (!filePath || !path.isAbsolute(filePath)) {
+  if (typeof filePath !== "string" || !filePath || !path.isAbsolute(filePath)) {
     return { status: "not_checked" };
   }
   let stats: ReturnType<typeof statSync>;
@@ -40,14 +51,34 @@ export function inspectFileSha256(filePath: string): {
   if (stats.size > MAX_HASH_BYTES) {
     return { status: "too_large" };
   }
+  let fd: number | undefined;
   try {
-    const content = readFileSync(filePath);
-    return {
-      status: "unchanged",
-      sha256: createHash("sha256").update(content).digest("hex"),
-    };
+    fd = openSync(filePath, "r");
+    const hash = createHash("sha256");
+    const buf = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+    let total = 0;
+    while (true) {
+      const bytesRead = readSync(fd, buf, 0, READ_CHUNK_BYTES, null);
+      if (bytesRead <= 0) {
+        break;
+      }
+      total += bytesRead;
+      if (total > MAX_HASH_BYTES) {
+        return { status: "too_large" };
+      }
+      hash.update(buf.subarray(0, bytesRead));
+    }
+    return { status: "unchanged", sha256: hash.digest("hex") };
   } catch {
     return { status: "unreadable" };
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // ignore close errors
+      }
+    }
   }
 }
 
@@ -56,7 +87,7 @@ export function computeFileSha256(filePath: string): string | undefined {
 }
 
 /**
- * Pin only explicit absolute file paths — never interpret a display attachment.name as a local path.
+ * Pin only explicit absolute file paths — never interpret display attachment.name as a local path.
  */
 export function pinFileAttachments(
   attachments: PeerAttachment[] | undefined,
@@ -66,7 +97,7 @@ export function pinFileAttachments(
   }
 
   return attachments.map((attachment) => {
-    if (attachment.type !== "file" || attachment.sha256 || !attachment.path) {
+    if (attachment.type !== "file" || isValidSha256Hex(attachment.sha256) || !attachment.path) {
       return attachment;
     }
     const sha256 = computeFileSha256(attachment.path);
@@ -80,32 +111,34 @@ export function pinFileAttachments(
 export function checkAttachmentFreshness(
   attachment: PeerAttachment,
 ): FileFreshnessStatus | undefined {
-  if (attachment.type !== "file" || !attachment.sha256) {
+  if (attachment.type !== "file" || attachment.sha256 === undefined) {
     return undefined;
   }
-  if (!attachment.path || !path.isAbsolute(attachment.path)) {
+  if (!isValidSha256Hex(attachment.sha256)) {
+    return "not_checked";
+  }
+  if (typeof attachment.path !== "string" || !path.isAbsolute(attachment.path)) {
     return "not_checked";
   }
   const inspected = inspectFileSha256(attachment.path);
   if (!inspected.sha256) {
     return inspected.status;
   }
-  return inspected.sha256 === attachment.sha256 ? "unchanged" : "changed";
+  return inspected.sha256 === attachment.sha256.toLowerCase() ? "unchanged" : "changed";
 }
 
-export function formatAttachmentFreshnessTag(attachment: PeerAttachment): string {
-  const status = checkAttachmentFreshness(attachment);
+export function formatFreshnessStatusTag(status: FileFreshnessStatus | undefined): string {
   if (!status) {
     return "";
   }
   if (status === "unchanged") {
-    return " (unchanged since sent)";
+    return " (unchanged on disk since sent)";
   }
   if (status === "changed") {
-    return " (CHANGED since sent — sent snapshot follows)";
+    return " (CHANGED on disk since sent — attachment text below is caller-supplied)";
   }
   if (status === "missing") {
-    return " (missing since sent — sent snapshot follows)";
+    return " (missing on disk since sent — attachment text below is caller-supplied)";
   }
   if (status === "too_large") {
     return " (too large — not checked)";
@@ -113,21 +146,28 @@ export function formatAttachmentFreshnessTag(attachment: PeerAttachment): string
   if (status === "unreadable") {
     return " (unreadable — not verified)";
   }
-  return " (not checked — non-absolute path)";
+  return " (not checked)";
 }
 
-export function formatAttachmentFreshnessBanner(attachments: PeerAttachment[] | undefined): string {
+export function formatAttachmentFreshnessTag(attachment: PeerAttachment): string {
+  return formatFreshnessStatusTag(checkAttachmentFreshness(attachment));
+}
+
+export function formatAttachmentFreshnessBanner(
+  attachments: PeerAttachment[] | undefined,
+  statuses?: ReadonlyArray<FileFreshnessStatus | undefined>,
+): string {
   if (!attachments || attachments.length === 0) {
     return "";
   }
-  const flagged = attachments.filter((att) => {
-    const st = checkAttachmentFreshness(att);
-    return st === "changed" || st === "missing" || st === "unreadable";
-  });
-  if (flagged.length === 0) {
+  const resolved = statuses ?? attachments.map((att) => checkAttachmentFreshness(att));
+  const flaggedCount = resolved.filter(
+    (st) => st === "changed" || st === "missing" || st === "unreadable",
+  ).length;
+  if (flaggedCount === 0) {
     return "";
   }
-  return `\n\n⚠️ ${flagged.length}/${attachments.length} pinned file(s) need attention before relying on sent snapshots below.`;
+  return `\n\n⚠️ ${flaggedCount}/${attachments.length} pinned file(s) changed/missing on disk since sent (attachment text below is caller-supplied).`;
 }
 
 export function checkHopLimit(
@@ -140,11 +180,12 @@ export function checkHopLimit(
     !Number.isInteger(effectiveHops) ||
     effectiveHops < 0 ||
     !Number.isInteger(effectiveMax) ||
-    effectiveMax < 1
+    effectiveMax < 1 ||
+    effectiveMax > MAX_ALLOWED_HOPS_CEILING
   ) {
     return {
       ok: false,
-      reason: `Invalid hop configuration (hops=${String(hops)}, maxHops=${String(maxHops)}).`,
+      reason: `Invalid hop configuration (hops=${String(hops)}, maxHops=${String(maxHops)}; ceiling is ${MAX_ALLOWED_HOPS_CEILING}).`,
     };
   }
   if (effectiveHops >= effectiveMax) {
@@ -169,18 +210,23 @@ export function formatReplyContract(contract: PeerReplyContract | undefined): st
   return `a JSON object with required top-level keys: ${contract.required.join(", ")}`;
 }
 
+/**
+ * Always returns a clearly NON-VALID placeholder showing allowed choices so copying
+ * the reply hint can never rubber-stamp an approval (e.g. "<yes|no>", never "yes").
+ */
 export function formatReplyContractExample(contract: PeerReplyContract | undefined): string {
   if (!contract || contract.type === "any") {
-    return "...";
+    return "<YOUR_REPLY>";
   }
   if (contract.type === "yes_no") {
-    return "yes";
+    return "<yes|no>";
   }
   if (contract.type === "one_of") {
-    return contract.values[0] ?? "...";
+    const shown = contract.values.slice(0, 4).join("|");
+    return `<${shown || "CHOICE"}>`;
   }
-  const sample = Object.fromEntries(contract.required.map((k) => [k, "..."]));
-  return JSON.stringify(sample);
+  const inner = contract.required.map((k) => `${JSON.stringify(k)}: <...>`).join(", ");
+  return `{${inner || '"<key>": <value>'}}`;
 }
 
 export function validateReplyContract(
@@ -229,5 +275,6 @@ export function validateReplyContract(
       reason: `JSON reply is missing required top-level keys: ${missing.join(", ")}.`,
     };
   }
-  return { ok: true, normalized: JSON.stringify(record) };
+  // Preserve original JSON string so large integers/formatting aren't altered lossily
+  return { ok: true, normalized: trimmed };
 }

@@ -11,7 +11,10 @@ export class ReplyTracker {
   private readonly pending = new Map<string, PendingInboundMessage>();
 
   recordIncomingMessage(from: PeerPresence, message: PeerMessage, receivedAt: number): void {
-    if (message.replyTo || message.expectsReply === false) {
+    if (message.expectsReply === false) {
+      return;
+    }
+    if (message.replyTo && message.expectsReply !== true) {
       return;
     }
 

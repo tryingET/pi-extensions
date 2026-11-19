@@ -5,15 +5,21 @@
 // ---
 import type { PeerAttachment, PeerMessage, PeerPresence } from "./contracts.ts";
 import {
+  checkAttachmentFreshness,
+  type FileFreshnessStatus,
   formatAttachmentFreshnessBanner,
-  formatAttachmentFreshnessTag,
+  formatFreshnessStatusTag,
   formatReplyContract,
 } from "./mycel-hygiene.ts";
 
 const PENDING_PREVIEW_LENGTH = 80;
 
 export function shortSessionId(sessionId: string): string {
-  const stripped = sessionId.startsWith("session-") ? sessionId.slice(8) : sessionId;
+  const stripped = sessionId.startsWith("session-nodecode-")
+    ? sessionId.slice(17)
+    : sessionId.startsWith("session-")
+      ? sessionId.slice(8)
+      : sessionId;
   return stripped.slice(0, 8);
 }
 
@@ -21,8 +27,11 @@ export function escapeToolString(value: string): string {
   return JSON.stringify(value);
 }
 
-function formatAttachment(attachment: PeerAttachment): string {
-  const freshness = formatAttachmentFreshnessTag(attachment);
+function formatAttachment(
+  attachment: PeerAttachment,
+  status: FileFreshnessStatus | undefined,
+): string {
+  const freshness = formatFreshnessStatusTag(status);
   if (attachment.language) {
     return `\n\n---\n📎 ${attachment.name}${freshness}\n\`\`\`${attachment.language}\n${attachment.content}\n\`\`\``;
   }
@@ -35,7 +44,8 @@ export function formatAttachments(attachments: PeerAttachment[] | undefined): st
     return "";
   }
 
-  return `${formatAttachmentFreshnessBanner(attachments)}${attachments.map((attachment) => formatAttachment(attachment)).join("")}`;
+  const statuses = attachments.map((attachment) => checkAttachmentFreshness(attachment));
+  return `${formatAttachmentFreshnessBanner(attachments, statuses)}${attachments.map((attachment, idx) => formatAttachment(attachment, statuses[idx])).join("")}`;
 }
 
 export function duplicateSessionNames(peers: PeerPresence[]): Set<string> {

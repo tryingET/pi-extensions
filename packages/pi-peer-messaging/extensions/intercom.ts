@@ -131,6 +131,11 @@ const INTERCOM_TOOL_PARAMETERS = {
       type: "string",
       description: "Exact message id to reply to or thread under",
     },
+    expectsReply: {
+      type: "boolean",
+      description:
+        "Set to false on fire-and-forget informs so receivers keep pending clean (defaults to answerable on send, true on ask)",
+    },
     hops: {
       type: "number",
       description: "Current relay hop depth (0 for operator-initiated turns)",

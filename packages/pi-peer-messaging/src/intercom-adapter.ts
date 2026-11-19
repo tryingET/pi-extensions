@@ -50,6 +50,7 @@ export interface IntercomToolRequest {
   message?: string;
   attachments?: PeerAttachment[];
   replyTo?: string;
+  expectsReply?: boolean;
   hops?: number;
   maxHops?: number;
   replyContract?: PeerReplyContract;
@@ -140,7 +141,8 @@ export class IntercomCompatibleAdapter {
     this.notifyPeerProtocolWaiters();
 
     const exampleReply = formatReplyContractExample(message.replyContract);
-    const suppressReplyHint = Boolean(message.replyTo) || message.expectsReply === false;
+    const suppressReplyHint =
+      message.expectsReply === false || (Boolean(message.replyTo) && message.expectsReply !== true);
     const entry = {
       from,
       message,
@@ -350,6 +352,13 @@ export class IntercomCompatibleAdapter {
       return textResult("Missing 'to' or 'message' parameter", { isError: true });
     }
 
+    if (request.replyContract && request.expectsReply === false) {
+      return textResult(
+        "Cannot combine replyContract with expectsReply: false; use action 'ask' for contracted replies.",
+        { isError: true, details: { delivered: false, reason: "invalid_contract_on_inform" } },
+      );
+    }
+
     const hopCheck = checkHopLimit(request.hops, request.maxHops);
     if (!hopCheck.ok) {
       return textResult(`Message to "${request.to}" was not delivered: ${hopCheck.reason}`, {
@@ -364,7 +373,7 @@ export class IntercomCompatibleAdapter {
         message: createPeerMessage(request.message, {
           attachments: request.attachments,
           replyTo: request.replyTo,
-          expectsReply: request.replyTo ? undefined : false,
+          expectsReply: request.expectsReply,
           hops: request.hops,
           maxHops: request.maxHops,
           replyContract: request.replyContract,
