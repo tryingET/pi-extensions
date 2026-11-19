@@ -1,10 +1,11 @@
 // ---
-// summary: tests mycel-inspired file freshness pinning, hop guards, and replier-side reply contracts
+// summary: tests mycel-inspired explicit-path file freshness, hop guards, own-key reply contracts, and inform/id ergonomics
 // read_when:
-//   - changing src/mycel-hygiene.ts, contracts.ts, or intercom-adapter.ts reply validation
+//   - changing src/mycel-hygiene.ts, contracts.ts, intercom-peer-format.ts, or intercom-adapter.ts
 // ---
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -17,14 +18,26 @@ import {
   validateReplyContract,
 } from "../index.ts";
 import { createIntercomCompatibleAdapter } from "../src/intercom-adapter.ts";
-import { formatMessageBody } from "../src/intercom-peer-format.ts";
+import {
+  formatElapsedSeconds,
+  formatMessageBody,
+  shortSessionId,
+} from "../src/intercom-peer-format.ts";
 
-test("pinFileAttachments stamps sha256 and detects unchanged, changed, and gone files", () => {
-  const scratchRoot = "/data/ai-society-scratch";
-  const dir = mkdtempSync(path.join(scratchRoot, "pi-peer-fresh-"));
+test("pinFileAttachments pins only explicit absolute paths and detects unchanged, changed, missing, and non-path names", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "pi-peer-fresh-"));
   try {
     const filePath = path.join(dir, "spec.md");
     writeFileSync(filePath, "v1\n", "utf8");
+
+    // Display name without explicit path MUST NOT be hashed against local cwd (e.g., package.json)
+    const unpinned = pinFileAttachments([
+      { type: "file", name: "package.json", content: "unrelated\n" },
+    ]);
+    const firstUnpinned = unpinned?.[0];
+    assert.ok(firstUnpinned);
+    assert.equal(firstUnpinned.sha256, undefined);
+    assert.equal(checkAttachmentFreshness(firstUnpinned), undefined);
 
     const pinned = pinFileAttachments([
       { type: "file", name: "spec.md", path: filePath, content: "v1\n" },
@@ -38,6 +51,7 @@ test("pinFileAttachments stamps sha256 and detects unchanged, changed, and gone 
       content: { text: "Check spec", attachments: pinned },
     });
     assert.match(unchangedBody, /\(unchanged since sent\)/);
+    assert.doesNotMatch(unchangedBody, /need attention/);
 
     writeFileSync(filePath, "v2 modified\n", "utf8");
     assert.equal(checkAttachmentFreshness(pinned[0]), "changed");
@@ -46,37 +60,34 @@ test("pinFileAttachments stamps sha256 and detects unchanged, changed, and gone 
       timestamp: 1001,
       content: { text: "Check spec", attachments: pinned },
     });
-    assert.match(changedBody, /\(CHANGED since sent\)/);
+    assert.match(changedBody, /1\/1 pinned file\(s\) need attention/);
+    assert.match(changedBody, /\(CHANGED since sent — sent snapshot follows\)/);
 
     unlinkSync(filePath);
-    assert.equal(checkAttachmentFreshness(pinned[0]), "gone");
-    const goneBody = formatMessageBody({
+    assert.equal(checkAttachmentFreshness(pinned[0]), "missing");
+    const missingBody = formatMessageBody({
       id: "m-3",
       timestamp: 1002,
       content: { text: "Check spec", attachments: pinned },
     });
-    assert.match(goneBody, /\(gone since sent\)/);
+    assert.match(missingBody, /\(missing since sent — sent snapshot follows\)/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("hop guard fails closed at maxHops in send and ask without touching runtime", async () => {
+test("hop guard fails closed at maxHops and replies propagate causal hop depth", async () => {
   assert.equal(checkHopLimit(0, 4).ok, true);
   assert.equal(checkHopLimit(3, 4).ok, true);
   assert.equal(checkHopLimit(4, 4).ok, false);
 
-  let sendCalls = 0;
-  let askCalls = 0;
+  const sentMessages: Array<{ hops?: number; maxHops?: number }> = [];
   const runtime = createStubPeerMessagingRuntime({
-    send: async () => {
-      sendCalls += 1;
-      return { delivered: true, messageId: "m-1" };
+    send: async ({ message }) => {
+      sentMessages.push({ hops: message.hops, maxHops: message.maxHops });
+      return { delivered: true, messageId: message.id };
     },
-    ask: async () => {
-      askCalls += 1;
-      return { id: "r-1", timestamp: 2000, content: { text: "ok" } };
-    },
+    ask: async () => ({ id: "r-1", timestamp: 2000, content: { text: "ok" } }),
   });
   const adapter = createIntercomCompatibleAdapter({ now: () => 1000 });
 
@@ -88,86 +99,104 @@ test("hop guard fails closed at maxHops in send and ask without touching runtime
     maxHops: 4,
   });
   assert.equal(sendRes.isError, true);
-  assert.match(sendRes.content[0]?.text ?? "", /Hop limit reached/);
-  assert.equal(sendCalls, 0);
+  assert.equal(sentMessages.length, 0);
 
-  const askRes = await adapter.execute(runtime, {
-    action: "ask",
-    to: "worker",
-    message: "looping ask",
-    hops: 5,
+  // Incoming message with hops=1 -> reply propagates hops=2 and maxHops=3
+  adapter.handleIncomingMessage(
+    {
+      id: "session-12345678-aaaa",
+      name: "asker",
+      addressLabel: "asker",
+      cwd: "/repo",
+      model: "test",
+      pid: 1,
+      startedAt: 100,
+      lastActivity: 1000,
+    },
+    { id: "q-hop", timestamp: 1000, hops: 1, maxHops: 3, content: { text: "ping" } },
+  );
+  const replyRes = await adapter.execute(runtime, {
+    action: "reply",
+    replyTo: "q-hop",
+    message: "pong",
   });
-  assert.equal(askRes.isError, true);
-  assert.match(askRes.content[0]?.text ?? "", /Hop limit reached/);
-  assert.equal(askCalls, 0);
+  assert.equal(replyRes.isError, undefined);
+  assert.deepEqual(sentMessages, [{ hops: 2, maxHops: 3 }]);
 });
 
-test("replier-side replyContract validates replies before sending and normalizes valid answers", async () => {
-  assert.deepEqual(validateReplyContract({ type: "yes_no" }, "Yes"), {
+test("own-key JSON contract, verbatim any replies, and both replier-side & asker-side enforcement", async () => {
+  assert.deepEqual(validateReplyContract({ type: "any" }, "  keep indent\n"), {
     ok: true,
-    normalized: "yes",
+    normalized: "  keep indent\n",
   });
-  assert.equal(validateReplyContract({ type: "yes_no" }, "maybe").ok, false);
-  assert.deepEqual(validateReplyContract({ type: "one_of", values: ["go", "hold"] }, "GO"), {
-    ok: true,
-    normalized: "go",
-  });
+  // Inherited prototype key ("toString") must NOT satisfy json_keys!
   assert.equal(
-    validateReplyContract(
-      { type: "json_keys", required: ["decision", "reason"] },
-      '{"decision":"ok"}',
-    ).ok,
+    validateReplyContract({ type: "json_keys", required: ["toString"] }, '{"ok":true}').ok,
     false,
   );
   assert.equal(
-    validateReplyContract(
-      { type: "json_keys", required: ["decision", "reason"] },
-      '{"decision":"ok","reason":"tested"}',
-    ).ok,
+    validateReplyContract({ type: "json_keys", required: ["status"] }, '{"meta":{"status":"ok"}}')
+      .ok,
+    false,
+  );
+  assert.equal(
+    validateReplyContract({ type: "json_keys", required: ["status"] }, '{"status":"ok"}').ok,
     true,
   );
 
-  const sentTexts: string[] = [];
-  const runtime = createStubPeerMessagingRuntime({
-    send: async ({ message }) => {
-      sentTexts.push(message.content.text);
-      return { delivered: true, messageId: message.id };
-    },
+  // Asker-side enforcement catches incompatible peer returning prose to a typed ask
+  const badPeerRuntime = createStubPeerMessagingRuntime({
+    ask: async ({ message }) => ({
+      id: "r-bad",
+      timestamp: 2000,
+      replyTo: message.id,
+      content: { text: "maybe" },
+    }),
   });
   const adapter = createIntercomCompatibleAdapter({ now: () => 1000 });
-  const from = {
-    id: "session-asker",
-    name: "asker",
-    addressLabel: "asker",
-    cwd: "/tmp/repo",
-    model: "test",
-    pid: 123,
-    startedAt: 900,
-    lastActivity: 1000,
-  };
-  const inbound = {
-    id: "q-1",
+  const askRes = await adapter.execute(badPeerRuntime, {
+    action: "ask",
+    to: "worker",
+    message: "Deploy?",
+    replyContract: { type: "yes_no" },
+  });
+  assert.equal(askRes.isError, true);
+  assert.match(askRes.content[0]?.text ?? "", /violated replyContract/);
+});
+
+test("shortSessionId strips session- prefix, ages format compactly, and expectsReply:false informs stay out of pending", async () => {
+  assert.equal(shortSessionId("session-01a1f2a2-1a67-7251"), "01a1f2a2");
+  assert.equal(shortSessionId("worker-abcd1234"), "worker-a");
+  assert.equal(formatElapsedSeconds(1000, 46_000), "45s ago");
+  assert.equal(formatElapsedSeconds(1000, 121_000), "2m ago");
+  assert.equal(formatElapsedSeconds(1000, 90_000_000), "1d ago");
+
+  const captured: Array<{ replyCommand?: string }> = [];
+  const adapter = createIntercomCompatibleAdapter({
+    now: () => 1000,
+    onIncomingMessage: (entry) => captured.push({ replyCommand: entry.replyCommand }),
+  });
+  const inform = {
+    id: "inf-1",
     timestamp: 1000,
-    replyContract: { type: "yes_no" as const },
-    content: { text: "Proceed with deploy?" },
+    expectsReply: false,
+    content: { text: "FYI done." },
   };
-  assertPeerMessage(inbound);
-  adapter.handleIncomingMessage(from, inbound);
-
-  const badReply = await adapter.execute(runtime, {
-    action: "reply",
-    replyTo: "q-1",
-    message: "maybe later",
-  });
-  assert.equal(badReply.isError, true);
-  assert.match(badReply.content[0]?.text ?? "", /Reply refused before sending/);
-  assert.equal(sentTexts.length, 0);
-
-  const goodReply = await adapter.execute(runtime, {
-    action: "reply",
-    replyTo: "q-1",
-    message: "YES",
-  });
-  assert.equal(goodReply.isError, undefined);
-  assert.deepEqual(sentTexts, ["yes"]);
+  assertPeerMessage(inform);
+  adapter.handleIncomingMessage(
+    {
+      id: "session-99998888",
+      name: "worker",
+      addressLabel: "worker",
+      cwd: "/repo",
+      model: "test",
+      pid: 2,
+      startedAt: 100,
+      lastActivity: 1000,
+    },
+    inform,
+  );
+  assert.equal(captured[0]?.replyCommand, undefined);
+  const pending = await adapter.execute(createStubPeerMessagingRuntime(), { action: "pending" });
+  assert.match(pending.content[0]?.text ?? "", /No unresolved inbound messages/);
 });

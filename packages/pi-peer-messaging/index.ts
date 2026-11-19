@@ -39,8 +39,12 @@ export {
   checkHopLimit,
   computeFileSha256,
   DEFAULT_MAX_HOPS,
+  formatAttachmentFreshnessBanner,
   formatAttachmentFreshnessTag,
   formatReplyContract,
+  formatReplyContractExample,
+  inspectFileSha256,
+  MAX_HASH_BYTES,
   pinFileAttachments,
   validateReplyContract,
 } from "./src/mycel-hygiene.ts";

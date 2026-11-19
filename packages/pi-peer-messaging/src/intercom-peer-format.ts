@@ -4,12 +4,17 @@
 //   - changing user-visible peer labels or intercom message formatting
 // ---
 import type { PeerAttachment, PeerMessage, PeerPresence } from "./contracts.ts";
-import { formatAttachmentFreshnessTag, formatReplyContract } from "./mycel-hygiene.ts";
+import {
+  formatAttachmentFreshnessBanner,
+  formatAttachmentFreshnessTag,
+  formatReplyContract,
+} from "./mycel-hygiene.ts";
 
 const PENDING_PREVIEW_LENGTH = 80;
 
 export function shortSessionId(sessionId: string): string {
-  return sessionId.slice(0, 8);
+  const stripped = sessionId.startsWith("session-") ? sessionId.slice(8) : sessionId;
+  return stripped.slice(0, 8);
 }
 
 export function escapeToolString(value: string): string {
@@ -30,7 +35,7 @@ export function formatAttachments(attachments: PeerAttachment[] | undefined): st
     return "";
   }
 
-  return attachments.map((attachment) => formatAttachment(attachment)).join("");
+  return `${formatAttachmentFreshnessBanner(attachments)}${attachments.map((attachment) => formatAttachment(attachment)).join("")}`;
 }
 
 export function duplicateSessionNames(peers: PeerPresence[]): Set<string> {
@@ -86,7 +91,16 @@ export function formatSessionListRow(
 
 export function formatElapsedSeconds(timestamp: number, now: number): string {
   const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
-  return `${elapsedSeconds}s ago`;
+  if (elapsedSeconds < 60) {
+    return `${elapsedSeconds}s ago`;
+  }
+  if (elapsedSeconds < 3600) {
+    return `${Math.floor(elapsedSeconds / 60)}m ago`;
+  }
+  if (elapsedSeconds < 86400) {
+    return `${Math.floor(elapsedSeconds / 3600)}h ago`;
+  }
+  return `${Math.floor(elapsedSeconds / 86400)}d ago`;
 }
 
 export function matchesPeerTarget(peer: PeerPresence, target: string): boolean {
@@ -127,5 +141,5 @@ export function truncatePreview(value: string, maxLength: number = PENDING_PREVI
 export function formatMessageBody(message: PeerMessage): string {
   const contractText = formatReplyContract(message.replyContract);
   const contractNote = contractText ? `\n\n[reply contract: ${contractText}]` : "";
-  return `${message.content.text}${formatAttachments(message.content.attachments)}${contractNote}`;
+  return `${message.content.text}${contractNote}${formatAttachments(message.content.attachments)}`;
 }

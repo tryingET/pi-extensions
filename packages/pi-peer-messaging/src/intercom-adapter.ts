@@ -38,6 +38,7 @@ import {
 import {
   checkHopLimit,
   formatReplyContract,
+  formatReplyContractExample,
   pinFileAttachments,
   validateReplyContract,
 } from "./mycel-hygiene.ts";
@@ -81,6 +82,7 @@ function createPeerMessage(
   options: {
     attachments?: PeerAttachment[];
     replyTo?: string;
+    expectsReply?: boolean;
     hops?: number;
     maxHops?: number;
     replyContract?: PeerReplyContract;
@@ -91,6 +93,7 @@ function createPeerMessage(
     id: randomUUID(),
     timestamp: options.now(),
     replyTo: options.replyTo,
+    ...(options.expectsReply !== undefined ? { expectsReply: options.expectsReply } : {}),
     ...(options.hops !== undefined ? { hops: options.hops } : {}),
     ...(options.maxHops !== undefined ? { maxHops: options.maxHops } : {}),
     ...(options.replyContract !== undefined ? { replyContract: options.replyContract } : {}),
@@ -136,12 +139,14 @@ export class IntercomCompatibleAdapter {
     this.peerProtocolLedger.recordIncomingMessage(from, message, receivedAt);
     this.notifyPeerProtocolWaiters();
 
+    const exampleReply = formatReplyContractExample(message.replyContract);
+    const suppressReplyHint = Boolean(message.replyTo) || message.expectsReply === false;
     const entry = {
       from,
       message,
-      replyCommand: message.replyTo
+      replyCommand: suppressReplyHint
         ? undefined
-        : `intercom({ action: "reply", to: ${escapeToolString(from.id)}, replyTo: ${escapeToolString(message.id)}, message: "..." })`,
+        : `intercom({ action: "reply", to: ${escapeToolString(from.id)}, replyTo: ${escapeToolString(message.id)}, message: ${escapeToolString(exampleReply)} })`,
       bodyText: formatMessageBody(message),
     } satisfies IntercomIncomingMessage;
 
@@ -359,6 +364,7 @@ export class IntercomCompatibleAdapter {
         message: createPeerMessage(request.message, {
           attachments: request.attachments,
           replyTo: request.replyTo,
+          expectsReply: request.replyTo ? undefined : false,
           hops: request.hops,
           maxHops: request.maxHops,
           replyContract: request.replyContract,
@@ -416,6 +422,7 @@ export class IntercomCompatibleAdapter {
       const outboundMessage = createPeerMessage(request.message, {
         attachments: request.attachments,
         replyTo: request.replyTo,
+        expectsReply: true,
         hops: request.hops,
         maxHops: request.maxHops,
         replyContract: request.replyContract,
@@ -428,6 +435,21 @@ export class IntercomCompatibleAdapter {
         timeoutMs: request.timeoutMs,
         signal,
       });
+      const askerContractCheck = validateReplyContract(request.replyContract, reply.content.text);
+      if (!askerContractCheck.ok) {
+        return textResult(
+          `Reply from ${request.to} violated replyContract: ${askerContractCheck.reason}`,
+          {
+            isError: true,
+            details: {
+              outcome: "contract_violation",
+              messageId: reply.id,
+              replyTo: reply.replyTo,
+              reason: askerContractCheck.reason,
+            },
+          },
+        );
+      }
       const replyText = `${reply.content.text}${formatAttachments(reply.content.attachments)}`;
 
       return textResult(`**Reply from ${request.to}:**\n${replyText}`, {
@@ -490,23 +512,26 @@ export class IntercomCompatibleAdapter {
       });
       const contractCheck = validateReplyContract(target.message.replyContract, request.message);
       if (!contractCheck.ok) {
-        const expected = formatReplyContract(target.message.replyContract) ?? "valid reply";
-        return textResult(
-          `Reply refused before sending: ${contractCheck.reason} (contract: ${expected})`,
-          {
-            isError: true,
-            details: {
-              delivered: false,
-              replyTo: target.message.id,
-              reason: contractCheck.reason,
-            },
+        const expected = formatReplyContract(target.message.replyContract);
+        const suffix =
+          expected && !contractCheck.reason.includes(expected) ? ` (expected: ${expected})` : "";
+        return textResult(`Reply refused before sending: ${contractCheck.reason}${suffix}`, {
+          isError: true,
+          details: {
+            delivered: false,
+            replyTo: target.message.id,
+            reason: contractCheck.reason,
           },
-        );
+        });
       }
+      const parentHops = target.message.hops;
+      const nextHops = parentHops !== undefined ? parentHops + 1 : undefined;
       const delivery = await runtime.send({
         to: target.from.id,
         message: createPeerMessage(contractCheck.normalized, {
           replyTo: target.message.id,
+          hops: nextHops,
+          maxHops: target.message.maxHops,
           now: this.now,
         }),
       });

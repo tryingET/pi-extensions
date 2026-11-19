@@ -19,6 +19,7 @@ import {
   type IntercomToolRequest,
   type IntercomToolResponse,
 } from "../src/intercom-adapter.ts";
+import { shortSessionId } from "../src/intercom-peer-format.ts";
 
 export interface IntercomSessionManager {
   getCwd(): string;
@@ -195,7 +196,7 @@ function resolveModelId(ctx: IntercomExtensionContext | undefined): string {
 
 function formatIncomingSender(entry: IntercomIncomingMessage): string {
   const senderName = entry.from.name?.trim() || entry.from.addressLabel || entry.from.id;
-  return `${senderName} (${entry.from.id.slice(0, 8)})`;
+  return `${senderName} (${shortSessionId(entry.from.id)})`;
 }
 
 function formatIncomingContent(entry: IntercomIncomingMessage): string {

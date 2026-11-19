@@ -118,6 +118,7 @@ export interface PeerMessage {
   id: string;
   timestamp: number;
   replyTo?: string;
+  expectsReply?: boolean;
   hops?: number;
   maxHops?: number;
   replyContract?: PeerReplyContract;
@@ -300,6 +301,9 @@ export function assertPeerMessage(value: unknown): asserts value is PeerMessage 
   assertNonEmptyString(record.id, "PeerMessage.id");
   assertFiniteNumber(record.timestamp, "PeerMessage.timestamp");
   assertOptionalString(record.replyTo, "PeerMessage.replyTo");
+  if (record.expectsReply !== undefined && typeof record.expectsReply !== "boolean") {
+    throw new TypeError("PeerMessage.expectsReply must be a boolean when provided.");
+  }
   if (record.hops !== undefined) {
     assertNonNegativeInteger(record.hops, "PeerMessage.hops");
   }
