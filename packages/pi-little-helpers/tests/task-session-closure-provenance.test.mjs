@@ -525,10 +525,17 @@ test("V2: Given proxy or npm-read variables in any case, then npm sees none of t
 
 test("the seed lock keeps only registry node_modules entries outside the own scope", () => {
   const lock = lockFixture();
-  lock.packages[""].dependencies["@tryinget/pi-session-compaction"] = "file:../pi-session-compaction";
-  lock.packages["../pi-session-compaction"] = { name: "@tryinget/pi-session-compaction", version: "0.1.0" };
+  lock.packages[""].dependencies["@tryinget/pi-session-compaction"] =
+    "file:../pi-session-compaction";
+  lock.packages["../pi-session-compaction"] = {
+    name: "@tryinget/pi-session-compaction",
+    version: "0.1.0",
+  };
   lock.packages["../pi-session-compaction/node_modules/x"] = entry("x", "1.0.0");
-  lock.packages["node_modules/@tryinget/pi-session-compaction"] = { resolved: "../pi-session-compaction", link: true };
+  lock.packages["node_modules/@tryinget/pi-session-compaction"] = {
+    resolved: "../pi-session-compaction",
+    link: true,
+  };
   lock.packages["node_modules/@tryinget/other"] = entry("@tryinget/other", "1.0.0");
   const seed = closure.seedLockForRuntime(lock);
   assert.deepEqual(Object.keys(seed.packages).sort(), Object.keys(lockFixture().packages).sort());
@@ -542,10 +549,14 @@ test("update-lock refuses an unpinned npm before resolving anything", (t) => {
   const bin = mkdtempSync(join(tmpdir(), "update-lock-npm-"));
   t.after(() => rmSync(bin, { recursive: true, force: true }));
   const calls = join(bin, "calls");
-  writeFileSync(join(bin, "npm"), `#!/bin/sh\necho "$*" >> ${calls}\necho 10.9.9\n`, { mode: 0o755 });
+  writeFileSync(join(bin, "npm"), `#!/bin/sh\necho "$*" >> ${calls}\necho 10.9.9\n`, {
+    mode: 0o755,
+  });
   symlinkSync(process.execPath, join(bin, "node"));
   const result = spawnSync(process.execPath, [join(closure.LOCK_DIR, "update-lock.mjs")], {
-    encoding: "utf8", env: { ...process.env, PATH: bin }, timeout: 30000,
+    encoding: "utf8",
+    env: { ...process.env, PATH: bin },
+    timeout: 30000,
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /npm_not_pinned: PATH has npm 10\.9\.9/);

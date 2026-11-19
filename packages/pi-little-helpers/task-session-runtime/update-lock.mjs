@@ -10,7 +10,14 @@
 // already tests against, except where `overrides` in runtime-package.json moves one on purpose; npm
 // drops what the runtime does not need and adds what it does.
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
