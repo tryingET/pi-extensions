@@ -115,6 +115,21 @@ export function isolatedNpm(args, { online = false } = {}) {
   };
 }
 
+/**
+ * The tracked package lock seeds resolution, but its own-scope links and their path targets
+ * (`../pi-session-compaction`, ...) mean nothing to the runtime: drop them so no npm version can
+ * carry them into the runtime lock (AK8895).
+ */
+export function seedLockForRuntime(lock) {
+  const packages = {};
+  for (const [path, entry] of Object.entries(lock.packages ?? {})) {
+    if (path === "") packages[path] = entry;
+    else if (path.startsWith("node_modules/") && !entry.link && !nameOf(path).startsWith(OWN_SCOPE))
+      packages[path] = entry;
+  }
+  return { ...lock, packages };
+}
+
 /** Npm and every prepack run on PATH's node, so it must be the pin too, not only this process. */
 export function nodeRefusal({ pinned, running, onPath, pinnedNpm, npm }) {
   if (running !== pinned) return `install_node_not_pinned: running ${running}, pin ${pinned}`;

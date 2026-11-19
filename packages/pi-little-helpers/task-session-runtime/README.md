@@ -69,6 +69,9 @@ vulnerability. A frozen lock also ages: advisories published afterwards still ap
 node task-session-runtime/update-lock.mjs
 ```
 
+It runs only on the pinned Node and npm of `policy/ci-toolchain-lock.json` (another npm resolves the
+seed differently) and seeds without the package's own-scope links and their `../` path targets.
+
 This is the only step that resolves anything. It seeds from the tracked `package-lock.json`, prints every
 version change, and refuses a lock with an own package, a non-registry source, a missing integrity, a
 drifted `@earendil-works` package or a stale override. The new lock replaces the old one by rename, so
