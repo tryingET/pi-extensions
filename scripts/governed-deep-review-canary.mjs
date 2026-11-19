@@ -1014,13 +1014,14 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
   mkdirSync(stateHome, { recursive: true });
   const previous = {
     VAULT_DIR: process.env.VAULT_DIR,
-    PI_COMPANY: process.env.PI_COMPANY,
+    VAULT_CURRENT_COMPANY: process.env.VAULT_CURRENT_COMPANY,
     XDG_STATE_HOME: process.env.XDG_STATE_HOME,
   };
   try {
     createVaultFixture(vaultDir);
     process.env.VAULT_DIR = vaultDir;
-    process.env.PI_COMPANY = "software";
+    // pi-vault-client reads only VAULT_CURRENT_COMPANY (5f10f64c8); PI_COMPANY is ignored.
+    process.env.VAULT_CURRENT_COMPANY = "software";
     process.env.XDG_STATE_HOME = stateHome;
 
     const harness = createPiHarness();
