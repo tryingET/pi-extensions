@@ -11,6 +11,7 @@ import {
   AK_TASK_CHIP_DEFERRED,
   AK_TASK_CHIP_ORPHANED,
   claimIsLive,
+  createDirectoryAkEnricher,
   cwdIsInsideRepo,
   enrichDirectoryAkTasks,
   joinAkTaskChips,
@@ -376,4 +377,66 @@ test("directory AK enrichment carries tasks beyond card chip overflow across wor
     })[0].akTasks,
     undefined,
   );
+});
+
+test("directory AK enricher memoizes unchanged inputs and evicts on lease expiry or session change", () => {
+  const claims = parseAkClaimList(
+    JSON.stringify([
+      claimRow({ id: 5701 }),
+      claimRow({ id: 5432, claimed_by: `session-${SESSION_DEAD}` }),
+    ]),
+  );
+  assert.equal(claims.ok, true);
+  if (!claims.ok) return;
+  const cardA = card();
+  const entries = [
+    {
+      cardId: cardA.cardId,
+      label: "pi-extensions",
+      windowId: 43,
+      workspaceId: 101,
+      workspaceIdx: 2,
+      workspaceName: null,
+      hiddenTab: false,
+      current: false,
+    },
+  ];
+  const cards = new Map([[cardA.cardId, cardA]]);
+  const akTasks = { claims: claims.claims, deferred: [] };
+  const enrich = createDirectoryAkEnricher();
+  const bothLive = [{ sessionId: SESSION_A }, { sessionId: SESSION_DEAD }];
+
+  const first = enrich({ entries, cards, akTasks, rawSessions: bothLive, nowMs: NOW });
+  const second = enrich({ entries, cards, akTasks, rawSessions: bothLive, nowMs: NOW + 1_000 });
+  assert.equal(second, first, "unchanged inputs reuse the cached array before lease expiry");
+  assert.deepEqual(
+    first[0].akTasks?.map((t) => [t.id, t.state]),
+    [[5701, AK_TASK_CHIP_ACTIVE]],
+  );
+
+  const afterSessionDrop = enrich({
+    entries,
+    cards,
+    akTasks,
+    rawSessions: [{ sessionId: SESSION_A }],
+    nowMs: NOW + 1_000,
+  });
+  assert.notEqual(afterSessionDrop, first, "session departure invalidates cache");
+  assert.deepEqual(
+    afterSessionDrop[0].akTasks?.map((t) => [t.id, t.state]),
+    [
+      [5701, AK_TASK_CHIP_ACTIVE],
+      [5432, AK_TASK_CHIP_ORPHANED],
+    ],
+  );
+
+  const afterExpiry = enrich({
+    entries,
+    cards,
+    akTasks,
+    rawSessions: bothLive,
+    nowMs: Date.parse(LIVE_LEASE),
+  });
+  assert.notEqual(afterExpiry, first, "lease expiry invalidates cache immediately");
+  assert.equal(afterExpiry[0].akTasks, undefined);
 });

@@ -3,7 +3,8 @@ pub use crate::directory_search::{
     JumpChoice, is_query_char, jump_choice_with_selection, push_query_char, step_selection,
 };
 use crate::directory_search::{
-    MatchKind, filter_entries_with_matches, status_text_with_selection, strip_session_prefix,
+    MatchKind, filter_entries_with_matches, format_status_from_shown, resolve_choice_from_shown,
+    status_text_with_selection, strip_session_prefix,
 };
 use crate::protocol::WindowEntry;
 use relm4::Sender;
@@ -124,7 +125,8 @@ impl DirectoryView {
             }
         }
         let mut retained = self.rows.first_child();
-        let choice = jump_choice_with_selection(windows, query, allow_unlisted, selected_card_id);
+        let choice =
+            resolve_choice_from_shown(windows, &shown, query, allow_unlisted, selected_card_id);
         for (item, subtitle) in shown.iter().zip(&subtitles) {
             let entry = item.entry;
             let chosen = match &choice {
@@ -158,13 +160,12 @@ impl DirectoryView {
             empty.set_xalign(0.0);
             self.rows.append(&empty);
         }
-        self.status.set_text(&status_text_with_selection(
-            windows,
+        self.status.set_text(&format_status_from_shown(
+            &shown,
             query,
+            choice.as_ref(),
             can_type,
-            allow_unlisted,
             hotkey,
-            selected_card_id,
         ));
     }
 

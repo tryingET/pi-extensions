@@ -83,7 +83,14 @@ function normalizeRepoPath(value) {
  */
 export function cwdIsInsideRepo(cardCwd, taskRepo) {
   if (!isString(cardCwd)) return false;
-  const cwd = cardCwd.trim().replace(/\/+$/, "");
+  return normalizedCwdIsInsideRepo(cardCwd.trim().replace(/\/+$/, ""), taskRepo);
+}
+
+/**
+ * @param {string} cwd already trimmed and stripped of trailing slashes
+ * @param {string} taskRepo
+ */
+function normalizedCwdIsInsideRepo(cwd, taskRepo) {
   return cwd.length > 0 && (cwd === taskRepo || cwd.startsWith(`${taskRepo}/`));
 }
 
@@ -204,19 +211,17 @@ function activeClaimsByCardId(cards, claims, deferredIds, nowMs) {
   }
   /** @type {Map<string, import("./contracts.ts").AkTaskClaim[]>} */
   const byCardId = new Map();
-  for (const card of cards) {
-    const cardId = String(card.cardId ?? "");
-    byCardId.set(
-      cardId,
-      claims
-        .filter((claim) => claimIsLive(claim, nowMs))
-        .filter((claim) => !deferredIds.has(claim.id))
-        .filter((claim) => {
-          const cardIds = sessionIdToCardIds.get(claim.sessionId);
-          return cardIds?.size === 1 && cardIds.has(cardId);
-        })
-        .sort(compareClaimsNewestFirst),
-    );
+  for (const claim of claims) {
+    if (!claimIsLive(claim, nowMs) || deferredIds.has(claim.id)) continue;
+    const cardIds = sessionIdToCardIds.get(claim.sessionId);
+    if (cardIds?.size !== 1) continue;
+    const [cardId] = cardIds;
+    const list = byCardId.get(cardId);
+    if (list) list.push(claim);
+    else byCardId.set(cardId, [claim]);
+  }
+  for (const list of byCardId.values()) {
+    if (list.length > 1) list.sort(compareClaimsNewestFirst);
   }
   return byCardId;
 }
@@ -279,8 +284,15 @@ export function joinAkTaskChips({
   const byCardId = activeClaimsByCardId(cards, claims, deferredIds, nowMs);
 
   const liveClaims = claims.filter((claim) => claimIsLive(claim, nowMs));
-  const orphanedClaims = liveClaims.filter((claim) => !liveIds.has(claim.sessionId));
+  const orphanedClaims = liveClaims
+    .filter((claim) => !liveIds.has(claim.sessionId))
+    .sort(compareOrphansSoonestVacantFirst);
   const orphanedIds = new Set(orphanedClaims.map((claim) => claim.id));
+  const sortedDeferred = deferred
+    .filter((task) => !orphanedIds.has(task.id))
+    .sort((left, right) => left.id - right.id);
+  /** Memoize repo-matched lists per unique normalized cwd (many tabs share one repo). @type {Map<string, {orphaned: import("./contracts.ts").AkTaskClaim[]; deferred: import("./contracts.ts").AkTaskDeferred[]}>} */
+  const repoMatchesByCwd = new Map();
 
   /** @type {number} */
   let renderedActive = 0;
@@ -293,16 +305,27 @@ export function joinAkTaskChips({
     const cardActive = byCardId.get(String(card.cardId ?? "")) ?? [];
     const active = cardActive.slice(0, maxActiveChips);
     const activeOverflow = Math.max(0, cardActive.length - active.length);
-    const activeIds = new Set(cardActive.map((claim) => claim.id));
-    const cwd = String(card.cwd ?? "");
+    const activeIds = cardActive.length > 0 ? new Set(cardActive.map((claim) => claim.id)) : null;
+    const normalizedCwd = isString(card.cwd) ? card.cwd.trim().replace(/\/+$/, "") : "";
 
-    const orphaned = orphanedClaims
-      .filter((claim) => cwdIsInsideRepo(cwd, claim.repo))
-      .sort(compareOrphansSoonestVacantFirst);
-    const deferredForCard = deferred
-      .filter((task) => cwdIsInsideRepo(cwd, task.repo) && !orphanedIds.has(task.id))
-      .filter((task) => !activeIds.has(task.id))
-      .sort((left, right) => left.id - right.id);
+    let repoMatches = repoMatchesByCwd.get(normalizedCwd);
+    if (!repoMatches) {
+      repoMatches = normalizedCwd
+        ? {
+            orphaned: orphanedClaims.filter((claim) =>
+              normalizedCwdIsInsideRepo(normalizedCwd, claim.repo),
+            ),
+            deferred: sortedDeferred.filter((task) =>
+              normalizedCwdIsInsideRepo(normalizedCwd, task.repo),
+            ),
+          }
+        : { orphaned: [], deferred: [] };
+      repoMatchesByCwd.set(normalizedCwd, repoMatches);
+    }
+    const { orphaned } = repoMatches;
+    const deferredForCard = activeIds
+      ? repoMatches.deferred.filter((task) => !activeIds.has(task.id))
+      : repoMatches.deferred;
     const badges = [...orphaned, ...deferredForCard].slice(0, maxBadgeChips);
     const badgeOverflow = Math.max(0, orphaned.length + deferredForCard.length - badges.length);
 
@@ -411,4 +434,61 @@ export function enrichDirectoryAkTasks({
       ? { ...entry, akTasks: akTasksForEntry }
       : entry;
   });
+}
+
+/**
+ * Memoizes `enrichDirectoryAkTasks` across high-frequency broker telemetry ticks when neither the
+ * directory, the AK poll snapshot, nor the set of live session ids changed — while still evicting
+ * on time as soon as any live claim lease expires (`nowMs >= nextLeaseExpiryMs`).
+ */
+export function createDirectoryAkEnricher() {
+  /** @type {{entries: unknown; cards: unknown; akTasks: unknown; liveKey: string; nextExpiryMs: number; result: import("./workspace-view.mjs").WindowDirectoryEntry[]} | null} */
+  let cache = null;
+  /** @param {Parameters<typeof enrichDirectoryAkTasks>[0]} options */
+  return function enrich(options) {
+    const {
+      entries,
+      cards,
+      akTasks,
+      rawSessions = [],
+      liveSessionIds,
+      nowMs = Date.now(),
+    } = options;
+    if (!akTasks || entries.length === 0) {
+      cache = null;
+      return entries;
+    }
+    const liveIds =
+      liveSessionIds instanceof Set
+        ? liveSessionIds
+        : liveSessionIds
+          ? new Set([...liveSessionIds].map(String))
+          : new Set(rawSessions.map((session) => String(session.sessionId ?? "")).filter(Boolean));
+    const liveKey = [...liveIds].sort().join("\u001f");
+    if (
+      cache &&
+      cache.entries === entries &&
+      cache.cards === cards &&
+      cache.akTasks === akTasks &&
+      cache.liveKey === liveKey &&
+      nowMs < cache.nextExpiryMs
+    ) {
+      return cache.result;
+    }
+    let nextExpiryMs = Number.POSITIVE_INFINITY;
+    for (const claim of akTasks.claims ?? []) {
+      if (claim.leaseExpiresAt > nowMs && claim.leaseExpiresAt < nextExpiryMs) {
+        nextExpiryMs = claim.leaseExpiresAt;
+      }
+    }
+    const result = enrichDirectoryAkTasks({
+      entries,
+      cards,
+      akTasks,
+      liveSessionIds: liveIds,
+      nowMs,
+    });
+    cache = { entries, cards, akTasks, liveKey, nextExpiryMs, result };
+    return result;
+  };
 }

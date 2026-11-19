@@ -3,7 +3,7 @@
 // read_when:
 //   - "changing native panel card membership, focus, or transport revisions"
 // ---
-import { enrichDirectoryAkTasks, joinAkTaskChips } from "../common/ak-tasks.mjs";
+import { createDirectoryAkEnricher, joinAkTaskChips } from "../common/ak-tasks.mjs";
 import { resolveSnapshotSession } from "../common/niri-focus.mjs";
 import { projectSessionCards, sessionRecordKey } from "../common/session-cards.mjs";
 import { classifyAdmittedWindowFocus } from "../common/workspace-view.mjs";
@@ -73,6 +73,7 @@ export function createNativePanelProjection({
   let focusContextValid = false;
 
   const neutralSource = createNeutralSource(getWindowFacts, env);
+  const enrichDirectory = createDirectoryAkEnricher();
   const presentation = createPanelPresentation({
     getWindowFacts,
     getCards: getDisplaySessions,
@@ -214,7 +215,7 @@ export function createNativePanelProjection({
       focusedCardId,
       generatedAt: snapshot.generatedAt,
       sessions,
-      windows: enrichDirectoryAkTasks({ ...directory, akTasks, rawSessions: allSessions() }),
+      windows: enrichDirectory({ ...directory, akTasks, rawSessions: allSessions() }),
       hotkey,
     };
   }

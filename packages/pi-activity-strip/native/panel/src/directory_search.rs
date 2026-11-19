@@ -58,6 +58,81 @@ pub struct FilteredEntry<'a> {
     pub match_kind: Option<MatchKind>,
 }
 
+/// Pre-parsed query facts computed once per search pass instead of per directory entry.
+struct ParsedQuery {
+    needle: String,
+    win_digits: Option<String>,
+    win_number: Option<i64>,
+    ak_bare: bool,
+    ak_digits: Option<String>,
+    ak_number: Option<i64>,
+    ak_title_needle: Option<String>,
+    session_stripped: String,
+    session_compact: String,
+    session_explicit: bool,
+    session_can_prefix: bool,
+    session_can_substring: bool,
+}
+
+impl ParsedQuery {
+    fn new(query: &str) -> Self {
+        let needle = query.to_lowercase();
+        let win_digits = window_number_digits(&needle).map(str::to_owned);
+        let win_number = win_digits.as_deref().and_then(parse_positive_id);
+        let ak_bare = matches!(needle.as_str(), "ak" | "ak-" | "ak:");
+        let ak_digits = needle
+            .strip_prefix("ak")
+            .and_then(|rest| {
+                let d = rest
+                    .strip_prefix('-')
+                    .or_else(|| rest.strip_prefix(':'))
+                    .unwrap_or(rest);
+                (!d.is_empty() && d.chars().all(|c| c.is_ascii_digit())).then(|| d.to_owned())
+            })
+            .or_else(|| win_digits.clone());
+        let ak_number = ak_digits.as_deref().and_then(parse_positive_id);
+        let ak_title_needle = match needle
+            .strip_prefix("ak:")
+            .or_else(|| needle.strip_prefix("ak-"))
+        {
+            Some(r) if !r.is_empty() && !r.chars().all(|c| c.is_ascii_digit()) => Some(r.into()),
+            _ if needle.chars().count() >= MIN_TASK_TITLE_CHARS => Some(needle.clone()),
+            _ => None,
+        };
+        let (stripped, session_explicit) = strip_session_prefix(&needle);
+        let session_stripped = stripped.to_owned();
+        let session_compact: String = session_stripped.chars().filter(|c| *c != '-').collect();
+        let min_prefix = if session_explicit {
+            1
+        } else if session_compact.chars().all(|c| c.is_ascii_digit()) {
+            MIN_BARE_SESSION_SUBSTRING
+        } else if session_compact.chars().all(|c| c.is_ascii_hexdigit()) {
+            MIN_BARE_SESSION_PREFIX
+        } else {
+            2
+        };
+        let min_sub = if session_explicit {
+            1
+        } else {
+            MIN_BARE_SESSION_SUBSTRING
+        };
+        Self {
+            session_can_prefix: !session_compact.is_empty() && session_compact.len() >= min_prefix,
+            session_can_substring: !session_compact.is_empty() && session_compact.len() >= min_sub,
+            needle,
+            win_digits,
+            win_number,
+            ak_bare,
+            ak_digits,
+            ak_number,
+            ak_title_needle,
+            session_stripped,
+            session_compact,
+            session_explicit,
+        }
+    }
+}
+
 /// Append a typed character: letters, digits, and separators of project names, AK refs, and ids.
 pub fn push_query_char(query: &mut String, character: char) -> bool {
     if !is_query_char(character) || query.chars().count() >= MAX_QUERY_CHARS {
@@ -86,11 +161,12 @@ pub fn filter_entries_with_matches<'a>(
             })
             .collect();
     }
+    let parsed = ParsedQuery::new(query);
     let mut ranked: Vec<(u8, usize, FilteredEntry<'a>)> = windows
         .iter()
         .enumerate()
         .filter_map(|(index, entry)| {
-            let kind = match_entry(entry, query)?;
+            let kind = match_parsed(entry, &parsed)?;
             Some((
                 kind.rank(),
                 index,
@@ -115,10 +191,10 @@ pub fn filter_entries<'a>(windows: &'a [WindowEntry], query: &str) -> Vec<&'a Wi
         .collect()
 }
 
-/// What Enter does when the operator may also have stepped through filtered matches with ↑/↓.
-/// A selected card still in the filtered list wins; otherwise the default `jump_choice` stands.
-pub fn jump_choice_with_selection(
+/// Resolve Enter's target directly from an already-computed filtered list (single pass).
+pub fn resolve_choice_from_shown(
     windows: &[WindowEntry],
+    shown: &[FilteredEntry<'_>],
     query: &str,
     allow_unlisted: bool,
     selected_card_id: Option<&str>,
@@ -127,61 +203,10 @@ pub fn jump_choice_with_selection(
         return None;
     }
     if let Some(selected) = selected_card_id
-        && filter_entries_with_matches(windows, query)
-            .iter()
-            .any(|item| item.entry.card_id == selected)
+        && shown.iter().any(|item| item.entry.card_id == selected)
     {
         return Some(JumpChoice::Card(selected.to_owned()));
     }
-    jump_choice(windows, query, allow_unlisted)
-}
-
-/// Move selection up (`-1`) or down (`+1`) through the filtered list with wraparound.
-pub fn step_selection(
-    windows: &[WindowEntry],
-    query: &str,
-    allow_unlisted: bool,
-    current_selected: Option<&str>,
-    direction: i32,
-) -> Option<String> {
-    if query.is_empty() {
-        return None;
-    }
-    let shown = filter_entries_with_matches(windows, query);
-    if shown.is_empty() {
-        return None;
-    }
-    let current = match jump_choice_with_selection(windows, query, allow_unlisted, current_selected)
-    {
-        Some(JumpChoice::Card(card_id)) => {
-            shown.iter().position(|item| item.entry.card_id == card_id)
-        }
-        Some(JumpChoice::Window(id)) => shown.iter().position(|item| item.entry.window_id == id),
-        None => None,
-    };
-    let next = match current {
-        Some(index) => {
-            (index as i64 + i64::from(direction)).rem_euclid(shown.len() as i64) as usize
-        }
-        None if direction >= 0 => 0,
-        None => shown.len() - 1,
-    };
-    Some(shown[next].entry.card_id.clone())
-}
-
-/// What Enter does. For a window-number query (bare digits or `#<digits>`): exact listed window
-/// wins, then exact AK task id (active before badge), then project name, then 4+ digit session id,
-/// then when `allow_unlisted` that exact unlisted window number (never a guessed completion). For
-/// any other query (project name, `ak...`, session id, task title), Enter opens the top match.
-pub fn jump_choice(
-    windows: &[WindowEntry],
-    query: &str,
-    allow_unlisted: bool,
-) -> Option<JumpChoice> {
-    if query.is_empty() {
-        return None;
-    }
-    let shown = filter_entries_with_matches(windows, query);
     if let Some(digits) = window_number_digits(query) {
         let number = parse_positive_id(digits);
         if let Some(id) = number
@@ -209,42 +234,141 @@ pub fn jump_choice(
         .map(|item| JumpChoice::Card(item.entry.card_id.clone()))
 }
 
+/// What Enter does when the operator may also have stepped through filtered matches with ↑/↓.
+pub fn jump_choice_with_selection(
+    windows: &[WindowEntry],
+    query: &str,
+    allow_unlisted: bool,
+    selected_card_id: Option<&str>,
+) -> Option<JumpChoice> {
+    if query.is_empty() {
+        return None;
+    }
+    let shown = filter_entries_with_matches(windows, query);
+    resolve_choice_from_shown(windows, &shown, query, allow_unlisted, selected_card_id)
+}
+
+/// Move selection up (`-1`) or down (`+1`) through the filtered list with wraparound.
+pub fn step_selection(
+    windows: &[WindowEntry],
+    query: &str,
+    allow_unlisted: bool,
+    current_selected: Option<&str>,
+    direction: i32,
+) -> Option<String> {
+    if query.is_empty() {
+        return None;
+    }
+    let shown = filter_entries_with_matches(windows, query);
+    if shown.is_empty() {
+        return None;
+    }
+    let current =
+        match resolve_choice_from_shown(windows, &shown, query, allow_unlisted, current_selected) {
+            Some(JumpChoice::Card(card_id)) => {
+                shown.iter().position(|item| item.entry.card_id == card_id)
+            }
+            Some(JumpChoice::Window(id)) => {
+                shown.iter().position(|item| item.entry.window_id == id)
+            }
+            None => None,
+        };
+    let next = match current {
+        Some(index) => {
+            (index as i64 + i64::from(direction)).rem_euclid(shown.len() as i64) as usize
+        }
+        None if direction >= 0 => 0,
+        None => shown.len() - 1,
+    };
+    Some(shown[next].entry.card_id.clone())
+}
+
+#[cfg(test)]
+pub fn jump_choice(
+    windows: &[WindowEntry],
+    query: &str,
+    allow_unlisted: bool,
+) -> Option<JumpChoice> {
+    jump_choice_with_selection(windows, query, allow_unlisted, None)
+}
+
 /// Classify the strongest match of `query` against one directory entry.
+#[cfg(test)]
 pub fn match_entry(entry: &WindowEntry, query: &str) -> Option<MatchKind> {
     if query.is_empty() {
         return None;
     }
-    let needle = query.to_lowercase();
-    let win_digits = window_number_digits(&needle);
-    if let Some(digits) = win_digits
-        && parse_positive_id(digits) == Some(entry.window_id)
-    {
+    match_parsed(entry, &ParsedQuery::new(query))
+}
+
+fn match_parsed(entry: &WindowEntry, parsed: &ParsedQuery) -> Option<MatchKind> {
+    if parsed.win_number == Some(entry.window_id) {
         return Some(MatchKind::WindowExact);
     }
-    let ak_match = match_ak_task_id(&entry.ak_tasks, &needle);
+    let ak_match = match_ak_task_id(&entry.ak_tasks, parsed);
     if let Some(kind @ (MatchKind::AkTaskExactActive(_) | MatchKind::AkTaskExactBadge(_))) =
         ak_match
     {
         return Some(kind);
     }
-    if entry.label.to_lowercase().contains(&needle) {
+    if entry.label.to_lowercase().contains(&parsed.needle) {
         return Some(MatchKind::Label);
     }
     if let Some(kind) = ak_match {
         return Some(kind);
     }
-    if let Some(sid) = match_session_id(&entry.session_ids, &needle) {
+    if let Some(sid) = match_session_id(&entry.session_ids, parsed) {
         return Some(MatchKind::SessionId(sid.to_owned()));
     }
-    if let Some(kind) = match_ak_task_title(&entry.ak_tasks, &needle) {
+    if let Some(kind) = match_ak_task_title(&entry.ak_tasks, parsed) {
         return Some(kind);
     }
-    if let Some(digits) = win_digits
+    if let Some(digits) = parsed.win_digits.as_deref()
         && entry.window_id.to_string().starts_with(digits)
     {
         return Some(MatchKind::WindowPrefix);
     }
     None
+}
+
+/// Format the directory status line directly from an already-computed filtered list and choice.
+pub fn format_status_from_shown(
+    shown: &[FilteredEntry<'_>],
+    query: &str,
+    choice: Option<&JumpChoice>,
+    can_type: bool,
+    hotkey: Option<&str>,
+) -> String {
+    if !can_type {
+        // The keyboard was handed back (hover timeout); a click or the shortcut takes it again.
+        return crate::hints::pointer_prompt(hotkey);
+    }
+    if query.is_empty() {
+        return "Type name, #, AK, or id · ⏎".to_owned();
+    }
+    let display_query = compact_query_tail(query, 14);
+    match choice {
+        Some(JumpChoice::Window(_)) => {
+            let shown_num = query.strip_prefix('#').unwrap_or(query);
+            format!("#{shown_num}▏ ⏎ jump · ⌫ edit")
+        }
+        Some(JumpChoice::Card(card_id)) => {
+            let item = shown.iter().find(|item| item.entry.card_id == *card_id);
+            let label = item.map(|i| i.entry.label.as_str()).unwrap_or("match");
+            match item.and_then(|i| i.match_kind.as_ref()) {
+                Some(
+                    MatchKind::AkTaskExactActive(task)
+                    | MatchKind::AkTaskExactBadge(task)
+                    | MatchKind::AkTaskPrefixActive(task)
+                    | MatchKind::AkTaskPrefixBadge(task)
+                    | MatchKind::AkTaskTitleActive(task)
+                    | MatchKind::AkTaskTitleBadge(task),
+                ) => format!("{display_query}▏ ⏎ AK{} · {label}", task.id),
+                _ => format!("{display_query}▏ ⏎ {label}"),
+            }
+        }
+        None => format!("{display_query}▏ no match"),
+    }
 }
 
 #[cfg(test)]
@@ -266,37 +390,13 @@ pub fn status_text_with_selection(
     hotkey: Option<&str>,
     selected_card_id: Option<&str>,
 ) -> String {
-    if !can_type {
-        // The keyboard was handed back (hover timeout); a click or the shortcut takes it again.
-        return crate::hints::pointer_prompt(hotkey);
+    if !can_type || query.is_empty() {
+        return format_status_from_shown(&[], query, None, can_type, hotkey);
     }
-    if query.is_empty() {
-        return "Type name, #, AK, or id · ⏎".to_owned();
-    }
-    let display_query = compact_query_tail(query, 14);
-    match jump_choice_with_selection(windows, query, allow_unlisted, selected_card_id) {
-        Some(JumpChoice::Window(_)) => {
-            let shown = query.strip_prefix('#').unwrap_or(query);
-            format!("#{shown}▏ ⏎ jump · ⌫ edit")
-        }
-        Some(JumpChoice::Card(card_id)) => {
-            let entry = windows.iter().find(|entry| entry.card_id == card_id);
-            let label = entry.map(|e| e.label.as_str()).unwrap_or("match");
-            let kind = entry.and_then(|e| match_entry(e, query));
-            match kind {
-                Some(
-                    MatchKind::AkTaskExactActive(task)
-                    | MatchKind::AkTaskExactBadge(task)
-                    | MatchKind::AkTaskPrefixActive(task)
-                    | MatchKind::AkTaskPrefixBadge(task)
-                    | MatchKind::AkTaskTitleActive(task)
-                    | MatchKind::AkTaskTitleBadge(task),
-                ) => format!("{display_query}▏ ⏎ AK{} · {label}", task.id),
-                _ => format!("{display_query}▏ ⏎ {label}"),
-            }
-        }
-        None => format!("{display_query}▏ no match"),
-    }
+    let shown = filter_entries_with_matches(windows, query);
+    let choice =
+        resolve_choice_from_shown(windows, &shown, query, allow_unlisted, selected_card_id);
+    format_status_from_shown(&shown, query, choice.as_ref(), can_type, hotkey)
 }
 
 fn window_number_digits(query: &str) -> Option<&str> {
@@ -315,11 +415,11 @@ fn parse_positive_id(digits: &str) -> Option<i64> {
     digits.parse::<i64>().ok().filter(|id| *id > 0)
 }
 
-fn match_ak_task_id(tasks: &[AkTask], needle: &str) -> Option<MatchKind> {
+fn match_ak_task_id(tasks: &[AkTask], parsed: &ParsedQuery) -> Option<MatchKind> {
     if tasks.is_empty() {
         return None;
     }
-    if matches!(needle, "ak" | "ak-" | "ak:") {
+    if parsed.ak_bare {
         return tasks
             .iter()
             .find(|task| task.is_active())
@@ -327,23 +427,14 @@ fn match_ak_task_id(tasks: &[AkTask], needle: &str) -> Option<MatchKind> {
             .map(MatchKind::AkTaskPrefixActive)
             .or_else(|| tasks.first().cloned().map(MatchKind::AkTaskPrefixBadge));
     }
-    let digits = if let Some(rest) = needle.strip_prefix("ak") {
-        let rest = rest
-            .strip_prefix('-')
-            .or_else(|| rest.strip_prefix(':'))
-            .unwrap_or(rest);
-        (!rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit())).then_some(rest)
-    } else {
-        window_number_digits(needle)
-    }?;
-    let exact = parse_positive_id(digits);
+    let digits = parsed.ak_digits.as_deref()?;
     let ordered = tasks
         .iter()
         .filter(|task| task.is_active())
         .chain(tasks.iter().filter(|task| !task.is_active()));
     let mut prefix_match = None;
     for task in ordered {
-        if exact == Some(task.id) {
+        if parsed.ak_number == Some(task.id) {
             return Some(if task.is_active() {
                 MatchKind::AkTaskExactActive(task.clone())
             } else {
@@ -361,18 +452,9 @@ fn match_ak_task_id(tasks: &[AkTask], needle: &str) -> Option<MatchKind> {
     prefix_match
 }
 
-fn match_ak_task_title(tasks: &[AkTask], needle: &str) -> Option<MatchKind> {
+fn match_ak_task_title(tasks: &[AkTask], parsed: &ParsedQuery) -> Option<MatchKind> {
+    let title_needle = parsed.ak_title_needle.as_deref()?;
     if tasks.is_empty() {
-        return None;
-    }
-    let (title_needle, explicit) = match needle
-        .strip_prefix("ak:")
-        .or_else(|| needle.strip_prefix("ak-"))
-    {
-        Some(rest) if !rest.is_empty() && !rest.chars().all(|c| c.is_ascii_digit()) => (rest, true),
-        _ => (needle, false),
-    };
-    if !explicit && title_needle.chars().count() < MIN_TASK_TITLE_CHARS {
         return None;
     }
     tasks
@@ -412,46 +494,30 @@ pub(crate) fn strip_session_prefix(needle: &str) -> (&str, bool) {
     (needle, false)
 }
 
-fn match_session_id<'a>(session_ids: &'a [String], needle: &str) -> Option<&'a str> {
+fn match_session_id<'a>(session_ids: &'a [String], parsed: &ParsedQuery) -> Option<&'a str> {
     if session_ids.is_empty() {
         return None;
     }
-    let (stripped, explicit) = strip_session_prefix(needle);
-    let compact: String = stripped.chars().filter(|c| *c != '-').collect();
-    if explicit && stripped.is_empty() {
+    if parsed.session_explicit && parsed.session_stripped.is_empty() {
         return session_ids.first().map(String::as_str);
     }
-    if compact.is_empty() {
+    if !parsed.session_can_prefix && !parsed.session_can_substring {
         return None;
     }
-    let all_digits = compact.chars().all(|c| c.is_ascii_digit());
-    let all_hex = compact.chars().all(|c| c.is_ascii_hexdigit());
-    let min_prefix = if explicit {
-        1
-    } else if all_digits {
-        MIN_BARE_SESSION_SUBSTRING
-    } else if all_hex {
-        MIN_BARE_SESSION_PREFIX
-    } else {
-        2
-    };
-    let min_substring = if explicit {
-        1
-    } else {
-        MIN_BARE_SESSION_SUBSTRING
-    };
     let mut substring_hit = None;
     for sid in session_ids {
         let lower = sid.to_lowercase();
         let sid_compact: String = lower.chars().filter(|c| *c != '-').collect();
-        if compact.len() >= min_prefix
-            && (lower.starts_with(stripped) || sid_compact.starts_with(&compact))
+        if parsed.session_can_prefix
+            && (lower.starts_with(&parsed.session_stripped)
+                || sid_compact.starts_with(&parsed.session_compact))
         {
             return Some(sid.as_str());
         }
-        if substring_hit.is_none()
-            && compact.len() >= min_substring
-            && (lower.contains(stripped) || sid_compact.contains(&compact))
+        if parsed.session_can_substring
+            && substring_hit.is_none()
+            && (lower.contains(&parsed.session_stripped)
+                || sid_compact.contains(&parsed.session_compact))
         {
             substring_hit = Some(sid.as_str());
         }
