@@ -23,6 +23,13 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.5.5](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.4...pi-ontology-workflows-v0.5.5) (2026-11-19)
+
+
+### Bug Fixes
+
+* **tools:** type StringEnum tool parameters with typebox again under pi-ai 1.5 (AK8848) ([6a2fd83](https://github.com/tryingET/pi-extensions/commit/6a2fd83bcd7f4529975bd9e65a35905d0148ca26))
+
 ## [0.5.4](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.5.3...pi-ontology-workflows-v0.5.4) (2026-11-06)
 
 

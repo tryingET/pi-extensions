@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.1](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.6.0...pi-snapshot-edit-v0.6.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **tools:** type StringEnum tool parameters with typebox again under pi-ai 1.5 (AK8848) ([6a2fd83](https://github.com/tryingET/pi-extensions/commit/6a2fd83bcd7f4529975bd9e65a35905d0148ca26))
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.5.1...pi-snapshot-edit-v0.6.0) (2026-10-09)
 
 

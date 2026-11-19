@@ -13,6 +13,21 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.14](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.13...pi-agent-registry-v0.3.14) (2026-11-19)
+
+
+### Bug Fixes
+
+* **tools:** type StringEnum tool parameters with typebox again under pi-ai 1.5 (AK8848) ([6a2fd83](https://github.com/tryingET/pi-extensions/commit/6a2fd83bcd7f4529975bd9e65a35905d0148ca26))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from file:../pi-autonomous-session-control to 0.8.2
+    * @tryinget/pi-little-helpers bumped from file:../pi-little-helpers to 0.13.1
+
 ## [0.3.13](https://github.com/tryingET/pi-extensions/compare/pi-agent-registry-v0.3.12...pi-agent-registry-v0.3.13) (2026-11-06)
 
 

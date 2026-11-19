@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.3](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.7.2...pi-workstation-inference-provider-v0.7.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **workstation-inference:** omit audio tool fields instead of sending tools: [] (AK8848) ([492d4f6](https://github.com/tryingET/pi-extensions/commit/492d4f6ae60094f3697f2ec584ac2526afb6a008))
+
 ## [0.7.2](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.7.1...pi-workstation-inference-provider-v0.7.2) (2026-11-15)
 
 

@@ -13,6 +13,19 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.3...pi-peer-messaging-v0.5.0) (2026-11-19)
+
+
+### Features
+
+* **pi-peer-messaging:** add mycel file freshness pinning, hop guards, and replier-side reply contracts ([e31acb3](https://github.com/tryingET/pi-extensions/commit/e31acb3746583b9943e35be09daaf7160ccb66f8))
+
+
+### Bug Fixes
+
+* **pi-peer-messaging:** explicit-path file freshness, own-key/asker contracts, causal hop replies, short IDs, and inform expectsReply ([1ad9c5a](https://github.com/tryingET/pi-extensions/commit/1ad9c5aad676b75d52b97c00282ee91559344bae))
+* **pi-peer-messaging:** non-valid reply placeholders, restore send-reply default, bounded sha256 read, hop ceiling ([b3cc014](https://github.com/tryingET/pi-extensions/commit/b3cc014c949f748e6d0fe90b42155330c82892eb))
+
 ## [0.4.3](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.4.2...pi-peer-messaging-v0.4.3) (2026-10-01)
 
 

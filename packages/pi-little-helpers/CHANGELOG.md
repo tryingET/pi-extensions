@@ -32,6 +32,21 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.13.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.13.0...pi-little-helpers-v0.13.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **pi-little-helpers:** update-lock holds the pinned toolchain and seeds without own-scope paths (AK8895) ([baa7897](https://github.com/tryingET/pi-extensions/commit/baa7897837f228e053d233e0c85156977618f005))
+* **tools:** type StringEnum tool parameters with typebox again under pi-ai 1.5 (AK8848) ([6a2fd83](https://github.com/tryingET/pi-extensions/commit/6a2fd83bcd7f4529975bd9e65a35905d0148ca26))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * peerDependencies
+    * @tryinget/pi-peer-messaging bumped from 0.4.3 to 0.5.0
+
 ## [0.13.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.12.0...pi-little-helpers-v0.13.0) (2026-11-06)
 
 

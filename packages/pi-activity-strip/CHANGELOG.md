@@ -57,6 +57,26 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.11.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.10.0...pi-activity-strip-v0.11.0) (2026-11-19)
+
+
+### Features
+
+* **pi-activity-strip:** agy harness discovery + nodecode/claude/agnt/codex fixes (AK8809) ([ebb58be](https://github.com/tryingET/pi-extensions/commit/ebb58be12042226def298e8e27d101afb6df51e4))
+* **pi-activity-strip:** navigate filtered directory matches with Up/Down arrows before Enter ([1509856](https://github.com/tryingET/pi-extensions/commit/1509856df95c74caa95b65c4acebf9f2a03c6f13))
+* **pi-activity-strip:** search directory by AK tasks and session IDs ([a1f942c](https://github.com/tryingET/pi-extensions/commit/a1f942ccf3861938c0217458bd961255e3df5464))
+
+
+### Bug Fixes
+
+* **pi-activity-strip:** agy flock matched by inode against the holder's open lock file, not major:minor:inode (AK8809) ([578ebcc](https://github.com/tryingET/pi-extensions/commit/578ebcc0e7e77cf52850d3a4512458aa39208e29))
+* **pi-activity-strip:** AK8809 review M1-M3, S1-S4 - lock holders, agy error and stale states, store reads, launcher folding ([7112749](https://github.com/tryingET/pi-extensions/commit/71127499fa30dc7e7619b364dc2cda368a067289))
+
+
+### Performance Improvements
+
+* **pi-activity-strip:** memoize directory AK joins and collapse panel search to single pass ([d06fbde](https://github.com/tryingET/pi-extensions/commit/d06fbde4b85db8b6524ef9e6ca30216b79221a85))
+
 ## [0.10.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.9.0...pi-activity-strip-v0.10.0) (2026-11-06)
 
 
