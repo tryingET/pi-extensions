@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.8.2](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.8.1...pi-autonomous-session-control-v0.8.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **tools:** type StringEnum tool parameters with typebox again under pi-ai 1.5 (AK8848) ([6a2fd83](https://github.com/tryingET/pi-extensions/commit/6a2fd83bcd7f4529975bd9e65a35905d0148ca26))
+
 ## [0.8.1](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.8.0...pi-autonomous-session-control-v0.8.1) (2026-11-06)
 
 

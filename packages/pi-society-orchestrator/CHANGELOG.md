@@ -13,6 +13,23 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.13.5](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.4...pi-society-orchestrator-v0.13.5) (2026-11-19)
+
+
+### Bug Fixes
+
+* **canaries:** give vault-client its company through VAULT_CURRENT_COMPANY (AK8895) ([ea655ac](https://github.com/tryingET/pi-extensions/commit/ea655ac22612668f26c0527e7e59fc7533259763))
+* **canary:** governed deep-review canary and cognitive-tools test use VAULT_CURRENT_COMPANY (AK8900) ([ed75732](https://github.com/tryingET/pi-extensions/commit/ed757329e656afa24add70c37e95a91cc97d3e0c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-autonomous-session-control bumped from ^0.8.1 to ^0.8.2
+    * @tryinget/pi-autoresearch bumped from file:../pi-autoresearch to 0.5.5
+    * @tryinget/pi-vault-client bumped from file:../pi-vault-client to 0.8.0
+
 ## [0.13.4](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.13.3...pi-society-orchestrator-v0.13.4) (2026-11-06)
 
 

@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.7.2...pi-vault-client-v0.8.0) (2026-11-19)
+
+
+### Features
+
+* **pi-vault-client:** a row naming every register company reaches everyone, no company included (same rule as pv_company.py) ([21e9ae7](https://github.com/tryingET/pi-extensions/commit/21e9ae736686393e0eb9b830818ac9e7e7361bea))
+* **pi-vault-client:** one company variable and the register names ([5f10f64](https://github.com/tryingET/pi-extensions/commit/5f10f64c8488153a29bc969916bb460978fdd9e3))
+
+
+### Bug Fixes
+
+* **pi-vault-client:** dispatch authorization reads visibility by the register rule ([4f826d5](https://github.com/tryingET/pi-extensions/commit/4f826d5a830e0c20775564a73385d2e3358754b3))
+* **pi-vault-client:** dispatch validators accept register names and old spellings; owner counted in any spelling (widened rows stay valid) ([e1fbddf](https://github.com/tryingET/pi-extensions/commit/e1fbddf3af803c2a3df44b3d2bedc76d5b31b38e))
+
 ## [0.7.2](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.7.1...pi-vault-client-v0.7.2) (2026-10-09)
 
 
